@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cryptolib"
+version = "3.0.0"
+description = "CryptoLib for Python — hashing, AEAD, asymmetric, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring, via ctypes. The native library is bundled per platform and loaded automatically."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["cryptolib*"]
+
+[tool.setuptools.package-data]
+cryptolib = ["_native/*/*"]

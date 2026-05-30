@@ -1,0 +1,32 @@
+name: cryptolib_flutter
+description: "CryptoLib for Flutter — hashing, AEAD, asymmetric, vaults, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring via dart:ffi. The native library is bundled per platform and loaded automatically."
+version: 3.0.0
+homepage: https://example.com/cryptolib
+
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    # ffiPlugin: native code is bundled and loaded via dart:ffi (no method
+    # channel / plugin class). The prebuilt CryptoLib binary is vendored per
+    # platform — iOS/macOS via the podspec's vendored xcframework, Android via
+    # jniLibs — so consuming apps need no manual setup or library path.
+    platforms:
+      android:
+        ffiPlugin: true
+      ios:
+        ffiPlugin: true
+      macos:
+        ffiPlugin: true

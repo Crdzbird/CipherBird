@@ -1,0 +1,24 @@
+{
+  "name": "cryptolib-react-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "React (Vite) UI for CryptoLib. The browser cannot load a .dylib, so it talks to a Node+koffi server (server.mjs) which calls the native library — the same architecture a production web app would use.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server.mjs",
+    "test:webauthn": "node test/webauthn_e2e.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "koffi": "^2.9.0",
+    "playwright": "^1.47.0"
+  }
+}

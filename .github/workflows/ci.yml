@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# macOS-arm64 mirrors the known-good local build. Deps: Homebrew formulae +
+# blst built from source (not a formula). Linux coverage would need the deps
+# built from source (see scripts/) — tracked separately.
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          brew install cmake ninja libsodium liboqs blake3 openssl@3
+      - name: Build blst from source
+        run: |
+          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
+          (cd /tmp/blst && ./build.sh)
+          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
+          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Configure + build tests
+        run: |
+          cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
+          cmake --build build/test --target cryptolib_tests
+      - name: Run tests
+        run: ./build/test/cryptolib_tests
+
+  asan:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+      - name: Build blst from source
+        run: |
+          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
+          (cd /tmp/blst && ./build.sh)
+          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
+          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build + run under ASan/UBSan
+        run: |
+          cmake -S . -B build/asan -G Ninja -DCRYPTOLIB_SANITIZE=ON \
+            -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF
+          cmake --build build/asan --target cryptolib_tests
+          ASAN_OPTIONS=detect_leaks=0 ./build/asan/cryptolib_tests
+
+  tsan:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+      - name: Build blst from source
+        run: |
+          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
+          (cd /tmp/blst && ./build.sh)
+          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
+          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build + run under ThreadSanitizer
+        run: |
+          cmake -S . -B build/tsan -G Ninja -DCRYPTOLIB_TSAN=ON \
+            -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF
+          cmake --build build/tsan --target cryptolib_tests
+          TSAN_OPTIONS=halt_on_error=1 ./build/tsan/cryptolib_tests
+
+  # MSan is intentionally NOT a job here: it requires libsodium/liboqs/OpenSSL to
+  # be rebuilt with MSan instrumentation (uninstrumented deps cause false
+  # uninitialised-read reports). Scope it to the pure in-repo parsers (stego /
+  # packet) on a Linux runner with instrumented deps when that lands.
+
+  fuzz:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps (LLVM clang for libFuzzer)
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 llvm
+      - name: Build blst from source
+        run: |
+          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
+          (cd /tmp/blst && ./build.sh)
+          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
+          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build + run fuzz targets (time-boxed)
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        run: |
+          cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
+          cmake --build build/fuzz
+          for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_stego build/fuzz/fuzz_diff_aead; do
+            [ -x "$fz" ] && "$fz" -max_total_time=60 -print_final_stats=1 || true
+          done
+
+  # Constant-time verification runs on Linux (Valgrind/ctgrind) — added once the
+  # Linux dep build lands; the CT harness + CMake option already exist locally.

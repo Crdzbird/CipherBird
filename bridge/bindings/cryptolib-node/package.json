@@ -1,0 +1,22 @@
+{
+  "name": "cryptolib",
+  "version": "3.0.0",
+  "description": "CryptoLib for Node.js — hashing, AEAD, asymmetric, vaults, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring, via koffi FFI. The native library is bundled and loaded automatically.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "prebuilds/"
+  ],
+  "scripts": {
+    "test": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0"
+  },
+  "license": "MIT"
+}
