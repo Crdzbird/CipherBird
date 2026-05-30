@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- NuGet packaging metadata -->
+    <PackageId>CryptoLib</PackageId>
+    <Version>3.0.0</Version>
+    <Description>CryptoLib for .NET — hashing, AEAD, asymmetric, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS, keyring via P/Invoke. Native library bundled per-RID and loaded automatically.</Description>
+  </PropertyGroup>
+
+  <!-- Ship the native library under runtimes/<rid>/native/ — NuGet auto-probes
+       this layout, and the local resolver below mirrors it for project use. -->
+  <ItemGroup>
+    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

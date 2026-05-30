@@ -1,0 +1,61 @@
+name: Release
+
+# Tag-triggered supply-chain pipeline: build self-contained artifacts, generate
+# an SBOM, checksum + keyless-sign them (cosign/OIDC), emit SLSA provenance, and
+# attach everything to a GitHub Release. Requires the repo on GitHub.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write     # create the release
+  id-token: write     # keyless cosign + SLSA provenance (OIDC)
+
+jobs:
+  build:
+    runs-on: macos-14
+    outputs:
+      digest: ${{ steps.hash.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+      - name: Build self-contained desktop binary
+        run: bash scripts/build_selfcontained.sh build/release-artifacts
+      - name: Checksums
+        id: hash
+        run: |
+          bash scripts/release/checksums.sh build/release-artifacts/SHA256SUMS
+          echo "digest=$(shasum -a 256 build/release-artifacts/SHA256SUMS | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: SBOM (syft)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: build/release-artifacts/cryptolib.sbom.spdx.json
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Keyless-sign the checksums
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign-blob --yes \
+            --output-signature build/release-artifacts/SHA256SUMS.sig \
+            --output-certificate build/release-artifacts/SHA256SUMS.pem \
+            build/release-artifacts/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: build/release-artifacts/*
+
+  # SLSA build provenance for the artifacts (verifiable with slsa-verifier).
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.digest }}
+      upload-assets: true

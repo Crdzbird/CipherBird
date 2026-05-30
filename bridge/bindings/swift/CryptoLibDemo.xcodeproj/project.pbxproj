@@ -1,0 +1,416 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA0000000000000000000001 /* CryptoLibApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000101; };
+		AA0000000000000000000002 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102; };
+		AA0000000000000000000003 /* CryptoLibBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000103; };
+		AA0000000000000000000004 /* HashingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000104; };
+		AA0000000000000000000005 /* EncryptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000105; };
+		AA0000000000000000000006 /* EntropyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000106; };
+		AA0000000000000000000007 /* VaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000107; };
+		AA0000000000000000000008 /* SteganographyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000108; };
+		AA0000000000000000000009 /* HexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000109; };
+		AA000000000000000000000A /* FilePickerButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010A; };
+		AA000000000000000000000B /* AsymmetricView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010F; };
+		AA000000000000000000000C /* AdvancedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110; };
+		AA000000000000000000000D /* LavaRandClientView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000111; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA0000000000000000000060 /* CryptoLibDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CryptoLibDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000101 /* CryptoLibApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoLibApp.swift; sourceTree = "<group>"; };
+		AA0000000000000000000102 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		AA0000000000000000000103 /* CryptoLibBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoLibBridge.swift; sourceTree = "<group>"; };
+		AA0000000000000000000104 /* HashingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HashingView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000105 /* EncryptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000106 /* EntropyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntropyView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000107 /* VaultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000108 /* SteganographyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteganographyView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000109 /* HexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexView.swift; sourceTree = "<group>"; };
+		AA000000000000000000010A /* FilePickerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePickerButton.swift; sourceTree = "<group>"; };
+		AA000000000000000000010B /* cryptolib_c.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cryptolib_c.h; sourceTree = "<group>"; };
+		AA000000000000000000010C /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		AA000000000000000000010D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA000000000000000000010E /* CryptoLibDemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CryptoLibDemo.entitlements; sourceTree = "<group>"; };
+		AA000000000000000000010F /* AsymmetricView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsymmetricView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000110 /* AdvancedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000111 /* LavaRandClientView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LavaRandClientView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA0000000000000000000030 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA0000000000000000000200 /* = mainGroup */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000010D /* Info.plist */,
+				AA000000000000000000010E /* CryptoLibDemo.entitlements */,
+				AA0000000000000000000201 /* Sources */,
+				AA0000000000000000000210 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000201 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000202 /* CCryptoLib */,
+				AA0000000000000000000203 /* CryptoLibDemo */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000202 /* CCryptoLib */ = {
+			isa = PBXGroup;
+			children = (
+				AA000000000000000000010B /* cryptolib_c.h */,
+				AA000000000000000000010C /* module.modulemap */,
+			);
+			path = CCryptoLib;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000203 /* CryptoLibDemo */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000101 /* CryptoLibApp.swift */,
+				AA0000000000000000000102 /* App.swift */,
+				AA0000000000000000000103 /* CryptoLibBridge.swift */,
+				AA0000000000000000000204 /* Views */,
+				AA0000000000000000000205 /* Helpers */,
+			);
+			path = CryptoLibDemo;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000204 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000104 /* HashingView.swift */,
+				AA0000000000000000000105 /* EncryptionView.swift */,
+				AA0000000000000000000106 /* EntropyView.swift */,
+				AA0000000000000000000107 /* VaultView.swift */,
+				AA0000000000000000000108 /* SteganographyView.swift */,
+				AA000000000000000000010F /* AsymmetricView.swift */,
+				AA0000000000000000000110 /* AdvancedView.swift */,
+				AA0000000000000000000111 /* LavaRandClientView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000205 /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000109 /* HexView.swift */,
+				AA000000000000000000010A /* FilePickerButton.swift */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000210 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000060 /* CryptoLibDemo.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA0000000000000000000050 /* CryptoLibDemo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000080 /* Build configuration list for PBXNativeTarget "CryptoLibDemo" */;
+			buildPhases = (
+				AA0000000000000000000020 /* Sources */,
+				AA0000000000000000000030 /* Frameworks */,
+				AA0000000000000000000040 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CryptoLibDemo;
+			productName = CryptoLibDemo;
+			productReference = AA0000000000000000000060 /* CryptoLibDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA0000000000000000000300 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AA0000000000000000000050 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = AA0000000000000000000070 /* Build configuration list for PBXProject "CryptoLibDemo" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA0000000000000000000200;
+			productRefGroup = AA0000000000000000000210 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000050 /* CryptoLibDemo */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA0000000000000000000040 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA0000000000000000000020 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000001 /* CryptoLibApp.swift in Sources */,
+				AA0000000000000000000002 /* App.swift in Sources */,
+				AA0000000000000000000003 /* CryptoLibBridge.swift in Sources */,
+				AA0000000000000000000004 /* HashingView.swift in Sources */,
+				AA0000000000000000000005 /* EncryptionView.swift in Sources */,
+				AA0000000000000000000006 /* EntropyView.swift in Sources */,
+				AA0000000000000000000007 /* VaultView.swift in Sources */,
+				AA0000000000000000000008 /* SteganographyView.swift in Sources */,
+				AA0000000000000000000009 /* HexView.swift in Sources */,
+				AA000000000000000000000A /* FilePickerButton.swift in Sources */,
+				AA000000000000000000000B /* AsymmetricView.swift in Sources */,
+				AA000000000000000000000C /* AdvancedView.swift in Sources */,
+				AA000000000000000000000D /* LavaRandClientView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AA0000000000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA0000000000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		AA0000000000000000000081 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CryptoLibDemo.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_ALLOWED = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-lcryptolib_c";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cryptolib.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Sources/CCryptoLib",
+				);
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000082 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CryptoLibDemo.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_ALLOWED = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-lcryptolib_c";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cryptolib.demo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Sources/CCryptoLib",
+				);
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA0000000000000000000070 /* Build configuration list for PBXProject "CryptoLibDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000071 /* Debug */,
+				AA0000000000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000080 /* Build configuration list for PBXNativeTarget "CryptoLibDemo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000081 /* Debug */,
+				AA0000000000000000000082 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AA0000000000000000000300 /* Project object */;
+}

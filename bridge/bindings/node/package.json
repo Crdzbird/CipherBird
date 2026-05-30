@@ -1,0 +1,9 @@
+{
+  "name": "cryptolib-node-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node.js FFI demo for CryptoLib via koffi (also the React Native native-call path).",
+  "main": "demo.js",
+  "scripts": { "start": "node demo.js" },
+  "dependencies": { "koffi": "^2.9.0" }
+}
