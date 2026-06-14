@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"cryptolib_bridge/cryptolib"
+	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════

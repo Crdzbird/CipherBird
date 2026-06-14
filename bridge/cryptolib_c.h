@@ -633,6 +633,45 @@ CRYPTO_API int cryptolib_bls_aggregate_verify(
     const uint8_t* agg_sig, size_t agg_sig_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
+ *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
+ *   recovery module). When disabled they return an error result / 0 rather
+ *   than vanishing from the ABI.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Keccak-256 — ORIGINAL Keccak padding (Ethereum). 32-byte output.
+ *  NOT NIST SHA3-256 (different padding → different digest). */
+CRYPTO_API CryptoBufferResult cryptolib_keccak256(const uint8_t* msg, size_t msg_len);
+
+/** RIPEMD-160. 20-byte output. Bitcoin HASH160(x) = ripemd160(sha256(x)). */
+CRYPTO_API CryptoBufferResult cryptolib_ripemd160(const uint8_t* msg, size_t msg_len);
+
+/** secp256k1 keypair. sk = 32 bytes; pk = 65 bytes uncompressed (0x04 ‖ X ‖ Y). */
+CRYPTO_API CryptoKeyPair cryptolib_secp256k1_keygen(void);
+
+/** Derive the public key from a 32-byte secret key.
+ *  compressed: 1 → 33 bytes (0x02/0x03 ‖ X), 0 → 65 bytes (0x04 ‖ X ‖ Y). */
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_pubkey(
+    const uint8_t* secret_key, size_t sk_len, int compressed);
+
+/** Sign a 32-byte digest. RFC6979 deterministic nonce, low-S normalized.
+ *  Returns 65 bytes: r(32) ‖ s(32) ‖ recovery_id(1, value 0..3). */
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_sign(
+    const uint8_t* digest32, const uint8_t* secret_key, size_t sk_len);
+
+/** Verify. sig is 64 bytes (r ‖ s); pk is 33 or 65 bytes. Low-S enforced.
+ *  Returns 1 if valid, 0 otherwise. */
+CRYPTO_API int cryptolib_secp256k1_verify(
+    const uint8_t* digest32,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len);
+
+/** Recover the public key (65-byte uncompressed) from a 32-byte digest and a
+ *  65-byte recoverable signature (r ‖ s ‖ recovery_id). Ethereum ecrecover. */
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
+    const uint8_t* digest32, const uint8_t* sig65);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Steganography — hide data inside media files
  * ═══════════════════════════════════════════════════════════════════════════ */
 

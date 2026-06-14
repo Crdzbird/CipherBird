@@ -1,20 +1,14 @@
 PODS:
-  - cryptolib_flutter (3.0.0):
-    - Flutter
   - Flutter (1.0.0)
 
 DEPENDENCIES:
-  - cryptolib_flutter (from `.symlinks/plugins/cryptolib_flutter/ios`)
   - Flutter (from `Flutter`)
 
 EXTERNAL SOURCES:
-  cryptolib_flutter:
-    :path: ".symlinks/plugins/cryptolib_flutter/ios"
   Flutter:
     :path: Flutter
 
 SPEC CHECKSUMS:
-  cryptolib_flutter: 51d350226202905e235cebdd6c30d48f670cd175
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e

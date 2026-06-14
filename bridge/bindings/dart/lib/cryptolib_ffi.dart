@@ -135,6 +135,22 @@ typedef _Sha256Dart = CryptoBufferResult Function(Pointer<Uint8> msg, int msgLen
 typedef _Sha512C = CryptoBufferResult Function(Pointer<Uint8> msg, Size msgLen);
 typedef _Sha512Dart = CryptoBufferResult Function(Pointer<Uint8> msg, int msgLen);
 
+// BLAKE3 — primary parallelizable hash, keyed MAC, and KDF (domain separation).
+typedef _Blake3C = CryptoBufferResult Function(
+    Pointer<Uint8> msg, Size msgLen, Size outLen);
+typedef _Blake3Dart = CryptoBufferResult Function(
+    Pointer<Uint8> msg, int msgLen, int outLen);
+
+typedef _Blake3KeyedC = CryptoBufferResult Function(
+    Pointer<Uint8> msg, Size msgLen, Pointer<Uint8> key, Size keyLen, Size outLen);
+typedef _Blake3KeyedDart = CryptoBufferResult Function(
+    Pointer<Uint8> msg, int msgLen, Pointer<Uint8> key, int keyLen, int outLen);
+
+typedef _Blake3DeriveKeyC = CryptoBufferResult Function(
+    Pointer<Utf8> context, Pointer<Uint8> ikm, Size ikmLen, Size outLen);
+typedef _Blake3DeriveKeyDart = CryptoBufferResult Function(
+    Pointer<Utf8> context, Pointer<Uint8> ikm, int ikmLen, int outLen);
+
 typedef _HmacSha512C = CryptoBufferResult Function(
     Pointer<Uint8> msg, Size msgLen, Pointer<Uint8> key, Size keyLen);
 typedef _HmacSha512Dart = CryptoBufferResult Function(
@@ -562,6 +578,9 @@ class CryptoLib {
   late final _Blake2bDart _blake2b;
   late final _Sha256Dart _sha256;
   late final _Sha512Dart _sha512;
+  late final _Blake3Dart _blake3;
+  late final _Blake3KeyedDart _blake3Keyed;
+  late final _Blake3DeriveKeyDart _blake3DeriveKey;
   late final _HmacSha512Dart _hmacSha512;
   late final _HmacSha512VerifyDart _hmacSha512Verify;
 
@@ -667,6 +686,9 @@ class CryptoLib {
     _blake2b = _lib.lookupFunction<_Blake2bC, _Blake2bDart>('cryptolib_blake2b');
     _sha256 = _lib.lookupFunction<_Sha256C, _Sha256Dart>('cryptolib_sha256');
     _sha512 = _lib.lookupFunction<_Sha512C, _Sha512Dart>('cryptolib_sha512');
+    _blake3 = _lib.lookupFunction<_Blake3C, _Blake3Dart>('cryptolib_blake3');
+    _blake3Keyed = _lib.lookupFunction<_Blake3KeyedC, _Blake3KeyedDart>('cryptolib_blake3_keyed');
+    _blake3DeriveKey = _lib.lookupFunction<_Blake3DeriveKeyC, _Blake3DeriveKeyDart>('cryptolib_blake3_derive_key');
     _hmacSha512 = _lib.lookupFunction<_HmacSha512C, _HmacSha512Dart>('cryptolib_hmac_sha512');
     _hmacSha512Verify = _lib.lookupFunction<_HmacSha512VerifyC, _HmacSha512VerifyDart>('cryptolib_hmac_sha512_verify');
 
@@ -775,6 +797,32 @@ class CryptoLib {
     return out;
   }
 
+  /// Copy a CryptoBuffer's bytes out WITHOUT freeing it (caller frees the
+  /// owning native struct separately, e.g. via cryptolib_kem_encaps_free).
+  Uint8List _copyBufView(CryptoBuffer buf) {
+    if (buf.data == nullptr || buf.len == 0) return Uint8List(0);
+    final out = Uint8List(buf.len);
+    out.setAll(0, buf.data.asTypedList(buf.len));
+    return out;
+  }
+
+  /// Copy both buffers out of a KEM encapsulation result, then release the
+  /// whole result with cryptolib_kem_encaps_free in a single call.
+  (Uint8List, Uint8List) _drainKemEncaps(CryptoKemEncapsResult r) {
+    final ct = _copyBufView(r.ciphertext);
+    final ss = _copyBufView(r.sharedSecret);
+    final rp = calloc<CryptoKemEncapsResult>();
+    rp.ref.ciphertext.data = r.ciphertext.data;
+    rp.ref.ciphertext.len = r.ciphertext.len;
+    rp.ref.sharedSecret.data = r.sharedSecret.data;
+    rp.ref.sharedSecret.len = r.sharedSecret.len;
+    _lib.lookupFunction<Void Function(Pointer<CryptoKemEncapsResult>),
+            void Function(Pointer<CryptoKemEncapsResult>)>(
+        'cryptolib_kem_encaps_free')(rp);
+    calloc.free(rp);
+    return (ct, ss);
+  }
+
   Uint8List _checkBufResult(CryptoBufferResult r) {
     if (r.error != nullptr) {
       final msg = r.error.toDartString();
@@ -798,6 +846,33 @@ class CryptoLib {
     final ptr = calloc<Uint8>(data.length);
     ptr.asTypedList(data.length).setAll(0, data);
     return ptr;
+  }
+
+  /// Marshal a list of byte buffers into the C `const uint8_t* const*` +
+  /// `const size_t*` array pair. Returns the pointer-array and length-array;
+  /// release both (and the element buffers) with [_freeNativeList].
+  (Pointer<Pointer<Uint8>>, Pointer<Size>) _toNativeList(List<Uint8List> items) {
+    final n = items.length;
+    final ptrs = calloc<Pointer<Uint8>>(n);
+    final lens = calloc<Size>(n);
+    for (var i = 0; i < n; i++) {
+      final b = items[i];
+      // calloc(0) is implementation-defined; allocate at least 1 byte so every
+      // element pointer is non-null and distinct.
+      final p = calloc<Uint8>(b.isEmpty ? 1 : b.length);
+      if (b.isNotEmpty) p.asTypedList(b.length).setAll(0, b);
+      ptrs[i] = p;
+      lens[i] = b.length;
+    }
+    return (ptrs, lens);
+  }
+
+  void _freeNativeList(Pointer<Pointer<Uint8>> ptrs, Pointer<Size> lens, int n) {
+    for (var i = 0; i < n; i++) {
+      if (ptrs[i] != nullptr) calloc.free(ptrs[i]);
+    }
+    calloc.free(ptrs);
+    calloc.free(lens);
   }
 
   Packet _extractPacket(CryptoPacket cp, Pointer<Pointer<Utf8>> errPtr) {
@@ -915,6 +990,130 @@ class CryptoLib {
       return _checkBufResult(_sha512(pm, msg.length));
     } finally {
       if (pm != nullptr) calloc.free(pm);
+    }
+  }
+
+  /// BLAKE3 hash. [outLen] is the extendable output length in bytes
+  /// (defaults to 32). Pass a larger value to use BLAKE3 as an XOF.
+  Uint8List blake3(Uint8List msg, {int outLen = 32}) {
+    final pm = _toNative(msg);
+    try {
+      return _checkBufResult(_blake3(pm, msg.length, outLen));
+    } finally {
+      if (pm != nullptr) calloc.free(pm);
+    }
+  }
+
+  /// BLAKE3 keyed MAC. [key] must be exactly 32 bytes. [outLen] defaults to 32.
+  Uint8List blake3Keyed(Uint8List msg, Uint8List key, {int outLen = 32}) {
+    if (key.length != 32) {
+      throw ArgumentError('BLAKE3 keyed MAC requires a 32-byte key, got ${key.length}');
+    }
+    final pm = _toNative(msg);
+    final pk = _toNative(key);
+    try {
+      return _checkBufResult(_blake3Keyed(pm, msg.length, pk, key.length, outLen));
+    } finally {
+      if (pm != nullptr) calloc.free(pm);
+      if (pk != nullptr) calloc.free(pk);
+    }
+  }
+
+  /// BLAKE3 key derivation. [context] is a hard-coded, application-unique
+  /// domain-separation string; [ikm] is the input key material. [outLen]
+  /// defaults to 32.
+  Uint8List blake3DeriveKey(String context, Uint8List ikm, {int outLen = 32}) {
+    final cc = context.toNativeUtf8();
+    final pk = _toNative(ikm);
+    try {
+      return _checkBufResult(_blake3DeriveKey(cc, pk, ikm.length, outLen));
+    } finally {
+      calloc.free(cc);
+      if (pk != nullptr) calloc.free(pk);
+    }
+  }
+
+  /// HMAC-SHA256. [key] should be >= 32 bytes. Returns a 32-byte tag.
+  Uint8List hmacSha256(Uint8List msg, Uint8List key) {
+    final pm = _toNative(msg), pk = _toNative(key);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_hmac_sha256')(pm, msg.length, pk, key.length));
+    } finally {
+      if (pm != nullptr) calloc.free(pm);
+      if (pk != nullptr) calloc.free(pk);
+    }
+  }
+
+  /// Verify an HMAC-SHA256 tag in constant time. Returns true if valid.
+  bool hmacSha256Verify(Uint8List msg, Uint8List mac, Uint8List key) {
+    final pm = _toNative(msg), pmac = _toNative(mac), pk = _toNative(key);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_hmac_sha256_verify')(
+              pm, msg.length, pmac, mac.length, pk, key.length) == 1;
+    } finally {
+      if (pm != nullptr) calloc.free(pm);
+      if (pmac != nullptr) calloc.free(pmac);
+      if (pk != nullptr) calloc.free(pk);
+    }
+  }
+
+  /// HKDF-SHA256 extract: PRK = HMAC(salt, IKM). Pass an empty [salt] for the
+  /// all-zero default. Returns a 32-byte pseudorandom key.
+  Uint8List hkdfExtract(Uint8List ikm, {Uint8List? salt}) {
+    final ps = (salt != null && salt.isNotEmpty) ? _toNative(salt) : nullptr;
+    final pk = _toNative(ikm);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length));
+    } finally {
+      if (ps != nullptr) calloc.free(ps);
+      if (pk != nullptr) calloc.free(pk);
+    }
+  }
+
+  /// HKDF-SHA256 expand: derive [outLen] bytes of output key material from a
+  /// pseudorandom key [prk] and optional [info] context.
+  Uint8List hkdfExpand(Uint8List prk, {Uint8List? info, int outLen = 32}) {
+    final pp = _toNative(prk);
+    final pi = (info != null && info.isNotEmpty) ? _toNative(info) : nullptr;
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
+          'cryptolib_hkdf_expand')(pp, prk.length, pi, info?.length ?? 0, outLen));
+    } finally {
+      if (pp != nullptr) calloc.free(pp);
+      if (pi != nullptr) calloc.free(pi);
+    }
+  }
+
+  /// HKDF-SHA256 one-shot (extract + expand): derive [outLen] bytes from [ikm]
+  /// with optional [salt] and [info].
+  Uint8List hkdfDerive(Uint8List ikm,
+      {Uint8List? salt, Uint8List? info, int outLen = 32}) {
+    final pk = _toNative(ikm);
+    final ps = (salt != null && salt.isNotEmpty) ? _toNative(salt) : nullptr;
+    final pi = (info != null && info.isNotEmpty) ? _toNative(info) : nullptr;
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(
+              Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Size),
+          CryptoBufferResult Function(
+              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
+          'cryptolib_hkdf_derive')(
+              pk, ikm.length, ps, salt?.length ?? 0, pi, info?.length ?? 0, outLen));
+    } finally {
+      if (pk != nullptr) calloc.free(pk);
+      if (ps != nullptr) calloc.free(ps);
+      if (pi != nullptr) calloc.free(pi);
     }
   }
 
@@ -1064,6 +1263,49 @@ class CryptoLib {
 
   /// Check if AES-256-GCM is available on this CPU.
   bool aes256gcmAvailable() => _aes256gcmAvailable() != 0;
+
+  // ── Committing AEAD (UtC: key-committing XChaCha20-Poly1305) ───────────────
+
+  /// Committing AEAD encrypt. Unlike a plain AEAD, the ciphertext binds the
+  /// exact key, so it cannot be opened under a second key (no invisible
+  /// salamander / partitioning-oracle attack). [key] is 32 bytes.
+  Uint8List committingEncrypt(Uint8List plaintext, Uint8List key, [Uint8List? aad]) {
+    final pp = _toNative(plaintext), pk = _toNative(key);
+    final pa = (aad != null && aad.isNotEmpty) ? _toNative(aad) : nullptr;
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(
+              Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(
+              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_committing_encrypt')(
+              pp, plaintext.length, pk, key.length, pa, aad?.length ?? 0));
+    } finally {
+      if (pp != nullptr) calloc.free(pp);
+      if (pk != nullptr) calloc.free(pk);
+      if (pa != nullptr) calloc.free(pa);
+    }
+  }
+
+  /// Committing AEAD decrypt. Throws if the key/AAD don't match or the
+  /// commitment check fails. [key] is 32 bytes.
+  Uint8List committingDecrypt(Uint8List ciphertext, Uint8List key, [Uint8List? aad]) {
+    final pc = _toNative(ciphertext), pk = _toNative(key);
+    final pa = (aad != null && aad.isNotEmpty) ? _toNative(aad) : nullptr;
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(
+              Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(
+              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_committing_decrypt')(
+              pc, ciphertext.length, pk, key.length, pa, aad?.length ?? 0));
+    } finally {
+      if (pc != nullptr) calloc.free(pc);
+      if (pk != nullptr) calloc.free(pk);
+      if (pa != nullptr) calloc.free(pa);
+    }
+  }
 
   // ── SecretStream ──────────────────────────────────────────────────────────
 
@@ -1387,6 +1629,13 @@ class CryptoLib {
       _lib.lookupFunction<Size Function(Pointer<Void>), int Function(Pointer<Void>)>(
           'cryptolib_keyring_slot_count')(kr);
 
+  /// Remove (revoke) the slot at [index]. Returns true on success, false if the
+  /// index is out of range.
+  bool keyringRemoveSlot(Pointer<Void> kr, int index) =>
+      _lib.lookupFunction<Int32 Function(Pointer<Void>, Size),
+              int Function(Pointer<Void>, int)>(
+          'cryptolib_keyring_remove_slot')(kr, index) == 1;
+
   /// Serialise the envelope blob (no plaintext key).
   Uint8List keyringSerialise(Pointer<Void> kr) => _checkBufResult(
       _lib.lookupFunction<CryptoBufferResult Function(Pointer<Void>),
@@ -1457,7 +1706,7 @@ class CryptoLib {
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, int, Pointer<Pointer<Utf8>>)>(
           'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
-      return (_copyBuf(r.ciphertext), _copyBuf(r.sharedSecret));
+      return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
   }
 
@@ -1487,7 +1736,7 @@ class CryptoLib {
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>(
           'cryptolib_hybrid_kem_encapsulate')(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
-      return (_copyBuf(r.ciphertext), _copyBuf(r.sharedSecret));
+      return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
   }
 
@@ -1499,6 +1748,39 @@ class CryptoLib {
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
           'cryptolib_hybrid_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
+  }
+
+  // ── Hybrid signature (Ed25519 + ML-DSA-65) ────────────────────────────────
+  // Both classical and post-quantum signatures must verify. Keys and the
+  // signature are concatenated: ed25519_part || ml_dsa_part.
+
+  KeyPairResult hybridSigKeygen() => _extractKeyPair(
+      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+          'cryptolib_hybrid_sig_keygen')());
+
+  Uint8List hybridSigSign(Uint8List msg, Uint8List secretKey) {
+    final mp = _toNative(msg), sp = _toNative(secretKey);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length));
+    } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
+  }
+
+  bool hybridSigVerify(Uint8List msg, Uint8List sig, Uint8List publicKey) {
+    final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_hybrid_sig_verify')(
+              mp, msg.length, sgp, sig.length, pp, publicKey.length) == 1;
+    } finally {
+      if (mp != nullptr) calloc.free(mp);
+      if (sgp != nullptr) calloc.free(sgp);
+      if (pp != nullptr) calloc.free(pp);
+    }
   }
 
   KeyPairResult mlDsaKeygen(int level) => _extractKeyPair(
@@ -1555,6 +1837,21 @@ class CryptoLib {
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
           'cryptolib_bls_keygen')());
 
+  /// Deterministic BLS keygen from input key material. [ikm] must be >= 32
+  /// bytes (per IRTF draft-irtf-cfrg-bls-signature KeyGen). Same IKM → same key.
+  KeyPairResult blsKeygenFromIkm(Uint8List ikm) {
+    if (ikm.length < 32) {
+      throw ArgumentError('BLS keygen IKM must be >= 32 bytes, got ${ikm.length}');
+    }
+    final ip = _toNative(ikm);
+    try {
+      return _extractKeyPair(_lib.lookupFunction<
+          CryptoKeyPair Function(Pointer<Uint8>, Size),
+          CryptoKeyPair Function(Pointer<Uint8>, int)>(
+          'cryptolib_bls_keygen_from_ikm')(ip, ikm.length));
+    } finally { if (ip != nullptr) calloc.free(ip); }
+  }
+
   Uint8List blsSign(Uint8List msg, Uint8List secretKey) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
     try {
@@ -1573,6 +1870,150 @@ class CryptoLib {
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
           'cryptolib_bls_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
+  }
+
+  /// Aggregate N BLS signatures (each a 96-byte compressed G2 point) into a
+  /// single 96-byte signature. Throws if [sigs] is empty.
+  Uint8List blsAggregate(List<Uint8List> sigs) {
+    if (sigs.isEmpty) {
+      throw ArgumentError('blsAggregate requires at least one signature');
+    }
+    final (ptrs, lens) = _toNativeList(sigs);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, int)>(
+          'cryptolib_bls_aggregate')(ptrs, lens, sigs.length));
+    } finally {
+      _freeNativeList(ptrs, lens, sigs.length);
+    }
+  }
+
+  /// Verify an aggregate signature over N (message, public key) pairs in a
+  /// single operation. [messages] and [publicKeys] must be the same length and
+  /// positionally correspond. Returns true iff every signature is valid.
+  bool blsAggregateVerify(
+      List<Uint8List> messages, List<Uint8List> publicKeys, Uint8List aggSig) {
+    if (messages.length != publicKeys.length) {
+      throw ArgumentError(
+          'blsAggregateVerify: messages (${messages.length}) and publicKeys '
+          '(${publicKeys.length}) must have equal length');
+    }
+    if (messages.isEmpty) {
+      throw ArgumentError('blsAggregateVerify requires at least one pair');
+    }
+    final count = messages.length;
+    final (mPtrs, mLens) = _toNativeList(messages);
+    final (pPtrs, pLens) = _toNativeList(publicKeys);
+    final ap = _toNative(aggSig);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Pointer<Uint8>>, Pointer<Size>,
+              Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size),
+          int Function(Pointer<Pointer<Uint8>>, Pointer<Size>,
+              Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int)>(
+          'cryptolib_bls_aggregate_verify')(
+              mPtrs, mLens, pPtrs, pLens, count, ap, aggSig.length) == 1;
+    } finally {
+      _freeNativeList(mPtrs, mLens, count);
+      _freeNativeList(pPtrs, pLens, count);
+      if (ap != nullptr) calloc.free(ap);
+    }
+  }
+
+  // ── EVM / Bitcoin interop (Keccak-256, RIPEMD-160, secp256k1 ECDSA) ────────
+
+  /// Keccak-256 (ORIGINAL padding, Ethereum). 32-byte digest. NOT SHA3-256.
+  /// Used for tx hashing, contract-address derivation, ABI selectors, EIP-55.
+  Uint8List keccak256(Uint8List msg) {
+    final pm = _toNative(msg);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int)>(
+          'cryptolib_keccak256')(pm, msg.length));
+    } finally { if (pm != nullptr) calloc.free(pm); }
+  }
+
+  /// RIPEMD-160. 20-byte digest. Bitcoin HASH160(x) = ripemd160(sha256(x)).
+  Uint8List ripemd160(Uint8List msg) {
+    final pm = _toNative(msg);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int)>(
+          'cryptolib_ripemd160')(pm, msg.length));
+    } finally { if (pm != nullptr) calloc.free(pm); }
+  }
+
+  /// secp256k1 keypair: secretKey(32) + publicKey(65 uncompressed, 0x04‖X‖Y).
+  KeyPairResult secp256k1Keygen() => _extractKeyPair(
+      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+          'cryptolib_secp256k1_keygen')());
+
+  /// Derive the public key from a 32-byte secret key.
+  /// [compressed] true → 33 bytes (0x02/0x03‖X), false → 65 bytes (0x04‖X‖Y).
+  Uint8List secp256k1Pubkey(Uint8List secretKey, {bool compressed = false}) {
+    final sp = _toNative(secretKey);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Int32),
+          CryptoBufferResult Function(Pointer<Uint8>, int, int)>(
+          'cryptolib_secp256k1_pubkey')(sp, secretKey.length, compressed ? 1 : 0));
+    } finally { if (sp != nullptr) calloc.free(sp); }
+  }
+
+  /// Sign a 32-byte [digest] (RFC6979 deterministic, low-S). Returns 65 bytes:
+  /// r(32)‖s(32)‖recovery_id(1). The caller hashes first (Ethereum:
+  /// keccak256(rlp(tx)); Bitcoin: sha256(sha256(preimage))).
+  Uint8List secp256k1Sign(Uint8List digest, Uint8List secretKey) {
+    if (digest.length != 32) {
+      throw ArgumentError('secp256k1 sign: digest must be 32 bytes, got ${digest.length}');
+    }
+    final dp = _toNative(digest), sp = _toNative(secretKey);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, int)>(
+          'cryptolib_secp256k1_sign')(dp, sp, secretKey.length));
+    } finally { if (dp != nullptr) calloc.free(dp); if (sp != nullptr) calloc.free(sp); }
+  }
+
+  /// Verify a 64-byte [sig] (r‖s) over a 32-byte [digest]. [publicKey] is 33 or
+  /// 65 bytes. Low-S enforced (EIP-2 / BIP-62). Returns true if valid.
+  bool secp256k1Verify(Uint8List digest, Uint8List sig, Uint8List publicKey) {
+    if (digest.length != 32) {
+      throw ArgumentError('secp256k1 verify: digest must be 32 bytes');
+    }
+    final dp = _toNative(digest), sgp = _toNative(sig), pp = _toNative(publicKey);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Uint8>, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
+          int Function(Pointer<Uint8>, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
+          'cryptolib_secp256k1_verify')(dp, sgp, sig.length, pp, publicKey.length) == 1;
+    } finally {
+      if (dp != nullptr) calloc.free(dp);
+      if (sgp != nullptr) calloc.free(sgp);
+      if (pp != nullptr) calloc.free(pp);
+    }
+  }
+
+  /// Recover the 65-byte uncompressed public key from a 32-byte [digest] and a
+  /// 65-byte recoverable [sig65] (r‖s‖recovery_id). Ethereum's ecrecover.
+  Uint8List secp256k1Recover(Uint8List digest, Uint8List sig65) {
+    if (digest.length != 32) {
+      throw ArgumentError('secp256k1 recover: digest must be 32 bytes');
+    }
+    if (sig65.length != 65) {
+      throw ArgumentError('secp256k1 recover: signature must be 65 bytes (r‖s‖recid)');
+    }
+    final dp = _toNative(digest), sp = _toNative(sig65);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>),
+          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>)>(
+          'cryptolib_secp256k1_recover')(dp, sp));
+    } finally { if (dp != nullptr) calloc.free(dp); if (sp != nullptr) calloc.free(sp); }
   }
 
   // ── Asymmetric Vault ──────────────────────────────────────────────────────

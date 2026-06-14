@@ -1,0 +1,22 @@
+# pkg-config template for the CryptoLib C ABI (libcryptolib_c).
+#
+# Fill in @PREFIX@ (or edit the paths directly) and copy the result to a
+# directory on your PKG_CONFIG_PATH, e.g.:
+#
+#   prefix=/usr/local
+#   sed "s|@PREFIX@|$prefix|g" cryptolib_c.pc.in > /usr/local/lib/pkgconfig/cryptolib_c.pc
+#
+# Then build the Go binding with:
+#
+#   go build -tags cryptolib_pkgconfig ./...
+
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: cryptolib_c
+Description: CryptoLib C ABI (libsodium + liboqs + blst + libsecp256k1)
+Version: 3.0.0
+Libs: -L${libdir} -lcryptolib_c
+Cflags: -I${includedir}

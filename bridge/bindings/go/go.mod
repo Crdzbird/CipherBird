@@ -1,3 +1,3 @@
-module cryptolib_bridge
+module github.com/Crdzbird/CryptoLib/bridge/bindings/go
 
 go 1.21

@@ -111,6 +111,9 @@
 // All stego headers are therefore reachable from this single include.
 #include "types.hpp"
 #include "hash.hpp"
+#include "keccak.hpp"            // → Keccak-256 (original padding, Ethereum)
+#include "ripemd160.hpp"         // → RIPEMD-160 (Bitcoin HASH160)
+#include "secp256k1.hpp"         // → secp256k1 ECDSA (EVM/BTC; guarded by CRYPTOLIB_HAS_SECP256K1)
 #include "symmetric.hpp"
 #include "committing.hpp"        // → key/context-committing AEAD (UtC)
 #include "aead_siv.hpp"          // → AES-256-GCM-SIV nonce-misuse-resistant AEAD (OpenSSL)

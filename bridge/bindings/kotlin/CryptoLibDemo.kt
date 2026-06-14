@@ -21,6 +21,8 @@ private val CRYPTO_PACKET: GroupLayout = MemoryLayout.structLayout(
     CRYPTO_BUFFER.withName("ciphertext"),
     CRYPTO_BUFFER.withName("signature"),
     CRYPTO_BUFFER.withName("kdf_salt"))
+private val CRYPTO_KEYPAIR: GroupLayout = MemoryLayout.structLayout(
+    CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"))
 
 class CryptoLib(libPath: String) {
     private val arena: Arena = Arena.ofConfined()
@@ -49,6 +51,31 @@ class CryptoLib(libPath: String) {
     private val krUnlockDev = h("cryptolib_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
     private val krUnlockPw  = h("cryptolib_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS))
     private val krFree      = h("cryptolib_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS))
+    private val keypairFree = h("cryptolib_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS))
+    private val strFree     = h("cryptolib_str_free",         FunctionDescriptor.ofVoid(ADDRESS))
+
+    // Newly exposed feature functions.
+    private val committingEnc = h("cryptolib_committing_encrypt",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val committingDec = h("cryptolib_committing_decrypt",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val hmac256       = h("cryptolib_hmac_sha256",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val hmac256Verify = h("cryptolib_hmac_sha256_verify",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val hkdfExtract   = h("cryptolib_hkdf_extract",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val hkdfExpand    = h("cryptolib_hkdf_expand",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG))
+    private val hkdfDerive    = h("cryptolib_hkdf_derive",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG))
+    private val hybridSigKeygen = h("cryptolib_hybrid_sig_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
+    private val hybridSigSign = h("cryptolib_hybrid_sig_sign",
+        FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val hybridSigVerify = h("cryptolib_hybrid_sig_verify",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    private val blsKeygenFromIkm = h("cryptolib_bls_keygen_from_ikm",
+        FunctionDescriptor.of(CRYPTO_KEYPAIR, ADDRESS, JAVA_LONG))
 
     private fun consume(result: MemorySegment): ByteArray {
         val data = result.get(ADDRESS, 0)
@@ -57,6 +84,16 @@ class CryptoLib(libPath: String) {
         val out = data.reinterpret(len).toArray(JAVA_BYTE)
         bufferFree.invoke(result)
         return out
+    }
+
+    private fun consumeKeypair(kp: MemorySegment): Pair<ByteArray, ByteArray> {
+        val bufSz = CRYPTO_BUFFER.byteSize()
+        val pubData = kp.get(ADDRESS, 0); val pubLen = kp.get(JAVA_LONG, ADDRESS.byteSize())
+        val secData = kp.get(ADDRESS, bufSz); val secLen = kp.get(JAVA_LONG, bufSz + ADDRESS.byteSize())
+        val pub = if (pubData == MemorySegment.NULL) ByteArray(0) else pubData.reinterpret(pubLen).toArray(JAVA_BYTE)
+        val sec = if (secData == MemorySegment.NULL) ByteArray(0) else secData.reinterpret(secLen).toArray(JAVA_BYTE)
+        keypairFree.invoke(kp)
+        return pub to sec
     }
 
     fun run() {
@@ -99,6 +136,54 @@ class CryptoLib(libPath: String) {
         println("keyring slots: ${krCount.invoke(kr) as Long} · device==passphrase master: ${mDev.contentEquals(mPass)}")
         krFree.invoke(kr)
         krFree.invoke(kr2)
+
+        // ── Newly exposed feature functions ──
+        // Committing AEAD (UtC): wrong key must fail.
+        val caKey = consume(randomBytes.invoke(arena, 32L) as MemorySegment)
+        val caKeySeg = arena.allocateFrom(JAVA_BYTE, *caKey)
+        val caPt = "commit me".toByteArray(); val caPtSeg = arena.allocateFrom(JAVA_BYTE, *caPt)
+        val caAad = "ctx".toByteArray(); val caAadSeg = arena.allocateFrom(JAVA_BYTE, *caAad)
+        val caCt = consume(committingEnc.invoke(arena, caPtSeg, caPt.size.toLong(), caKeySeg, caKey.size.toLong(), caAadSeg, caAad.size.toLong()) as MemorySegment)
+        val caCtSeg = arena.allocateFrom(JAVA_BYTE, *caCt)
+        val caDec = consume(committingDec.invoke(arena, caCtSeg, caCt.size.toLong(), caKeySeg, caKey.size.toLong(), caAadSeg, caAad.size.toLong()) as MemorySegment)
+        val wrongKey = consume(randomBytes.invoke(arena, 32L) as MemorySegment)
+        val wrongKeySeg = arena.allocateFrom(JAVA_BYTE, *wrongKey)
+        val caBad = committingDec.invoke(arena, caCtSeg, caCt.size.toLong(), wrongKeySeg, wrongKey.size.toLong(), caAadSeg, caAad.size.toLong()) as MemorySegment
+        val caReject = caBad.get(ADDRESS, 0) == MemorySegment.NULL
+        val caBadErr = caBad.get(ADDRESS, CRYPTO_BUFFER.byteSize())
+        if (caBadErr != MemorySegment.NULL) strFree.invoke(caBadErr)
+        println("committing AEAD: roundtrip=\"${String(caDec)}\" reject-wrong-key=$caReject")
+
+        // HKDF-SHA256 + HMAC-SHA256.
+        val ikm = consume(randomBytes.invoke(arena, 32L) as MemorySegment)
+        val ikmSeg = arena.allocateFrom(JAVA_BYTE, *ikm)
+        val saltB = "salt".toByteArray(); val infoB = "app".toByteArray()
+        val saltSeg = arena.allocateFrom(JAVA_BYTE, *saltB); val infoSeg = arena.allocateFrom(JAVA_BYTE, *infoB)
+        val prk = consume(hkdfExtract.invoke(arena, saltSeg, saltB.size.toLong(), ikmSeg, ikm.size.toLong()) as MemorySegment)
+        val prkSeg = arena.allocateFrom(JAVA_BYTE, *prk)
+        val okm = consume(hkdfExpand.invoke(arena, prkSeg, prk.size.toLong(), infoSeg, infoB.size.toLong(), 42L) as MemorySegment)
+        val okm1 = consume(hkdfDerive.invoke(arena, ikmSeg, ikm.size.toLong(), saltSeg, saltB.size.toLong(), infoSeg, infoB.size.toLong(), 42L) as MemorySegment)
+        val macMsg = "mac me".toByteArray(); val macMsgSeg = arena.allocateFrom(JAVA_BYTE, *macMsg)
+        val mac256b = consume(hmac256.invoke(arena, macMsgSeg, macMsg.size.toLong(), ikmSeg, ikm.size.toLong()) as MemorySegment)
+        val macSeg = arena.allocateFrom(JAVA_BYTE, *mac256b)
+        val macOk = (hmac256Verify.invoke(macMsgSeg, macMsg.size.toLong(), macSeg, mac256b.size.toLong(), ikmSeg, ikm.size.toLong()) as Int) == 1
+        println("hkdf len=${okm.size} consistent=${okm.contentEquals(okm1)} · hmac256 verify=$macOk")
+
+        // Hybrid signature (Ed25519 + ML-DSA-65).
+        val (hPub, hSec) = consumeKeypair(hybridSigKeygen.invoke(arena) as MemorySegment)
+        val hPubSeg = arena.allocateFrom(JAVA_BYTE, *hPub); val hSecSeg = arena.allocateFrom(JAVA_BYTE, *hSec)
+        val sMsg = "sign me".toByteArray(); val sMsgSeg = arena.allocateFrom(JAVA_BYTE, *sMsg)
+        val hsig = consume(hybridSigSign.invoke(arena, sMsgSeg, sMsg.size.toLong(), hSecSeg, hSec.size.toLong()) as MemorySegment)
+        val hsigSeg = arena.allocateFrom(JAVA_BYTE, *hsig)
+        val hsigOk = (hybridSigVerify.invoke(sMsgSeg, sMsg.size.toLong(), hsigSeg, hsig.size.toLong(), hPubSeg, hPub.size.toLong()) as Int) == 1
+        println("hybrid sig: len=${hsig.size} verify=$hsigOk")
+
+        // BLS deterministic keygen from IKM.
+        val blsIkm = consume(randomBytes.invoke(arena, 32L) as MemorySegment)
+        val blsIkmSeg = arena.allocateFrom(JAVA_BYTE, *blsIkm)
+        val (d1Pub, _) = consumeKeypair(blsKeygenFromIkm.invoke(arena, blsIkmSeg, blsIkm.size.toLong()) as MemorySegment)
+        val (d2Pub, _) = consumeKeypair(blsKeygenFromIkm.invoke(arena, blsIkmSeg, blsIkm.size.toLong()) as MemorySegment)
+        println("bls keygen-from-ikm deterministic: ${d1Pub.contentEquals(d2Pub)}")
 
         println("Kotlin demo OK")
     }

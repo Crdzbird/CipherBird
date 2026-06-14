@@ -1273,6 +1273,80 @@ CRYPTO_API int cryptolib_bls_aggregate_verify(
 } CL_FAIL_INT
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cryptolib_keccak256(const uint8_t* msg, size_t msg_len) try {
+    auto r = crypto::hash::Keccak256::digest(sp(msg, msg_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_ripemd160(const uint8_t* msg, size_t msg_len) try {
+    auto r = crypto::hash::Ripemd160::digest(sp(msg, msg_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cryptolib_secp256k1_keygen(void) try {
+#ifdef CRYPTOLIB_HAS_SECP256K1
+    auto kp = crypto::ec::Secp256k1::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+#else
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_pubkey(
+    const uint8_t* secret_key, size_t sk_len, int compressed) try {
+#ifdef CRYPTOLIB_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::public_key(sp(secret_key, sk_len), compressed != 0);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len; (void)compressed;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_sign(
+    const uint8_t* digest32, const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CRYPTOLIB_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::sign(sp(digest32, 32), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)digest32; (void)secret_key; (void)sk_len;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_secp256k1_verify(
+    const uint8_t* digest32,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len) try {
+#ifdef CRYPTOLIB_HAS_SECP256K1
+    return crypto::ec::Secp256k1::verify(sp(digest32, 32), sp(sig, sig_len),
+                                         sp(public_key, pk_len)) ? 1 : 0;
+#else
+    (void)digest32; (void)sig; (void)sig_len; (void)public_key; (void)pk_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
+    const uint8_t* digest32, const uint8_t* sig65) try {
+#ifdef CRYPTOLIB_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::recover(sp(digest32, 32), sp(sig65, 65));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)digest32; (void)sig65;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Steganography
  * ═══════════════════════════════════════════════════════════════════════════ */
 

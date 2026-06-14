@@ -5,7 +5,8 @@ homepage: https://example.com/cryptolib
 
 environment:
   sdk: ^3.12.0
-  flutter: '>=3.3.0'
+  # Built-in Kotlin (Android) + Swift Package Manager (iOS/macOS) require 3.44+.
+  flutter: '>=3.44.0'
 
 dependencies:
   flutter:
@@ -16,6 +17,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  very_good_analysis: ^9.0.0
 
 flutter:
   plugin:
@@ -25,8 +27,16 @@ flutter:
     # jniLibs — so consuming apps need no manual setup or library path.
     platforms:
       android:
+        # ffiPlugin bundles the .so; CryptolibStartup (a manifest-registered
+        # ContentProvider) warms the library off the main thread at launch.
         ffiPlugin: true
       ios:
+        # FFI plugin. Distributed via Swift Package Manager (ios/cryptolib_flutter/
+        # Package.swift), which links + embeds the CryptoLibC dynamic-framework
+        # binary target; the CocoaPods podspec is kept as a fallback. Native
+        # warm-up is driven from Dart (CryptoLib.preload() on a background
+        # isolate) — no native plugin class, so nothing link-references the
+        # binary target (which Flutter's SPM integration does not propagate).
         ffiPlugin: true
       macos:
         ffiPlugin: true

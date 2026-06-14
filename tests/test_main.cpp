@@ -39,6 +39,7 @@ void run_tests_shamir();
 void run_tests_noise();
 void run_tests_noise_kat();
 void run_tests_concurrency();
+void run_tests_evm_btc();
 
 int main() {
     using namespace test;
@@ -73,6 +74,7 @@ int main() {
     run_suite("noise_xx",       run_tests_noise);
     run_suite("noise_xx_kat",   run_tests_noise_kat);
     run_suite("concurrency",    run_tests_concurrency);
+    run_suite("evm_btc",        run_tests_evm_btc);
 
     return report();
 }

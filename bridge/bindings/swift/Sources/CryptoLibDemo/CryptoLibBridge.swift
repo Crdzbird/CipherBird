@@ -549,6 +549,161 @@ final class CryptoLibBridge {
         }
     }
 
+    // MARK: - HMAC-SHA256 & HKDF-SHA256
+
+    func hmacSha256(_ msg: Data, key: Data) throws -> Data {
+        return try msg.withUnsafeBytes { m in
+            try key.withUnsafeBytes { k in
+                var r = cryptolib_hmac_sha256(
+                    m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
+                    k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count)
+                return try check(&r)
+            }
+        }
+    }
+
+    func hmacSha256Verify(_ msg: Data, mac: Data, key: Data) -> Bool {
+        return msg.withUnsafeBytes { m in
+            mac.withUnsafeBytes { t in
+                key.withUnsafeBytes { k in
+                    cryptolib_hmac_sha256_verify(
+                        m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
+                        t.baseAddress?.assumingMemoryBound(to: UInt8.self), mac.count,
+                        k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count) == 1
+                }
+            }
+        }
+    }
+
+    /// HKDF-SHA256 extract. `salt` may be nil for the all-zero default.
+    func hkdfExtract(_ ikm: Data, salt: Data? = nil) throws -> Data {
+        return try ikm.withUnsafeBytes { i in
+            let ikmBase = i.baseAddress?.assumingMemoryBound(to: UInt8.self)
+            if let salt = salt {
+                return try salt.withUnsafeBytes { s in
+                    var r = cryptolib_hkdf_extract(
+                        s.baseAddress?.assumingMemoryBound(to: UInt8.self), salt.count, ikmBase, ikm.count)
+                    return try check(&r)
+                }
+            }
+            var r = cryptolib_hkdf_extract(nil, 0, ikmBase, ikm.count)
+            return try check(&r)
+        }
+    }
+
+    /// HKDF-SHA256 expand. `info` may be nil.
+    func hkdfExpand(_ prk: Data, info: Data? = nil, outLen: Int = 32) throws -> Data {
+        return try prk.withUnsafeBytes { p in
+            let prkBase = p.baseAddress?.assumingMemoryBound(to: UInt8.self)
+            if let info = info {
+                return try info.withUnsafeBytes { f in
+                    var r = cryptolib_hkdf_expand(
+                        prkBase, prk.count, f.baseAddress?.assumingMemoryBound(to: UInt8.self), info.count, outLen)
+                    return try check(&r)
+                }
+            }
+            var r = cryptolib_hkdf_expand(prkBase, prk.count, nil, 0, outLen)
+            return try check(&r)
+        }
+    }
+
+    /// HKDF-SHA256 one-shot (extract + expand). `salt`/`info` may be nil.
+    func hkdfDerive(_ ikm: Data, salt: Data? = nil, info: Data? = nil, outLen: Int = 32) throws -> Data {
+        let saltData = salt ?? Data()
+        let infoData = info ?? Data()
+        return try ikm.withUnsafeBytes { i in
+            try saltData.withUnsafeBytes { s in
+                try infoData.withUnsafeBytes { f in
+                    var r = cryptolib_hkdf_derive(
+                        i.baseAddress?.assumingMemoryBound(to: UInt8.self), ikm.count,
+                        salt == nil ? nil : s.baseAddress?.assumingMemoryBound(to: UInt8.self), saltData.count,
+                        info == nil ? nil : f.baseAddress?.assumingMemoryBound(to: UInt8.self), infoData.count,
+                        outLen)
+                    return try check(&r)
+                }
+            }
+        }
+    }
+
+    // MARK: - Committing AEAD (UtC)
+
+    /// Committing AEAD encrypt — ciphertext binds the exact key. `aad` may be nil.
+    func committingEncrypt(_ plaintext: Data, key: Data, aad: Data? = nil) throws -> Data {
+        let aadData = aad ?? Data()
+        return try plaintext.withUnsafeBytes { p in
+            try key.withUnsafeBytes { k in
+                try aadData.withUnsafeBytes { a in
+                    var r = cryptolib_committing_encrypt(
+                        p.baseAddress?.assumingMemoryBound(to: UInt8.self), plaintext.count,
+                        k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count,
+                        aad == nil ? nil : a.baseAddress?.assumingMemoryBound(to: UInt8.self), aadData.count)
+                    return try check(&r)
+                }
+            }
+        }
+    }
+
+    /// Committing AEAD decrypt. Throws if the key/aad mismatch or the commitment fails.
+    func committingDecrypt(_ ciphertext: Data, key: Data, aad: Data? = nil) throws -> Data {
+        let aadData = aad ?? Data()
+        return try ciphertext.withUnsafeBytes { c in
+            try key.withUnsafeBytes { k in
+                try aadData.withUnsafeBytes { a in
+                    var r = cryptolib_committing_decrypt(
+                        c.baseAddress?.assumingMemoryBound(to: UInt8.self), ciphertext.count,
+                        k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count,
+                        aad == nil ? nil : a.baseAddress?.assumingMemoryBound(to: UInt8.self), aadData.count)
+                    return try check(&r)
+                }
+            }
+        }
+    }
+
+    // MARK: - Hybrid signature (Ed25519 + ML-DSA-65)
+
+    func hybridSigKeygen() -> KeyPairResult {
+        var kp = cryptolib_hybrid_sig_keygen()
+        return KeyPairResult(
+            publicKey: copyAndFree(&kp.public_key),
+            secretKey: copyAndFree(&kp.secret_key))
+    }
+
+    func hybridSigSign(_ msg: Data, secretKey: Data) throws -> Data {
+        return try msg.withUnsafeBytes { m in
+            try secretKey.withUnsafeBytes { s in
+                var r = cryptolib_hybrid_sig_sign(
+                    m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
+                    s.baseAddress?.assumingMemoryBound(to: UInt8.self), secretKey.count)
+                return try check(&r)
+            }
+        }
+    }
+
+    func hybridSigVerify(_ msg: Data, sig: Data, publicKey: Data) -> Bool {
+        return msg.withUnsafeBytes { m in
+            sig.withUnsafeBytes { s in
+                publicKey.withUnsafeBytes { p in
+                    cryptolib_hybrid_sig_verify(
+                        m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
+                        s.baseAddress?.assumingMemoryBound(to: UInt8.self), sig.count,
+                        p.baseAddress?.assumingMemoryBound(to: UInt8.self), publicKey.count) == 1
+                }
+            }
+        }
+    }
+
+    // MARK: - BLS deterministic keygen
+
+    /// Deterministic BLS keygen from input key material (>= 32 bytes).
+    func blsKeygenFromIkm(_ ikm: Data) -> KeyPairResult {
+        var kp = ikm.withUnsafeBytes { i in
+            cryptolib_bls_keygen_from_ikm(i.baseAddress?.assumingMemoryBound(to: UInt8.self), ikm.count)
+        }
+        return KeyPairResult(
+            publicKey: copyAndFree(&kp.public_key),
+            secretKey: copyAndFree(&kp.secret_key))
+    }
+
     // MARK: - Secure Equal
 
     func secureEqual(_ a: Data, _ b: Data) -> Bool {
