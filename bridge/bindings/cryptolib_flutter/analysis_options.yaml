@@ -1,4 +1,31 @@
-include: package:flutter_lints/flutter.yaml
+# Lint configuration — layers Very Good Ventures' strict rules on top of the
+# Dart/Flutter (Google) defaults. A handful of rules are relaxed for the raw FFI
+# binding layer, where the "generated" style (per-symbol native typedefs, opaque
+# Pointer<Void> handles, long C signatures) intentionally departs from
+# application-code conventions. Application-facing code is held to the full
+# ruleset.
+include: package:very_good_analysis/analysis_options.yaml
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+analyzer:
+  exclude:
+    - example/**
+    - "**/*.g.dart"
+
+linter:
+  rules:
+    # Long native signatures + documenting every typedef add noise to FFI code.
+    lines_longer_than_80_chars: false
+    public_member_api_docs: false
+    # FFI bindings are expressed as private function typedefs (C + Dart pairs).
+    avoid_private_typedef_functions: false
+    # Native handles are deliberately opaque Pointer<Void>.
+    avoid_positional_boolean_parameters: false
+    # The binding favours explicit local FFI types and compact paired locals.
+    omit_local_variable_types: false
+    avoid_multiple_declarations_per_line: false
+    # Struct-pointer field writes read more clearly without cascades.
+    cascade_invocations: false
+    # Cached lookup fields are declared before the binding constructor.
+    sort_constructors_first: false
+    # `CryptoLib.instance` is a cached singleton getter, not a factory.
+    prefer_constructors_over_static_methods: false

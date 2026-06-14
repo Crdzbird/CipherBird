@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: |
-          brew install cmake ninja libsodium liboqs blake3 openssl@3
+          brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build blst from source
         run: |
           git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build blst from source
         run: |
           git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build blst from source
         run: |
           git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
@@ -78,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps (LLVM clang for libFuzzer)
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 llvm
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm
       - name: Build blst from source
         run: |
           git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
@@ -95,6 +95,33 @@ jobs:
           for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_stego build/fuzz/fuzz_diff_aead; do
             [ -x "$fz" ] && "$fz" -max_total_time=60 -print_final_stats=1 || true
           done
+
+  # Keccak-256 has no in-process oracle in our C deps (OpenSSL ships SHA3, not
+  # original Keccak). This job differentially checks our native Keccak against
+  # the independent js-sha3 reference across every length 0..512, complementing
+  # the offline KATs in tests/test_evm_btc.cpp and the RIPEMD-vs-OpenSSL test.
+  keccak_xcheck:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 node
+      - name: Build blst from source
+        run: |
+          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
+          (cd /tmp/blst && ./build.sh)
+          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
+          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build C ABI bridge
+        run: |
+          cmake -S . -B build/bridge -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCRYPTOLIB_BUILD_TESTS=OFF -DCRYPTOLIB_BUILD_BRIDGE=ON
+          cmake --build build/bridge --target cryptolib_c
+      - name: Keccak differential vs js-sha3
+        run: |
+          mkdir -p /tmp/xcheck && (cd /tmp/xcheck && npm install --no-save js-sha3@0.9.3 koffi)
+          DY="$(ls build/bridge/libcryptolib_c*.dylib | head -1)"
+          NODE_PATH=/tmp/xcheck/node_modules node scripts/keccak_cross_check.mjs "$DY"
 
   # Constant-time verification runs on Linux (Valgrind/ctgrind) — added once the
   # Linux dep build lands; the CT harness + CMake option already exist locally.

@@ -29,13 +29,15 @@ fi
 BLAKE3_A=build/host-deps/blake3-build/libblake3.a
 
 # 2. Link the bridge against all static archives.
+SECP=/opt/homebrew/opt/secp256k1
+
 clang++ -std=c++20 -O2 -dynamiclib \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_BLS=1 -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_BUILD_SHARED \
-    -I include -I /opt/homebrew/include -I "$OSSL/include" \
+    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_BLS=1 -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 -DCRYPTOLIB_BUILD_SHARED \
+    -I include -I /opt/homebrew/include -I "$OSSL/include" -I "$SECP/include" \
     -install_name "@rpath/libcryptolib_c.dylib" \
     bridge/cryptolib_c.cpp \
     "$BREW_LIB/libsodium.a" "$BLAKE3_A" "$BREW_LIB/liboqs.a" \
-    "$OSSL/lib/libcrypto.a" "$BREW_LIB/libblst.a" \
+    "$OSSL/lib/libcrypto.a" "$BREW_LIB/libblst.a" "$SECP/lib/libsecp256k1.a" \
     -o "$OUT/libcryptolib_c.dylib"
 
 echo "→ $OUT/libcryptolib_c.dylib"

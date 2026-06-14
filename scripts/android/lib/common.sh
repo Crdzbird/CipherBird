@@ -17,6 +17,7 @@ LIBSODIUM_VERSION="1.0.20"
 BLAKE3_VERSION="1.5.4"
 OPENSSL_VERSION="3.3.2"
 LIBOQS_VERSION="0.15.0"
+SECP256K1_VERSION="0.7.1"
 
 # Minimum Android API we target. 24 = Android 7.0 Nougat (covers >99% of
 # devices in use as of 2025, per Google Play distribution stats).

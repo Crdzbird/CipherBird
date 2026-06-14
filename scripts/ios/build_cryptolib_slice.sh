@@ -16,7 +16,7 @@ DEPS="$(slice_prefix "$SLICE")"
 BUILD="$BUILD_ROOT/$SLICE"
 
 # Sanity check: all deps must be present
-for dep in libsodium libblake3 liboqs libcrypto libblst; do
+for dep in libsodium libblake3 liboqs libcrypto libblst libsecp256k1; do
     if [[ ! -f "$DEPS/lib/${dep}.a" ]]; then
         die "missing $DEPS/lib/${dep}.a — did you run build_all.sh or the dep scripts first?"
     fi
@@ -62,6 +62,7 @@ libtool -static -o "$MERGED" \
     "$DEPS/lib/liboqs.a" \
     "$DEPS/lib/libcrypto.a" \
     "$DEPS/lib/libblst.a" \
+    "$DEPS/lib/libsecp256k1.a" \
     2>"$BUILD/libtool.log" || { cat "$BUILD/libtool.log"; die "libtool merge failed"; }
 
 ok "Built $MERGED ($(du -h "$MERGED" | awk '{print $1}'))"

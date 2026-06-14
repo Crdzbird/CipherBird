@@ -19,7 +19,7 @@ if [[ ${#SLICES[@]} -eq 0 ]]; then
 fi
 
 # Dependency build order matters: OpenSSL must exist before liboqs.
-DEPS=(libsodium blake3 openssl liboqs blst)
+DEPS=(libsodium blake3 openssl liboqs blst secp256k1)
 
 for slice in "${SLICES[@]}"; do
     printf "\n%s═══ Building dependencies for %s ═══%s\n" "$BOLD$CYN" "$slice" "$RST"

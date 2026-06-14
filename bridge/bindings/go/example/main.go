@@ -16,11 +16,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"cryptolib_bridge/cryptolib"
+	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
 )
 
 func must[T any](v T, err error) T {
@@ -308,7 +309,7 @@ func main() {
 
 				// Step 5: Extract → verify signature → decrypt → verify hash
 				extracted := must(cryptolib.StegoExtract(mlStegoOut))
-				exSig := extracted[:64]   // Ed25519 signature is 64 bytes
+				exSig := extracted[:64] // Ed25519 signature is 64 bytes
 				exCt := extracted[64:]
 
 				if cryptolib.Ed25519Verify(exCt, exSig, mlSignKp.Public) {
@@ -318,7 +319,7 @@ func main() {
 				}
 
 				exPlain := must(cryptolib.XChaCha20Decrypt(exCt, mlSymKey, nil))
-				exMsg := exPlain[:len(exPlain)-64]   // original message
+				exMsg := exPlain[:len(exPlain)-64]    // original message
 				exDigest := exPlain[len(exPlain)-64:] // BLAKE2b digest is 64 bytes
 				reDigest := must(cryptolib.Blake2b(exMsg, nil))
 
@@ -976,6 +977,71 @@ func main() {
 		kr2.Close()
 	}
 	kr.Close()
+
+	// ── Newly exposed feature functions ──
+	fmt.Println("\n═══ Committing AEAD / HKDF / HMAC-256 / Hybrid sig / BLS-from-IKM ═══")
+	caKey := must(cryptolib.RandomBytes(32))
+	caCt := must(cryptolib.CommittingEncrypt([]byte("commit me"), caKey, []byte("ctx")))
+	caPt := must(cryptolib.CommittingDecrypt(caCt, caKey, []byte("ctx")))
+	_, caErr := cryptolib.CommittingDecrypt(caCt, must(cryptolib.RandomBytes(32)), []byte("ctx"))
+	fmt.Printf("  committing AEAD: roundtrip=%q reject-wrong-key=%v\n", string(caPt), caErr != nil)
+
+	fIkm := must(cryptolib.RandomBytes(32))
+	fPrk := must(cryptolib.HkdfExtract(fIkm, []byte("salt")))
+	fOkm := must(cryptolib.HkdfExpand(fPrk, []byte("app"), 42))
+	fOkm1 := must(cryptolib.HkdfDerive(fIkm, []byte("salt"), []byte("app"), 42))
+	fMac := must(cryptolib.HmacSHA256([]byte("mac me"), fIkm))
+	fmt.Printf("  hkdf len=%d consistent=%v · hmac256 verify=%v reject=%v\n",
+		len(fOkm), bytes.Equal(fOkm, fOkm1),
+		cryptolib.HmacSHA256Verify([]byte("mac me"), fMac, fIkm),
+		!cryptolib.HmacSHA256Verify([]byte("mac me"), fMac, must(cryptolib.RandomBytes(32))))
+
+	hsk := cryptolib.HybridSigKeygen()
+	hsig := must(cryptolib.HybridSigSign([]byte("sign me"), hsk.Secret))
+	fmt.Printf("  hybrid sig: len=%d verify=%v reject=%v\n", len(hsig),
+		cryptolib.HybridSigVerify([]byte("sign me"), hsig, hsk.Public),
+		!cryptolib.HybridSigVerify([]byte("forged"), hsig, hsk.Public))
+
+	blsIkm := must(cryptolib.RandomBytes(32))
+	d1 := cryptolib.BlsKeygenFromIkm(blsIkm)
+	d2 := cryptolib.BlsKeygenFromIkm(blsIkm)
+	fmt.Printf("  bls keygen-from-ikm deterministic: %v\n", bytes.Equal(d1.Public, d2.Public))
+
+	// BLAKE3 (hash + XOF + keyed + derive-key)
+	b3 := must(cryptolib.Blake3([]byte("abc"), 0))
+	b3x := must(cryptolib.Blake3([]byte("abc"), 64))
+	b3k := must(cryptolib.Blake3Keyed([]byte("m"), make([]byte, 32), 0))
+	b3d := must(cryptolib.Blake3DeriveKey("cryptolib demo ctx", blsIkm, 0))
+	fmt.Printf("  blake3: hash=%d xof=%d xof-prefix-matches=%v keyed=%d derive=%d\n",
+		len(b3), len(b3x), bytes.Equal(b3, b3x[:32]), len(b3k), len(b3d))
+
+	// BLS aggregation (two signers, distinct messages)
+	am1, am2 := []byte("aggregate-1"), []byte("aggregate-2")
+	akA, akB := cryptolib.BlsKeygen(), cryptolib.BlsKeygen()
+	as1 := must(cryptolib.BlsSign(am1, akA.Secret))
+	as2 := must(cryptolib.BlsSign(am2, akB.Secret))
+	agg := must(cryptolib.BlsAggregate([][]byte{as1, as2}))
+	fmt.Printf("  bls aggregate: len=%d verify=%v reject-tampered=%v\n", len(agg),
+		cryptolib.BlsAggregateVerify([][]byte{am1, am2}, [][]byte{akA.Public, akB.Public}, agg),
+		!cryptolib.BlsAggregateVerify([][]byte{am1, []byte("forged")}, [][]byte{akA.Public, akB.Public}, agg))
+
+	// EVM / Bitcoin interop: Keccak-256, RIPEMD-160, secp256k1 ECDSA
+	keccak := hex.EncodeToString(must(cryptolib.Keccak256([]byte("abc"))))
+	ripemd := hex.EncodeToString(must(cryptolib.Ripemd160([]byte("abc"))))
+	fmt.Printf("  keccak256(\"abc\")=%s… kat-ok=%v\n", keccak[:16],
+		keccak == "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45")
+	fmt.Printf("  ripemd160(\"abc\")=%s kat-ok=%v\n", ripemd,
+		ripemd == "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc")
+
+	ecKp := cryptolib.Secp256k1Keygen()
+	digest := must(cryptolib.Keccak256([]byte("transfer 1 ETH")))
+	ecSig := must(cryptolib.Secp256k1Sign(digest, ecKp.Secret)) // 65: r‖s‖v
+	recovered := must(cryptolib.Secp256k1Recover(digest, ecSig))
+	fmt.Printf("  secp256k1: sig=%dB verify=%v ecrecover-matches-signer=%v compressed-pk=%dB\n",
+		len(ecSig),
+		cryptolib.Secp256k1Verify(digest, ecSig[:64], ecKp.Public), // verify wants 64B r‖s
+		bytes.Equal(recovered, ecKp.Public),
+		len(must(cryptolib.Secp256k1Pubkey(ecKp.Secret, true))))
 
 	fmt.Println("\nDone.")
 }

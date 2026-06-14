@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build self-contained desktop binary
         run: bash scripts/build_selfcontained.sh build/release-artifacts
       - name: Checksums

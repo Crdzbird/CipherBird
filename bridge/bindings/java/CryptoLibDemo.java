@@ -23,13 +23,18 @@ public final class CryptoLibDemo {
             CRYPTO_BUFFER.withName("ciphertext"),
             CRYPTO_BUFFER.withName("signature"),
             CRYPTO_BUFFER.withName("kdf_salt"));
+    static final GroupLayout CRYPTO_KEYPAIR = MemoryLayout.structLayout(
+            CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"));
 
     final Arena arena = Arena.ofConfined();
     final MethodHandle init, version, randomBytes, sha256,
                        vaultCreate, vaultSeal, vaultOpen,
-                       bufferFree, packetFree, vaultFree, strFree,
+                       bufferFree, packetFree, vaultFree, strFree, keypairFree,
                        krCreate, krAddDev, krAddPw, krCount, krSer, krDeser,
-                       krUnlockDev, krUnlockPw, krFree;
+                       krUnlockDev, krUnlockPw, krFree,
+                       committingEnc, committingDec, hmac256, hmac256Verify,
+                       hkdfExtract, hkdfExpand, hkdfDerive,
+                       hybridSigKeygen, hybridSigSign, hybridSigVerify, blsKeygenFromIkm;
 
     CryptoLibDemo(String libPath) {
         Linker linker = Linker.nativeLinker();
@@ -54,6 +59,44 @@ public final class CryptoLibDemo {
         krUnlockDev = h(linker, lib, "cryptolib_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
         krUnlockPw  = h(linker, lib, "cryptolib_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS));
         krFree      = h(linker, lib, "cryptolib_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS));
+        keypairFree = h(linker, lib, "cryptolib_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS));
+
+        // Newly exposed feature functions.
+        committingEnc = h(linker, lib, "cryptolib_committing_encrypt",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        committingDec = h(linker, lib, "cryptolib_committing_decrypt",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hmac256       = h(linker, lib, "cryptolib_hmac_sha256",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hmac256Verify = h(linker, lib, "cryptolib_hmac_sha256_verify",
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hkdfExtract   = h(linker, lib, "cryptolib_hkdf_extract",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hkdfExpand    = h(linker, lib, "cryptolib_hkdf_expand",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
+        hkdfDerive    = h(linker, lib, "cryptolib_hkdf_derive",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
+        hybridSigKeygen = h(linker, lib, "cryptolib_hybrid_sig_keygen",
+                FunctionDescriptor.of(CRYPTO_KEYPAIR));
+        hybridSigSign = h(linker, lib, "cryptolib_hybrid_sig_sign",
+                FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hybridSigVerify = h(linker, lib, "cryptolib_hybrid_sig_verify",
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        blsKeygenFromIkm = h(linker, lib, "cryptolib_bls_keygen_from_ikm",
+                FunctionDescriptor.of(CRYPTO_KEYPAIR, ADDRESS, JAVA_LONG));
+    }
+
+    // Copy a returned CryptoKeyPair's public+secret bytes into Java, then free it.
+    byte[][] consumeKeypair(MemorySegment kp) throws Throwable {
+        long bufSz = CRYPTO_BUFFER.byteSize();
+        MemorySegment pubData = kp.get(ADDRESS, 0);
+        long pubLen = kp.get(JAVA_LONG, ADDRESS.byteSize());
+        MemorySegment secData = kp.get(ADDRESS, bufSz);
+        long secLen = kp.get(JAVA_LONG, bufSz + ADDRESS.byteSize());
+        byte[] pub = pubData.equals(MemorySegment.NULL) ? new byte[0] : pubData.reinterpret(pubLen).toArray(JAVA_BYTE);
+        byte[] sec = secData.equals(MemorySegment.NULL) ? new byte[0] : secData.reinterpret(secLen).toArray(JAVA_BYTE);
+        keypairFree.invoke(kp);
+        return new byte[][]{pub, sec};
     }
 
     static MethodHandle h(Linker l, SymbolLookup lib, String name, FunctionDescriptor fd) {
@@ -144,6 +187,63 @@ public final class CryptoLibDemo {
                 + " · device==passphrase master: " + java.util.Arrays.equals(mDev, mPass));
         krFree.invoke(kr);
         krFree.invoke(kr2);
+
+        // ── Newly exposed feature functions ──
+        // Committing AEAD (UtC): ciphertext binds the key; wrong key must fail.
+        byte[] caKey = consume((MemorySegment) randomBytes.invoke(arena, 32L));
+        MemorySegment caKeySeg = arena.allocateFrom(JAVA_BYTE, caKey);
+        byte[] caPt = "commit me".getBytes();
+        MemorySegment caPtSeg = arena.allocateFrom(JAVA_BYTE, caPt);
+        byte[] caAad = "ctx".getBytes();
+        MemorySegment caAadSeg = arena.allocateFrom(JAVA_BYTE, caAad);
+        byte[] caCt = consume((MemorySegment) committingEnc.invoke(arena,
+                caPtSeg, (long) caPt.length, caKeySeg, (long) caKey.length, caAadSeg, (long) caAad.length));
+        MemorySegment caCtSeg = arena.allocateFrom(JAVA_BYTE, caCt);
+        byte[] caDec = consume((MemorySegment) committingDec.invoke(arena,
+                caCtSeg, (long) caCt.length, caKeySeg, (long) caKey.length, caAadSeg, (long) caAad.length));
+        byte[] wrongKey = consume((MemorySegment) randomBytes.invoke(arena, 32L));
+        MemorySegment wrongKeySeg = arena.allocateFrom(JAVA_BYTE, wrongKey);
+        MemorySegment caBad = (MemorySegment) committingDec.invoke(arena,
+                caCtSeg, (long) caCt.length, wrongKeySeg, (long) wrongKey.length, caAadSeg, (long) caAad.length);
+        boolean caReject = caBad.get(ADDRESS, 0).equals(MemorySegment.NULL);
+        MemorySegment caBadErr = caBad.get(ADDRESS, CRYPTO_BUFFER.byteSize());
+        if (!caBadErr.equals(MemorySegment.NULL)) strFree.invoke(caBadErr);
+        System.out.println("committing AEAD: roundtrip=\"" + new String(caDec) + "\" reject-wrong-key=" + caReject);
+
+        // HKDF-SHA256 + HMAC-SHA256.
+        byte[] ikm = consume((MemorySegment) randomBytes.invoke(arena, 32L));
+        MemorySegment ikmSeg = arena.allocateFrom(JAVA_BYTE, ikm);
+        byte[] saltB = "salt".getBytes(), infoB = "app".getBytes();
+        MemorySegment saltSeg = arena.allocateFrom(JAVA_BYTE, saltB);
+        MemorySegment infoSeg = arena.allocateFrom(JAVA_BYTE, infoB);
+        byte[] prk = consume((MemorySegment) hkdfExtract.invoke(arena, saltSeg, (long) saltB.length, ikmSeg, (long) ikm.length));
+        MemorySegment prkSeg = arena.allocateFrom(JAVA_BYTE, prk);
+        byte[] okm = consume((MemorySegment) hkdfExpand.invoke(arena, prkSeg, (long) prk.length, infoSeg, (long) infoB.length, 42L));
+        byte[] okm1 = consume((MemorySegment) hkdfDerive.invoke(arena, ikmSeg, (long) ikm.length, saltSeg, (long) saltB.length, infoSeg, (long) infoB.length, 42L));
+        byte[] macMsg = "mac me".getBytes();
+        MemorySegment macMsgSeg = arena.allocateFrom(JAVA_BYTE, macMsg);
+        byte[] mac256b = consume((MemorySegment) hmac256.invoke(arena, macMsgSeg, (long) macMsg.length, ikmSeg, (long) ikm.length));
+        MemorySegment macSeg = arena.allocateFrom(JAVA_BYTE, mac256b);
+        boolean macOk = (int) hmac256Verify.invoke(macMsgSeg, (long) macMsg.length, macSeg, (long) mac256b.length, ikmSeg, (long) ikm.length) == 1;
+        System.out.println("hkdf len=" + okm.length + " consistent=" + java.util.Arrays.equals(okm, okm1) + " · hmac256 verify=" + macOk);
+
+        // Hybrid signature (Ed25519 + ML-DSA-65).
+        byte[][] hkp = consumeKeypair((MemorySegment) hybridSigKeygen.invoke(arena));
+        MemorySegment hPubSeg = arena.allocateFrom(JAVA_BYTE, hkp[0]);
+        MemorySegment hSecSeg = arena.allocateFrom(JAVA_BYTE, hkp[1]);
+        byte[] sMsg = "sign me".getBytes();
+        MemorySegment sMsgSeg = arena.allocateFrom(JAVA_BYTE, sMsg);
+        byte[] hsig = consume((MemorySegment) hybridSigSign.invoke(arena, sMsgSeg, (long) sMsg.length, hSecSeg, (long) hkp[1].length));
+        MemorySegment hsigSeg = arena.allocateFrom(JAVA_BYTE, hsig);
+        boolean hsigOk = (int) hybridSigVerify.invoke(sMsgSeg, (long) sMsg.length, hsigSeg, (long) hsig.length, hPubSeg, (long) hkp[0].length) == 1;
+        System.out.println("hybrid sig: len=" + hsig.length + " verify=" + hsigOk);
+
+        // BLS deterministic keygen from IKM.
+        byte[] blsIkm = consume((MemorySegment) randomBytes.invoke(arena, 32L));
+        MemorySegment blsIkmSeg = arena.allocateFrom(JAVA_BYTE, blsIkm);
+        byte[][] d1 = consumeKeypair((MemorySegment) blsKeygenFromIkm.invoke(arena, blsIkmSeg, (long) blsIkm.length));
+        byte[][] d2 = consumeKeypair((MemorySegment) blsKeygenFromIkm.invoke(arena, blsIkmSeg, (long) blsIkm.length));
+        System.out.println("bls keygen-from-ikm deterministic: " + java.util.Arrays.equals(d1[0], d2[0]));
 
         System.out.println("Java demo OK");
     }
