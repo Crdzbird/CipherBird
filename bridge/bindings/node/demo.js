@@ -46,6 +46,23 @@ const cryptolib_keyring_unlock_with_device = lib.func('CryptoBufferResult crypto
 const cryptolib_keyring_unlock_with_passphrase = lib.func('CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(void *kr, const char *pw)');
 const cryptolib_keyring_free = lib.func('void cryptolib_keyring_free(void *kr)');
 
+// Keypair struct (public/secret CryptoBuffers) for the signature keygens.
+const CryptoKeyPair = koffi.struct('CryptoKeyPair', { public_key: CryptoBuffer, secret_key: CryptoBuffer });
+const cryptolib_keypair_free = lib.func('void cryptolib_keypair_free(CryptoKeyPair *kp)');
+
+// ── Newly exposed feature functions ──
+const cryptolib_committing_encrypt = lib.func('CryptoBufferResult cryptolib_committing_encrypt(uint8_t *pt, size_t ptl, uint8_t *key, size_t kl, uint8_t *aad, size_t al)');
+const cryptolib_committing_decrypt = lib.func('CryptoBufferResult cryptolib_committing_decrypt(uint8_t *ct, size_t ctl, uint8_t *key, size_t kl, uint8_t *aad, size_t al)');
+const cryptolib_hmac_sha256 = lib.func('CryptoBufferResult cryptolib_hmac_sha256(uint8_t *msg, size_t ml, uint8_t *key, size_t kl)');
+const cryptolib_hmac_sha256_verify = lib.func('int cryptolib_hmac_sha256_verify(uint8_t *msg, size_t ml, uint8_t *mac, size_t macl, uint8_t *key, size_t kl)');
+const cryptolib_hkdf_extract = lib.func('CryptoBufferResult cryptolib_hkdf_extract(uint8_t *salt, size_t sl, uint8_t *ikm, size_t il)');
+const cryptolib_hkdf_expand = lib.func('CryptoBufferResult cryptolib_hkdf_expand(uint8_t *prk, size_t pl, uint8_t *info, size_t il, size_t outlen)');
+const cryptolib_hkdf_derive = lib.func('CryptoBufferResult cryptolib_hkdf_derive(uint8_t *ikm, size_t il, uint8_t *salt, size_t sl, uint8_t *info, size_t infl, size_t outlen)');
+const cryptolib_hybrid_sig_keygen = lib.func('CryptoKeyPair cryptolib_hybrid_sig_keygen()');
+const cryptolib_hybrid_sig_sign = lib.func('CryptoBufferResult cryptolib_hybrid_sig_sign(uint8_t *msg, size_t ml, uint8_t *sk, size_t skl)');
+const cryptolib_hybrid_sig_verify = lib.func('int cryptolib_hybrid_sig_verify(uint8_t *msg, size_t ml, uint8_t *sig, size_t sigl, uint8_t *pk, size_t pkl)');
+const cryptolib_bls_keygen_from_ikm = lib.func('CryptoKeyPair cryptolib_bls_keygen_from_ikm(uint8_t *ikm, size_t il)');
+
 // Copy a returned CryptoBufferResult into a Node Buffer and free the C memory.
 function consume(res) {
   if (!res.buf.data || Number(res.buf.len) === 0) {
@@ -62,6 +79,14 @@ function consume(res) {
 }
 
 const hex = (b) => b.toString('hex');
+
+// Copy a returned CryptoKeyPair into { pub, sec } Buffers and free the C memory.
+function consumeKeypair(kp) {
+  const pub = Buffer.from(koffi.decode(kp.public_key.data, 'uint8_t', Number(kp.public_key.len)));
+  const sec = Buffer.from(koffi.decode(kp.secret_key.data, 'uint8_t', Number(kp.secret_key.len)));
+  cryptolib_keypair_free(kp);
+  return { pub, sec };
+}
 
 if (cryptolib_init() !== 0) throw new Error('init failed');
 console.log('CryptoLib version:', cryptolib_version());
@@ -104,5 +129,40 @@ console.log('keyring slots:', Number(cryptolib_keyring_slot_count(kr)),
             '· device==passphrase master:', Buffer.compare(mDev, mPass) === 0);
 cryptolib_keyring_free(kr);
 cryptolib_keyring_free(kr2);
+
+// ── Newly exposed feature functions ──
+// Committing AEAD (UtC): wrong key must fail.
+const caKey = consume(cryptolib_random_bytes(32));
+const caAad = Buffer.from('ctx');
+const caCt = consume(cryptolib_committing_encrypt(Buffer.from('commit me'), 9, caKey, caKey.length, caAad, caAad.length));
+const caDec = consume(cryptolib_committing_decrypt(caCt, caCt.length, caKey, caKey.length, caAad, caAad.length));
+const caBad = cryptolib_committing_decrypt(caCt, caCt.length, consume(cryptolib_random_bytes(32)), 32, caAad, caAad.length);
+const caReject = !caBad.buf.data;
+if (caBad.error) cryptolib_str_free(caBad.error);
+console.log('committing AEAD: roundtrip="%s" reject-wrong-key=%s', caDec.toString(), caReject);
+
+// HKDF-SHA256 + HMAC-SHA256.
+const ikm = consume(cryptolib_random_bytes(32));
+const salt = Buffer.from('salt'), info = Buffer.from('app');
+const prk = consume(cryptolib_hkdf_extract(salt, salt.length, ikm, ikm.length));
+const okm = consume(cryptolib_hkdf_expand(prk, prk.length, info, info.length, 42));
+const okm1 = consume(cryptolib_hkdf_derive(ikm, ikm.length, salt, salt.length, info, info.length, 42));
+const macMsg = Buffer.from('mac me');
+const mac256 = consume(cryptolib_hmac_sha256(macMsg, macMsg.length, ikm, ikm.length));
+const macOk = cryptolib_hmac_sha256_verify(macMsg, macMsg.length, mac256, mac256.length, ikm, ikm.length) === 1;
+console.log('hkdf len=%d consistent=%s · hmac256 verify=%s', okm.length, Buffer.compare(okm, okm1) === 0, macOk);
+
+// Hybrid signature (Ed25519 + ML-DSA-65).
+const hkp = consumeKeypair(cryptolib_hybrid_sig_keygen());
+const sMsg = Buffer.from('sign me');
+const hsig = consume(cryptolib_hybrid_sig_sign(sMsg, sMsg.length, hkp.sec, hkp.sec.length));
+const hsigOk = cryptolib_hybrid_sig_verify(sMsg, sMsg.length, hsig, hsig.length, hkp.pub, hkp.pub.length) === 1;
+console.log('hybrid sig: len=%d verify=%s', hsig.length, hsigOk);
+
+// BLS deterministic keygen from IKM.
+const blsIkm = consume(cryptolib_random_bytes(32));
+const d1 = consumeKeypair(cryptolib_bls_keygen_from_ikm(blsIkm, blsIkm.length));
+const d2 = consumeKeypair(cryptolib_bls_keygen_from_ikm(blsIkm, blsIkm.length));
+console.log('bls keygen-from-ikm deterministic:', Buffer.compare(d1.pub, d2.pub) === 0);
 
 console.log('Node demo OK');

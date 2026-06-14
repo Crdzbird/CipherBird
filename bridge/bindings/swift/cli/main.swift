@@ -76,4 +76,56 @@ print("keyring slots: \(cryptolib_keyring_slot_count(kr)) · device==passphrase:
 cryptolib_keyring_free(kr)
 cryptolib_keyring_free(kr2)
 
+// ── Newly exposed feature functions ──
+func b(_ s: String) -> [UInt8] { Array(s.utf8) }
+func keypair(_ kp: CryptoKeyPair) -> ([UInt8], [UInt8]) {
+    var k = kp
+    let pub = Array(UnsafeBufferPointer(start: k.public_key.data, count: k.public_key.len))
+    let sec = Array(UnsafeBufferPointer(start: k.secret_key.data, count: k.secret_key.len))
+    cryptolib_keypair_free(&k)
+    return (pub, sec)
+}
+
+// Committing AEAD (UtC) — ciphertext binds the key.
+let caKey = consume(cryptolib_random_bytes(32))!, caAad = b("ctx")
+let caCt = b("commit me").withUnsafeBufferPointer { p in caKey.withUnsafeBufferPointer { k in caAad.withUnsafeBufferPointer { a in
+    consume(cryptolib_committing_encrypt(p.baseAddress, p.count, k.baseAddress, k.count, a.baseAddress, a.count)) } } }!
+let caPt = caCt.withUnsafeBufferPointer { c in caKey.withUnsafeBufferPointer { k in caAad.withUnsafeBufferPointer { a in
+    consume(cryptolib_committing_decrypt(c.baseAddress, c.count, k.baseAddress, k.count, a.baseAddress, a.count)) } } }!
+let caBad = caCt.withUnsafeBufferPointer { c in consume(cryptolib_random_bytes(32))!.withUnsafeBufferPointer { k in caAad.withUnsafeBufferPointer { a in
+    cryptolib_committing_decrypt(c.baseAddress, c.count, k.baseAddress, k.count, a.baseAddress, a.count) } } }
+let caReject = caBad.buf.data == nil
+if let e = caBad.error { cryptolib_str_free(e) }
+print("committing AEAD: roundtrip=\"\(String(decoding: caPt, as: UTF8.self))\" reject-wrong-key=\(caReject)")
+
+// HKDF-SHA256 + HMAC-SHA256.
+let ikm = consume(cryptolib_random_bytes(32))!, salt = b("salt"), info = b("app")
+let prk = salt.withUnsafeBufferPointer { s in ikm.withUnsafeBufferPointer { i in
+    consume(cryptolib_hkdf_extract(s.baseAddress, s.count, i.baseAddress, i.count)) } }!
+let okm = prk.withUnsafeBufferPointer { p in info.withUnsafeBufferPointer { f in
+    consume(cryptolib_hkdf_expand(p.baseAddress, p.count, f.baseAddress, f.count, 42)) } }!
+let okm1 = ikm.withUnsafeBufferPointer { i in salt.withUnsafeBufferPointer { s in info.withUnsafeBufferPointer { f in
+    consume(cryptolib_hkdf_derive(i.baseAddress, i.count, s.baseAddress, s.count, f.baseAddress, f.count, 42)) } } }!
+let macMsg = b("mac me")
+let mac256 = macMsg.withUnsafeBufferPointer { m in ikm.withUnsafeBufferPointer { k in
+    consume(cryptolib_hmac_sha256(m.baseAddress, m.count, k.baseAddress, k.count)) } }!
+let macOk = macMsg.withUnsafeBufferPointer { m in mac256.withUnsafeBufferPointer { t in ikm.withUnsafeBufferPointer { k in
+    cryptolib_hmac_sha256_verify(m.baseAddress, m.count, t.baseAddress, t.count, k.baseAddress, k.count) == 1 } } }
+print("hkdf len=\(okm.count) consistent=\(okm == okm1) · hmac256 verify=\(macOk)")
+
+// Hybrid signature (Ed25519 + ML-DSA-65).
+let (hsPub, hsSec) = keypair(cryptolib_hybrid_sig_keygen())
+let sMsg = b("sign me")
+let hsig = sMsg.withUnsafeBufferPointer { m in hsSec.withUnsafeBufferPointer { s in
+    consume(cryptolib_hybrid_sig_sign(m.baseAddress, m.count, s.baseAddress, s.count)) } }!
+let hsigOk = sMsg.withUnsafeBufferPointer { m in hsig.withUnsafeBufferPointer { s in hsPub.withUnsafeBufferPointer { p in
+    cryptolib_hybrid_sig_verify(m.baseAddress, m.count, s.baseAddress, s.count, p.baseAddress, p.count) == 1 } } }
+print("hybrid sig: len=\(hsig.count) verify=\(hsigOk)")
+
+// BLS deterministic keygen from IKM.
+let blsIkm = consume(cryptolib_random_bytes(32))!
+let (d1Pub, _) = keypair(blsIkm.withUnsafeBufferPointer { cryptolib_bls_keygen_from_ikm($0.baseAddress, $0.count) })
+let (d2Pub, _) = keypair(blsIkm.withUnsafeBufferPointer { cryptolib_bls_keygen_from_ikm($0.baseAddress, $0.count) })
+print("bls keygen-from-ikm deterministic: \(d1Pub == d2Pub)")
+
 print("Swift demo OK")

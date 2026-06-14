@@ -22,6 +22,9 @@ OPENSSL_VERSION="3.3.2"
 # liboqs 0.13+ introduced the FIPS 203/204/205 naming (ML-KEM, ML-DSA, SLH-DSA)
 # that pq.hpp uses. 0.12 still uses the pre-standardization names.
 LIBOQS_VERSION="0.15.0"
+# secp256k1 (bitcoin-core) for EVM/BTC interop — keep in sync with the Homebrew
+# pin used on desktop so every platform ships the same ECDSA implementation.
+SECP256K1_VERSION="0.7.1"
 
 # ─── Console helpers ────────────────────────────────────────────────────────
 BOLD=$'\033[1m'

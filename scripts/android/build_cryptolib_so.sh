@@ -10,7 +10,7 @@ ABI="${1:?Usage: $0 <abi>}"
 DEPS="$(abi_prefix "$ABI")"
 BUILD="$BUILD_ROOT/$ABI"
 
-for dep in libsodium libblake3 liboqs libcrypto libblst; do
+for dep in libsodium libblake3 liboqs libcrypto libblst libsecp256k1; do
     [[ -f "$DEPS/lib/${dep}.a" ]] \
         || die "missing $DEPS/lib/${dep}.a — run build_all.sh first"
 done

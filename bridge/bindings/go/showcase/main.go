@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"cryptolib_bridge/cryptolib"
+	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
 )
 
 var pass, fail int

@@ -25,18 +25,26 @@ function resolveLibPath() {
   return path.join(__dirname, 'prebuilds', triple, `libcryptolib_c.${ext}`);
 }
 
-const lib = koffi.load(resolveLibPath());
+// ── Lazy native binding ──────────────────────────────────────────────────────
+// The native library is loaded on FIRST USE (or warmed early via preload()),
+// never at require() time — so importing this module is cheap and never blocks
+// the event loop. All public methods are synchronous; the first one to run
+// triggers the (memoized) load. No `await` is ever required to call crypto.
+let _native = null;
+function ensureLoaded() {
+  if (_native) return _native;
+  const lib = koffi.load(resolveLibPath());
 
-// ── Structs ──────────────────────────────────────────────────────────────────
-const CryptoBuffer = koffi.struct('CryptoBuffer', { data: 'void *', len: 'size_t' });
-const CryptoBufferResult = koffi.struct('CryptoBufferResult', { buf: CryptoBuffer, error: 'void *' });
-const CryptoPacket = koffi.struct('CryptoPacket', { ciphertext: CryptoBuffer, signature: CryptoBuffer, kdf_salt: CryptoBuffer });
-const CryptoKeyPair = koffi.struct('CryptoKeyPair', { public_key: CryptoBuffer, secret_key: CryptoBuffer });
-const CryptoAsymBundle = koffi.struct('CryptoAsymBundle', { box_public: CryptoBuffer, box_secret: CryptoBuffer, sign_public: CryptoBuffer, sign_secret: CryptoBuffer });
-const CryptoKemEncapsResult = koffi.struct('CryptoKemEncapsResult', { ciphertext: CryptoBuffer, shared_secret: CryptoBuffer });
+  // Structs (registered once, on first load).
+  const CryptoBuffer = koffi.struct('CryptoBuffer', { data: 'void *', len: 'size_t' });
+  const CryptoBufferResult = koffi.struct('CryptoBufferResult', { buf: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoPacket', { ciphertext: CryptoBuffer, signature: CryptoBuffer, kdf_salt: CryptoBuffer });
+  koffi.struct('CryptoKeyPair', { public_key: CryptoBuffer, secret_key: CryptoBuffer });
+  koffi.struct('CryptoAsymBundle', { box_public: CryptoBuffer, box_secret: CryptoBuffer, sign_public: CryptoBuffer, sign_secret: CryptoBuffer });
+  koffi.struct('CryptoKemEncapsResult', { ciphertext: CryptoBuffer, shared_secret: CryptoBuffer });
 
-const f = (sig) => lib.func(sig);
-const fn = {
+  const f = (sig) => lib.func(sig);
+  _native = {
   init: f('int cryptolib_init()'), version: f('const char *cryptolib_version()'),
   random: f('CryptoBufferResult cryptolib_random_bytes(size_t)'),
   sha256: f('CryptoBufferResult cryptolib_sha256(uint8_t*, size_t)'),
@@ -94,7 +102,13 @@ const fn = {
   kpFree: f('void cryptolib_keypair_free(CryptoKeyPair*)'),
   kemFree: f('void cryptolib_kem_encaps_free(CryptoKemEncapsResult*)'),
   strFree: f('void cryptolib_str_free(void*)'),
-};
+  };
+  return _native;
+}
+
+// Proxy so existing `fn.xxx` call sites stay unchanged but trigger the lazy load
+// on first property access.
+const fn = new Proxy({}, { get: (_t, prop) => ensureLoaded()[prop] });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const b = (cb) => (!cb.data || Number(cb.len) === 0) ? Buffer.alloc(0)
@@ -108,8 +122,47 @@ function consume(r) {
 function kp(k) { const pub = b(k.public_key), sec = b(k.secret_key); fn.kpFree(k); return { publicKey: pub, secretKey: sec }; }
 const u8 = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x);
 
+// Internal: synchronously load + initialize the native lib. Used by the worker
+// in preload() and reachable from the main thread for the lazy fallback.
+function _warm() {
+  const a = ensureLoaded();
+  if (a.init() !== 0) throw new Error('cryptolib init failed');
+  a.version();
+  return true;
+}
+
+// Optionally warm the native binding OFF the main thread.
+//
+// Spawns a short-lived worker_thread that loads the shared library and runs the
+// one-time libsodium init. dlopen mapping and libsodium init are process-global,
+// so this warms the path for the main thread's later lazy load — the first
+// synchronous crypto call then pays no load cost. Returns a Promise<boolean>
+// you may ignore (fire-and-forget) or await; the crypto API never requires
+// awaiting it. Falls back to a same-thread warm if workers are unavailable.
+function preload() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    let Worker;
+    try { ({ Worker } = require('node:worker_threads')); }
+    catch { try { _warm(); } catch { /* ignore */ } return done(true); }
+    try {
+      const code = `
+        const { workerData, parentPort } = require('node:worker_threads');
+        try { require(workerData.modulePath)._warm(); parentPort.postMessage({ ok: true }); }
+        catch (e) { parentPort.postMessage({ ok: false, error: String(e) }); }`;
+      const w = new Worker(code, { eval: true, workerData: { modulePath: __filename } });
+      w.once('message', (m) => { w.terminate(); done(!!(m && m.ok)); });
+      w.once('error', () => done(false));
+      w.once('exit', (c) => done(c === 0));
+    } catch { done(false); }
+  });
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 module.exports = {
+  preload,
+  _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
   version: () => fn.version(),
   randomBytes: (n) => consume(fn.random(n)),

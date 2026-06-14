@@ -36,7 +36,7 @@ import (
 	"os"
 	"strings"
 
-	"cryptolib_bridge/cryptolib"
+	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════

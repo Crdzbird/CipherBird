@@ -69,6 +69,20 @@ go: lib
 		cd bridge/bindings/go && DYLD_LIBRARY_PATH=$(LIBDIR) go run ./example | tail -3; \
 	else echo "go not found — skipping"; fi
 
+# Self-contained static archive (every dependency baked in).
+.PHONY: static-archive
+static-archive:
+	$(call hdr,Static archive (self-contained))
+	@bash scripts/build_static_archive.sh
+
+# Go demo built fully static — runs with NO library path (no dylib needed).
+.PHONY: go-static
+go-static: static-archive
+	$(call hdr,Go demo (fully static, no runtime library))
+	@if command -v go >/dev/null 2>&1; then \
+		cd bridge/bindings/go && go run -tags cryptolib_static ./example | tail -3; \
+	else echo "go not found — skipping"; fi
+
 # ── Swift (console) ──────────────────────────────────────────────────────────
 .PHONY: swift
 swift: lib

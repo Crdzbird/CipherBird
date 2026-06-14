@@ -14,7 +14,7 @@ elif [[ "${ABIS[0]}" == "all" ]]; then
     ABIS=(arm64-v8a armeabi-v7a x86_64 x86)
 fi
 
-DEPS=(libsodium blake3 openssl liboqs blst)
+DEPS=(libsodium blake3 openssl liboqs blst secp256k1)
 
 for abi in "${ABIS[@]}"; do
     printf "\n%s═══ Android deps for %s ═══%s\n" "$BOLD$CYN" "$abi" "$RST"

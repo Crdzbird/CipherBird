@@ -1,3 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="com.cryptolib.cryptolib_flutter">
+  <application>
+    <!--
+      Startup hook: Android instantiates this ContentProvider very early in app
+      launch, so its onCreate() warms libcryptolib_c on a background thread
+      before the first Dart FFI call. authorities uses ${applicationId} so it is
+      unique per host app. Not exported; never queried.
+    -->
+    <provider
+      android:name="com.cryptolib.cryptolib_flutter.CryptolibStartup"
+      android:authorities="${applicationId}.cryptolib-startup"
+      android:exported="false"
+      android:initOrder="100" />
+  </application>
 </manifest>
