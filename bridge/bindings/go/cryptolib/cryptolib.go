@@ -334,6 +334,57 @@ func (s *StreamDecryptor) Close() {
 	}
 }
 
+// StreamEncrypt is a one-shot convenience over the streaming AEAD: it encrypts a
+// slice of plaintext chunks under key and returns the 24-byte stream header plus
+// one ciphertext chunk per input (the last chunk is tagged FINAL). The handle is
+// created and freed internally. For incremental/streaming use, use
+// NewStreamEncryptor directly.
+func StreamEncrypt(key []byte, plaintextChunks [][]byte) (header []byte, chunks [][]byte, err error) {
+	enc := NewStreamEncryptor(key)
+	if enc == nil {
+		return nil, nil, errors.New("cryptolib: stream encryptor creation failed (key must be 32 bytes)")
+	}
+	defer enc.Close()
+	header, err = enc.Header()
+	if err != nil {
+		return nil, nil, err
+	}
+	chunks = make([][]byte, len(plaintextChunks))
+	for i, pt := range plaintextChunks {
+		tag := TagMessage
+		if i == len(plaintextChunks)-1 {
+			tag = TagFinal
+		}
+		ct, e := enc.Push(pt, tag)
+		if e != nil {
+			return nil, nil, e
+		}
+		chunks[i] = ct
+	}
+	return header, chunks, nil
+}
+
+// StreamDecrypt is a one-shot convenience over the streaming AEAD: it decrypts a
+// slice of ciphertext chunks under key and header, returning one plaintext chunk
+// per input. The handle is created and freed internally. For incremental use,
+// use NewStreamDecryptor directly.
+func StreamDecrypt(key, header []byte, ciphertextChunks [][]byte) ([][]byte, error) {
+	dec := NewStreamDecryptor(key, header)
+	if dec == nil {
+		return nil, errors.New("cryptolib: stream decryptor creation failed (bad key or header)")
+	}
+	defer dec.Close()
+	out := make([][]byte, len(ciphertextChunks))
+	for i, ct := range ciphertextChunks {
+		pt, _, e := dec.Pull(ct)
+		if e != nil {
+			return nil, e
+		}
+		out[i] = pt
+	}
+	return out, nil
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Asymmetric — Ed25519
 // ═══════════════════════════════════════════════════════════════════════════════
