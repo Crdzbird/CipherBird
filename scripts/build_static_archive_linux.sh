@@ -69,7 +69,9 @@ if [ ! -f "$BLST_A" ]; then
     git clone --depth 1 https://github.com/supranational/blst "$HOST/blst-src"
     ( cd "$HOST/blst-src" && ./build.sh -fPIC )
     cp "$HOST/blst-src/libblst.a" "$BLST_A"
-    cp "$HOST/blst-src/bindings/blst.h" "$HOST/blst-src/bindings/blst_aux.h" "$DEPS/include/"
+    # The bridge includes <blst/blst.h>, so headers go in a blst/ subdir.
+    mkdir -p "$DEPS/include/blst"
+    cp "$HOST/blst-src/bindings/blst.h" "$HOST/blst-src/bindings/blst_aux.h" "$DEPS/include/blst/"
 fi
 
 # 5. libsecp256k1 WITH the recovery module (distro package omits it).
