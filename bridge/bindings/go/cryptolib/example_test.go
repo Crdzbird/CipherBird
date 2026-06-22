@@ -108,6 +108,20 @@ func ExampleBlsAggregate() {
 	// Output: 96 true
 }
 
+// Streaming AEAD in one shot: encrypt a sequence of chunks and decrypt them
+// back. For incremental streaming, use NewStreamEncryptor / NewStreamDecryptor.
+func ExampleStreamEncrypt() {
+	_ = cryptolib.Init()
+	key, _ := cryptolib.RandomBytes(32)
+	plain := [][]byte{[]byte("part-1"), []byte("part-2"), []byte("part-3")}
+
+	header, ct, _ := cryptolib.StreamEncrypt(key, plain)
+	pt, _ := cryptolib.StreamDecrypt(key, header, ct)
+
+	fmt.Println(len(header), string(pt[0]), string(pt[1]), string(pt[2]))
+	// Output: 24 part-1 part-2 part-3
+}
+
 func equalLabel(a, b []byte) []byte {
 	if len(a) == len(b) && string(a) == string(b) {
 		return []byte("recovered==signer")
