@@ -41,7 +41,9 @@ if [ ! -f "$BLAKE3_A" ]; then
     T="$(ls third_party/*/src/blake3-*.tar.gz 2>/dev/null | head -1)"
     [ -n "$T" ] || { echo "blake3 source tarball not found under third_party/"; exit 1; }
     tar xzf "$T" -C "$HOST"
-    BL="$(ls -d "$HOST"/BLAKE3-* "$HOST"/blake3-* 2>/dev/null | head -1)"
+    # find (not ls GLOB1 GLOB2) so a non-matching glob doesn't fail under pipefail.
+    BL="$(find "$HOST" -maxdepth 1 -type d -iname 'blake3-*' | head -1)"
+    [ -n "$BL" ] || { echo "extracted BLAKE3 dir not found under $HOST"; exit 1; }
     cmake -S "$BL/c" -B "$HOST/blake3-build" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF $PIC >/dev/null
     cmake --build "$HOST/blake3-build" >/dev/null
