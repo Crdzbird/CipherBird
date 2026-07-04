@@ -22,6 +22,7 @@ export 'src/cryptolib.dart'
         CryptoLibEvmBtc,
         CryptoLibHashing,
         CryptoLibKeyring,
+        CryptoLibMolecular,
         CryptoLibPostQuantum,
         CryptoLibStego,
         CryptoLibSymmetric,
