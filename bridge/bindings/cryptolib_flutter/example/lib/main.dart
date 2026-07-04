@@ -71,6 +71,20 @@ class MyApp extends StatelessWidget {
       lib.hybridSigVerify(hMsg, hSig, hsk.publicKey),
     ));
 
+    // MolecularVault: cascade (XChaCha20 ∘ AES-GCM-SIV) + Argon2id, keyed by a
+    // passphrase; and raw-key mode composed with the hybrid PQC KEM.
+    final mvPt = Uint8List.fromList('molecular secret'.codeUnits);
+    final mvEnv = lib.molecularSeal(mvPt, 'a good passphrase', ops: 2, mem: 1 << 20);
+    final mvBack = lib.molecularOpen(mvEnv, 'a good passphrase');
+    results.add(('MolecularVault passphrase seal+open', _eq(mvBack, mvPt)));
+
+    final mvKp = lib.hybridKemKeygen();
+    final (mvCt, mvSs) = lib.hybridKemEncapsulate(mvKp.publicKey);
+    final mvSealed = lib.molecularSealWithKey(mvPt, mvSs);
+    final mvOpened = lib.molecularOpenWithKey(
+        mvSealed, lib.hybridKemDecapsulate(mvCt, mvKp.secretKey));
+    results.add(('MolecularVault + hybrid-KEM (PQ-resistant)', _eq(mvOpened, mvPt)));
+
     return results;
   }
 
