@@ -317,6 +317,81 @@ CRYPTO_API CryptoBufferResult cryptolib_committing_decrypt(
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+// ── MolecularVault ──────────────────────────────────────────────────────────
+#ifdef CRYPTOLIB_HAS_OPENSSL
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len,
+    uint64_t ops, size_t mem) try
+{
+    crypto::MolecularVault::KdfParams p;
+    if (ops != 0) p.ops = ops;   // 0 → keep the SENSITIVE default
+    if (mem != 0) p.mem = mem;
+    auto r = crypto::MolecularVault::seal(
+        sp(plaintext, pt_len), passphrase ? passphrase : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{}, p);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open(
+    const uint8_t* envelope, size_t env_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::open(
+        sp(envelope, env_len), passphrase ? passphrase : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal_with_key(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::seal_with_key(
+        sp(plaintext, pt_len), sp(master_key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::open_with_key(
+        sp(envelope, env_len), sp(master_key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+#else  // !CRYPTOLIB_HAS_OPENSSL — ABI-stable stubs when GCM-SIV is unavailable
+static CryptoBufferResult molecular_unavailable() {
+    return err_buf("MolecularVault requires OpenSSL (AES-256-GCM-SIV) — not compiled in");
+}
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal(
+    const uint8_t*, size_t, const char*, const uint8_t*, size_t, uint64_t, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open(
+    const uint8_t*, size_t, const char*, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal_with_key(
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+#endif // CRYPTOLIB_HAS_OPENSSL
+
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(
     const uint8_t* plaintext, size_t pt_len,
     const uint8_t* key, size_t key_len,

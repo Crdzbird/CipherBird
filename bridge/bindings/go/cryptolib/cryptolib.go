@@ -1538,3 +1538,66 @@ func (e *Entropy) AsymBundle() (AsymBundle, error) {
 		SignSecret: goBytes(cb.sign_secret),
 	}, nil
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MolecularVault — maximum-assurance layered encryption
+//
+// Cascade of XChaCha20-Poly1305 ∘ AES-256-GCM-SIV under a key-committing outer
+// layer, keyed by Argon2id(passphrase) or a caller-supplied 32-byte master.
+// Composition of vetted primitives only — no new cryptography. Requires the
+// native library to be built with OpenSSL (for the GCM-SIV layer).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// MolecularSeal encrypts plaintext under a passphrase. ops/mem are the Argon2id
+// work factors; pass 0 for either to use the library's SENSITIVE preset. For
+// high-value secrets raise mem toward 1<<30 (1 GiB) to make guessing far
+// costlier. The returned envelope is self-describing (carries salt + params).
+func MolecularSeal(plaintext []byte, passphrase string, aad []byte, ops uint64, mem int) ([]byte, error) {
+	if passphrase == "" {
+		return nil, errors.New("cryptolib: MolecularSeal requires a passphrase")
+	}
+	cpw := C.CString(passphrase)
+	defer C.free(unsafe.Pointer(cpw))
+	m := mem
+	if m < 0 {
+		m = 0
+	}
+	return checkBufResult(C.cryptolib_molecular_seal(
+		u8(plaintext), C.size_t(len(plaintext)), cpw,
+		u8(aad), C.size_t(len(aad)),
+		C.uint64_t(ops), C.size_t(m)))
+}
+
+// MolecularOpen decrypts a passphrase-sealed envelope. AAD must match exactly;
+// a wrong passphrase, wrong AAD, or any tampering fails closed with an error.
+func MolecularOpen(envelope []byte, passphrase string, aad []byte) ([]byte, error) {
+	cpw := C.CString(passphrase)
+	defer C.free(unsafe.Pointer(cpw))
+	return checkBufResult(C.cryptolib_molecular_open(
+		u8(envelope), C.size_t(len(envelope)), cpw,
+		u8(aad), C.size_t(len(aad))))
+}
+
+// MolecularSealWithKey encrypts under a 32-byte full-entropy master key (for
+// example one agreed via HybridKemEncapsulate). No Argon2id is applied — the key
+// is expected to already be full-entropy.
+func MolecularSealWithKey(plaintext, masterKey, aad []byte) ([]byte, error) {
+	if len(masterKey) != 32 {
+		return nil, fmt.Errorf("cryptolib: MolecularVault master key must be 32 bytes, got %d", len(masterKey))
+	}
+	return checkBufResult(C.cryptolib_molecular_seal_with_key(
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(masterKey), C.size_t(len(masterKey)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// MolecularOpenWithKey decrypts a raw-key-sealed envelope.
+func MolecularOpenWithKey(envelope, masterKey, aad []byte) ([]byte, error) {
+	if len(masterKey) != 32 {
+		return nil, fmt.Errorf("cryptolib: MolecularVault master key must be 32 bytes, got %d", len(masterKey))
+	}
+	return checkBufResult(C.cryptolib_molecular_open_with_key(
+		u8(envelope), C.size_t(len(envelope)),
+		u8(masterKey), C.size_t(len(masterKey)),
+		u8(aad), C.size_t(len(aad))))
+}

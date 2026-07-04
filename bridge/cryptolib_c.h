@@ -212,6 +212,37 @@ CRYPTO_API CryptoBufferResult cryptolib_committing_decrypt(
     const uint8_t* key, size_t key_len,
     const uint8_t* aad, size_t aad_len);
 
+/* ── MolecularVault — max-assurance layered encryption ──────────────────────
+ * Cascade of XChaCha20-Poly1305 ∘ AES-256-GCM-SIV under a key-committing outer
+ * layer, keyed by Argon2id(passphrase) or a caller-supplied 32-byte master.
+ * Requires OpenSSL for the GCM-SIV layer. Self-describing versioned envelope. */
+
+/** Seal under a passphrase. ops/mem are Argon2id work factors; pass 0,0 for the
+ *  SENSITIVE preset. Higher mem (e.g. 1<<30 = 1 GiB) makes guessing far costlier. */
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len,
+    uint64_t ops, size_t mem);
+
+/** Open a passphrase-sealed envelope. AAD must match exactly; fails closed. */
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open(
+    const uint8_t* envelope, size_t env_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len);
+
+/** Seal under a 32-byte full-entropy master key (e.g. from the hybrid KEM). */
+CRYPTO_API CryptoBufferResult cryptolib_molecular_seal_with_key(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Open a raw-key-sealed envelope. */
+CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
 /** AES-256-GCM encrypt. Output: [nonce(12) | ciphertext | MAC(16)]. */
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(
     const uint8_t* plaintext, size_t pt_len,

@@ -278,7 +278,9 @@ if(CRYPTOLIB_BUILD_BRIDGE)
         endif()
     endif()
     if(CRYPTOLIB_PQ)
-        target_compile_definitions(cryptolib_c PRIVATE CRYPTOLIB_HAS_PQ=1)
+        # OpenSSL comes in with the PQ stack (liboqs depends on it); expose it to
+        # the bridge so AES-256-GCM-SIV and MolecularVault are available too.
+        target_compile_definitions(cryptolib_c PRIVATE CRYPTOLIB_HAS_PQ=1 CRYPTOLIB_HAS_OPENSSL=1)
         target_include_directories(cryptolib_c PRIVATE ${OQS_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIRS})
         target_link_libraries(cryptolib_c PRIVATE ${OQS_LIBRARY} ${OPENSSL_LIBRARIES})
         if(NOT CRYPTOLIB_DEPS_PREBUILT)

@@ -36,6 +36,7 @@ void run_tests_kat();
 void run_tests_keyring();
 void run_tests_keyring_rotation();
 void run_tests_shamir();
+void run_tests_molecular_vault();
 void run_tests_noise();
 void run_tests_noise_kat();
 void run_tests_concurrency();
@@ -71,6 +72,7 @@ int main() {
     run_suite("keyring",        run_tests_keyring);
     run_suite("keyring_rotation", run_tests_keyring_rotation);
     run_suite("shamir",         run_tests_shamir);
+    run_suite("molecular_vault", run_tests_molecular_vault);
     run_suite("noise_xx",       run_tests_noise);
     run_suite("noise_xx_kat",   run_tests_noise_kat);
     run_suite("concurrency",    run_tests_concurrency);

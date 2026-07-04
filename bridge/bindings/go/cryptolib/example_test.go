@@ -122,6 +122,17 @@ func ExampleStreamEncrypt() {
 	// Output: 24 part-1 part-2 part-3
 }
 
+// MolecularVault: maximum-assurance layered encryption under a passphrase
+// (cascade of two AEAD families + key-committing outer layer, Argon2id-keyed).
+// ops/mem tune the Argon2id work factor; 0 selects the SENSITIVE preset.
+func ExampleMolecularSeal() {
+	_ = cryptolib.Init()
+	env, _ := cryptolib.MolecularSeal([]byte("top secret"), "correct horse", nil, 2, 1<<20)
+	pt, _ := cryptolib.MolecularOpen(env, "correct horse", nil)
+	fmt.Println(string(pt))
+	// Output: top secret
+}
+
 func equalLabel(a, b []byte) []byte {
 	if len(a) == len(b) && string(a) == string(b) {
 		return []byte("recovered==signer")
