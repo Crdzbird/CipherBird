@@ -52,6 +52,12 @@ export default function App() {
         </button>{' '}
         <button onClick={call(async () => setOut(await api('keyring')))}>
           Keyring (device + passphrase)
+        </button>{' '}
+        <button onClick={call(async () => setOut(await api('molecular', { text, passphrase: 'a good passphrase' })))}>
+          MolecularVault (cascade + PQC)
+        </button>{' '}
+        <button onClick={call(async () => setOut(await api('evm', { text })))}>
+          EVM: Keccak-256 + secp256k1
         </button>
       </div>
 
