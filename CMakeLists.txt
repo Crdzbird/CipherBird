@@ -185,6 +185,10 @@ if(CRYPTOLIB_BUILD_EXAMPLE)
     target_compile_definitions(cryptolib_showcase PRIVATE
         CRYPTOLIB_PROJECT_DIR="${CMAKE_SOURCE_DIR}")
     target_link_libraries(cryptolib_showcase PRIVATE crypto::cryptolib)
+
+    add_executable(cryptolib_recipes example/recipes.cpp)
+    target_compile_options(cryptolib_recipes PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
+    target_link_libraries(cryptolib_recipes PRIVATE crypto::cryptolib)
 endif()
 
 # ─── Tests ───────────────────────────────────────────────────────────────────

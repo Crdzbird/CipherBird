@@ -1,14 +1,16 @@
 # CryptoLib
 
-> A C++20 cryptography library covering classical, post-quantum, and hybrid
-> primitives behind a single C ABI — usable from Flutter, Node, JVM, Swift,
-> .NET, and Go via auto-loading language packages.
+> A C++20 cryptography library covering classical, post-quantum, hybrid, and
+> blockchain primitives behind a single C ABI — usable from Flutter, Go, Node,
+> Next.js/React, JVM, Swift, and .NET via auto-loading language packages.
 
-Single include on the C++ side. Five language packages bundle the native
-binary and load it automatically — no manual path, no manual setup. Built on
-vetted upstreams (libsodium, liboqs, blst, OpenSSL libcrypto, BLAKE3) and
-wrapped in misuse-resistant high-level constructions (Vault, Keyring, hybrid
-KEM/signatures, committing AEAD, Noise XX).
+Single include on the C++ side. Language packages bundle the native binary and
+load it automatically — no manual path, no manual setup. Built on vetted
+upstreams (libsodium, liboqs, blst, OpenSSL libcrypto, BLAKE3, libsecp256k1) and
+wrapped in misuse-resistant high-level constructions (Vault, **MolecularVault**,
+Keyring, hybrid KEM/signatures, committing AEAD, Noise XX). Every binding wraps
+the **same** native core, so a value sealed in one language opens byte-for-byte
+in another.
 
 ```cpp
 #include <cryptolib/cryptolib.hpp>
@@ -27,9 +29,102 @@ KEM/signatures, committing AEAD, Noise XX).
 | **Post-quantum** | NIST FIPS 203/204/205 | ML-KEM (512/768/1024), ML-DSA (44/65/87), SLH-DSA (128/192/256, SHA2 + SHAKE) |
 | **Hybrid PQC** | Classical + post-quantum, secure if EITHER survives | X25519 + ML-KEM-768 (KEM), Ed25519 + ML-DSA-65 (signatures) |
 | **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) — vector-validated byte-exact vs `noise-c` |
-| **BLS12-381** | Sign / verify / aggregate | via blst |
-| **High-level** | Vault (KDF → integrity → AEAD → signature), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
+| **BLS12-381** | Sign / verify / **aggregate** | via blst (aggregate + aggregate-verify) |
+| **EVM / Bitcoin** | Blockchain interop primitives | Keccak-256 (original padding), RIPEMD-160, secp256k1 ECDSA (keygen / pubkey / sign / verify / **ecrecover**, RFC6979 + low-S) via libsecp256k1 |
+| **High-level** | Vault (KDF → integrity → AEAD → signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
 | **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy — framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
+
+### MolecularVault — maximum-assurance layered encryption
+
+Composition of vetted primitives (no new cryptography) that raises the
+*practical* cost of decryption to this library's theoretical maximum:
+
+```
+plaintext ─XChaCha20-Poly1305─▶ ─AES-256-GCM-SIV─▶ ─CommittingAead(UtC)─▶ "MVLT" envelope
+   key = Argon2id(passphrase, tunable to GiBs)  |  a 32-byte full-entropy master
+```
+
+Defends against password guessing (memory-hard Argon2id), a single-cipher break
+(two independent AEAD families with independent HKDF-split keys), key/context
+confusion (key-committing outer layer), and tampering (authenticated, fails
+closed). Its raw-key mode composes with the hybrid X25519+ML-KEM-768 KEM for
+post-quantum (harvest-now-decrypt-later) defense.
+
+---
+
+## How it works
+
+One header-only C++ core is exposed through a stable C ABI; every language
+binding is a thin wrapper over the **same** `libcryptolib_c`. There is no
+per-language wire format — only the library's format — so ciphertext, packets,
+signatures and MolecularVault "MVLT" envelopes are byte-identical across
+languages.
+
+```mermaid
+flowchart TB
+  subgraph core["C++20 header-only core — include/cryptolib/*.hpp"]
+    prim["Primitives<br/>AEAD · Ed25519/X25519 · ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381 · secp256k1 · Keccak/RIPEMD/BLAKE3"]
+    hl["Constructions<br/>Vault · MolecularVault · Keyring · Noise XX · Shamir · media entropy"]
+    safe["Result monad · SecureBuffer (mlock + zeroize) · constant-time"]
+  end
+  core --> abi["C ABI — bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c · 127 functions · exception-isolated"]
+  abi --> ffi{{"FFI boundary (caller's concern)"}}
+  ffi --> go["Go<br/>(cgo)"]
+  ffi --> dart["Dart /<br/>Flutter"]
+  ffi --> node["Node · Next.js<br/>· React (koffi)"]
+  ffi --> jvm["Java /<br/>Kotlin (FFM)"]
+  ffi --> swift["Swift<br/>(SPM)"]
+  ffi --> net[".NET<br/>(P/Invoke)"]
+```
+
+**Data flow — a MolecularVault seal** (composition of vetted primitives, each
+layer authenticating, keyed independently):
+
+```mermaid
+flowchart LR
+  pw["passphrase"] --> ar["Argon2id<br/>memory-hard, GiB-tunable"]
+  ar --> mk["master key (32B)"]
+  mk --> hk["HKDF-SHA256<br/>domain-separated split"]
+  hk --> k1["k1"]
+  hk --> k2["k2"]
+  pt["plaintext"] --> l1["XChaCha20-Poly1305<br/>k1"]
+  k1 --> l1
+  l1 --> l2["AES-256-GCM-SIV<br/>k2"]
+  k2 --> l2
+  l2 --> l3["CommittingAead / UtC<br/>keyed by master"]
+  mk --> l3
+  l3 --> env["'MVLT' envelope<br/>salt · params · ciphertext"]
+```
+
+> Swap `passphrase → Argon2id` for a **hybrid X25519+ML-KEM-768** shared secret
+> and the same cascade becomes post-quantum. See the [recipes](#recipes--composition-in-practice).
+
+---
+
+## Recipes — composition in practice
+
+The primitives compose. These **runnable** examples snap them together into
+real-world flows — no new cryptography, just vetted parts wired up:
+
+```sh
+make recipes                                                         # C++ (6 recipes)
+cd bridge/bindings/cryptolib-node && \
+  CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node recipes.js   # Node (5)
+```
+
+| Recipe | Composition | Demonstrates |
+|---|---|---|
+| **File-as-key vault** | media entropy (deterministic) → master → MolecularVault | "your file is your key" — reproducible, nothing stored |
+| **Post-quantum message** | hybrid X25519+ML-KEM-768 → shared secret → MolecularVault | harvest-now-decrypt-later resistance |
+| **Sign-then-seal** | Ed25519+ML-DSA signature carried inside a MolecularVault | authenticity + confidentiality in one envelope |
+| **Threshold vault** | MolecularVault key split 3-of-5 via Shamir | no single custodian can open — or block — the secret |
+| **EVM wallet** | secp256k1 → Keccak-256 address → sign → ecrecover | Ethereum-style signing, end to end |
+| **Keyring-guarded vault** | Keyring (device + passphrase) → MolecularVault master | master key never at rest in plaintext; slots revocable |
+
+Source: [`example/recipes.cpp`](example/recipes.cpp) ·
+[`bridge/bindings/cryptolib-node/recipes.js`](bridge/bindings/cryptolib-node/recipes.js).
+The same envelopes open across languages — a value sealed in the C++ recipe opens
+in the Node recipe and vice-versa.
 
 ---
 
@@ -37,7 +132,7 @@ KEM/signatures, committing AEAD, Noise XX).
 
 | Discipline | Status |
 |---|---|
-| Test suite | **289 / 289 passing** (custom zero-dependency runner) |
+| Test suite | **317 / 317 passing** (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test) |
 | Differential fuzzing | libFuzzer harness in CI; wrapper ⟷ raw libsodium byte-equality |
@@ -239,7 +334,7 @@ vendored merged static archive (see `PUBLISHING.md`).
 # Native dependencies (macOS)
 brew install cmake ninja libsodium liboqs blake3 openssl@3
 
-# Build + run the C++ test suite (289 cases, ASan-clean)
+# Build + run the C++ test suite (317 cases, ASan-clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
 cmake --build build/test --target cryptolib_tests

@@ -61,6 +61,15 @@ cpp:
 	@echo "--- cryptolib_usage ---"; ./build/release/cryptolib_usage | tail -1
 	@echo "--- cryptolib_demo all ---"; ./build/release/cryptolib_demo all | tail -1
 
+# Composition recipes — real-world flows that combine multiple primitives.
+.PHONY: recipes
+recipes:
+	$(call hdr,Recipes (composition in practice))
+	@$(CMAKE) -S . -B build/release -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
+		-DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
+	@$(CMAKE) --build build/release --target cryptolib_recipes
+	@DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) ./build/release/cryptolib_recipes
+
 # ── Go (cgo) ─────────────────────────────────────────────────────────────────
 .PHONY: go
 go: lib
