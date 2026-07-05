@@ -1,24 +1,26 @@
-// Server-only helper: loads the native CryptoLib binding once.
+// Server-only helper: lazily loads the native CryptoLib binding once.
 //
-// The binding is a native FFI module — it must run in Node (never Edge or the
-// browser). It is loaded with createRequire so Next's bundler never tries to
-// bundle koffi's native addon; only route handlers (runtime = 'nodejs') import
-// this file.
-import { createRequire } from 'node:module';
+// `cryptolib-node` wraps a native FFI addon and must run in Node (never Edge or
+// the browser). It is loaded with a `webpackIgnore` dynamic import INSIDE the
+// function (never at module top level), so Next's bundler never analyses or
+// bundles the native addon, and the library is not touched until the first
+// request actually needs it.
 import path from 'node:path';
 
-const require = createRequire(import.meta.url);
+let crypto = null;
 
-// Point the binding at the local build if no prebuilt binary is present.
-if (!process.env.CRYPTOLIB_DYLIB) {
-  const ext = process.platform === 'darwin' ? 'dylib' : process.platform === 'win32' ? 'dll' : 'so';
-  process.env.CRYPTOLIB_DYLIB = path.resolve(process.cwd(), `../../../build/release/libcryptolib_c.${ext}`);
-}
+export async function lib() {
+  if (crypto) return crypto;
 
-const crypto = require(path.resolve(process.cwd(), '../cryptolib-node/index.js'));
+  // Point the binding at the local build if no prebuilt binary is present.
+  if (!process.env.CRYPTOLIB_DYLIB) {
+    const ext = process.platform === 'darwin' ? 'dylib' : process.platform === 'win32' ? 'dll' : 'so';
+    process.env.CRYPTOLIB_DYLIB = path.resolve(process.cwd(), `../../../build/release/libcryptolib_c.${ext}`);
+  }
 
-let inited = false;
-export function lib() {
-  if (!inited) { crypto.init(); inited = true; }
+  const modPath = path.resolve(process.cwd(), '../cryptolib-node/index.js');
+  const mod = await import(/* webpackIgnore: true */ modPath);
+  crypto = mod.default ?? mod;
+  crypto.init();
   return crypto;
 }

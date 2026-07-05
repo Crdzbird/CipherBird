@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req) {
   const { op, text = '', passphrase = 'a good passphrase' } = await req.json();
-  const c = lib();
+  const c = await lib();
   try {
     switch (op) {
       case 'version':
