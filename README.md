@@ -104,12 +104,15 @@ flowchart LR
 ## Recipes — composition in practice
 
 The primitives compose. These **runnable** examples snap them together into
-real-world flows — no new cryptography, just vetted parts wired up:
+real-world flows — no new cryptography, just vetted parts wired up. The same
+recipes are mirrored across five languages:
 
 ```sh
-make recipes                                                         # C++ (6 recipes)
-cd bridge/bindings/cryptolib-node && \
-  CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node recipes.js   # Node (5)
+make recipes          # C++  (6 recipes, incl. Shamir threshold)
+make go-recipes       # Go   (5)
+make node-recipes     # Node (5)
+make swift-recipes    # Swift (5)
+make flutter-recipes  # Flutter/Dart (5, via flutter test)
 ```
 
 | Recipe | Composition | Demonstrates |
@@ -122,9 +125,12 @@ cd bridge/bindings/cryptolib-node && \
 | **Keyring-guarded vault** | Keyring (device + passphrase) → MolecularVault master | master key never at rest in plaintext; slots revocable |
 
 Source: [`example/recipes.cpp`](example/recipes.cpp) ·
-[`bridge/bindings/cryptolib-node/recipes.js`](bridge/bindings/cryptolib-node/recipes.js).
-The same envelopes open across languages — a value sealed in the C++ recipe opens
-in the Node recipe and vice-versa.
+[Go](bridge/bindings/go/recipes/main.go) ·
+[Node](bridge/bindings/cryptolib-node/recipes.js) ·
+[Swift](bridge/bindings/swift/cli/recipes.swift) ·
+[Flutter](bridge/bindings/cryptolib_flutter/test/recipes_test.dart).
+The same envelopes open across languages — a value sealed by the Go recipe opens
+in the Swift recipe and vice-versa, because every binding wraps the same core.
 
 ---
 

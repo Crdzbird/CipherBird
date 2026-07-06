@@ -62,6 +62,8 @@ cpp:
 	@echo "--- cryptolib_demo all ---"; ./build/release/cryptolib_demo all | tail -1
 
 # Composition recipes — real-world flows that combine multiple primitives.
+# `recipes` = the C++ reference (6, incl. Shamir); the per-binding targets mirror
+# the other five (Shamir is C++-only, not in the C ABI).
 .PHONY: recipes
 recipes:
 	$(call hdr,Recipes (composition in practice))
@@ -69,6 +71,37 @@ recipes:
 		-DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
 	@$(CMAKE) --build build/release --target cryptolib_recipes
 	@DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) ./build/release/cryptolib_recipes
+
+.PHONY: go-recipes
+go-recipes: lib
+	$(call hdr,Go recipes)
+	@if command -v go >/dev/null 2>&1; then \
+		cd bridge/bindings/go && DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) go run ./recipes | tail -2; \
+	else echo "go not found — skipping"; fi
+
+.PHONY: node-recipes
+node-recipes: lib
+	$(call hdr,Node recipes)
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node recipes.js | tail -2; \
+	else echo "node not found — skipping"; fi
+
+.PHONY: swift-recipes
+swift-recipes: lib
+	$(call hdr,Swift recipes)
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/recipes.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_recipes && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_recipes | tail -2; \
+	else echo "swiftc not found — skipping"; fi
+
+.PHONY: flutter-recipes
+flutter-recipes: lib
+	$(call hdr,Flutter recipes (host test))
+	@if command -v flutter >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib_flutter && \
+		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart | tail -2; \
+	else echo "flutter not found — skipping"; fi
 
 # ── Go (cgo) ─────────────────────────────────────────────────────────────────
 .PHONY: go
