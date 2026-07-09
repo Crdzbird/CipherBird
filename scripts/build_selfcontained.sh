@@ -20,7 +20,9 @@ BL_SRC_TARBALL="$(ls third_party/*/src/blake3-*.tar.gz 2>/dev/null | head -1)"
 if [ ! -f build/host-deps/blake3-build/libblake3.a ]; then
     mkdir -p build/host-deps
     tar xzf "$BL_SRC_TARBALL" -C build/host-deps
-    BL_SRC="$(ls -d build/host-deps/BLAKE3-* build/host-deps/blake3-* 2>/dev/null | head -1)"
+    # find, not an ls glob: under `set -euo pipefail` an unmatched glob makes ls
+    # exit 1 and silently kills the script (same bug as c649831).
+    BL_SRC="$(find build/host-deps -maxdepth 1 -type d -iname 'blake3-*' | head -1)"
     cmake -S "$BL_SRC/c" -B build/host-deps/blake3-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null
