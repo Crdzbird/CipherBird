@@ -95,6 +95,15 @@ swift-recipes: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_recipes | tail -2; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-suite
+swift-suite: lib
+	$(call hdr,Swift Suite (advanced combinations))
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/suite.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_suite && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_suite | tail -2; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
