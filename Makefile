@@ -86,6 +86,13 @@ node-recipes: lib
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node recipes.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
+.PHONY: node-suite
+node-suite: lib
+	$(call hdr,Node Suite (advanced combinations))
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
+	else echo "node not found — skipping"; fi
+
 .PHONY: swift-recipes
 swift-recipes: lib
 	$(call hdr,Swift recipes)

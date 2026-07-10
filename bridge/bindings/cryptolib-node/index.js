@@ -198,6 +198,21 @@ function ensureLoaded() {
   molOpen: f('CryptoBufferResult cryptolib_molecular_open(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
   molSealKey: f('CryptoBufferResult cryptolib_molecular_seal_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   molOpenKey: f('CryptoBufferResult cryptolib_molecular_open_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+
+  // Suite — one-call advanced combinations
+  suiteSealPq: f('CryptoBufferResult cryptolib_suite_seal_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteOpenPq: f('CryptoBufferResult cryptolib_suite_open_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteSealSignedPq: f('CryptoBufferResult cryptolib_suite_seal_signed_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteOpenSignedPq: f('CryptoBufferResult cryptolib_suite_open_signed_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteSealWithFile: f('CryptoBufferResult cryptolib_suite_seal_with_file(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
+  suiteOpenWithFile: f('CryptoBufferResult cryptolib_suite_open_with_file(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
+  suiteSealKrDev: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_device(uint8_t*, size_t, void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteOpenKrDev: f('CryptoBufferResult cryptolib_suite_open_with_keyring_device(uint8_t*, size_t, void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteSealKrPw: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
+  suiteOpenKrPw: f('CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
+  suiteSealThr: f('CryptoBufferResult cryptolib_suite_seal_threshold(uint8_t*, size_t, uint8_t, uint8_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
+  suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
   return _native;
 }
@@ -211,15 +226,27 @@ const b = (cb) => (!cb.data || Number(cb.len) === 0) ? Buffer.alloc(0)
   : Buffer.from(koffi.decode(cb.data, 'uint8_t', Number(cb.len)));
 function consume(r) {
   if ((!r.buf.data || Number(r.buf.len) === 0) && r.error) {
-    const m = koffi.decode(r.error, 'char *'); fn.strFree(r.error); throw new Error(m);
+    const m = koffi.decode(r.error, 'char', -1); fn.strFree(r.error); throw new Error(m);
   }
   const out = b(r.buf); fn.bufFree(r.buf); return out;
 }
 function kp(k) { const pub = b(k.public_key), sec = b(k.secret_key); fn.kpFree(k); return { publicKey: pub, secretKey: sec }; }
 const u8 = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x);
+// Parse [index(1)|ylen(4 LE)|y] records into individual distributable share records.
+function splitShareRecords(blob) {
+  const out = [];
+  for (let off = 0; off + 5 <= blob.length;) {
+    const yl = blob.readUInt32LE(off + 1);
+    const end = off + 5 + yl;
+    if (end > blob.length) break;
+    out.push(blob.subarray(off, end));
+    off = end;
+  }
+  return out;
+}
 
 // Throw if a `_Out_ char**` error slot was populated.
-function outErr(e) { if (e[0]) { const m = koffi.decode(e[0], 'char *'); fn.strFree(e[0]); throw new Error(m); } }
+function outErr(e) { if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); } }
 
 // CryptoAsymBundle ↔ JS { boxPublic, boxSecret, signPublic, signSecret }.
 function bundle(bd) {
@@ -308,7 +335,7 @@ module.exports = {
   mlKemEncapsulate(pk, level = 1) {
     const e = [null]; const r = fn.kemEncaps(u8(pk), u8(pk).length, level, e);
     const ss = b(r.shared_secret), ct = b(r.ciphertext); fn.kemFree(r);
-    if (e[0]) { const m = koffi.decode(e[0], 'char *'); fn.strFree(e[0]); throw new Error(m); }
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
     return { ciphertext: ct, sharedSecret: ss };
   },
   mlKemDecapsulate: (ct, sk, level = 1) => consume(fn.kemDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length, level)),
@@ -318,7 +345,7 @@ module.exports = {
   hybridKemEncapsulate(pk) {
     const e = [null]; const r = fn.hyEncaps(u8(pk), u8(pk).length, e);
     const ss = b(r.shared_secret), ct = b(r.ciphertext); fn.kemFree(r);
-    if (e[0]) { const m = koffi.decode(e[0], 'char *'); fn.strFree(e[0]); throw new Error(m); }
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
     return { ciphertext: ct, sharedSecret: ss };
   },
   hybridKemDecapsulate: (ct, sk) => consume(fn.hyDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length)),
@@ -333,7 +360,7 @@ module.exports = {
   keyringAddPassphraseSlot: (kr, pw, kdf = 0) => fn.krAddPw(kr, pw, kdf) === 0,
   keyringSlotCount: (kr) => Number(fn.krCount(kr)),
   keyringSerialise: (kr) => consume(fn.krSer(kr)),
-  keyringDeserialise(blob) { const e = [null]; const kr = fn.krDeser(u8(blob), u8(blob).length, e); if (e[0]) { const m = koffi.decode(e[0], 'char *'); fn.strFree(e[0]); throw new Error(m); } return kr; },
+  keyringDeserialise(blob) { const e = [null]; const kr = fn.krDeser(u8(blob), u8(blob).length, e); if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); } return kr; },
   keyringUnlockWithDevice: (kr, factor) => consume(fn.krUnlockDev(kr, u8(factor), u8(factor).length)),
   keyringUnlockWithPassphrase: (kr, pw) => consume(fn.krUnlockPw(kr, pw)),
   keyringRemoveSlot: (kr, index) => fn.krRemove(kr, index) === 1,
@@ -402,7 +429,7 @@ module.exports = {
   entropySymmetricKey: (h) => consume(fn.entSymKey(h)),
   entropyRaw: (h) => consume(fn.entRaw(h)),
   entropyBoost: (h) => consume(fn.entBoost(h)),
-  entropyInfo(h) { const i = fn.entInfo(h); const out = { path: i.path ? koffi.decode(i.path, 'char *') : '', fileSize: Number(i.file_size), chunksRead: Number(i.chunks_read), entropyBits: i.entropy_bits }; fn.entInfoFree(i); return out; },
+  entropyInfo(h) { const i = fn.entInfo(h); const out = { path: i.path ? koffi.decode(i.path, 'char', -1) : '', fileSize: Number(i.file_size), chunksRead: Number(i.chunks_read), entropyBits: i.entropy_bits }; fn.entInfoFree(i); return out; },
   entropyRefresh: (h) => fn.entRefresh(h),
   entropyAsymBundle(h) { const e = [null]; const bd = fn.entAsymBundle(h, e); outErr(e); return bundle(bd); },
   entropyFree: (h) => fn.entFree(h),
@@ -420,7 +447,7 @@ module.exports = {
   secp256k1Recover: (digest32, sig65) => consume(fn.secpRecover(u8(digest32), u8(sig65))),
 
   // ── Steganography ──
-  stegoEmbed(coverPath, payload, outputPath) { const r = fn.stegoEmbed(coverPath, u8(payload), u8(payload).length, outputPath); if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char *') : 'stego embed failed'; if (r.error) fn.strFree(r.error); throw new Error(m); } },
+  stegoEmbed(coverPath, payload, outputPath) { const r = fn.stegoEmbed(coverPath, u8(payload), u8(payload).length, outputPath); if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char', -1) : 'stego embed failed'; if (r.error) fn.strFree(r.error); throw new Error(m); } },
   stegoExtract: (stegoPath) => consume(fn.stegoExtract(stegoPath)),
   stegoCapacity: (coverPath) => Number(fn.stegoCapacity(coverPath)),
 
@@ -429,6 +456,37 @@ module.exports = {
   molecularOpen: (env, passphrase, aad = null) => consume(fn.molOpen(u8(env), u8(env).length, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   molecularSealWithKey: (pt, masterKey, aad = null) => consume(fn.molSealKey(u8(pt), u8(pt).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   molecularOpenWithKey: (env, masterKey, aad = null) => consume(fn.molOpenKey(u8(env), u8(env).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+
+  // ── Suite — one-call advanced combinations (needs OpenSSL + PQ) ──
+  // Post-quantum message: hybrid X25519+ML-KEM-768 → MolecularVault.
+  suiteSealPq: (pt, recipientKemPublic, aad = null) => consume(fn.suiteSealPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteOpenPq: (env, recipientKemSecret, aad = null) => consume(fn.suiteOpenPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  // Flagship: PQ confidentiality + PQ signature authenticity (verified auth-first).
+  suiteSealSignedPq: (pt, recipientKemPublic, signerSigSecret, aad = null) => consume(fn.suiteSealSignedPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigSecret), u8(signerSigSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteOpenSignedPq: (env, recipientKemSecret, signerSigPublic, aad = null) => consume(fn.suiteOpenSignedPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, u8(signerSigPublic), u8(signerSigPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  // File-as-key: deterministic media entropy from `path` derives the master.
+  suiteSealWithFile: (pt, path, aad = null) => consume(fn.suiteSealWithFile(u8(pt), u8(pt).length, path, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteOpenWithFile: (env, path, aad = null) => consume(fn.suiteOpenWithFile(u8(env), u8(env).length, path, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  // Keyring-guarded (kr from keyringCreate()/keyringDeserialise()).
+  suiteSealWithKeyringDevice: (pt, kr, factorKey, aad = null) => consume(fn.suiteSealKrDev(u8(pt), u8(pt).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteOpenWithKeyringDevice: (env, kr, factorKey, aad = null) => consume(fn.suiteOpenKrDev(u8(env), u8(env).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteSealWithKeyringPassphrase: (pt, kr, passphrase, aad = null) => consume(fn.suiteSealKrPw(u8(pt), u8(pt).length, kr, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteOpenWithKeyringPassphrase: (env, kr, passphrase, aad = null) => consume(fn.suiteOpenKrPw(u8(env), u8(env).length, kr, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  // EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key.
+  suiteEvmAddress: (secp256k1PublicKey) => consume(fn.suiteEvmAddr(u8(secp256k1PublicKey), u8(secp256k1PublicKey).length)),
+  // Threshold (k-of-n): returns { envelope, shares:[record,...] }; open with any k.
+  suiteSealThreshold(pt, n, k, aad = null) {
+    const outShares = {};
+    const env = consume(fn.suiteSealThr(u8(pt), u8(pt).length, n, k, aad ? u8(aad) : null, aad ? u8(aad).length : 0, outShares));
+    const blob = (outShares.data && Number(outShares.len) > 0)
+      ? Buffer.from(koffi.decode(outShares.data, 'uint8_t', Number(outShares.len))) : Buffer.alloc(0);
+    fn.bufFree(outShares);
+    return { envelope: env, shares: splitShareRecords(blob) };
+  },
+  suiteOpenThreshold(env, shares, aad = null) {
+    const blob = Buffer.concat(shares.map(u8));
+    return consume(fn.suiteOpenThr(u8(env), u8(env).length, blob, blob.length, aad ? u8(aad) : null, aad ? u8(aad).length : 0));
+  },
 
   // Escape hatch for advanced/raw use.
   _fn: fn,
