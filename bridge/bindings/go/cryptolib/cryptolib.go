@@ -1601,3 +1601,154 @@ func MolecularOpenWithKey(envelope, masterKey, aad []byte) ([]byte, error) {
 		u8(masterKey), C.size_t(len(masterKey)),
 		u8(aad), C.size_t(len(aad))))
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Suite — one-call advanced combinations (needs OpenSSL + PQ in the native lib)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// SuiteSealPq encapsulates to the recipient's hybrid-KEM public key and seals the
+// plaintext under the shared secret. The envelope carries the KEM ciphertext, so
+// SuiteOpenPq needs only the recipient's secret key. Secure while EITHER X25519
+// or ML-KEM-768 remains unbroken (harvest-now-decrypt-later resistant).
+func SuiteSealPq(plaintext, recipientKemPublic, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_seal_pq(
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(recipientKemPublic), C.size_t(len(recipientKemPublic)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenPq opens a SuiteSealPq envelope with the recipient's hybrid-KEM secret.
+func SuiteOpenPq(envelope, recipientKemSecret, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_open_pq(
+		u8(envelope), C.size_t(len(envelope)),
+		u8(recipientKemSecret), C.size_t(len(recipientKemSecret)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealSignedPq is the flagship: post-quantum confidentiality (hybrid KEM)
+// PLUS post-quantum authenticity (Ed25519+ML-DSA-65 signature). SuiteOpenSignedPq
+// returns the plaintext only if the signature verifies.
+func SuiteSealSignedPq(plaintext, recipientKemPublic, signerSigSecret, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_seal_signed_pq(
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(recipientKemPublic), C.size_t(len(recipientKemPublic)),
+		u8(signerSigSecret), C.size_t(len(signerSigSecret)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenSignedPq decrypts and then verifies; a signature mismatch returns an
+// error and no plaintext.
+func SuiteOpenSignedPq(envelope, recipientKemSecret, signerSigPublic, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_open_signed_pq(
+		u8(envelope), C.size_t(len(envelope)),
+		u8(recipientKemSecret), C.size_t(len(recipientKemSecret)),
+		u8(signerSigPublic), C.size_t(len(signerSigPublic)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealWithFile derives the key deterministically from a file's media entropy
+// ("your file is the key") and seals the plaintext under it.
+func SuiteSealWithFile(plaintext []byte, path string, aad []byte) ([]byte, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	return checkBufResult(C.cryptolib_suite_seal_with_file(
+		u8(plaintext), C.size_t(len(plaintext)), cp, u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenWithFile re-derives the key from the same file and opens the envelope.
+func SuiteOpenWithFile(envelope []byte, path string, aad []byte) ([]byte, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	return checkBufResult(C.cryptolib_suite_open_with_file(
+		u8(envelope), C.size_t(len(envelope)), cp, u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealWithKeyringDevice unlocks the keyring's master via a device factor and
+// seals under it (the master never lives in plaintext at rest).
+func SuiteSealWithKeyringDevice(plaintext []byte, kr *Keyring, factorKey, aad []byte) ([]byte, error) {
+	defer runtime.KeepAlive(kr)
+	return checkBufResult(C.cryptolib_suite_seal_with_keyring_device(
+		u8(plaintext), C.size_t(len(plaintext)), kr.handle,
+		u8(factorKey), C.size_t(len(factorKey)), u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenWithKeyringDevice unlocks via a device factor and opens the envelope.
+func SuiteOpenWithKeyringDevice(envelope []byte, kr *Keyring, factorKey, aad []byte) ([]byte, error) {
+	defer runtime.KeepAlive(kr)
+	return checkBufResult(C.cryptolib_suite_open_with_keyring_device(
+		u8(envelope), C.size_t(len(envelope)), kr.handle,
+		u8(factorKey), C.size_t(len(factorKey)), u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealWithKeyringPassphrase unlocks the keyring's master via a passphrase slot.
+func SuiteSealWithKeyringPassphrase(plaintext []byte, kr *Keyring, passphrase string, aad []byte) ([]byte, error) {
+	defer runtime.KeepAlive(kr)
+	cpw := C.CString(passphrase)
+	defer C.free(unsafe.Pointer(cpw))
+	return checkBufResult(C.cryptolib_suite_seal_with_keyring_passphrase(
+		u8(plaintext), C.size_t(len(plaintext)), kr.handle, cpw, u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenWithKeyringPassphrase unlocks via a passphrase slot and opens the envelope.
+func SuiteOpenWithKeyringPassphrase(envelope []byte, kr *Keyring, passphrase string, aad []byte) ([]byte, error) {
+	defer runtime.KeepAlive(kr)
+	cpw := C.CString(passphrase)
+	defer C.free(unsafe.Pointer(cpw))
+	return checkBufResult(C.cryptolib_suite_open_with_keyring_passphrase(
+		u8(envelope), C.size_t(len(envelope)), kr.handle, cpw, u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealThreshold seals under a fresh random master, then splits that master
+// into n Shamir shares of which any k reconstruct it. Returns the envelope and
+// the n individual share records; distribute the shares, keep the envelope
+// anywhere. Reconstruct with SuiteOpenThreshold using any k of the shares.
+func SuiteSealThreshold(plaintext []byte, n, k int, aad []byte) (envelope []byte, shares [][]byte, err error) {
+	var sharesBuf C.CryptoBuffer
+	r := C.cryptolib_suite_seal_threshold(
+		u8(plaintext), C.size_t(len(plaintext)), C.uint8_t(n), C.uint8_t(k),
+		u8(aad), C.size_t(len(aad)), &sharesBuf)
+	envelope, err = checkBufResult(r)
+	if err != nil {
+		C.cryptolib_buffer_free(&sharesBuf)
+		return nil, nil, err
+	}
+	shares = splitShareRecords(goBytes(sharesBuf)) // goBytes frees sharesBuf
+	return envelope, shares, nil
+}
+
+// SuiteOpenThreshold reconstructs the master from any k of the shares (each a
+// record from SuiteSealThreshold) and opens the envelope.
+func SuiteOpenThreshold(envelope []byte, shares [][]byte, aad []byte) ([]byte, error) {
+	var blob []byte
+	for _, s := range shares {
+		blob = append(blob, s...)
+	}
+	return checkBufResult(C.cryptolib_suite_open_threshold(
+		u8(envelope), C.size_t(len(envelope)), u8(blob), C.size_t(len(blob)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteEvmAddress derives the 20-byte EVM address from a 65-byte uncompressed
+// secp256k1 public key (last 20 bytes of Keccak-256(pubkey[1:])).
+func SuiteEvmAddress(secp256k1PublicKey []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_evm_address(
+		u8(secp256k1PublicKey), C.size_t(len(secp256k1PublicKey))))
+}
+
+// splitShareRecords parses a concatenation of [index(1)|ylen(4 LE)|y] records
+// into individual share byte-slices (each a complete, distributable record).
+func splitShareRecords(blob []byte) [][]byte {
+	var out [][]byte
+	for off := 0; off+5 <= len(blob); {
+		ylen := int(blob[off+1]) | int(blob[off+2])<<8 | int(blob[off+3])<<16 | int(blob[off+4])<<24
+		end := off + 5 + ylen
+		if end > len(blob) {
+			break
+		}
+		rec := make([]byte, end-off)
+		copy(rec, blob[off:end])
+		out = append(out, rec)
+		off = end
+	}
+	return out
+}

@@ -392,6 +392,162 @@ CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
 }
 #endif // CRYPTOLIB_HAS_OPENSSL
 
+// ── Suite — one-call advanced combinations ──────────────────────────────────
+#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+namespace {
+std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
+    return aad ? sp(aad, len) : std::span<const uint8_t>{};
+}
+// Serialise Shamir shares to a flat blob: each record = index(1) | ylen(4 LE) | y.
+CryptoBuffer serialise_shares(const std::vector<crypto::Shamir::Share>& shares) {
+    std::vector<uint8_t> out;
+    for (const auto& s : shares) {
+        out.push_back(s.index);
+        uint32_t n = static_cast<uint32_t>(s.y.size());
+        for (int i = 0; i < 4; ++i) out.push_back(static_cast<uint8_t>((n >> (8 * i)) & 0xff));
+        out.insert(out.end(), s.y.span().begin(), s.y.span().end());
+    }
+    return to_cbuf(std::span<const uint8_t>(out.data(), out.size()));
+}
+// Parse a concatenation of those records back into shares.
+bool parse_shares(std::span<const uint8_t> blob, std::vector<crypto::Shamir::Share>& out) {
+    size_t off = 0;
+    while (off < blob.size()) {
+        if (off + 5 > blob.size()) return false;
+        uint8_t index = blob[off];
+        uint32_t ylen = 0;
+        for (int i = 0; i < 4; ++i) ylen |= static_cast<uint32_t>(blob[off + 1 + i]) << (8 * i);
+        off += 5;
+        if (off + ylen > blob.size()) return false;
+        crypto::SecureBuffer y(blob.data() + off, ylen);
+        out.push_back(crypto::Shamir::Share{index, std::move(y)});
+        off += ylen;
+    }
+    return !out.empty();
+}
+crypto::Keyring* kr_of(CryptoKeyringHandle kr) {
+    return kr ? &static_cast<KeyringImpl*>(kr)->kr : nullptr;
+}
+} // namespace
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_pq(sp(pt, pt_len), sp(kem_pub, kem_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(
+    const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
+    const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::open_pq(sp(env, env_len), sp(kem_sec, kem_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* sig_sec, size_t sig_sec_len, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_signed_pq(sp(pt, pt_len), sp(kem_pub, kem_pub_len),
+                                           sp(sig_sec, sig_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_signed_pq(
+    const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
+    const uint8_t* sig_pub, size_t sig_pub_len, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::open_signed_pq(sp(env, env_len), sp(kem_sec, kem_sec_len),
+                                           sp(sig_pub, sig_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_file(
+    const uint8_t* pt, size_t pt_len, const char* path, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_with_file(sp(pt, pt_len), path ? path : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_file(
+    const uint8_t* env, size_t env_len, const char* path, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::open_with_file(sp(env, env_len), path ? path : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_device(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const uint8_t* factor, size_t factor_len, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::seal_with_keyring_device(sp(pt, pt_len), *k, sp(factor, factor_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_device(
+    const uint8_t* env, size_t env_len, CryptoKeyringHandle kr,
+    const uint8_t* factor, size_t factor_len, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::open_with_keyring_device(sp(env, env_len), *k, sp(factor, factor_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::seal_with_keyring_passphrase(sp(pt, pt_len), *k, passphrase ? passphrase : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(
+    const uint8_t* env, size_t env_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::open_with_keyring_passphrase(sp(env, env_len), *k, passphrase ? passphrase : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_threshold(
+    const uint8_t* pt, size_t pt_len, uint8_t n, uint8_t k,
+    const uint8_t* aad, size_t aad_len, CryptoBuffer* out_shares) try {
+    if (out_shares) *out_shares = CryptoBuffer{nullptr, 0};
+    auto r = crypto::Suite::seal_threshold(sp(pt, pt_len), n, k, opt_aad(aad, aad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    if (out_shares) *out_shares = serialise_shares(r.value().shares);
+    return ok_buf(r.value().envelope);
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_threshold(
+    const uint8_t* env, size_t env_len, const uint8_t* shares, size_t shares_len,
+    const uint8_t* aad, size_t aad_len) try {
+    std::vector<crypto::Shamir::Share> parsed;
+    if (!parse_shares(sp(shares, shares_len), parsed)) return err_buf("Suite: malformed shares blob");
+    auto r = crypto::Suite::open_threshold(sp(env, env_len), {parsed.data(), parsed.size()}, opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(
+    const uint8_t* pk, size_t pk_len) try {
+    auto r = crypto::Suite::evm_address(sp(pk, pk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+#else  // Suite requires OpenSSL + PQ — ABI-stable stubs otherwise
+static CryptoBufferResult suite_unavailable() {
+    return err_buf("Suite requires OpenSSL + post-quantum support — not compiled in");
+}
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_device(const uint8_t*, size_t, CryptoKeyringHandle, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_device(const uint8_t*, size_t, CryptoKeyringHandle, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(const uint8_t*, size_t, CryptoKeyringHandle, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(const uint8_t*, size_t, CryptoKeyringHandle, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_threshold(const uint8_t*, size_t, uint8_t, uint8_t, const uint8_t*, size_t, CryptoBuffer* out_shares) { if (out_shares) *out_shares = CryptoBuffer{nullptr, 0}; return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_threshold(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(const uint8_t*, size_t) { return suite_unavailable(); }
+#endif // CRYPTOLIB_HAS_OPENSSL && CRYPTOLIB_HAS_PQ
+
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(
     const uint8_t* plaintext, size_t pt_len,
     const uint8_t* key, size_t key_len,

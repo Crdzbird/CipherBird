@@ -25,6 +25,7 @@ export 'src/cryptolib.dart'
         CryptoLibMolecular,
         CryptoLibPostQuantum,
         CryptoLibStego,
+        CryptoLibSuite,
         CryptoLibSymmetric,
         CryptoLibVault,
         DerivedKeysResult,

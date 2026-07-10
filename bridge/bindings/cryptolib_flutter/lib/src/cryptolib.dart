@@ -40,6 +40,7 @@ part 'api/entropy.dart';
 part 'api/steganography.dart';
 part 'api/evm_btc.dart';
 part 'api/molecular_vault.dart';
+part 'api/suite.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

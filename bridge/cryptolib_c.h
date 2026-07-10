@@ -243,6 +243,78 @@ CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
     const uint8_t* master_key, size_t key_len,
     const uint8_t* aad, size_t aad_len);
 
+/* ── Suite — one-call advanced combinations ─────────────────────────────────
+ * High-level facade composing hybrid KEM, hybrid signatures, MolecularVault,
+ * media entropy, keyring, Shamir and Keccak into single calls. Every seal is
+ * authenticated and fails closed; PQ envelopes are self-describing (they carry
+ * the KEM ciphertext). Requires OpenSSL + PQ; without them these return an
+ * error (ABI-stable). */
+
+/** Post-quantum message: encapsulate to the recipient's hybrid KEM public key,
+ *  then MolecularVault-seal under the shared secret. Envelope carries the KEM ct. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t kem_sec_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Signed + PQ-sealed (flagship): PQ confidentiality + hybrid-signature
+ *  authenticity. open_* returns plaintext ONLY if the signature verifies. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* signer_sig_secret, size_t sig_sec_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_signed_pq(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t kem_sec_len,
+    const uint8_t* signer_sig_public, size_t sig_pub_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** File-as-key: deterministic media entropy from `path` derives the master. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_file(
+    const uint8_t* pt, size_t pt_len, const char* path,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_file(
+    const uint8_t* envelope, size_t env_len, const char* path,
+    const uint8_t* aad, size_t aad_len);
+
+/** Keyring-guarded: a Keyring slot unlock provides the MolecularVault master. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_device(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const uint8_t* factor_key, size_t factor_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_device(
+    const uint8_t* envelope, size_t env_len, CryptoKeyringHandle kr,
+    const uint8_t* factor_key, size_t factor_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(
+    const uint8_t* envelope, size_t env_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len);
+
+/** Threshold (k-of-n): seal under a fresh master, split it into `n` Shamir
+ *  shares of which any `k` reconstruct. Returns the envelope; `out_shares`
+ *  receives the `n` shares concatenated, each framed [index(1)|ylen(4 LE)|y].
+ *  To open, concatenate any >= k of those share records and pass them below.
+ *  Free `out_shares` with cryptolib_buffer_free. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_threshold(
+    const uint8_t* pt, size_t pt_len, uint8_t n, uint8_t k,
+    const uint8_t* aad, size_t aad_len, CryptoBuffer* out_shares);
+CRYPTO_API CryptoBufferResult cryptolib_suite_open_threshold(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* shares, size_t shares_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(
+    const uint8_t* public_key, size_t pk_len);
+
 /** AES-256-GCM encrypt. Output: [nonce(12) | ciphertext | MAC(16)]. */
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(
     const uint8_t* plaintext, size_t pt_len,
