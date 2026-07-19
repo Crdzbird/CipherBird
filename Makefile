@@ -337,6 +337,18 @@ test:
 	@$(CMAKE) --build build/test --target cryptolib_tests
 	@./build/test/cryptolib_tests | tail -3
 
+# Same test suite, but with the standardized PQC algorithms backed by OpenSSL EVP
+# (FIPS-track) instead of liboqs. The ACVP known-answer tests are the equivalence
+# gate — they must pass identically under both backends.
+.PHONY: test-openssl-pq
+test-openssl-pq:
+	$(call hdr,C++ test suite — OpenSSL PQC backend)
+	@$(CMAKE) -S . -B build/ossl-pq -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
+		-DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
+		-DCRYPTOLIB_PQ_BACKEND_OPENSSL=ON >/dev/null
+	@$(CMAKE) --build build/ossl-pq --target cryptolib_tests
+	@./build/ossl-pq/cryptolib_tests | tail -3
+
 .PHONY: asan
 asan:
 	$(call hdr,Tests under AddressSanitizer + UBSan)

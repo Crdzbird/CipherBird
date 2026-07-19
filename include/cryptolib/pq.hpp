@@ -3,13 +3,19 @@
 /**
  * crypto::pq — Post-quantum cryptographic primitives (NIST FIPS 203/204/205)
  *
- * Wraps liboqs (Open Quantum Safe) to provide:
+ * Provides:
  *
  *   MlKem    — ML-KEM key encapsulation (FIPS 203) — 512/768/1024 security levels
  *   MlDsa    — ML-DSA digital signatures (FIPS 204) — 44/65/87 security levels
  *   SlhDsa   — SLH-DSA hash-based signatures (FIPS 205) — 128s/128f/192s/192f/256s/256f
  *
- * Requires: liboqs (brew install liboqs)
+ * Backend (selectable at build time, byte-identical FIPS encodings either way —
+ * verified against the NIST ACVP vectors in tests/test_kat_pqc.cpp):
+ *   - default            liboqs (Open Quantum Safe)
+ *   - -DCRYPTOLIB_PQ_BACKEND_OPENSSL=ON   OpenSSL EVP (FIPS-validation track)
+ * liboqs is required either way (for size metadata and non-standardized algs).
+ *
+ * Requires: liboqs (brew install liboqs); OpenSSL 3.5+ for the OpenSSL backend
  * Enable:   -DCRYPTOLIB_PQ=ON (default)
  *
  * All three use the same pattern:
@@ -24,6 +30,14 @@
 #include <oqs/oqs.h>
 #include <memory>
 #include <string_view>
+
+// Optional: back the standardized algorithms (ML-KEM/ML-DSA/SLH-DSA) with
+// OpenSSL's native (FIPS-track) EVP implementations instead of liboqs. The raw
+// encodings are byte-identical, so envelopes/ABI/bindings are unaffected. liboqs
+// stays for algorithms OpenSSL lacks and for size metadata.
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+#include "detail/pq_openssl_backend.hpp"
+#endif
 
 namespace crypto::pq {
 
@@ -55,6 +69,11 @@ public:
     /// Generate a fresh keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::KEM_768) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
         auto kem = make_kem(level);
         if (!kem) return Result<KeyPair>::err("ML-KEM: algorithm not available in liboqs build");
 
@@ -65,11 +84,17 @@ public:
             return Result<KeyPair>::err("ML-KEM: keypair generation failed");
 
         return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
     }
 
     /// Encapsulate: produce ciphertext + shared secret from a public key
     [[nodiscard]] static Result<EncapsResult>
     encapsulate(std::span<const uint8_t> public_key, Level level = Level::KEM_768) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::kem_encapsulate(evp_alg(level), public_key);
+        if (r.is_err()) return Result<EncapsResult>::err(r.error().message);
+        return Result<EncapsResult>::ok(EncapsResult{ std::move(r.value().first), std::move(r.value().second) });
+#else
         auto kem = make_kem(level);
         if (!kem) return Result<EncapsResult>::err("ML-KEM: algorithm not available");
         if (public_key.size() != kem->length_public_key)
@@ -82,6 +107,7 @@ public:
             return Result<EncapsResult>::err("ML-KEM: encapsulation failed");
 
         return Result<EncapsResult>::ok(EncapsResult{ std::move(ct), std::move(ss) });
+#endif
     }
 
     /// Decapsulate: recover shared secret from ciphertext + secret key
@@ -89,6 +115,9 @@ public:
     decapsulate(std::span<const uint8_t> ciphertext,
                 std::span<const uint8_t> secret_key,
                 Level level = Level::KEM_768) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::kem_decapsulate(evp_alg(level), ciphertext, secret_key);
+#else
         auto kem = make_kem(level);
         if (!kem) return Result<SecureBuffer>::err("ML-KEM: algorithm not available");
         if (ciphertext.size() != kem->length_ciphertext)
@@ -102,6 +131,7 @@ public:
             return Result<SecureBuffer>::err("ML-KEM: decapsulation failed");
 
         return Result<SecureBuffer>::ok(std::move(ss));
+#endif
     }
 
     /// Query key/ciphertext/secret sizes for a given level
@@ -134,6 +164,17 @@ private:
         }
         return KemPtr(OQS_KEM_new(name));
     }
+
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level) {
+        switch (level) {
+            case Level::KEM_512:  return "ML-KEM-512";
+            case Level::KEM_768:  return "ML-KEM-768";
+            case Level::KEM_1024: return "ML-KEM-1024";
+        }
+        return "ML-KEM-768";
+    }
+#endif
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,6 +199,11 @@ public:
     /// Generate a fresh signing keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::DSA_65) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
         auto sig = make_sig(level);
         if (!sig) return Result<KeyPair>::err("ML-DSA: algorithm not available in liboqs build");
 
@@ -168,6 +214,7 @@ public:
             return Result<KeyPair>::err("ML-DSA: keypair generation failed");
 
         return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
     }
 
     /// Sign a message
@@ -175,6 +222,9 @@ public:
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::DSA_65) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level), message, {}, secret_key);
+#else
         auto sig = make_sig(level);
         if (!sig) return Result<SecureBuffer>::err("ML-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
@@ -189,6 +239,7 @@ public:
 
         signature.resize(sig_len);
         return Result<SecureBuffer>::ok(std::move(signature));
+#endif
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -204,6 +255,9 @@ public:
            std::span<const uint8_t> signature,
            std::span<const uint8_t> public_key,
            Level level = Level::DSA_65) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level), message, signature, {}, public_key);
+#else
         auto sig = make_sig(level);
         if (!sig) return Result<void>::err("ML-DSA: algorithm not available");
         if (public_key.size() != sig->length_public_key)
@@ -214,6 +268,7 @@ public:
             return Result<void>::err("ML-DSA: signature verification failed");
 
         return Result<void>::ok();
+#endif
     }
 
     [[nodiscard]] static Result<void>
@@ -233,12 +288,15 @@ public:
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::DSA_65) {
+        if (context.size() > 255)
+            return Result<SecureBuffer>::err("ML-DSA: context string exceeds 255 bytes");
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level), message, context, secret_key);
+#else
         auto sig = make_sig(level);
         if (!sig) return Result<SecureBuffer>::err("ML-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
             return Result<SecureBuffer>::err("ML-DSA: invalid secret key length");
-        if (context.size() > 255)
-            return Result<SecureBuffer>::err("ML-DSA: context string exceeds 255 bytes");
 
         SecureBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
@@ -249,6 +307,7 @@ public:
             return Result<SecureBuffer>::err("ML-DSA: signing failed");
         signature.resize(sig_len);
         return Result<SecureBuffer>::ok(std::move(signature));
+#endif
     }
 
     /// Verify a signature made over `message` under domain-separation `context`.
@@ -259,12 +318,15 @@ public:
                         std::span<const uint8_t> context,
                         std::span<const uint8_t> public_key,
                         Level level = Level::DSA_65) {
+        if (context.size() > 255)
+            return Result<void>::err("ML-DSA: context string exceeds 255 bytes");
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level), message, signature, context, public_key);
+#else
         auto sig = make_sig(level);
         if (!sig) return Result<void>::err("ML-DSA: algorithm not available");
         if (public_key.size() != sig->length_public_key)
             return Result<void>::err("ML-DSA: invalid public key length");
-        if (context.size() > 255)
-            return Result<void>::err("ML-DSA: context string exceeds 255 bytes");
 
         const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
         if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
@@ -272,6 +334,7 @@ public:
                                         ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
             return Result<void>::err("ML-DSA: signature verification failed");
         return Result<void>::ok();
+#endif
     }
 
     /// Query key/signature sizes for a given level
@@ -302,6 +365,17 @@ private:
         }
         return SigPtr(OQS_SIG_new(name));
     }
+
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level) {
+        switch (level) {
+            case Level::DSA_44: return "ML-DSA-44";
+            case Level::DSA_65: return "ML-DSA-65";
+            case Level::DSA_87: return "ML-DSA-87";
+        }
+        return "ML-DSA-65";
+    }
+#endif
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,6 +405,11 @@ public:
     /// Generate a fresh signing keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level, hash));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
         auto sig = make_sig(level, hash);
         if (!sig) return Result<KeyPair>::err("SLH-DSA: algorithm not available in liboqs build");
 
@@ -341,6 +420,7 @@ public:
             return Result<KeyPair>::err("SLH-DSA: keypair generation failed");
 
         return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
     }
 
     /// Sign a message
@@ -348,6 +428,9 @@ public:
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level, hash), message, {}, secret_key);
+#else
         auto sig = make_sig(level, hash);
         if (!sig) return Result<SecureBuffer>::err("SLH-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
@@ -362,6 +445,7 @@ public:
 
         signature.resize(sig_len);
         return Result<SecureBuffer>::ok(std::move(signature));
+#endif
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -377,6 +461,9 @@ public:
            std::span<const uint8_t> signature,
            std::span<const uint8_t> public_key,
            Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level, hash), message, signature, {}, public_key);
+#else
         auto sig = make_sig(level, hash);
         if (!sig) return Result<void>::err("SLH-DSA: algorithm not available");
         if (public_key.size() != sig->length_public_key)
@@ -387,6 +474,7 @@ public:
             return Result<void>::err("SLH-DSA: signature verification failed");
 
         return Result<void>::ok();
+#endif
     }
 
     [[nodiscard]] static Result<void>
@@ -404,12 +492,15 @@ public:
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        if (context.size() > 255)
+            return Result<SecureBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level, hash), message, context, secret_key);
+#else
         auto sig = make_sig(level, hash);
         if (!sig) return Result<SecureBuffer>::err("SLH-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
             return Result<SecureBuffer>::err("SLH-DSA: invalid secret key length");
-        if (context.size() > 255)
-            return Result<SecureBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
 
         SecureBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
@@ -420,6 +511,7 @@ public:
             return Result<SecureBuffer>::err("SLH-DSA: signing failed");
         signature.resize(sig_len);
         return Result<SecureBuffer>::ok(std::move(signature));
+#endif
     }
 
     /// Verify a signature made over `message` under domain-separation `context`.
@@ -429,12 +521,15 @@ public:
                         std::span<const uint8_t> context,
                         std::span<const uint8_t> public_key,
                         Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        if (context.size() > 255)
+            return Result<void>::err("SLH-DSA: context string exceeds 255 bytes");
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level, hash), message, signature, context, public_key);
+#else
         auto sig = make_sig(level, hash);
         if (!sig) return Result<void>::err("SLH-DSA: algorithm not available");
         if (public_key.size() != sig->length_public_key)
             return Result<void>::err("SLH-DSA: invalid public key length");
-        if (context.size() > 255)
-            return Result<void>::err("SLH-DSA: context string exceeds 255 bytes");
 
         const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
         if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
@@ -442,6 +537,7 @@ public:
                                         ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
             return Result<void>::err("SLH-DSA: signature verification failed");
         return Result<void>::ok();
+#endif
     }
 
     /// Query key/signature sizes for a given variant
@@ -487,6 +583,31 @@ private:
         }
         return SigPtr(OQS_SIG_new(name));
     }
+
+#if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level, HashFamily hash) {
+        if (hash == HashFamily::SHA2) {
+            switch (level) {
+                case Level::L128s: return "SLH-DSA-SHA2-128s";
+                case Level::L128f: return "SLH-DSA-SHA2-128f";
+                case Level::L192s: return "SLH-DSA-SHA2-192s";
+                case Level::L192f: return "SLH-DSA-SHA2-192f";
+                case Level::L256s: return "SLH-DSA-SHA2-256s";
+                case Level::L256f: return "SLH-DSA-SHA2-256f";
+            }
+        } else {
+            switch (level) {
+                case Level::L128s: return "SLH-DSA-SHAKE-128s";
+                case Level::L128f: return "SLH-DSA-SHAKE-128f";
+                case Level::L192s: return "SLH-DSA-SHAKE-192s";
+                case Level::L192f: return "SLH-DSA-SHAKE-192f";
+                case Level::L256s: return "SLH-DSA-SHAKE-256s";
+                case Level::L256f: return "SLH-DSA-SHAKE-256f";
+            }
+        }
+        return "SLH-DSA-SHA2-128f";
+    }
+#endif
 };
 
 } // namespace crypto::pq
