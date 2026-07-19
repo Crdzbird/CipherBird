@@ -20,8 +20,10 @@
 // their long-term secret key — never any out-of-band state.
 //
 // Wire formats (little-endian lengths):
-//   PQ         "CSPQ" | ver(1) | kem_ct_len(4) | kem_ct | MVLT-envelope
-//   signed PQ  "CSSP" | ver(1) | kem_ct_len(4) | kem_ct | MVLT-envelope
+//   PQ         "CSPQ" | ver(1) | suite(1) | kem_ct_len(4) | kem_ct | MVLT-envelope
+//   signed PQ  "CSSP" | ver(1) | suite(1) | kem_ct_len(4) | kem_ct | MVLT-envelope
+// The suite byte names the algorithm set, so a parameter-set migration is a new
+// id decided at open time (never a silent reinterpretation); unknown ids reject.
 //                 where the sealed plaintext = sig_len(4) | signature | plaintext
 //   file / keyring / threshold  →  a bare MVLT envelope (MolecularVault frames it)
 //
@@ -50,9 +52,15 @@ namespace crypto {
 
 class Suite {
 public:
-    static constexpr uint8_t VERSION = 1;
+    static constexpr uint8_t VERSION = 2;
     static constexpr std::array<uint8_t, 4> MAGIC_PQ  = {'C', 'S', 'P', 'Q'};
     static constexpr std::array<uint8_t, 4> MAGIC_SPQ = {'C', 'S', 'S', 'P'};
+    // Algorithm-suite identifiers, bound into the envelope header. Migrating a
+    // parameter set (e.g. ML-KEM-768 → 1024) becomes a NEW id dispatched at open
+    // time, never a silent reinterpretation of the same bytes; unknown or
+    // mismatched ids fail closed. Keep values stable once shipped.
+    static constexpr uint8_t SUITE_HYBRID_KEM     = 0x01; // X25519 + ML-KEM-768
+    static constexpr uint8_t SUITE_HYBRID_KEM_SIG = 0x02; // + Ed25519 + ML-DSA-65
     static constexpr std::size_t MASTER_BYTES = 32;
     static constexpr std::size_t EVM_ADDRESS_BYTES = 20;
 
@@ -67,7 +75,7 @@ public:
         if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
         auto env = MolecularVault::seal_with_key(plaintext, enc.value().shared_secret.span(), aad);
         if (env.is_err()) return env;
-        return frame(MAGIC_PQ, enc.value().ciphertext.span(), env.value().span());
+        return frame(MAGIC_PQ, SUITE_HYBRID_KEM, enc.value().ciphertext.span(), env.value().span());
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -75,7 +83,7 @@ public:
             std::span<const uint8_t> recipient_kem_secret,
             std::span<const uint8_t> aad = {}) {
         std::span<const uint8_t> kem_ct, inner;
-        if (auto e = unframe(MAGIC_PQ, envelope, kem_ct, inner); e.is_err())
+        if (auto e = unframe(MAGIC_PQ, SUITE_HYBRID_KEM, envelope, kem_ct, inner); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
         auto ss = pq::HybridKem::decapsulate(kem_ct, recipient_kem_secret);
         if (ss.is_err()) return Result<SecureBuffer>::err(ss.error().message);
@@ -106,7 +114,7 @@ public:
         auto env = MolecularVault::seal_with_key(inner, enc.value().shared_secret.span(), aad);
         sodium_memzero(inner.data(), inner.size());
         if (env.is_err()) return env;
-        return frame(MAGIC_SPQ, enc.value().ciphertext.span(), env.value().span());
+        return frame(MAGIC_SPQ, SUITE_HYBRID_KEM_SIG, enc.value().ciphertext.span(), env.value().span());
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -115,7 +123,7 @@ public:
                    std::span<const uint8_t> signer_sig_public,
                    std::span<const uint8_t> aad = {}) {
         std::span<const uint8_t> kem_ct, inner_env;
-        if (auto e = unframe(MAGIC_SPQ, envelope, kem_ct, inner_env); e.is_err())
+        if (auto e = unframe(MAGIC_SPQ, SUITE_HYBRID_KEM_SIG, envelope, kem_ct, inner_env); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
         auto ss = pq::HybridKem::decapsulate(kem_ct, recipient_kem_secret);
         if (ss.is_err()) return Result<SecureBuffer>::err(ss.error().message);
@@ -258,14 +266,15 @@ private:
         return Result<SecureBuffer>::ok(std::move(e.value().derive_all().vault_master_key));
     }
 
-    // magic | ver | kem_ct_len(4) | kem_ct | inner
+    // magic | ver | suite | kem_ct_len(4) | kem_ct | inner
     [[nodiscard]] static Result<SecureBuffer>
-    frame(const std::array<uint8_t, 4>& magic,
+    frame(const std::array<uint8_t, 4>& magic, uint8_t suite_id,
           std::span<const uint8_t> kem_ct, std::span<const uint8_t> inner) {
         std::vector<uint8_t> out;
-        out.reserve(4 + 1 + 4 + kem_ct.size() + inner.size());
+        out.reserve(4 + 1 + 1 + 4 + kem_ct.size() + inner.size());
         out.insert(out.end(), magic.begin(), magic.end());
         out.push_back(VERSION);
+        out.push_back(suite_id);
         put_u32_le(out, static_cast<uint32_t>(kem_ct.size()));
         out.insert(out.end(), kem_ct.begin(), kem_ct.end());
         out.insert(out.end(), inner.begin(), inner.end());
@@ -273,14 +282,17 @@ private:
     }
 
     [[nodiscard]] static Result<void>
-    unframe(const std::array<uint8_t, 4>& magic, std::span<const uint8_t> env,
+    unframe(const std::array<uint8_t, 4>& magic, uint8_t expected_suite,
+            std::span<const uint8_t> env,
             std::span<const uint8_t>& kem_ct, std::span<const uint8_t>& inner) {
-        constexpr std::size_t HDR = 4 + 1 + 4;
+        constexpr std::size_t HDR = 4 + 1 + 1 + 4;
         if (env.size() < HDR) return Result<void>::err("Suite: envelope too short");
         if (std::memcmp(env.data(), magic.data(), magic.size()) != 0)
             return Result<void>::err("Suite: bad magic (wrong envelope type)");
         if (env[4] != VERSION) return Result<void>::err("Suite: unsupported version");
-        const uint32_t ct_len = get_u32_le(env.data() + 5);
+        if (env[5] != expected_suite)
+            return Result<void>::err("Suite: unknown or mismatched algorithm suite");
+        const uint32_t ct_len = get_u32_le(env.data() + 6);
         if (env.size() < HDR + ct_len) return Result<void>::err("Suite: envelope truncated");
         kem_ct = env.subspan(HDR, ct_len);
         inner  = env.subspan(HDR + ct_len);

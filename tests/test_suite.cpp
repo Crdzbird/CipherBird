@@ -128,6 +128,17 @@ TEST("suite/rejects-truncated-envelope") {
     CHECK_ERR(Suite::open_pq(tiny, bob.value().secret_key.span(), aad));
 }
 
+// Crypto-agility: the suite-id byte (header offset 5) is bound; an unknown or
+// mismatched value must fail closed rather than be silently reinterpreted.
+TEST("suite/rejects-unknown-suite-id") {
+    auto bob = crypto::pq::HybridKem::generate_keypair();
+    auto env = Suite::seal_pq(bytes("agility"), bob.value().public_key.span(), aad);
+    CHECK_OK(env);
+    auto buf = vec(env.value());
+    buf[5] = 0x7F; // not a known suite id
+    CHECK_ERR(Suite::open_pq(buf, bob.value().secret_key.span(), aad));
+}
+
 // ── File-as-key ─────────────────────────────────────────────────────────
 TEST("suite/file/roundtrip-and-wrong-file-fails") {
     ScratchFile a("cryptolib_suite_key_a.bin");
@@ -227,6 +238,7 @@ void run_tests_suite() {
     RUN("suite/signed-pq/tamper-fails");
     RUN("suite/envelope-type-confusion-rejected");
     RUN("suite/rejects-truncated-envelope");
+    RUN("suite/rejects-unknown-suite-id");
     RUN("suite/file/roundtrip-and-wrong-file-fails");
     RUN("suite/keyring/either-slot-opens");
     RUN("suite/keyring/wrong-factor-fails");
