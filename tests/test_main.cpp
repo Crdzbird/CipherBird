@@ -33,6 +33,7 @@ void run_tests_bls();
 void run_tests_stego_fuzz();
 void run_tests_hardening();
 void run_tests_kat();
+void run_tests_kat_pqc();
 void run_tests_keyring();
 void run_tests_keyring_rotation();
 void run_tests_shamir();
@@ -70,6 +71,7 @@ int main() {
     run_suite("stego_fuzz",     run_tests_stego_fuzz);
     run_suite("hardening",      run_tests_hardening);
     run_suite("known_answer",   run_tests_kat);
+    run_suite("known_answer_pqc", run_tests_kat_pqc);
     run_suite("keyring",        run_tests_keyring);
     run_suite("keyring_rotation", run_tests_keyring_rotation);
     run_suite("shamir",         run_tests_shamir);

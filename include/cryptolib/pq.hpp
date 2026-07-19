@@ -223,6 +223,57 @@ public:
                       signature, public_key, level);
     }
 
+    /// Sign with a domain-separation context string (FIPS 204 §5.2, external
+    /// pure interface: the message actually signed is 0x00 ‖ len(ctx) ‖ ctx ‖ M).
+    /// An empty context reproduces sign(); a non-empty context binds the
+    /// signature to that domain so it will not verify under a different context.
+    /// The context is limited to 255 bytes by the standard.
+    [[nodiscard]] static Result<SecureBuffer>
+    sign_with_context(std::span<const uint8_t> message,
+                      std::span<const uint8_t> context,
+                      std::span<const uint8_t> secret_key,
+                      Level level = Level::DSA_65) {
+        auto sig = make_sig(level);
+        if (!sig) return Result<SecureBuffer>::err("ML-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<SecureBuffer>::err("ML-DSA: invalid secret key length");
+        if (context.size() > 255)
+            return Result<SecureBuffer>::err("ML-DSA: context string exceeds 255 bytes");
+
+        SecureBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
+                                      message.data(), message.size(),
+                                      ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<SecureBuffer>::err("ML-DSA: signing failed");
+        signature.resize(sig_len);
+        return Result<SecureBuffer>::ok(std::move(signature));
+    }
+
+    /// Verify a signature made over `message` under domain-separation `context`.
+    /// Fails closed if the context does not match the one used at signing.
+    [[nodiscard]] static Result<void>
+    verify_with_context(std::span<const uint8_t> message,
+                        std::span<const uint8_t> signature,
+                        std::span<const uint8_t> context,
+                        std::span<const uint8_t> public_key,
+                        Level level = Level::DSA_65) {
+        auto sig = make_sig(level);
+        if (!sig) return Result<void>::err("ML-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("ML-DSA: invalid public key length");
+        if (context.size() > 255)
+            return Result<void>::err("ML-DSA: context string exceeds 255 bytes");
+
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
+                                        signature.data(), signature.size(),
+                                        ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("ML-DSA: signature verification failed");
+        return Result<void>::ok();
+    }
+
     /// Query key/signature sizes for a given level
     struct Sizes {
         std::size_t public_key;
@@ -344,6 +395,53 @@ public:
            Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
         return verify({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
                       signature, public_key, level, hash);
+    }
+
+    /// Sign with a domain-separation context string (FIPS 205, pure external
+    /// interface). Empty context reproduces sign(); limited to 255 bytes.
+    [[nodiscard]] static Result<SecureBuffer>
+    sign_with_context(std::span<const uint8_t> message,
+                      std::span<const uint8_t> context,
+                      std::span<const uint8_t> secret_key,
+                      Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<SecureBuffer>::err("SLH-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<SecureBuffer>::err("SLH-DSA: invalid secret key length");
+        if (context.size() > 255)
+            return Result<SecureBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
+
+        SecureBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
+                                      message.data(), message.size(),
+                                      ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<SecureBuffer>::err("SLH-DSA: signing failed");
+        signature.resize(sig_len);
+        return Result<SecureBuffer>::ok(std::move(signature));
+    }
+
+    /// Verify a signature made over `message` under domain-separation `context`.
+    [[nodiscard]] static Result<void>
+    verify_with_context(std::span<const uint8_t> message,
+                        std::span<const uint8_t> signature,
+                        std::span<const uint8_t> context,
+                        std::span<const uint8_t> public_key,
+                        Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<void>::err("SLH-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("SLH-DSA: invalid public key length");
+        if (context.size() > 255)
+            return Result<void>::err("SLH-DSA: context string exceeds 255 bytes");
+
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
+                                        signature.data(), signature.size(),
+                                        ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("SLH-DSA: signature verification failed");
+        return Result<void>::ok();
     }
 
     /// Query key/signature sizes for a given variant
