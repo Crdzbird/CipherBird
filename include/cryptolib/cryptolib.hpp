@@ -130,6 +130,7 @@
 #include "bls.hpp"                // → BLS12-381 (blst, guarded by CRYPTOLIB_HAS_BLS)
 #include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase)
 #include "shamir.hpp"             // → Shamir secret sharing (GF(256), M-of-N)
+#include "frost.hpp"          // → FROST(Ed25519,SHA-512) threshold signatures
 #include "session.hpp"        // → PQ forward-secret ratchet (needs PQ)
 #include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
 #include "suite.hpp"             // → Suite: one-call advanced combinations (needs OpenSSL + PQ)
