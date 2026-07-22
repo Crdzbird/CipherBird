@@ -93,6 +93,32 @@ node-suite: lib
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
+# Flagship/Fortress sealed-messaging demos (Identity + one-shot + streaming).
+.PHONY: sealed
+sealed: node-sealed go-sealed dart-sealed swift-sealed
+
+.PHONY: node-sealed
+node-sealed: lib
+	$(call hdr,Node Flagship/Fortress sealed messaging)
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node sealed.js | tail -2; \
+	else echo "node not found — skipping"; fi
+
+.PHONY: go-sealed
+go-sealed: lib
+	$(call hdr,Go Flagship/Fortress sealed messaging)
+	@if command -v go >/dev/null 2>&1; then \
+		cd bridge/bindings/go && DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) go run ./sealed | tail -2; \
+	else echo "go not found — skipping"; fi
+
+.PHONY: dart-sealed
+dart-sealed: lib
+	$(call hdr,Dart Flagship/Fortress sealed messaging)
+	@if command -v dart >/dev/null 2>&1; then \
+		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		CRYPTOLIB_DYLIB=$(DYLIB) dart run bin/sealed.dart | tail -2; \
+	else echo "dart not found — skipping"; fi
+
 .PHONY: swift-recipes
 swift-recipes: lib
 	$(call hdr,Swift recipes)
