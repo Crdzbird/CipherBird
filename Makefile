@@ -155,6 +155,15 @@ swift-sealed: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_sealed | tail -14; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-session
+swift-session: lib
+	$(call hdr,Swift Session ratchet)
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/session.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_session && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_session | tail -8; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))

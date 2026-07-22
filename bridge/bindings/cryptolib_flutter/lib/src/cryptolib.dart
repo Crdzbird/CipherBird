@@ -42,6 +42,7 @@ part 'api/evm_btc.dart';
 part 'api/molecular_vault.dart';
 part 'api/suite.dart';
 part 'api/sealed.dart';
+part 'api/session.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

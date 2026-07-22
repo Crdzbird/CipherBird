@@ -233,6 +233,14 @@ function ensureLoaded() {
   sealedOpenerPull: f('CryptoBufferResult cryptolib_sealed_opener_pull(void *, uint8_t*, size_t, _Out_ int*)'),
   sealedOpenerFinalize: f('CryptoBufferResult cryptolib_sealed_opener_finalize(void *, uint8_t*, size_t)'),
   sealedOpenerFree: f('void cryptolib_sealed_opener_free(void *)'),
+  // Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet).
+  sessGenPrekey: f('CryptoKeyPair cryptolib_session_generate_prekey()'),
+  sessInitiate: f('void *cryptolib_session_initiate(uint8_t*, size_t, _Out_ char**)'),
+  sessHandshake: f('CryptoBufferResult cryptolib_session_handshake(void *)'),
+  sessAccept: f('void *cryptolib_session_accept(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sessEncrypt: f('CryptoBufferResult cryptolib_session_encrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
+  sessDecrypt: f('CryptoBufferResult cryptolib_session_decrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
+  sessFree: f('void cryptolib_session_free(void *)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -412,6 +420,47 @@ class Identity {
   }
 }
 
+// ═══ Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ═══════════
+// A live channel with forward secrecy + post-compromise security, all PQ.
+class Session {
+  constructor(handle) { this._h = handle; }
+
+  /** Responder: generate a prekey (hybrid-KEM keypair). Publish publicKey. */
+  static generatePrekey() { return kp(fn.sessGenPrekey()); }
+
+  /** Initiator: start a session to the responder's prekey public key. */
+  static initiate(responderPrekeyPublic) {
+    const e = [null];
+    const h = fn.sessInitiate(u8(responderPrekeyPublic), u8(responderPrekeyPublic).length, e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: session initiate failed');
+    return new Session(h);
+  }
+
+  /** The handshake message to send to the responder (Session.accept). */
+  handshake() { return consume(fn.sessHandshake(this._h)); }
+
+  /** Responder: accept a handshake with your prekey (public + secret). */
+  static accept(handshake, prekeyPublic, prekeySecret) {
+    const e = [null];
+    const h = fn.sessAccept(u8(handshake), u8(handshake).length,
+      u8(prekeyPublic), u8(prekeyPublic).length, u8(prekeySecret), u8(prekeySecret).length, e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: session accept failed');
+    return new Session(h);
+  }
+
+  encrypt(plaintext, aad = null) {
+    return consume(fn.sessEncrypt(this._h, u8(plaintext), u8(plaintext).length,
+      aad ? u8(aad) : null, aad ? u8(aad).length : 0));
+  }
+  decrypt(message, aad = null) {
+    return consume(fn.sessDecrypt(this._h, u8(message), u8(message).length,
+      aad ? u8(aad) : null, aad ? u8(aad).length : 0));
+  }
+  close() { if (this._h) { fn.sessFree(this._h); this._h = null; } }
+}
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -426,7 +475,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },

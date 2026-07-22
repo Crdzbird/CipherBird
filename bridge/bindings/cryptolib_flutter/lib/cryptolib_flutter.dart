@@ -32,6 +32,8 @@ export 'src/cryptolib.dart'
         Identity,
         SealedStreamSealer,
         SealedStreamOpener,
+        CryptoLibSession,
+        Session,
         CryptoLibSymmetric,
         CryptoLibVault,
         DerivedKeysResult,
