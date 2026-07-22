@@ -44,6 +44,7 @@ part 'api/suite.dart';
 part 'api/sealed.dart';
 part 'api/session.dart';
 part 'api/frost.dart';
+part 'api/hpke.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

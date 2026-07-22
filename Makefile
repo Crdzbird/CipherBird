@@ -173,6 +173,15 @@ swift-frost: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_frost | tail -20; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-hpke
+swift-hpke: lib
+	$(call hdr,Swift HPKE (RFC 9180))
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/hpke.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_hpke && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_hpke | tail -12; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))

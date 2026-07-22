@@ -254,6 +254,16 @@ function ensureLoaded() {
   frostAggregate: f('CryptoBufferResult cryptolib_frost_aggregate(uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t, uint8_t*)'),
   frostVerify: f('int cryptolib_frost_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   frostVerifyShare: f('int cryptolib_frost_verify_share(uint16_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t)'),
+
+  // HPKE (RFC 9180) — DHKEM(X25519, HKDF-SHA256).
+  hpkeKeygen: f('CryptoKeyPair cryptolib_hpke_keygen()'),
+  hpkeDerive: f('CryptoKeyPair cryptolib_hpke_derive_keypair(uint8_t*, size_t)'),
+  hpkeSetupS: f('void* cryptolib_hpke_setup_s(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*, _Out_ char**)'),
+  hpkeSetupR: f('void* cryptolib_hpke_setup_r(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  hpkeSeal: f('CryptoBufferResult cryptolib_hpke_seal(void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  hpkeOpen: f('CryptoBufferResult cryptolib_hpke_open(void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  hpkeExport: f('CryptoBufferResult cryptolib_hpke_export(void*, uint8_t*, size_t, size_t)'),
+  hpkeCtxFree: f('void cryptolib_hpke_context_free(void*)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -560,6 +570,62 @@ const Frost = {
   },
 };
 
+// ═══ HPKE — Hybrid Public Key Encryption (RFC 9180) ════════════════════════════
+// The wire-standard hybrid PKE used by TLS ECH, MLS, Oblivious HTTP. KEM is
+// DHKEM(X25519, HKDF-SHA256); an envelope sealed here opens in any conformant
+// HPKE implementation.
+const HpkeKdf = { Sha256: 1, Sha512: 3 };
+const HpkeAead = { Aes128Gcm: 1, Aes256Gcm: 2, ChaCha20Poly1305: 3, ExportOnly: 0xFFFF };
+const HpkeMode = { Base: 0, Psk: 1, Auth: 2, AuthPsk: 3 };
+const olen = (x) => (x ? u8(x).length : 0);
+const optr = (x) => (x ? u8(x) : null);
+
+/** An established one-directional HPKE context. close() when done. */
+class HpkeContext {
+  constructor(handle) { this._h = handle; }
+  seal(plaintext, aad = null) { return consume(fn.hpkeSeal(this._h, optr(aad), olen(aad), u8(plaintext), u8(plaintext).length)); }
+  open(ciphertext, aad = null) { return consume(fn.hpkeOpen(this._h, optr(aad), olen(aad), u8(ciphertext), u8(ciphertext).length)); }
+  export(exporterContext, length) { return consume(fn.hpkeExport(this._h, optr(exporterContext), olen(exporterContext), length)); }
+  close() { if (this._h) { fn.hpkeCtxFree(this._h); this._h = null; } }
+}
+
+const Hpke = {
+  Kdf: HpkeKdf, Aead: HpkeAead, Mode: HpkeMode,
+  keygen() { return kp(fn.hpkeKeygen()); },
+  deriveKeyPair(ikm) { return kp(fn.hpkeDerive(u8(ikm), u8(ikm).length)); },
+  /** Sender key schedule. opts: { psk, pskId, skS } as needed by the mode. */
+  setupS(kdf, aead, mode, recipientPublic, info, opts = {}) {
+    const encBox = [{}]; const e = [null];
+    const h = fn.hpkeSetupS(kdf, aead, mode, u8(recipientPublic), u8(recipientPublic).length,
+      u8(info), u8(info).length, optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId),
+      optr(opts.skS), olen(opts.skS), encBox, e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: hpke setup_s failed');
+    const enc = b(encBox[0]); fn.bufFree(encBox[0]);
+    return { enc, context: new HpkeContext(h) };
+  },
+  /** Receiver key schedule. opts: { psk, pskId, pkS } as needed by the mode. */
+  setupR(kdf, aead, mode, enc, recipientSecret, info, opts = {}) {
+    const e = [null];
+    const h = fn.hpkeSetupR(kdf, aead, mode, u8(enc), u8(enc).length,
+      u8(recipientSecret), u8(recipientSecret).length, u8(info), u8(info).length,
+      optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId), optr(opts.pkS), olen(opts.pkS), e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: hpke setup_r failed');
+    return new HpkeContext(h);
+  },
+  /** Single-shot base-mode encryption → { enc, ct }. */
+  sealBase(kdf, aead, recipientPublic, info, plaintext, aad = null) {
+    const s = Hpke.setupS(kdf, aead, HpkeMode.Base, recipientPublic, info);
+    try { return { enc: s.enc, ct: s.context.seal(plaintext, aad) }; } finally { s.context.close(); }
+  },
+  /** Single-shot base-mode decryption. */
+  openBase(kdf, aead, enc, recipientSecret, info, ciphertext, aad = null) {
+    const r = Hpke.setupR(kdf, aead, HpkeMode.Base, enc, recipientSecret, info);
+    try { return r.open(ciphertext, aad); } finally { r.close(); }
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -574,7 +640,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
