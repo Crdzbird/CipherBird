@@ -72,8 +72,10 @@ if(CRYPTOLIB_PQ AND NOT CRYPTOLIB_DEPS_PREBUILT)
         find_library(OQS_LIBRARY oqs PATHS /opt/homebrew/lib /usr/local/lib REQUIRED)
         find_path(OQS_INCLUDE_DIR oqs/oqs.h PATHS /opt/homebrew/include /usr/local/include REQUIRED)
     endif()
-    # liboqs depends on OpenSSL for AES/SHA primitives
-    pkg_check_modules(OPENSSL REQUIRED openssl)
+    # We use OpenSSL's libcrypto only (EVP: AES-256-GCM-SIV, ML-KEM/ML-DSA/SLH-DSA).
+    # We never use libssl (TLS/X.509) — linking it would pull an entire network
+    # protocol stack as pure attack surface, so we depend on libcrypto alone.
+    pkg_check_modules(OPENSSL REQUIRED libcrypto)
 endif()
 
 if(CRYPTOLIB_BLS AND NOT CRYPTOLIB_DEPS_PREBUILT)
@@ -309,6 +311,36 @@ if(CRYPTOLIB_BUILD_BRIDGE)
         target_link_libraries(cryptolib_c PRIVATE ${SECP256K1_LIBRARY})
         if(NOT CRYPTOLIB_DEPS_PREBUILT AND SECP256K1_PC_LIBRARY_DIRS)
             target_link_directories(cryptolib_c PRIVATE ${SECP256K1_PC_LIBRARY_DIRS})
+        endif()
+    endif()
+
+    # ── Security hardening for the shipped library ──────────────────────────
+    # Exploit-mitigation compile flags, feature-detected so unsupported ones on a
+    # given compiler/arch are skipped rather than failing the build.
+    include(CheckCXXCompilerFlag)
+    set(_cl_harden)
+    foreach(_flag -fstack-protector-strong -fstack-clash-protection -fcf-protection=full)
+        string(MAKE_C_IDENTIFIER "HAVE_CL${_flag}" _var)
+        check_cxx_compiler_flag("${_flag}" ${_var})
+        if(${${_var}})
+            list(APPEND _cl_harden ${_flag})
+        endif()
+    endforeach()
+    target_compile_options(cryptolib_c PRIVATE ${_cl_harden})
+    # FORTIFY needs an optimized build (we ship -O2); re-arm cleanly.
+    target_compile_options(cryptolib_c PRIVATE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+
+    if(NOT CRYPTOLIB_STATIC)  # link-hardening applies to the shared object
+        if(APPLE)
+            # Export ONLY the cryptolib_* C ABI; hide all statically-linked
+            # dependency symbols (liboqs/blst/…) → minimal surface.
+            target_link_options(cryptolib_c PRIVATE
+                "-Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/bridge/exported_symbols.txt")
+        else()
+            # ELF: full RELRO, non-exec stack, and restrict exports to the C ABI.
+            target_link_options(cryptolib_c PRIVATE
+                -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+                "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/bridge/version_script.map")
         endif()
     endif()
 endif()

@@ -1,0 +1,5 @@
+# macOS exported-symbols list for libcryptolib_c.
+# Export ONLY the C ABI (cryptolib_*). Everything else — including the symbols of
+# the statically-linked dependencies (liboqs, blst, …) — is hidden, minimizing
+# the library's surface to exactly the intended boundary.
+_cryptolib_*

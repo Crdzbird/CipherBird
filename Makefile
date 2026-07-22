@@ -329,6 +329,13 @@ ios:
 	else echo "Xcode not found — skipping"; fi
 
 # ── Tests ────────────────────────────────────────────────────────────────────
+# "No ambient authority" gate — fails if the built library imports any
+# networking or process-execution symbol (see scripts/audit_symbols.sh).
+.PHONY: audit
+audit: lib
+	$(call hdr,Self-containment audit (no ambient authority))
+	@bash scripts/audit_symbols.sh $(DYLIB)
+
 .PHONY: test
 test:
 	$(call hdr,C++ test suite)
