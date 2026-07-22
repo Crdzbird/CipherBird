@@ -1,4 +1,5 @@
 /**
+#include <optional>
  * CryptoLib C FFI Bridge — Implementation
  *
  * Wraps the C++20 header-only library into a flat C API.
@@ -546,6 +547,181 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(
     return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+// ── Flagship / Fortress — sealed messaging (tier-parameterized) ──────────────
+namespace {
+struct SealedSealerImpl {
+    std::optional<crypto::Flagship::StreamSealer> fl;
+    std::optional<crypto::Fortress::StreamSealer> fo;
+};
+struct SealedOpenerImpl {
+    std::optional<crypto::Flagship::StreamOpener> fl;
+    std::optional<crypto::Fortress::StreamOpener> fo;
+};
+} // namespace
+
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_recipient(int tier) try {
+    if (tier == 1) { auto r = crypto::Fortress::generate_recipient();
+        return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) }; }
+    auto r = crypto::Flagship::generate_recipient();
+    return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_sender(int tier) try {
+    if (tier == 1) { auto r = crypto::Fortress::generate_sender();
+        return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) }; }
+    auto r = crypto::Flagship::generate_sender();
+    return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_seal(
+    int tier, const uint8_t* pt, size_t pt_len,
+    const uint8_t* rpub, size_t rpub_len, const uint8_t* ssec, size_t ssec_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* purpose, size_t purpose_len) try {
+    auto go = [&](auto tag) {
+        using P = decltype(tag);
+        auto r = P::seal(sp(pt, pt_len), sp(rpub, rpub_len), sp(ssec, ssec_len),
+                         opt_aad(aad, aad_len), opt_aad(purpose, purpose_len));
+        return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+    };
+    return tier == 1 ? go(crypto::Fortress{}) : go(crypto::Flagship{});
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_open(
+    int tier, const uint8_t* env, size_t env_len,
+    const uint8_t* rsec, size_t rsec_len, const uint8_t* rpub, size_t rpub_len,
+    const uint8_t* spub, size_t spub_len, const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len) try {
+    auto go = [&](auto tag) {
+        using P = decltype(tag);
+        auto r = P::open(sp(env, env_len), sp(rsec, rsec_len), sp(rpub, rpub_len),
+                         sp(spub, spub_len), opt_aad(aad, aad_len), opt_aad(purpose, purpose_len));
+        return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+    };
+    return tier == 1 ? go(crypto::Fortress{}) : go(crypto::Flagship{});
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSealedInfo cryptolib_sealed_inspect(const uint8_t* env, size_t env_len) try {
+    CryptoSealedInfo out{};
+    auto info = crypto::Flagship::inspect(sp(env, env_len)); // header parse is tier-agnostic
+    if (info.is_err()) return out;
+    out.ok = 1;
+    out.version = info.value().version;
+    out.suite = info.value().suite;
+    out.streaming = info.value().streaming ? 1 : 0;
+    std::memcpy(out.fingerprint, info.value().recipient_fingerprint.data(), 16);
+    out.kem_ciphertext_len = info.value().kem_ciphertext_len;
+    return out;
+} catch (...) { return CryptoSealedInfo{}; }
+
+CRYPTO_API int cryptolib_sealed_addressed_to(
+    const uint8_t* env, size_t env_len, const uint8_t* rpub, size_t rpub_len) try {
+    return crypto::Flagship::addressed_to(sp(env, env_len), sp(rpub, rpub_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoSealedSealer cryptolib_sealed_sealer_begin(
+    int tier, const uint8_t* rpub, size_t rpub_len, const uint8_t* ssec, size_t ssec_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto* impl = new SealedSealerImpl{};
+    if (tier == 1) {
+        auto r = crypto::Fortress::StreamSealer::begin(sp(rpub, rpub_len), sp(ssec, ssec_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fo.emplace(std::move(r.value()));
+    } else {
+        auto r = crypto::Flagship::StreamSealer::begin(sp(rpub, rpub_len), sp(ssec, ssec_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fl.emplace(std::move(r.value()));
+    }
+    return static_cast<CryptoSealedSealer>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_preamble(CryptoSealedSealer h) try {
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) return ok_buf(impl->fl->preamble());
+    if (impl->fo) return ok_buf(impl->fo->preamble());
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_push(
+    CryptoSealedSealer h, const uint8_t* chunk, size_t chunk_len) try {
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) { auto r = impl->fl->push(sp(chunk, chunk_len)); return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value()); }
+    if (impl->fo) { auto r = impl->fo->push(sp(chunk, chunk_len)); return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value()); }
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_finalize(
+    CryptoSealedSealer h, const uint8_t* last, size_t last_len, CryptoBuffer* out_trailer) try {
+    if (out_trailer) *out_trailer = CryptoBuffer{nullptr, 0};
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) {
+        auto r = impl->fl->finalize(opt_aad(last, last_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        if (out_trailer) *out_trailer = to_cbuf(r.value().trailer);
+        return ok_buf(r.value().ciphertext);
+    }
+    if (impl->fo) {
+        auto r = impl->fo->finalize(opt_aad(last, last_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        if (out_trailer) *out_trailer = to_cbuf(r.value().trailer);
+        return ok_buf(r.value().ciphertext);
+    }
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_sealed_sealer_free(CryptoSealedSealer h) {
+    delete static_cast<SealedSealerImpl*>(h);
+}
+
+CRYPTO_API CryptoSealedOpener cryptolib_sealed_opener_begin(
+    int tier, const uint8_t* preamble, size_t pre_len,
+    const uint8_t* rsec, size_t rsec_len, const uint8_t* rpub, size_t rpub_len,
+    const uint8_t* spub, size_t spub_len, const uint8_t* purpose, size_t purpose_len,
+    char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto* impl = new SealedOpenerImpl{};
+    if (tier == 1) {
+        auto r = crypto::Fortress::StreamOpener::begin(sp(preamble, pre_len), sp(rsec, rsec_len),
+                    sp(rpub, rpub_len), sp(spub, spub_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fo.emplace(std::move(r.value()));
+    } else {
+        auto r = crypto::Flagship::StreamOpener::begin(sp(preamble, pre_len), sp(rsec, rsec_len),
+                    sp(rpub, rpub_len), sp(spub, spub_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fl.emplace(std::move(r.value()));
+    }
+    return static_cast<CryptoSealedOpener>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_pull(
+    CryptoSealedOpener h, const uint8_t* ct, size_t ct_len, int* out_final) try {
+    if (out_final) *out_final = 0;
+    auto* impl = static_cast<SealedOpenerImpl*>(h);
+    if (!impl) return err_buf("sealed: null opener");
+    if (impl->fl) { auto r = impl->fl->pull(sp(ct, ct_len)); if (r.is_err()) return err_buf(r.error().message);
+        if (out_final) *out_final = r.value().final ? 1 : 0; return ok_buf(r.value().plaintext); }
+    if (impl->fo) { auto r = impl->fo->pull(sp(ct, ct_len)); if (r.is_err()) return err_buf(r.error().message);
+        if (out_final) *out_final = r.value().final ? 1 : 0; return ok_buf(r.value().plaintext); }
+    return err_buf("sealed: invalid opener");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_finalize(
+    CryptoSealedOpener h, const uint8_t* trailer, size_t trailer_len) try {
+    auto* impl = static_cast<SealedOpenerImpl*>(h);
+    if (!impl) return err_buf("sealed: null opener");
+    if (impl->fl) { auto r = impl->fl->finalize(sp(trailer, trailer_len)); return r.is_err() ? err_buf(r.error().message) : CryptoBufferResult{ null_buf(), nullptr }; }
+    if (impl->fo) { auto r = impl->fo->finalize(sp(trailer, trailer_len)); return r.is_err() ? err_buf(r.error().message) : CryptoBufferResult{ null_buf(), nullptr }; }
+    return err_buf("sealed: invalid opener");
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_sealed_opener_free(CryptoSealedOpener h) {
+    delete static_cast<SealedOpenerImpl*>(h);
+}
+
 #else  // Suite requires OpenSSL + PQ — ABI-stable stubs otherwise
 static CryptoBufferResult suite_unavailable() {
     return err_buf("Suite requires OpenSSL + post-quantum support — not compiled in");
@@ -565,6 +741,21 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(const
 CRYPTO_API CryptoBufferResult cryptolib_suite_seal_threshold(const uint8_t*, size_t, uint8_t, uint8_t, const uint8_t*, size_t, CryptoBuffer* out_shares) { if (out_shares) *out_shares = CryptoBuffer{nullptr, 0}; return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_threshold(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_recipient(int) { return CryptoKeyPair{}; }
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_sender(int) { return CryptoKeyPair{}; }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_seal(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_open(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoSealedInfo cryptolib_sealed_inspect(const uint8_t*, size_t) { return CryptoSealedInfo{}; }
+CRYPTO_API int cryptolib_sealed_addressed_to(const uint8_t*, size_t, const uint8_t*, size_t) { return 0; }
+CRYPTO_API CryptoSealedSealer cryptolib_sealed_sealer_begin(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("Suite requires OpenSSL + post-quantum support — not compiled in"); return nullptr; }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_preamble(CryptoSealedSealer) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_push(CryptoSealedSealer, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_finalize(CryptoSealedSealer, const uint8_t*, size_t, CryptoBuffer* t) { if (t) *t = CryptoBuffer{nullptr, 0}; return suite_unavailable(); }
+CRYPTO_API void cryptolib_sealed_sealer_free(CryptoSealedSealer) {}
+CRYPTO_API CryptoSealedOpener cryptolib_sealed_opener_begin(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("Suite requires OpenSSL + post-quantum support — not compiled in"); return nullptr; }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_pull(CryptoSealedOpener, const uint8_t*, size_t, int* f) { if (f) *f = 0; return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_finalize(CryptoSealedOpener, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API void cryptolib_sealed_opener_free(CryptoSealedOpener) {}
 #endif // CRYPTOLIB_HAS_OPENSSL && CRYPTOLIB_HAS_PQ
 
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(

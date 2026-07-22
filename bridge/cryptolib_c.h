@@ -327,6 +327,79 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_open_threshold(
 CRYPTO_API CryptoBufferResult cryptolib_suite_evm_address(
     const uint8_t* public_key, size_t pk_len);
 
+/* ─── Flagship / Fortress — state-of-the-art sealed messaging ─────────────────
+ *   Two tiers of one construction: encapsulate → sign-then-encrypt inside a
+ *   key-committing cascade, RECIPIENT-BOUND, auth-first. tier: 0 = Flagship
+ *   (X25519+sntrup761 KEM, Ed25519+ML-DSA-65 sig); 1 = Fortress (+ML-KEM-768
+ *   triple KEM, +SLH-DSA triple sig). Requires OpenSSL + PQ. */
+
+/** Opaque streaming handles. Free with the matching *_free. */
+typedef void* CryptoSealedSealer;
+typedef void* CryptoSealedOpener;
+
+/** Public envelope metadata (no secrets). ok=0 if the envelope is unrecognizable. */
+typedef struct {
+    uint8_t ok;
+    uint8_t version;
+    uint8_t suite;          /**< 0x01 Flagship, 0x02 Fortress */
+    uint8_t streaming;      /**< 1 = stream preamble, 0 = one-shot */
+    uint8_t fingerprint[16];/**< BLAKE2b-128 of the recipient public key */
+    size_t  kem_ciphertext_len;
+} CryptoSealedInfo;
+
+/** Create a recipient (KEM) / sender (signature) keypair for the given tier. */
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_recipient(int tier);
+CRYPTO_API CryptoKeyPair cryptolib_sealed_generate_sender(int tier);
+
+/** One-shot seal (sign-then-encrypt, recipient-bound). purpose may be NULL. */
+CRYPTO_API CryptoBufferResult cryptolib_sealed_seal(
+    int tier, const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_secret, size_t ssec_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len);
+/** One-shot open (auth-first). Needs the recipient's OWN public key for the binding. */
+CRYPTO_API CryptoBufferResult cryptolib_sealed_open(
+    int tier, const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_secret, size_t rsec_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_public, size_t spub_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len);
+
+/** Inspect public metadata (no secrets); addressed_to returns 1 on fingerprint match. */
+CRYPTO_API CryptoSealedInfo cryptolib_sealed_inspect(const uint8_t* envelope, size_t env_len);
+CRYPTO_API int cryptolib_sealed_addressed_to(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_public, size_t rpub_len);
+
+/* Streaming: begin → (preamble) → push* → finalize(+trailer) ; free when done. */
+CRYPTO_API CryptoSealedSealer cryptolib_sealed_sealer_begin(
+    int tier, const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_secret, size_t ssec_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error);
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_preamble(CryptoSealedSealer h);
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_push(
+    CryptoSealedSealer h, const uint8_t* chunk, size_t chunk_len);
+/** Final ciphertext returned; the signed trailer is written to out_trailer. */
+CRYPTO_API CryptoBufferResult cryptolib_sealed_sealer_finalize(
+    CryptoSealedSealer h, const uint8_t* last_chunk, size_t last_len, CryptoBuffer* out_trailer);
+CRYPTO_API void cryptolib_sealed_sealer_free(CryptoSealedSealer h);
+
+/* Streaming open: begin → pull* (out_final=1 on the last chunk) → finalize(trailer). */
+CRYPTO_API CryptoSealedOpener cryptolib_sealed_opener_begin(
+    int tier, const uint8_t* preamble, size_t pre_len,
+    const uint8_t* recipient_secret, size_t rsec_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_public, size_t spub_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error);
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_pull(
+    CryptoSealedOpener h, const uint8_t* ct, size_t ct_len, int* out_final);
+/** Verify the sender signature over the whole stream. Empty buf + no error = OK. */
+CRYPTO_API CryptoBufferResult cryptolib_sealed_opener_finalize(
+    CryptoSealedOpener h, const uint8_t* trailer, size_t trailer_len);
+CRYPTO_API void cryptolib_sealed_opener_free(CryptoSealedOpener h);
+
 /** AES-256-GCM encrypt. Output: [nonce(12) | ciphertext | MAC(16)]. */
 CRYPTO_API CryptoBufferResult cryptolib_aes256gcm_encrypt(
     const uint8_t* plaintext, size_t pt_len,
