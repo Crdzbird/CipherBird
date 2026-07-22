@@ -111,6 +111,15 @@ swift-suite: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_suite | tail -2; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-sealed
+swift-sealed: lib
+	$(call hdr,Swift Flagship/Fortress sealed messaging)
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/sealed.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_sealed && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_sealed | tail -14; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
