@@ -53,5 +53,17 @@ if [ "$OS" = darwin ]; then
   done < <(find "$B" -path '*node_modules*' -prune -o -path "*macos-$ARCH/*libcryptolib_c_merged.a" -print 2>/dev/null)
 fi
 
+# The JVM package is a JAR (a snapshot), so rebuild it to embed the refreshed
+# native/ — otherwise `make bundle` updates the dylib but the JAR stays stale.
+if command -v javac >/dev/null 2>&1 && command -v jar >/dev/null 2>&1; then
+  echo "== rebuilding JVM jar (embeds refreshed native/) =="
+  ( cd "$B/cryptolib-jvm"
+    rm -rf out/jar && mkdir -p out/jar
+    javac -d out/jar src/cryptolib/*.java
+    cp -R native out/jar/native
+    ( cd out/jar && jar --create --file ../../cryptolib-jvm.jar . )
+    echo "   → ${B#"$ROOT"/}/cryptolib-jvm.jar" )
+fi
+
 echo "== done. Verify a bundle: (cd $B/cryptolib-node && node -e 'require(\"./index.js\").init()')"
 echo "   Cross-platform slots are filled by CI / make ios / make android — see PUBLISHING.md."
