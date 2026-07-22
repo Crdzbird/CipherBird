@@ -18,6 +18,19 @@ BREW_LIB=/opt/homebrew/lib
 OSSL=/opt/homebrew/opt/openssl@3
 SECP=/opt/homebrew/opt/secp256k1
 
+# Prefer a SEALED (no-sock no-dso) libcrypto so the static binary carries no
+# latent socket/dlopen code. Built on demand from pinned OpenSSL source. Set
+# CRYPTOLIB_SEALED_OPENSSL=0 to skip it and use the system libcrypto (which
+# retains OpenSSL's BIO sockets — dormant but present).
+LIBCRYPTO_A="build/host-deps/openssl-nosock/lib/libcrypto.a"
+if [ ! -f "$LIBCRYPTO_A" ] && [ "${CRYPTOLIB_SEALED_OPENSSL:-1}" = "1" ]; then
+    bash scripts/build_openssl_nosock.sh
+fi
+if [ ! -f "$LIBCRYPTO_A" ]; then
+    echo "!! sealed libcrypto unavailable — using system libcrypto (retains BIO sockets)"
+    LIBCRYPTO_A="$OSSL/lib/libcrypto.a"
+fi
+
 # 1. Vendored BLAKE3 static archive (Homebrew ships only a dylib).
 BLAKE3_A=build/host-deps/blake3-build/libblake3.a
 if [ ! -f "$BLAKE3_A" ]; then
@@ -44,7 +57,7 @@ clang++ -std=c++20 -O2 -fPIC -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTI
 libtool -static -o "$OUT/libcryptolib_c.a" \
     "$OUT/cryptolib_c.o" \
     "$BREW_LIB/libsodium.a" "$BLAKE3_A" "$BREW_LIB/liboqs.a" \
-    "$OSSL/lib/libcrypto.a" "$BREW_LIB/libblst.a" "$SECP/lib/libsecp256k1.a" \
+    "$LIBCRYPTO_A" "$BREW_LIB/libblst.a" "$SECP/lib/libsecp256k1.a" \
     2>/dev/null
 
 rm -f "$OUT/cryptolib_c.o"

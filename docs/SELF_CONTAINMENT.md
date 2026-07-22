@@ -38,26 +38,31 @@ locks pages with `sodium_mlock`, which marks them `MADV_DONTDUMP`.
 merging the bridge with every dependency's static archive (libsodium, BLAKE3,
 liboqs, libcrypto, blst, libsecp256k1). A binary linking it has **no Homebrew /
 third-party dynamic dependencies** — only the OS's `libSystem`, `libc++`, and (on
-macOS) `Security`/`CoreFoundation`. This removes the entire runtime
-library-substitution attack class (`DYLD_INSERT_LIBRARIES`, planted `libsodium`,
-version skew).
+macOS) `Security`/`CoreFoundation` (SIP-protected system frameworks). This removes
+the entire runtime library-substitution attack class (`DYLD_INSERT_LIBRARIES`,
+planted `libsodium`, version skew).
 
-**Verified:** a program linked fully against the static archive runs correctly
-and its `otool -L` shows only system libraries.
+**Verified:** a program linked fully against the static archive runs correctly,
+its `otool -L` shows only system libraries, and it **passes the hard audit**.
 
-### Known residual: OpenSSL BIO sockets in the static build
+### Sealed libcrypto (no-sock, no-dso)
 
-Stock OpenSSL's `libcrypto` contains socket-capable BIO code (23 network symbol
-references). When statically linked, some of it is pulled in, so the fully-static
-binary *imports* `socket`/`sendto`/etc. — **dormant** code that no CryptoLib path
-invokes (attributed: the symbols come only from libcrypto, none from our code or
-the other four dependencies). The shared dylib is unaffected (libcrypto is
-external there).
+Stock OpenSSL's `libcrypto` contains socket-capable BIO code and a dynamic-loader
+(dlopen) subsystem. Static-linking stock libcrypto drags those in as latent
+capability (the static binary would import `socket`/`sendto`/`dlopen`). These are
+`#ifdef`'d out of the OpenSSL core, so they can only be removed at **configure
+time**, not by surgery on a prebuilt archive.
 
-To eliminate the dormant socket (and dynamic-loader) code and get a static binary
-that passes the hard audit cleanly, build OpenSSL with **`no-sock no-dso`** and
-link that `libcrypto.a`. This is the recommended path for a maximally sealed
-static distribution; it is not yet wired into the default build.
+`scripts/build_openssl_nosock.sh` therefore builds `libcrypto.a` from **pinned,
+checksum-verified** OpenSSL source configured `no-sock no-dso`, and
+`build_static_archive.sh` links that by default (set `CRYPTOLIB_SEALED_OPENSSL=0`
+to fall back to the system libcrypto). OpenSSL 3.x has a stable ABI across the
+series, so the sealed libcrypto links cleanly with the prebuilt `liboqs.a`.
+
+**Verified:** the sealed `libcrypto.a` has **0** network-syscall and **0** dlopen
+references; a binary linked fully against the sealed static archive runs
+correctly and **passes the hard audit with no networking, exec, or dlopen
+symbols** (only a benign `getenv` from OpenSSL config-reading remains, watch-listed).
 
 ## Trade-off
 

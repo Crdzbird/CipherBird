@@ -72,7 +72,11 @@ echo "   ✓ no networking or process-execution symbols imported"
 # On macOS, also confirm the runtime dependency set stays within an allowlist —
 # an unexpected new dylib (e.g. a network client) would defeat self-containment.
 if command -v otool >/dev/null 2>&1; then
-  ALLOW='libcryptolib_c|libsodium|libblake3|libcrypto|libsecp256k1|libc\+\+|libSystem|libgcc|libomp'
+  # OS-provided libraries (/usr/lib, /System/Library frameworks) are SIP-protected
+  # and not substitutable, so they don't defeat self-containment. Beyond those,
+  # only our own lib and the known crypto dependencies are allowed — an
+  # unexpected third-party dylib (e.g. a network client) would be flagged.
+  ALLOW='^/usr/lib/|^/System/Library/|/(libcryptolib_c|libsodium|libblake3|libcrypto|libsecp256k1)\.'
   unexpected="$(otool -L "$LIB" 2>/dev/null | sed -n '2,$p' | awk '{print $1}' \
                 | grep -vE "$ALLOW" || true)"
   if [[ -n "$unexpected" ]]; then
