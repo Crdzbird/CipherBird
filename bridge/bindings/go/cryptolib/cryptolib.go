@@ -1140,6 +1140,33 @@ func HybridKemDecapsulate(ciphertext, secretKey []byte) ([]byte, error) {
 		u8(secretKey), C.size_t(len(secretKey))))
 }
 
+// SntrupX25519Keygen generates an X25519 + sntrup761 hybrid keypair. sntrup761
+// (NTRU Prime) is a different lattice family than ML-KEM — defense-in-diversity.
+func SntrupX25519Keygen() KeyPair {
+	kp := C.cryptolib_sntrup_x25519_keygen()
+	return KeyPair{Public: goBytes(kp.public_key), Secret: goBytes(kp.secret_key)}
+}
+
+// SntrupX25519Encapsulate produces a ciphertext + 32-byte hybrid shared secret.
+func SntrupX25519Encapsulate(publicKey []byte) (*KemResult, error) {
+	var cerr *C.char
+	r := C.cryptolib_sntrup_x25519_encapsulate(
+		u8(publicKey), C.size_t(len(publicKey)), &cerr)
+	if cerr != nil {
+		msg := C.GoString(cerr)
+		C.cryptolib_str_free(cerr)
+		return nil, errors.New(msg)
+	}
+	return &KemResult{Ciphertext: goBytes(r.ciphertext), SharedSecret: goBytes(r.shared_secret)}, nil
+}
+
+// SntrupX25519Decapsulate recovers the shared secret from a ciphertext + secret key.
+func SntrupX25519Decapsulate(ciphertext, secretKey []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_sntrup_x25519_decapsulate(
+		u8(ciphertext), C.size_t(len(ciphertext)),
+		u8(secretKey), C.size_t(len(secretKey))))
+}
+
 // MlDsaKeygen generates an ML-DSA signing keypair. level: 0=44, 1=65, 2=87.
 func MlDsaKeygen(level int) KeyPair {
 	kp := C.cryptolib_ml_dsa_keygen(C.int(level))

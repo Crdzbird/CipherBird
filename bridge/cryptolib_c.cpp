@@ -1305,6 +1305,47 @@ CRYPTO_API CryptoBufferResult cryptolib_hybrid_kem_decapsulate(
 #endif
 } CL_FAIL_BUFRES
 
+// ── Hybrid KEM (X25519 + sntrup761) ─────────────────────────────────────────
+CRYPTO_API CryptoKeyPair cryptolib_sntrup_x25519_keygen(void) try {
+#ifdef CRYPTOLIB_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error) try {
+#ifdef CRYPTOLIB_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::encapsulate(sp(public_key, pk_len));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return { null_buf(), null_buf() };
+    }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len;
+    if (out_error) *out_error = dup_str("PQ not enabled (build with -DCRYPTOLIB_PQ=ON)");
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+
+CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CRYPTOLIB_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
 CRYPTO_API CryptoKeyPair cryptolib_ml_dsa_keygen(int level) try {
 #ifdef CRYPTOLIB_HAS_PQ
     auto r = crypto::pq::MlDsa::generate_keypair(to_dsa_level(level));

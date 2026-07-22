@@ -85,6 +85,9 @@ function ensureLoaded() {
   hyKeygen: f('CryptoKeyPair cryptolib_hybrid_kem_keygen()'),
   hyEncaps: f('CryptoKemEncapsResult cryptolib_hybrid_kem_encapsulate(uint8_t*, size_t, _Out_ char**)'),
   hyDecaps: f('CryptoBufferResult cryptolib_hybrid_kem_decapsulate(uint8_t*, size_t, uint8_t*, size_t)'),
+  snKeygen: f('CryptoKeyPair cryptolib_sntrup_x25519_keygen()'),
+  snEncaps: f('CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(uint8_t*, size_t, _Out_ char**)'),
+  snDecaps: f('CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(uint8_t*, size_t, uint8_t*, size_t)'),
   dsaKeygen: f('CryptoKeyPair cryptolib_ml_dsa_keygen(int)'),
   dsaSign: f('CryptoBufferResult cryptolib_ml_dsa_sign(uint8_t*, size_t, uint8_t*, size_t, int)'),
   dsaVerify: f('int cryptolib_ml_dsa_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, int)'),
@@ -349,6 +352,16 @@ module.exports = {
     return { ciphertext: ct, sharedSecret: ss };
   },
   hybridKemDecapsulate: (ct, sk) => consume(fn.hyDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length)),
+
+  // X25519 + sntrup761 hybrid KEM (defense-in-diversity; NTRU Prime family).
+  sntrupX25519Keygen: () => kp(fn.snKeygen()),
+  sntrupX25519Encapsulate(pk) {
+    const e = [null]; const r = fn.snEncaps(u8(pk), u8(pk).length, e);
+    const ss = b(r.shared_secret), ct = b(r.ciphertext); fn.kemFree(r);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    return { ciphertext: ct, sharedSecret: ss };
+  },
+  sntrupX25519Decapsulate: (ct, sk) => consume(fn.snDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length)),
 
   blsKeygen: () => kp(fn.blsKeygen()),
   blsSign: (m, sk) => consume(fn.blsSign(u8(m), u8(m).length, u8(sk), u8(sk).length)),

@@ -660,6 +660,24 @@ CRYPTO_API CryptoBufferResult cryptolib_hybrid_kem_decapsulate(
     const uint8_t* ciphertext, size_t ct_len,
     const uint8_t* secret_key, size_t sk_len);
 
+/* ─── Hybrid KEM (X25519 + sntrup761) ────────────────────────────────────────
+ *   A SECOND hybrid, using Streamlined NTRU Prime 761 (a different lattice
+ *   family than ML-KEM) for defense-in-diversity. Same concatenated layout:
+ *   x25519_part(32) || sntrup761_part. Always liboqs-backed. NOT wire-compatible
+ *   with OpenSSH's sntrup761x25519-sha512. */
+
+/** sntrup761 hybrid keygen → public_key/secret_key (concatenated layout). */
+CRYPTO_API CryptoKeyPair cryptolib_sntrup_x25519_keygen(void);
+
+/** sntrup761 hybrid encapsulate. Produces ciphertext + 32-byte shared_secret. */
+CRYPTO_API CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error);
+
+/** sntrup761 hybrid decapsulate. Returns shared_secret (32 bytes). */
+CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len);
+
 /* ─── ML-DSA (FIPS 204) ──────────────────────────────────────────────────── */
 
 /** ML-DSA keygen. level: 0=44, 1=65, 2=87. */
