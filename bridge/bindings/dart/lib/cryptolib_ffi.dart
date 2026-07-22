@@ -11,6 +11,7 @@
 library cryptolib_ffi;
 
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
@@ -791,12 +792,50 @@ class CryptoLib {
     _stegoCapacity = _lib.lookupFunction<_StegoCapacityC, _StegoCapacityDart>('cryptolib_stego_capacity');
   }
 
-  /// Load the shared library from a path.
+  /// Load the native library. Resolution order:
+  ///   1. an explicit [path],
+  ///   2. the CRYPTOLIB_DYLIB environment variable (dev override),
+  ///   3. the library BUNDLED with this package under native/<os>-<arch>/
+  ///      (so the package is self-contained — no build tree required),
+  ///   4. the current process (symbols already loaded, e.g. a Flutter plugin).
   factory CryptoLib.load([String? path]) {
-    final lib = path != null
-        ? DynamicLibrary.open(path)
-        : DynamicLibrary.process();
+    path ??= Platform.environment['CRYPTOLIB_DYLIB'];
+    path ??= _bundledLibPath();
+    final lib = path != null ? DynamicLibrary.open(path) : DynamicLibrary.process();
     return CryptoLib._(lib);
+  }
+
+  /// Locate the native library bundled inside this package for the host
+  /// platform. Returns null if not found (caller falls back to process()).
+  static String? _bundledLibPath() {
+    final os = Platform.isMacOS
+        ? 'darwin'
+        : Platform.isLinux
+            ? 'linux'
+            : Platform.isWindows
+                ? 'windows'
+                : null;
+    if (os == null) return null;
+    final ext = Platform.isMacOS ? 'dylib' : (Platform.isWindows ? 'dll' : 'so');
+    final abi = Abi.current();
+    final arch = (abi == Abi.macosArm64 || abi == Abi.linuxArm64 || abi == Abi.windowsArm64)
+        ? 'arm64'
+        : (abi == Abi.macosX64 || abi == Abi.linuxX64 || abi == Abi.windowsX64)
+            ? 'x64'
+            : null;
+    if (arch == null) return null;
+    final rel = 'native/$os-$arch/libcryptolib_c.$ext';
+    final roots = <String>[
+      '', // relative to cwd
+      '${Directory.current.path}/',
+      if (Platform.script.scheme == 'file')
+        '${File.fromUri(Platform.script).parent.parent.path}/', // package root from bin/
+    ];
+    for (final root in roots) {
+      final candidate = '$root$rel';
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

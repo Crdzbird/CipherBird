@@ -28,6 +28,34 @@ round-trip the post-quantum hybrid KEM with **no path supplied**.
 
 ## Cross-cutting prerequisites (do these before any publish)
 
+### 0. Refresh every binding's bundled binary — `make bundle`
+The native libraries bundled in each binding are **git-ignored** (binaries don't
+belong in git); they are produced on demand and packed by each registry from the
+working tree. **Always run this first** so every package ships the *current* C ABI:
+
+```
+make bundle        # → scripts/bundle_native.sh
+```
+
+It builds one self-contained dylib + one merged static archive and distributes
+them to every binding's host slot: npm `prebuilds/`, Python `_native/`, Ruby
+`native/`, Rust `native/`, .NET `runtimes/<rid>/native/`, JVM `native/`, the
+standalone Dart `native/`, the Go vendored `cryptolib/native/` (archive + header),
+and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads its
+**own** bundled library by default — no C++ source tree, no build step:
+
+- **npm** — `package.json` `files` includes `prebuilds/`; the loader resolves
+  `prebuilds/<platform>-<arch>/` (CRYPTOLIB_DYLIB overrides for dev).
+- **standalone Dart** — a `.pubignore` keeps `native/` in the package; `CryptoLib.load()`
+  resolves `native/<os>-<arch>/` automatically.
+- **Go** — build with `-tags cryptolib_vendored` to link the module-internal
+  `cryptolib/native/libcryptolib_c.a` (+ header). Because `go get` reads the git
+  tree, the per-platform archives must be **committed on the release tag** (they
+  are ignored on `main`); run `make bundle` then force-add them when tagging.
+
+`make bundle` is host-arch only; CI / `make ios` / `make android` fill the
+cross-platform matrix (§2).
+
 ### 1. Self-contained binaries
 The bundled binary must statically link every dependency (libsodium, liboqs,
 blst, OpenSSL, BLAKE3) so it runs on a machine without them installed.

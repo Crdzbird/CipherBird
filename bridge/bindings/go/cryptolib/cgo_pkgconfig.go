@@ -1,4 +1,4 @@
-//go:build cryptolib_pkgconfig && !cryptolib_static
+//go:build cryptolib_pkgconfig && !cryptolib_static && !cryptolib_vendored
 
 package cryptolib
 

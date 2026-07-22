@@ -93,6 +93,15 @@ node-suite: lib
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
+# Refresh every binding's BUNDLED native library from one self-contained build,
+# so each package ships a current, self-contained libcryptolib_c (no C++ source
+# tree needed to install). Run before publishing to any registry. Host platform
+# only; CI / `make ios` / `make android` fill the cross-platform matrix.
+.PHONY: bundle
+bundle:
+	$(call hdr,Bundling self-contained native library into every binding)
+	@bash scripts/bundle_native.sh
+
 # Flagship/Fortress sealed-messaging demos (Identity + one-shot + streaming).
 .PHONY: sealed
 sealed: node-sealed go-sealed dart-sealed swift-sealed
