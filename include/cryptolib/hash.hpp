@@ -506,4 +506,64 @@ public:
     }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HKDF-SHA512 — HMAC-based Extract-and-Expand Key Derivation (RFC 5869)
+//
+// Built on libsodium's HMAC-SHA512 — no additional dependencies. Same contract
+// as HkdfSha256 with a 64-byte hash (used by HPKE's HKDF-SHA512 KDF option).
+// ─────────────────────────────────────────────────────────────────────────────
+class HkdfSha512 {
+public:
+    static constexpr std::size_t PRK_BYTES  = crypto_auth_hmacsha512_BYTES; // 64
+    static constexpr std::size_t HASH_BYTES = crypto_auth_hmacsha512_BYTES; // 64
+
+    /// Extract: PRK = HMAC-SHA512(salt, IKM). Empty salt → HASH_BYTES zeros.
+    [[nodiscard]] static Result<SecureBuffer>
+    extract(std::span<const uint8_t> salt, std::span<const uint8_t> ikm) {
+        uint8_t zero_salt[HASH_BYTES] = {};
+        auto effective_salt = salt.empty()
+            ? std::span<const uint8_t>{zero_salt, HASH_BYTES}
+            : salt;
+        crypto_auth_hmacsha512_state st;
+        crypto_auth_hmacsha512_init(&st, effective_salt.data(), effective_salt.size());
+        crypto_auth_hmacsha512_update(&st, ikm.data(), ikm.size());
+        SecureBuffer prk(PRK_BYTES);
+        crypto_auth_hmacsha512_final(&st, prk.data());
+        sodium_memzero(&st, sizeof(st));
+        return Result<SecureBuffer>::ok(std::move(prk));
+    }
+
+    /// Expand: OKM = T(1) ‖ T(2) ‖ … truncated to out_len (RFC 5869 §2.3).
+    [[nodiscard]] static Result<SecureBuffer>
+    expand(std::span<const uint8_t> prk, std::span<const uint8_t> info, std::size_t out_len) {
+        if (prk.size() < PRK_BYTES)
+            return Result<SecureBuffer>::err("HKDF-SHA512: PRK too short");
+        if (out_len == 0)
+            return Result<SecureBuffer>::err("HKDF-SHA512: output length must be > 0");
+        if (out_len > 255 * HASH_BYTES)
+            return Result<SecureBuffer>::err("HKDF-SHA512: output length too large");
+
+        SecureBuffer okm(out_len);
+        uint8_t prev[HASH_BYTES] = {};
+        std::size_t prev_len = 0, offset = 0;
+        uint8_t counter = 1;
+        while (offset < out_len) {
+            crypto_auth_hmacsha512_state st;
+            crypto_auth_hmacsha512_init(&st, prk.data(), prk.size());
+            if (prev_len > 0) crypto_auth_hmacsha512_update(&st, prev, prev_len);
+            if (!info.empty()) crypto_auth_hmacsha512_update(&st, info.data(), info.size());
+            crypto_auth_hmacsha512_update(&st, &counter, 1);
+            crypto_auth_hmacsha512_final(&st, prev);
+            sodium_memzero(&st, sizeof(st));
+            prev_len = HASH_BYTES;
+            std::size_t to_copy = std::min<std::size_t>(HASH_BYTES, out_len - offset);
+            std::memcpy(okm.data() + offset, prev, to_copy);
+            offset += to_copy;
+            ++counter;
+        }
+        sodium_memzero(prev, HASH_BYTES);
+        return Result<SecureBuffer>::ok(std::move(okm));
+    }
+};
+
 } // namespace crypto::hash
