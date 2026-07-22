@@ -27,7 +27,9 @@ in another.
 | **AEAD (hardened)** | Key/context **committing** AEAD (closes Invisible-Salamanders / partitioning-oracle), **nonce-misuse-resistant** AEAD | UtC CommittingAead (HKDF + XChaCha20-Poly1305), AES-256-GCM-SIV (RFC 8452) |
 | **Asymmetric** | Key exchange, signing, sealed/hybrid boxes | X25519, Ed25519, Box, SealedBox, HybridBox |
 | **Post-quantum** | NIST FIPS 203/204/205 | ML-KEM (512/768/1024), ML-DSA (44/65/87), SLH-DSA (128/192/256, SHA2 + SHAKE) |
-| **Hybrid PQC** | Classical + post-quantum, secure if EITHER survives | X25519 + ML-KEM-768 (KEM), Ed25519 + ML-DSA-65 (signatures) |
+| **Hybrid PQC** | Classical + post-quantum, secure if EITHER survives | X25519 + ML-KEM-768 (KEM) · **X25519 + sntrup761** (NTRU-Prime KEM, a second lattice family) · Ed25519 + ML-DSA-65 (signatures) |
+| **Triple hybrid** | No single cryptanalytic point of failure across three families | **TripleHybridKem** (X25519 + ML-KEM-768 + sntrup761) · **TripleSig** (Ed25519 + ML-DSA-65 + SLH-DSA, adds hash-based) |
+| **Sealed messaging** | One-call authenticated PQ messaging, recipient-bound, streaming | **Flagship** (sntrup761 hybrid + hybrid sig) · **Fortress** (triple KEM + triple sig) — see below |
 | **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) — vector-validated byte-exact vs `noise-c` |
 | **BLS12-381** | Sign / verify / **aggregate** | via blst (aggregate + aggregate-verify) |
 | **EVM / Bitcoin** | Blockchain interop primitives | Keccak-256 (original padding), RIPEMD-160, secp256k1 ECDSA (keygen / pubkey / sign / verify / **ecrecover**, RFC6979 + low-S) via libsecp256k1 |
@@ -50,6 +52,30 @@ confusion (key-committing outer layer), and tampering (authenticated, fails
 closed). Its raw-key mode composes with the hybrid X25519+ML-KEM-768 KEM for
 post-quantum (harvest-now-decrypt-later) defense.
 
+### Flagship & Fortress — state-of-the-art sealed messaging
+
+Two assurance tiers of one construction — **encapsulate → sign-then-encrypt
+inside a key-committing cascade, recipient-bound, auth-first** — exposed as a
+one-call, self-usable messaging layer in every binding (an `Identity` bundles a
+party's recipient-KEM + sender-signature keypairs).
+
+| | KEM (confidentiality) | Signature (authenticity) |
+|---|---|---|
+| **Flagship** (default) | X25519 + sntrup761 | Ed25519 + ML-DSA-65 |
+| **Fortress** (max assurance) | + ML-KEM-768 (triple) | + SLH-DSA (triple) |
+
+Every message is hybrid-PQ confidential (secure while *any* KEM leg holds),
+hybrid-PQ authentic (forgery needs breaking *all* signature legs), key-committing,
+and **recipient-bound** — a decrypting recipient can't re-forward it as if you'd
+sent it to someone else. Surface per binding: creating (`Identity`) · one-shot
+`seal`/`open` · `StreamSealer`/`StreamOpener` for large data (per-chunk integrity
+now, sender-authenticity at finalize) · `inspect`/`addressedTo` for keyless
+routing. Try it: `make sealed` (Node/Go/Dart/Swift).
+
+Composition only — no new cryptography. Library-native wire format (not a
+standard); static-recipient KEM, so not forward-secret against recipient-key
+compromise (layer a ratchet for live FS).
+
 ---
 
 ## How it works
@@ -64,7 +90,7 @@ languages.
 flowchart TB
   subgraph core["C++20 header-only core — include/cryptolib/*.hpp"]
     prim["Primitives<br/>AEAD · Ed25519/X25519 · ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381 · secp256k1 · Keccak/RIPEMD/BLAKE3"]
-    hl["Constructions<br/>Vault · MolecularVault · Keyring · Noise XX · Shamir · media entropy"]
+    hl["Constructions<br/>Vault · MolecularVault · Flagship/Fortress sealed messaging<br/>Keyring · Noise XX · Shamir · media entropy"]
     safe["Result monad · SecureBuffer (mlock + zeroize) · constant-time"]
   end
   core --> abi["C ABI — bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c · 127 functions · exception-isolated"]
@@ -123,6 +149,7 @@ make flutter-recipes  # Flutter/Dart (5, via flutter test)
 | **Threshold vault** | MolecularVault key split 3-of-5 via Shamir | no single custodian can open — or block — the secret |
 | **EVM wallet** | secp256k1 → Keccak-256 address → sign → ecrecover | Ethereum-style signing, end to end |
 | **Keyring-guarded vault** | Keyring (device + passphrase) → MolecularVault master | master key never at rest in plaintext; slots revocable |
+| **Sealed messaging** (`make sealed`) | Flagship / Fortress: hybrid KEM → sign-then-encrypt in a committing cascade, recipient-bound, streaming | one-call authenticated PQ messaging with an `Identity`, both tiers, Node/Go/Dart/Swift |
 
 Source: [`example/recipes.cpp`](example/recipes.cpp) ·
 [Go](bridge/bindings/go/recipes/main.go) ·
@@ -340,7 +367,7 @@ vendored merged static archive (see `PUBLISHING.md`).
 # Native dependencies (macOS)
 brew install cmake ninja libsodium liboqs blake3 openssl@3
 
-# Build + run the C++ test suite (317 cases, ASan-clean)
+# Build + run the C++ test suite (382 cases, ASan-clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
 cmake --build build/test --target cryptolib_tests
@@ -350,8 +377,13 @@ cmake --build build/test --target cryptolib_tests
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release --target cryptolib_c
 
-# Or, for a self-contained desktop binary (no Homebrew deps at runtime)
-bash scripts/build_selfcontained.sh
+# Sealed, self-contained static archive: every dependency linked in, with a
+# no-sock/no-dso libcrypto so the binary carries no socket or dlopen code.
+bash scripts/build_static_archive.sh          # → build/static/libcryptolib_c.a
+make audit                                     # no-ambient-authority symbol gate
+
+# Optionally back ML-KEM/ML-DSA/SLH-DSA with OpenSSL EVP (FIPS-track) vs liboqs
+cmake -S . -B build/ossl -G Ninja -DCRYPTOLIB_PQ_BACKEND_OPENSSL=ON   # see pq.hpp
 ```
 
 See [`PUBLISHING.md`](PUBLISHING.md) for cross-platform packaging notes (npm,
@@ -364,6 +396,9 @@ the publish checklist.
 
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — adversary model, security
   arguments for original constructions, zeroization audit, assurance posture
+- [`docs/SELF_CONTAINMENT.md`](docs/SELF_CONTAINMENT.md) — no-ambient-authority
+  audit, sealed (no-sock/no-dso) static build, dependency-substitution defense
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — candidate primitives for later iterations
 - [`PUBLISHING.md`](PUBLISHING.md) — per-ecosystem packaging + release pipeline
 - `bridge/cryptolib_c.h` — the C ABI surface every binding marshals over
 
