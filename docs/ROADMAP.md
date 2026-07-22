@@ -24,10 +24,17 @@ prefer *constructions* composed from existing primitives over new primitives.
   (HybridKem asymmetric ratchet + HKDF root/chain + key-committing AEAD), PQ
   X3DH-lite handshake, transactional decrypt (no desync-DoS). C++ core + 11 tests
   landed; C ABI + bindings are the next step (same flow as Flagship/Fortress).
-- **FROST threshold signatures (Ed25519 + secp256k1).** N-of-M parties jointly
-  sign without ever reconstructing the key — the custody/wallet primitive the
-  library's EVM/BTC direction is missing. Well-specified (RFC 9591); complements
-  the existing Shamir (secret sharing) and BLS (aggregation).
+- **FROST threshold signatures — ✅ DONE (`crypto::Frost`).** t-of-n parties
+  jointly produce ONE ordinary Ed25519 signature without ever reconstructing the
+  key; the output verifies with standard Ed25519 against the group public key, so
+  verifiers need know nothing of the threshold setup — the custody/wallet
+  primitive the EVM/BTC direction was missing. FROST(Ed25519, SHA-512) per
+  RFC 9591, built on libsodium edwards25519 scalar/point arithmetic (composition
+  only, no new crypto). Validated byte-for-byte against the RFC §C.1 vectors
+  (commitments, signature shares, aggregate) + end-to-end threshold properties.
+  C++ core + 6 tests, C ABI (stateless — no handle), and all five bindings (Go,
+  Node, Dart, Flutter, Swift) landed. Follow-up candidate: a secp256k1 variant
+  for BTC/EVM on-chain multisig.
 
 ## Tier 2 — standards interop & cryptographic diversity
 
@@ -72,9 +79,10 @@ demands them rather than folding them in here.
 
 ### Suggested near-term sequence
 
-1. **PQ forward-secret ratchet** — closes the one honest gap in Flagship/Fortress.
-2. **FROST threshold signatures** — unlocks custody/multi-party for the wallet side.
-3. **HPKE** — standards-interoperable sealed encryption alongside the native tiers.
+1. ~~**PQ forward-secret ratchet**~~ — ✅ done (`crypto::Session`, all bindings).
+2. ~~**FROST threshold signatures**~~ — ✅ done (`crypto::Frost`, all bindings).
+3. **HPKE (RFC 9180)** — standards-interoperable sealed encryption alongside the
+   native tiers; next up.
 
 Everything else is demand-driven: add it when a target application needs it, and
 always behind the same discipline — vetted implementation, KATs before ship,
