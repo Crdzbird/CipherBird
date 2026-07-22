@@ -1981,6 +1981,106 @@ CRYPTO_API int cryptolib_frost_verify_share(
 } CL_FAIL_INT
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * HPKE — Hybrid Public Key Encryption (RFC 9180)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+struct HpkeCtxImpl { crypto::Hpke::Context ctx; };
+
+static crypto::Hpke::Kdf hpke_kdf(int k) {
+    return k == 3 ? crypto::Hpke::Kdf::HkdfSha512 : crypto::Hpke::Kdf::HkdfSha256;
+}
+static crypto::Hpke::Aead hpke_aead(int a) {
+    switch (a) {
+        case 1:     return crypto::Hpke::Aead::Aes128Gcm;
+        case 2:     return crypto::Hpke::Aead::Aes256Gcm;
+        case 0xFFFF: return crypto::Hpke::Aead::ExportOnly;
+        default:    return crypto::Hpke::Aead::ChaCha20Poly1305;
+    }
+}
+static crypto::Hpke::Mode hpke_mode(int m) {
+    switch (m) {
+        case 1:  return crypto::Hpke::Mode::Psk;
+        case 2:  return crypto::Hpke::Mode::Auth;
+        case 3:  return crypto::Hpke::Mode::AuthPsk;
+        default: return crypto::Hpke::Mode::Base;
+    }
+}
+
+CRYPTO_API CryptoKeyPair cryptolib_hpke_keygen(void) try {
+    auto kp = crypto::Hpke::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cryptolib_hpke_derive_keypair(const uint8_t* ikm, size_t ikm_len) try {
+    auto r = crypto::Hpke::derive_keypair(sp(ikm, ikm_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_s(
+    int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+    auto r = crypto::Hpke::setup_s_deterministic(
+        hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+        sp(pkR, pkR_len), sp(info, info_len),
+        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len), {});
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    return new HpkeCtxImpl{ std::move(r.value().ctx) };
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_r(
+    int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error) try {
+    auto r = crypto::Hpke::setup_r(
+        hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+        sp(enc, enc_len), sp(skR, skR_len), sp(info, info_len),
+        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(pkS, pkS_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return new HpkeCtxImpl{ std::move(r.value()) };
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cryptolib_hpke_seal(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.seal(sp(aad, aad_len), sp(pt, pt_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_hpke_open(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.open(sp(aad, aad_len), sp(ct, ct_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_hpke_export(
+    CryptoHpkeContext h, const uint8_t* exporter_context, size_t ctx_len, size_t length) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.export_secret(sp(exporter_context, ctx_len), length);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_hpke_context_free(CryptoHpkeContext h) {
+    delete static_cast<HpkeCtxImpl*>(h);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  * ═══════════════════════════════════════════════════════════════════════════ */
 

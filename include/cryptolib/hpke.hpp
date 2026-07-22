@@ -158,46 +158,46 @@ public:
     // ── Sender setup (per mode) ───────────────────────────────────────────────
     [[nodiscard]] static Result<SenderContext>
     setup_base_s(Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info) {
-        return setup_s(Mode::Base, kdf, aead, pkR, info, {}, {}, {}, {});
+        return setup_s_impl(Mode::Base, kdf, aead, pkR, info, {}, {}, {}, {});
     }
     [[nodiscard]] static Result<SenderContext>
     setup_psk_s(Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
                 std::span<const uint8_t> psk, std::span<const uint8_t> psk_id) {
-        return setup_s(Mode::Psk, kdf, aead, pkR, info, psk, psk_id, {}, {});
+        return setup_s_impl(Mode::Psk, kdf, aead, pkR, info, psk, psk_id, {}, {});
     }
     [[nodiscard]] static Result<SenderContext>
     setup_auth_s(Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
                  std::span<const uint8_t> skS) {
-        return setup_s(Mode::Auth, kdf, aead, pkR, info, {}, {}, skS, {});
+        return setup_s_impl(Mode::Auth, kdf, aead, pkR, info, {}, {}, skS, {});
     }
     [[nodiscard]] static Result<SenderContext>
     setup_auth_psk_s(Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
                      std::span<const uint8_t> psk, std::span<const uint8_t> psk_id,
                      std::span<const uint8_t> skS) {
-        return setup_s(Mode::AuthPsk, kdf, aead, pkR, info, psk, psk_id, skS, {});
+        return setup_s_impl(Mode::AuthPsk, kdf, aead, pkR, info, psk, psk_id, skS, {});
     }
 
     // ── Receiver setup (per mode) ─────────────────────────────────────────────
     [[nodiscard]] static Result<Context>
     setup_base_r(Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
                  std::span<const uint8_t> info) {
-        return setup_r(Mode::Base, kdf, aead, enc, skR, info, {}, {}, {});
+        return setup_r_impl(Mode::Base, kdf, aead, enc, skR, info, {}, {}, {});
     }
     [[nodiscard]] static Result<Context>
     setup_psk_r(Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
                 std::span<const uint8_t> info, std::span<const uint8_t> psk, std::span<const uint8_t> psk_id) {
-        return setup_r(Mode::Psk, kdf, aead, enc, skR, info, psk, psk_id, {});
+        return setup_r_impl(Mode::Psk, kdf, aead, enc, skR, info, psk, psk_id, {});
     }
     [[nodiscard]] static Result<Context>
     setup_auth_r(Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
                  std::span<const uint8_t> info, std::span<const uint8_t> pkS) {
-        return setup_r(Mode::Auth, kdf, aead, enc, skR, info, {}, {}, pkS);
+        return setup_r_impl(Mode::Auth, kdf, aead, enc, skR, info, {}, {}, pkS);
     }
     [[nodiscard]] static Result<Context>
     setup_auth_psk_r(Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
                      std::span<const uint8_t> info, std::span<const uint8_t> psk,
                      std::span<const uint8_t> psk_id, std::span<const uint8_t> pkS) {
-        return setup_r(Mode::AuthPsk, kdf, aead, enc, skR, info, psk, psk_id, pkS);
+        return setup_r_impl(Mode::AuthPsk, kdf, aead, enc, skR, info, psk, psk_id, pkS);
     }
 
     // ── Single-shot convenience (base mode) ───────────────────────────────────
@@ -218,13 +218,31 @@ public:
         return r.value().open(aad, ct);
     }
 
+    // ── Mode-general setup (any of Base/PSK/Auth/AuthPSK) ─────────────────────
+    /// Sender setup with a random ephemeral key. Pass empty psk/psk_id/skS for
+    /// the arguments a given mode does not use.
+    [[nodiscard]] static Result<SenderContext>
+    setup_s(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR,
+            std::span<const uint8_t> info, std::span<const uint8_t> psk,
+            std::span<const uint8_t> psk_id, std::span<const uint8_t> skS) {
+        return setup_s_impl(mode, kdf, aead, pkR, info, psk, psk_id, skS, {});
+    }
+    /// Receiver setup. Pass empty psk/psk_id/pkS for the arguments a mode omits.
+    [[nodiscard]] static Result<Context>
+    setup_r(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> enc,
+            std::span<const uint8_t> skR, std::span<const uint8_t> info,
+            std::span<const uint8_t> psk, std::span<const uint8_t> psk_id,
+            std::span<const uint8_t> pkS) {
+        return setup_r_impl(mode, kdf, aead, enc, skR, info, psk, psk_id, pkS);
+    }
+
     // ── Deterministic setup (test vectors): caller supplies the ephemeral sk ──
     [[nodiscard]] static Result<SenderContext>
     setup_s_deterministic(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR,
                           std::span<const uint8_t> info, std::span<const uint8_t> psk,
                           std::span<const uint8_t> psk_id, std::span<const uint8_t> skS,
                           std::span<const uint8_t> skE) {
-        return setup_s(mode, kdf, aead, pkR, info, psk, psk_id, skS, skE);
+        return setup_s_impl(mode, kdf, aead, pkR, info, psk, psk_id, skS, skE);
     }
 
 private:
@@ -384,7 +402,7 @@ private:
     }
 
     static Result<SenderContext>
-    setup_s(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
+    setup_s_impl(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
             std::span<const uint8_t> psk, std::span<const uint8_t> psk_id,
             std::span<const uint8_t> skS, std::span<const uint8_t> skE_opt) {
         SecureBuffer skE_owned;
@@ -403,7 +421,7 @@ private:
     }
 
     static Result<Context>
-    setup_r(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
+    setup_r_impl(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
             std::span<const uint8_t> info, std::span<const uint8_t> psk, std::span<const uint8_t> psk_id,
             std::span<const uint8_t> pkS) {
         auto shared = decap(enc, skR, pkS);

@@ -967,6 +967,67 @@ CRYPTO_API int cryptolib_frost_verify_share(
     size_t count);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * HPKE — Hybrid Public Key Encryption (RFC 9180)
+ *   KEM = DHKEM(X25519, HKDF-SHA256). Wire-standard; interoperates with any
+ *   conformant HPKE (TLS ECH, MLS, Oblivious HTTP).
+ *
+ *   Selector ints:
+ *     kdf  : 1 = HKDF-SHA256, 3 = HKDF-SHA512
+ *     aead : 1 = AES-128-GCM, 2 = AES-256-GCM, 3 = ChaCha20Poly1305,
+ *            65535 = export-only   (AES-GCM needs the OpenSSL-enabled build)
+ *     mode : 0 = base, 1 = psk, 2 = auth, 3 = auth+psk
+ *   Unused byte-string args (psk/psk_id/skS/pkS for modes that don't need them)
+ *   may be passed as NULL/0.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Opaque one-directional HPKE context (holds AEAD key + sequence + exporter). */
+typedef void* CryptoHpkeContext;
+
+/** Random X25519 key pair (pk 32 B, sk 32 B) for HPKE. */
+CRYPTO_API CryptoKeyPair cryptolib_hpke_keygen(void);
+
+/** Deterministic DHKEM(X25519).DeriveKeyPair from input keying material. */
+CRYPTO_API CryptoKeyPair cryptolib_hpke_derive_keypair(const uint8_t* ikm, size_t ikm_len);
+
+/** Sender setup. On success returns a context handle and writes the KEM
+ *  encapsulation to *out_enc (free with cryptolib_buffer_free). On failure
+ *  returns NULL and sets *out_error (free with cryptolib_str_free). */
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_s(
+    int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error);
+
+/** Receiver setup. Returns a context handle, or NULL + *out_error on failure. */
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_r(
+    int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error);
+
+/** Sender: AEAD-seal the next message (advances the context sequence). */
+CRYPTO_API CryptoBufferResult cryptolib_hpke_seal(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len);
+
+/** Receiver: AEAD-open the next message (advances the context sequence). */
+CRYPTO_API CryptoBufferResult cryptolib_hpke_open(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len);
+
+/** Derive a `length`-byte secret bound to this context (RFC 9180 §5.3). */
+CRYPTO_API CryptoBufferResult cryptolib_hpke_export(
+    CryptoHpkeContext h, const uint8_t* exporter_context, size_t ctx_len, size_t length);
+
+/** Release an HPKE context (zeroises its key material). */
+CRYPTO_API void cryptolib_hpke_context_free(CryptoHpkeContext h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather
