@@ -36,6 +36,7 @@ void run_tests_kat();
 void run_tests_kat_pqc();
 void run_tests_sntrup_x25519();
 void run_tests_triple_hybrid_kem();
+void run_tests_triple_sig();
 void run_tests_keyring();
 void run_tests_keyring_rotation();
 void run_tests_shamir();
@@ -70,6 +71,7 @@ int main() {
     run_suite("hybrid_kem",     run_tests_hybrid);
     run_suite("sntrup_x25519",  run_tests_sntrup_x25519);
     run_suite("triple_hybrid",  run_tests_triple_hybrid_kem);
+    run_suite("triple_sig",     run_tests_triple_sig);
     run_suite("hybrid_sig",     run_tests_hybrid_sig);
     run_suite("bls12_381",      run_tests_bls);
     run_suite("stego_fuzz",     run_tests_stego_fuzz);
