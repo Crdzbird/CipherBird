@@ -1820,6 +1820,167 @@ CRYPTO_API int cryptolib_bls_aggregate_verify(
 } CL_FAIL_INT
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * FROST(Ed25519, SHA-512) — RFC 9591 threshold signatures
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Rebuild the commitment list from the three parallel wire arrays.
+static std::vector<crypto::Frost::Commitment>
+frost_commitments(const uint16_t* ids, const uint8_t* hidings,
+                  const uint8_t* bindings, size_t count) {
+    std::vector<crypto::Frost::Commitment> cs;
+    cs.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        cs.push_back(crypto::Frost::Commitment{
+            ids[i],
+            crypto::SecureBuffer(hidings + i * 32, 32),
+            crypto::SecureBuffer(bindings + i * 32, 32) });
+    return cs;
+}
+
+#define CL_FAIL_FROST_KG catch (...) { \
+    CryptoFrostKeyGen o{}; o.error = dup_err_cstr("internal error"); return o; }
+#define CL_FAIL_FROST_COMMIT catch (...) { \
+    CryptoFrostCommit o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API void cryptolib_frost_keygen_free(CryptoFrostKeyGen* kg) {
+    if (!kg) return;
+    cryptolib_buffer_free(&kg->group_public_key);
+    cryptolib_buffer_free(&kg->secret_shares);
+    cryptolib_buffer_free(&kg->public_shares);
+    kg->count = 0;
+    if (kg->error) { std::free(kg->error); kg->error = nullptr; }
+}
+
+CRYPTO_API void cryptolib_frost_commit_free(CryptoFrostCommit* c) {
+    if (!c) return;
+    cryptolib_buffer_free(&c->hiding_nonce);
+    cryptolib_buffer_free(&c->binding_nonce);
+    cryptolib_buffer_free(&c->hiding_commit);
+    cryptolib_buffer_free(&c->binding_commit);
+    if (c->error) { std::free(c->error); c->error = nullptr; }
+}
+
+CRYPTO_API CryptoFrostKeyGen cryptolib_frost_keygen(uint16_t n, uint16_t t) try {
+    CryptoFrostKeyGen out{};
+    auto r = crypto::Frost::keygen(n, t);
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    auto& kg = r.value();
+    const size_t cnt = kg.shares.size();
+    crypto::SecureBuffer secs(cnt * 32), pubs(cnt * 32);
+    for (size_t i = 0; i < cnt; ++i) {
+        std::memcpy(secs.data() + i * 32, kg.shares[i].secret.data(), 32);
+        std::memcpy(pubs.data() + i * 32, kg.public_shares[i].data(), 32);
+    }
+    out.group_public_key = to_cbuf(kg.group_public_key);
+    out.secret_shares    = to_cbuf(secs);
+    out.public_shares    = to_cbuf(pubs);
+    out.count            = cnt;
+    return out;
+} CL_FAIL_FROST_KG
+
+static CryptoFrostCommit frost_commit_result(
+    crypto::Result<std::pair<crypto::Frost::Nonces, crypto::Frost::Commitment>>&& r) {
+    CryptoFrostCommit out{};
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    auto& [nonces, commit] = r.value();
+    out.hiding_nonce   = to_cbuf(nonces.hiding);
+    out.binding_nonce  = to_cbuf(nonces.binding);
+    out.hiding_commit  = to_cbuf(commit.hiding);
+    out.binding_commit = to_cbuf(commit.binding);
+    return out;
+}
+
+CRYPTO_API CryptoFrostCommit cryptolib_frost_commit(
+    const uint8_t* share_secret, size_t sk_len, uint16_t identifier) try {
+    crypto::Frost::SignerShare share{ identifier,
+        crypto::SecureBuffer(share_secret, sk_len) };
+    return frost_commit_result(crypto::Frost::commit(share));
+} CL_FAIL_FROST_COMMIT
+
+CRYPTO_API CryptoFrostCommit cryptolib_frost_commit_with_nonces(
+    uint16_t identifier,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len) try {
+    return frost_commit_result(crypto::Frost::commit_with_nonces(
+        identifier,
+        crypto::SecureBuffer(hiding_nonce, hn_len),
+        crypto::SecureBuffer(binding_nonce, bn_len)));
+} CL_FAIL_FROST_COMMIT
+
+CRYPTO_API CryptoBufferResult cryptolib_frost_sign(
+    uint16_t identifier,
+    const uint8_t* share_secret, size_t sk_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count) try {
+    crypto::Frost::SignerShare share{ identifier,
+        crypto::SecureBuffer(share_secret, sk_len) };
+    crypto::Frost::Nonces nonces{
+        crypto::SecureBuffer(hiding_nonce, hn_len),
+        crypto::SecureBuffer(binding_nonce, bn_len) };
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    auto r = crypto::Frost::sign(share, sp(group_public_key, gpk_len),
+                                 nonces, sp(msg, msg_len), cs);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_frost_aggregate(
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count,
+    const uint8_t* sig_shares) try {
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    std::vector<crypto::SecureBuffer> shares;
+    shares.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        shares.emplace_back(sig_shares + i * 32, 32);
+    auto r = crypto::Frost::aggregate(sp(group_public_key, gpk_len),
+                                      sp(msg, msg_len), cs, shares);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_frost_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* group_public_key, size_t gpk_len) try {
+    return crypto::Frost::verify(sp(msg, msg_len), sp(sig, sig_len),
+                                 sp(group_public_key, gpk_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API int cryptolib_frost_verify_share(
+    uint16_t identifier,
+    const uint8_t* public_share, size_t ps_len,
+    const uint8_t* sig_share, size_t ss_len,
+    const uint8_t* commit_hiding, size_t ch_len,
+    const uint8_t* commit_binding, size_t cb_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count) try {
+    crypto::Frost::Commitment commitment{
+        identifier,
+        crypto::SecureBuffer(commit_hiding, ch_len),
+        crypto::SecureBuffer(commit_binding, cb_len) };
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    auto r = crypto::Frost::verify_share(
+        identifier, sp(public_share, ps_len), sp(sig_share, ss_len),
+        commitment, sp(group_public_key, gpk_len), sp(msg, msg_len), cs);
+    return (r.is_ok() && r.value()) ? 1 : 0;
+} CL_FAIL_INT
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  * ═══════════════════════════════════════════════════════════════════════════ */
 

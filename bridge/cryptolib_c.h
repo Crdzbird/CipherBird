@@ -876,6 +876,97 @@ CRYPTO_API int cryptolib_bls_aggregate_verify(
     const uint8_t* agg_sig, size_t agg_sig_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * FROST(Ed25519, SHA-512) — t-of-n threshold Schnorr signatures (RFC 9591)
+ *   Output is a standard 64-byte Ed25519 signature; verifiers need not know
+ *   the threshold setup. libsodium only — no extra deps, no build guard.
+ *
+ *   A round's commitments are passed as three parallel arrays of length
+ *   `count`: identifiers[i] (uint16), hiding_commits[i*32 ..], and
+ *   binding_commits[i*32 ..].  Signature shares are `count` contiguous
+ *   32-byte scalars.  All scalars/points are 32 bytes; a signature is 64.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Trusted-dealer keygen output. Share k (0-based) has identifier k+1. */
+typedef struct {
+    CryptoBuffer group_public_key;  /**< 32 B */
+    CryptoBuffer secret_shares;     /**< count * 32 B — secret scalars sk_i */
+    CryptoBuffer public_shares;     /**< count * 32 B — points PK_i (verify_share) */
+    size_t       count;             /**< number of participants (n) */
+    char*        error;             /**< heap-allocated; NULL on success */
+} CryptoFrostKeyGen;
+
+/** Free a CryptoFrostKeyGen (zeroises secret shares). */
+CRYPTO_API void cryptolib_frost_keygen_free(CryptoFrostKeyGen* kg);
+
+/** Round-1 commit output: two secret nonces + their public commitments. */
+typedef struct {
+    CryptoBuffer hiding_nonce;    /**< 32 B secret scalar */
+    CryptoBuffer binding_nonce;   /**< 32 B secret scalar */
+    CryptoBuffer hiding_commit;   /**< 32 B point (share to coordinator) */
+    CryptoBuffer binding_commit;  /**< 32 B point (share to coordinator) */
+    char*        error;           /**< heap-allocated; NULL on success */
+} CryptoFrostCommit;
+
+/** Free a CryptoFrostCommit (zeroises nonces). */
+CRYPTO_API void cryptolib_frost_commit_free(CryptoFrostCommit* c);
+
+/** keygen(n,t): split a random group key into n shares, any t of which sign. */
+CRYPTO_API CryptoFrostKeyGen cryptolib_frost_keygen(uint16_t n, uint16_t t);
+
+/** Round 1: fresh random nonce pair + public commitment for a share. */
+CRYPTO_API CryptoFrostCommit cryptolib_frost_commit(
+    const uint8_t* share_secret, size_t sk_len, uint16_t identifier);
+
+/** Deterministic round-1 commit from caller-supplied nonces (test vectors). */
+CRYPTO_API CryptoFrostCommit cryptolib_frost_commit_with_nonces(
+    uint16_t identifier,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len);
+
+/** Round 2: this participant's 32-byte signature share. */
+CRYPTO_API CryptoBufferResult cryptolib_frost_sign(
+    uint16_t identifier,
+    const uint8_t* share_secret, size_t sk_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count);
+
+/** Aggregate `count` signature shares → one 64-byte Ed25519 signature. */
+CRYPTO_API CryptoBufferResult cryptolib_frost_aggregate(
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count,
+    const uint8_t* sig_shares /* count * 32 B */);
+
+/** Verify an aggregate signature with standard Ed25519. Returns 1/0. */
+CRYPTO_API int cryptolib_frost_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* group_public_key, size_t gpk_len);
+
+/** Verify one participant's signature share. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cryptolib_frost_verify_share(
+    uint16_t identifier,
+    const uint8_t* public_share, size_t ps_len,
+    const uint8_t* sig_share, size_t ss_len,
+    const uint8_t* commit_hiding, size_t ch_len,
+    const uint8_t* commit_binding, size_t cb_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather
