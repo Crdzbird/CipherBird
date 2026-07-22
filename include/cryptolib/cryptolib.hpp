@@ -124,6 +124,7 @@
 #include "pq.hpp"                 // → post-quantum (liboqs, guarded by CRYPTOLIB_HAS_PQ)
 #include "hybrid_kem.hpp"         // → X25519 + ML-KEM-768 hybrid KEM (guarded by CRYPTOLIB_HAS_PQ)
 #include "sntrup_x25519.hpp"      // → X25519 + sntrup761 hybrid KEM (guarded by CRYPTOLIB_HAS_PQ)
+#include "triple_hybrid_kem.hpp"  // → X25519 + ML-KEM-768 + sntrup761 triple hybrid KEM (guarded)
 #include "hybrid_sig.hpp"         // → Ed25519 + ML-DSA-65 hybrid signatures (guarded by CRYPTOLIB_HAS_PQ)
 #include "bls.hpp"                // → BLS12-381 (blst, guarded by CRYPTOLIB_HAS_BLS)
 #include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase)
