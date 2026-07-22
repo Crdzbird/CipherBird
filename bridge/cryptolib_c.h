@@ -763,6 +763,43 @@ CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
     const uint8_t* ciphertext, size_t ct_len,
     const uint8_t* secret_key, size_t sk_len);
 
+/* ─── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ─────────
+ *   A live channel with forward secrecy + post-compromise security, all
+ *   post-quantum. Stateful — a CryptoSession is an opaque handle; free it with
+ *   cryptolib_session_free. Handshake: the responder publishes a prekey (a
+ *   hybrid-KEM keypair); the initiator encapsulates to it. Requires PQ. */
+
+/** Opaque ratchet session handle. */
+typedef void* CryptoSession;
+
+/** Responder: generate a prekey (hybrid-KEM keypair). Publish public_key. */
+CRYPTO_API CryptoKeyPair cryptolib_session_generate_prekey(void);
+
+/** Initiator: start a session to responder_prekey_public. The returned handle's
+ *  cryptolib_session_handshake() is the message to send to the responder. */
+CRYPTO_API CryptoSession cryptolib_session_initiate(
+    const uint8_t* responder_prekey_public, size_t pk_len, char** out_error);
+
+/** The handshake message an initiator session must send (empty on a responder). */
+CRYPTO_API CryptoBufferResult cryptolib_session_handshake(CryptoSession h);
+
+/** Responder: accept an incoming handshake with your prekey (public + secret). */
+CRYPTO_API CryptoSession cryptolib_session_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* prekey_public, size_t pk_len,
+    const uint8_t* prekey_secret, size_t sk_len, char** out_error);
+
+/** Encrypt the next outgoing message (advances the sending ratchet). */
+CRYPTO_API CryptoBufferResult cryptolib_session_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+
+/** Decrypt an incoming message (handles ratchet turns + out-of-order; transactional). */
+CRYPTO_API CryptoBufferResult cryptolib_session_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len);
+
+/** Free a session handle. */
+CRYPTO_API void cryptolib_session_free(CryptoSession h);
+
 /* ─── ML-DSA (FIPS 204) ──────────────────────────────────────────────────── */
 
 /** ML-DSA keygen. level: 0=44, 1=65, 2=87. */

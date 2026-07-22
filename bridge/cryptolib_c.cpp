@@ -1556,6 +1556,71 @@ CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
 #endif
 } CL_FAIL_BUFRES
 
+// ── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ──────────
+#ifdef CRYPTOLIB_HAS_PQ
+namespace { struct SessionImpl { crypto::Session session; }; }
+
+CRYPTO_API CryptoKeyPair cryptolib_session_generate_prekey(void) try {
+    auto r = crypto::Session::generate_prekey();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoSession cryptolib_session_initiate(
+    const uint8_t* prekey_public, size_t pk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto r = crypto::Session::initiate(sp(prekey_public, pk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new SessionImpl{ std::move(r.value()) });
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_session_handshake(CryptoSession h) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    return ok_buf(impl->session.handshake());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cryptolib_session_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* prekey_public, size_t pk_len,
+    const uint8_t* prekey_secret, size_t sk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    crypto::pq::HybridKem::KeyPair kp{
+        crypto::SecureBuffer(prekey_public, pk_len),
+        crypto::SecureBuffer(prekey_secret, sk_len) };
+    auto r = crypto::Session::accept(sp(handshake, hs_len), kp);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new SessionImpl{ std::move(r.value()) });
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_session_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    auto r = impl->session.encrypt(sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_session_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    auto r = impl->session.decrypt(sp(msg, msg_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_session_free(CryptoSession h) { delete static_cast<SessionImpl*>(h); }
+
+#else  // PQ disabled — ABI-stable stubs
+CRYPTO_API CryptoKeyPair cryptolib_session_generate_prekey(void) { return { null_buf(), null_buf() }; }
+CRYPTO_API CryptoSession cryptolib_session_initiate(const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("PQ not enabled"); return nullptr; }
+CRYPTO_API CryptoBufferResult cryptolib_session_handshake(CryptoSession) { return err_buf("PQ not enabled"); }
+CRYPTO_API CryptoSession cryptolib_session_accept(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("PQ not enabled"); return nullptr; }
+CRYPTO_API CryptoBufferResult cryptolib_session_encrypt(CryptoSession, const uint8_t*, size_t, const uint8_t*, size_t) { return err_buf("PQ not enabled"); }
+CRYPTO_API CryptoBufferResult cryptolib_session_decrypt(CryptoSession, const uint8_t*, size_t, const uint8_t*, size_t) { return err_buf("PQ not enabled"); }
+CRYPTO_API void cryptolib_session_free(CryptoSession) {}
+#endif
+
 CRYPTO_API CryptoKeyPair cryptolib_ml_dsa_keygen(int level) try {
 #ifdef CRYPTOLIB_HAS_PQ
     auto r = crypto::pq::MlDsa::generate_keypair(to_dsa_level(level));
