@@ -204,8 +204,10 @@ function ensureLoaded() {
 
   // Suite — one-call advanced combinations
   suiteSealPq: f('CryptoBufferResult cryptolib_suite_seal_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteSealPqSntrup: f('CryptoBufferResult cryptolib_suite_seal_pq_sntrup(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteOpenPq: f('CryptoBufferResult cryptolib_suite_open_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteSealSignedPq: f('CryptoBufferResult cryptolib_suite_seal_signed_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suiteSealSignedPqSntrup: f('CryptoBufferResult cryptolib_suite_seal_signed_pq_sntrup(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteOpenSignedPq: f('CryptoBufferResult cryptolib_suite_open_signed_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteSealWithFile: f('CryptoBufferResult cryptolib_suite_seal_with_file(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
   suiteOpenWithFile: f('CryptoBufferResult cryptolib_suite_open_with_file(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
@@ -473,9 +475,12 @@ module.exports = {
   // ── Suite — one-call advanced combinations (needs OpenSSL + PQ) ──
   // Post-quantum message: hybrid X25519+ML-KEM-768 → MolecularVault.
   suiteSealPq: (pt, recipientKemPublic, aad = null) => consume(fn.suiteSealPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  // sntrup761 hybrid variant; suiteOpenPq auto-detects the KEM from the envelope.
+  suiteSealPqSntrup: (pt, recipientKemPublic, aad = null) => consume(fn.suiteSealPqSntrup(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenPq: (env, recipientKemSecret, aad = null) => consume(fn.suiteOpenPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   // Flagship: PQ confidentiality + PQ signature authenticity (verified auth-first).
   suiteSealSignedPq: (pt, recipientKemPublic, signerSigSecret, aad = null) => consume(fn.suiteSealSignedPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigSecret), u8(signerSigSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteSealSignedPqSntrup: (pt, recipientKemPublic, signerSigSecret, aad = null) => consume(fn.suiteSealSignedPqSntrup(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigSecret), u8(signerSigSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenSignedPq: (env, recipientKemSecret, signerSigPublic, aad = null) => consume(fn.suiteOpenSignedPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, u8(signerSigPublic), u8(signerSigPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   // File-as-key: deterministic media entropy from `path` derives the master.
   suiteSealWithFile: (pt, path, aad = null) => consume(fn.suiteSealWithFile(u8(pt), u8(pt).length, path, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),

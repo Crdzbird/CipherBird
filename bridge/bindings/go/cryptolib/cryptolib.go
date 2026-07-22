@@ -1644,7 +1644,18 @@ func SuiteSealPq(plaintext, recipientKemPublic, aad []byte) ([]byte, error) {
 		u8(aad), C.size_t(len(aad))))
 }
 
-// SuiteOpenPq opens a SuiteSealPq envelope with the recipient's hybrid-KEM secret.
+// SuiteSealPqSntrup is like SuiteSealPq but uses the X25519+sntrup761 hybrid KEM
+// (a different lattice family, for diversity). SuiteOpenPq auto-detects the KEM
+// from the envelope, so the same open works for both.
+func SuiteSealPqSntrup(plaintext, recipientKemPublic, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_seal_pq_sntrup(
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(recipientKemPublic), C.size_t(len(recipientKemPublic)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteOpenPq opens a SuiteSealPq / SuiteSealPqSntrup envelope with the
+// recipient's hybrid-KEM secret (KEM chosen from the envelope's suite id).
 func SuiteOpenPq(envelope, recipientKemSecret, aad []byte) ([]byte, error) {
 	return checkBufResult(C.cryptolib_suite_open_pq(
 		u8(envelope), C.size_t(len(envelope)),
@@ -1657,6 +1668,16 @@ func SuiteOpenPq(envelope, recipientKemSecret, aad []byte) ([]byte, error) {
 // returns the plaintext only if the signature verifies.
 func SuiteSealSignedPq(plaintext, recipientKemPublic, signerSigSecret, aad []byte) ([]byte, error) {
 	return checkBufResult(C.cryptolib_suite_seal_signed_pq(
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(recipientKemPublic), C.size_t(len(recipientKemPublic)),
+		u8(signerSigSecret), C.size_t(len(signerSigSecret)),
+		u8(aad), C.size_t(len(aad))))
+}
+
+// SuiteSealSignedPqSntrup is the flagship with the X25519+sntrup761 hybrid KEM.
+// SuiteOpenSignedPq auto-detects the KEM from the envelope.
+func SuiteSealSignedPqSntrup(plaintext, recipientKemPublic, signerSigSecret, aad []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_suite_seal_signed_pq_sntrup(
 		u8(plaintext), C.size_t(len(plaintext)),
 		u8(recipientKemPublic), C.size_t(len(recipientKemPublic)),
 		u8(signerSigSecret), C.size_t(len(signerSigSecret)),

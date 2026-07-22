@@ -32,6 +32,7 @@
 #include "types.hpp"
 #include "molecular_vault.hpp"
 #include "hybrid_kem.hpp"
+#include "sntrup_x25519.hpp"
 #include "hybrid_sig.hpp"
 #include "media_entropy.hpp"
 #include "keyring.hpp"
@@ -61,31 +62,44 @@ public:
     // mismatched ids fail closed. Keep values stable once shipped.
     static constexpr uint8_t SUITE_HYBRID_KEM     = 0x01; // X25519 + ML-KEM-768
     static constexpr uint8_t SUITE_HYBRID_KEM_SIG = 0x02; // + Ed25519 + ML-DSA-65
+    static constexpr uint8_t SUITE_SNTRUP_KEM     = 0x03; // X25519 + sntrup761
+    static constexpr uint8_t SUITE_SNTRUP_KEM_SIG = 0x04; // + Ed25519 + ML-DSA-65
     static constexpr std::size_t MASTER_BYTES = 32;
     static constexpr std::size_t EVM_ADDRESS_BYTES = 20;
 
     // ── 1. Post-quantum message ─────────────────────────────────────────────
     // Encapsulate to the recipient's hybrid KEM public key, then seal under the
-    // resulting shared secret. Secure while EITHER X25519 or ML-KEM holds.
+    // resulting shared secret. Secure while EITHER classical or PQ half holds.
+    // seal_pq uses X25519+ML-KEM-768; seal_pq_sntrup uses X25519+sntrup761 (a
+    // different lattice family, for diversity). open_pq auto-detects which from
+    // the envelope's suite id.
     [[nodiscard]] static Result<SecureBuffer>
     seal_pq(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> recipient_kem_public,
             std::span<const uint8_t> aad = {}) {
-        auto enc = pq::HybridKem::encapsulate(recipient_kem_public);
-        if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
-        auto env = MolecularVault::seal_with_key(plaintext, enc.value().shared_secret.span(), aad);
-        if (env.is_err()) return env;
-        return frame(MAGIC_PQ, SUITE_HYBRID_KEM, enc.value().ciphertext.span(), env.value().span());
+        return seal_pq_impl(SUITE_HYBRID_KEM, plaintext, recipient_kem_public, aad);
     }
 
+    [[nodiscard]] static Result<SecureBuffer>
+    seal_pq_sntrup(std::span<const uint8_t> plaintext,
+                   std::span<const uint8_t> recipient_kem_public,
+                   std::span<const uint8_t> aad = {}) {
+        return seal_pq_impl(SUITE_SNTRUP_KEM, plaintext, recipient_kem_public, aad);
+    }
+
+    // Opens either PQ suite; the KEM is chosen from the envelope's suite id, so
+    // pass the secret key matching the envelope's KEM (a mismatch fails closed).
     [[nodiscard]] static Result<SecureBuffer>
     open_pq(std::span<const uint8_t> envelope,
             std::span<const uint8_t> recipient_kem_secret,
             std::span<const uint8_t> aad = {}) {
+        uint8_t suite_id = 0;
         std::span<const uint8_t> kem_ct, inner;
-        if (auto e = unframe(MAGIC_PQ, SUITE_HYBRID_KEM, envelope, kem_ct, inner); e.is_err())
+        if (auto e = unframe(MAGIC_PQ, envelope, suite_id, kem_ct, inner); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
-        auto ss = pq::HybridKem::decapsulate(kem_ct, recipient_kem_secret);
+        if (suite_id != SUITE_HYBRID_KEM && suite_id != SUITE_SNTRUP_KEM)
+            return Result<SecureBuffer>::err("Suite: unknown or mismatched algorithm suite");
+        auto ss = kem_decapsulate(suite_id, kem_ct, recipient_kem_secret);
         if (ss.is_err()) return Result<SecureBuffer>::err(ss.error().message);
         return MolecularVault::open_with_key(inner, ss.value().span(), aad);
     }
@@ -94,27 +108,23 @@ public:
     // Confidentiality from the hybrid KEM, authenticity from the hybrid
     // signature — both classical AND post-quantum on each axis. open_* returns
     // the plaintext ONLY if the signature verifies against `signer_sig_public`.
+    // seal_signed_pq uses ML-KEM; seal_signed_pq_sntrup uses sntrup761.
     [[nodiscard]] static Result<SecureBuffer>
     seal_signed_pq(std::span<const uint8_t> plaintext,
                    std::span<const uint8_t> recipient_kem_public,
                    std::span<const uint8_t> signer_sig_secret,
                    std::span<const uint8_t> aad = {}) {
-        auto sig = pq::HybridSig::sign(plaintext, signer_sig_secret);
-        if (sig.is_err()) return Result<SecureBuffer>::err(sig.error().message);
+        return seal_signed_pq_impl(SUITE_HYBRID_KEM_SIG, plaintext,
+                                   recipient_kem_public, signer_sig_secret, aad);
+    }
 
-        // inner = sig_len | signature | plaintext
-        std::vector<uint8_t> inner;
-        inner.reserve(4 + sig.value().size() + plaintext.size());
-        put_u32_le(inner, static_cast<uint32_t>(sig.value().size()));
-        inner.insert(inner.end(), sig.value().span().begin(), sig.value().span().end());
-        inner.insert(inner.end(), plaintext.begin(), plaintext.end());
-
-        auto enc = pq::HybridKem::encapsulate(recipient_kem_public);
-        if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
-        auto env = MolecularVault::seal_with_key(inner, enc.value().shared_secret.span(), aad);
-        sodium_memzero(inner.data(), inner.size());
-        if (env.is_err()) return env;
-        return frame(MAGIC_SPQ, SUITE_HYBRID_KEM_SIG, enc.value().ciphertext.span(), env.value().span());
+    [[nodiscard]] static Result<SecureBuffer>
+    seal_signed_pq_sntrup(std::span<const uint8_t> plaintext,
+                          std::span<const uint8_t> recipient_kem_public,
+                          std::span<const uint8_t> signer_sig_secret,
+                          std::span<const uint8_t> aad = {}) {
+        return seal_signed_pq_impl(SUITE_SNTRUP_KEM_SIG, plaintext,
+                                   recipient_kem_public, signer_sig_secret, aad);
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -122,10 +132,13 @@ public:
                    std::span<const uint8_t> recipient_kem_secret,
                    std::span<const uint8_t> signer_sig_public,
                    std::span<const uint8_t> aad = {}) {
+        uint8_t suite_id = 0;
         std::span<const uint8_t> kem_ct, inner_env;
-        if (auto e = unframe(MAGIC_SPQ, SUITE_HYBRID_KEM_SIG, envelope, kem_ct, inner_env); e.is_err())
+        if (auto e = unframe(MAGIC_SPQ, envelope, suite_id, kem_ct, inner_env); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
-        auto ss = pq::HybridKem::decapsulate(kem_ct, recipient_kem_secret);
+        if (suite_id != SUITE_HYBRID_KEM_SIG && suite_id != SUITE_SNTRUP_KEM_SIG)
+            return Result<SecureBuffer>::err("Suite: unknown or mismatched algorithm suite");
+        auto ss = kem_decapsulate(suite_id, kem_ct, recipient_kem_secret);
         if (ss.is_err()) return Result<SecureBuffer>::err(ss.error().message);
         auto inner = MolecularVault::open_with_key(inner_env, ss.value().span(), aad);
         if (inner.is_err()) return inner;
@@ -281,22 +294,91 @@ private:
         return Result<SecureBuffer>::ok(SecureBuffer(std::move(out)));
     }
 
+    // Validates magic + version and outputs the suite id + slices. The caller
+    // decides which suite ids are acceptable for its flow (PQ vs signed-PQ) and
+    // dispatches the KEM accordingly — so an unknown id fails closed there.
     [[nodiscard]] static Result<void>
-    unframe(const std::array<uint8_t, 4>& magic, uint8_t expected_suite,
-            std::span<const uint8_t> env,
+    unframe(const std::array<uint8_t, 4>& magic, std::span<const uint8_t> env,
+            uint8_t& out_suite_id,
             std::span<const uint8_t>& kem_ct, std::span<const uint8_t>& inner) {
         constexpr std::size_t HDR = 4 + 1 + 1 + 4;
         if (env.size() < HDR) return Result<void>::err("Suite: envelope too short");
         if (std::memcmp(env.data(), magic.data(), magic.size()) != 0)
             return Result<void>::err("Suite: bad magic (wrong envelope type)");
         if (env[4] != VERSION) return Result<void>::err("Suite: unsupported version");
-        if (env[5] != expected_suite)
-            return Result<void>::err("Suite: unknown or mismatched algorithm suite");
+        out_suite_id = env[5];
         const uint32_t ct_len = get_u32_le(env.data() + 6);
         if (env.size() < HDR + ct_len) return Result<void>::err("Suite: envelope truncated");
         kem_ct = env.subspan(HDR, ct_len);
         inner  = env.subspan(HDR + ct_len);
         return Result<void>::ok();
+    }
+
+    // ── KEM dispatch (chooses the hybrid KEM from the suite id) ──────────────
+    struct KemCt { SecureBuffer ciphertext; SecureBuffer shared_secret; };
+
+    static bool is_sntrup(uint8_t suite_id) {
+        return suite_id == SUITE_SNTRUP_KEM || suite_id == SUITE_SNTRUP_KEM_SIG;
+    }
+
+    [[nodiscard]] static Result<KemCt>
+    kem_encapsulate(uint8_t suite_id, std::span<const uint8_t> recipient_kem_public) {
+        if (is_sntrup(suite_id)) {
+            auto e = pq::SntrupX25519::encapsulate(recipient_kem_public);
+            if (e.is_err()) return Result<KemCt>::err(e.error().message);
+            return Result<KemCt>::ok(KemCt{ std::move(e.value().ciphertext),
+                                            std::move(e.value().shared_secret) });
+        }
+        auto e = pq::HybridKem::encapsulate(recipient_kem_public);
+        if (e.is_err()) return Result<KemCt>::err(e.error().message);
+        return Result<KemCt>::ok(KemCt{ std::move(e.value().ciphertext),
+                                        std::move(e.value().shared_secret) });
+    }
+
+    [[nodiscard]] static Result<SecureBuffer>
+    kem_decapsulate(uint8_t suite_id, std::span<const uint8_t> kem_ct,
+                    std::span<const uint8_t> recipient_kem_secret) {
+        if (is_sntrup(suite_id))
+            return pq::SntrupX25519::decapsulate(kem_ct, recipient_kem_secret);
+        return pq::HybridKem::decapsulate(kem_ct, recipient_kem_secret);
+    }
+
+    // ── seal impls (shared by the ML-KEM and sntrup761 entry points) ─────────
+    [[nodiscard]] static Result<SecureBuffer>
+    seal_pq_impl(uint8_t suite_id, std::span<const uint8_t> plaintext,
+                 std::span<const uint8_t> recipient_kem_public,
+                 std::span<const uint8_t> aad) {
+        auto enc = kem_encapsulate(suite_id, recipient_kem_public);
+        if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
+        auto env = MolecularVault::seal_with_key(plaintext, enc.value().shared_secret.span(), aad);
+        if (env.is_err()) return env;
+        return frame(MAGIC_PQ, suite_id, enc.value().ciphertext.span(), env.value().span());
+    }
+
+    [[nodiscard]] static Result<SecureBuffer>
+    seal_signed_pq_impl(uint8_t suite_id, std::span<const uint8_t> plaintext,
+                        std::span<const uint8_t> recipient_kem_public,
+                        std::span<const uint8_t> signer_sig_secret,
+                        std::span<const uint8_t> aad) {
+        auto sig = pq::HybridSig::sign(plaintext, signer_sig_secret);
+        if (sig.is_err()) return Result<SecureBuffer>::err(sig.error().message);
+
+        // inner = sig_len | signature | plaintext
+        std::vector<uint8_t> inner;
+        inner.reserve(4 + sig.value().size() + plaintext.size());
+        put_u32_le(inner, static_cast<uint32_t>(sig.value().size()));
+        inner.insert(inner.end(), sig.value().span().begin(), sig.value().span().end());
+        inner.insert(inner.end(), plaintext.begin(), plaintext.end());
+
+        auto enc = kem_encapsulate(suite_id, recipient_kem_public);
+        if (enc.is_err()) {
+            sodium_memzero(inner.data(), inner.size());
+            return Result<SecureBuffer>::err(enc.error().message);
+        }
+        auto env = MolecularVault::seal_with_key(inner, enc.value().shared_secret.span(), aad);
+        sodium_memzero(inner.data(), inner.size());
+        if (env.is_err()) return env;
+        return frame(MAGIC_SPQ, suite_id, enc.value().ciphertext.span(), env.value().span());
     }
 };
 

@@ -437,9 +437,17 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(
     return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq_sntrup(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_pq_sntrup(sp(pt, pt_len), sp(kem_pub, kem_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(
     const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
     const uint8_t* aad, size_t aad_len) try {
+    // Auto-detects ML-KEM vs sntrup761 from the envelope's suite id.
     auto r = crypto::Suite::open_pq(sp(env, env_len), sp(kem_sec, kem_sec_len), opt_aad(aad, aad_len));
     return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
 } CL_FAIL_BUFRES
@@ -452,9 +460,18 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(
     return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq_sntrup(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* sig_sec, size_t sig_sec_len, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_signed_pq_sntrup(sp(pt, pt_len), sp(kem_pub, kem_pub_len),
+                                                  sp(sig_sec, sig_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_signed_pq(
     const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
     const uint8_t* sig_pub, size_t sig_pub_len, const uint8_t* aad, size_t aad_len) try {
+    // Auto-detects ML-KEM vs sntrup761 from the envelope's suite id.
     auto r = crypto::Suite::open_signed_pq(sp(env, env_len), sp(kem_sec, kem_sec_len),
                                            sp(sig_pub, sig_pub_len), opt_aad(aad, aad_len));
     return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
@@ -534,8 +551,10 @@ static CryptoBufferResult suite_unavailable() {
     return err_buf("Suite requires OpenSSL + post-quantum support — not compiled in");
 }
 CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq_sntrup(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq_sntrup(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_seal_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }

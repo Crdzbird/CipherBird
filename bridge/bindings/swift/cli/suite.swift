@@ -45,6 +45,12 @@ enum Suite {
             try consume(cryptolib_suite_seal_pq(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
         }
     }
+    // Like sealPq but with the X25519+sntrup761 hybrid KEM; openPq auto-detects.
+    static func sealPqSntrup(_ plaintext: [UInt8], recipientKemPublic: [UInt8], aad: [UInt8]? = nil) throws -> [UInt8] {
+        try withPtrs([plaintext, recipientKemPublic, aad]) { p in
+            try consume(cryptolib_suite_seal_pq_sntrup(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
+        }
+    }
     static func openPq(_ envelope: [UInt8], recipientKemSecret: [UInt8], aad: [UInt8]? = nil) throws -> [UInt8] {
         try withPtrs([envelope, recipientKemSecret, aad]) { p in
             try consume(cryptolib_suite_open_pq(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
@@ -57,6 +63,13 @@ enum Suite {
         try withPtrs([plaintext, recipientKemPublic, signerSigSecret, aad]) { p in
             try consume(cryptolib_suite_seal_signed_pq(p[0].0, p[0].1, p[1].0, p[1].1,
                                                        p[2].0, p[2].1, p[3].0, p[3].1))
+        }
+    }
+    static func sealSignedPqSntrup(_ plaintext: [UInt8], recipientKemPublic: [UInt8],
+                                   signerSigSecret: [UInt8], aad: [UInt8]? = nil) throws -> [UInt8] {
+        try withPtrs([plaintext, recipientKemPublic, signerSigSecret, aad]) { p in
+            try consume(cryptolib_suite_seal_signed_pq_sntrup(p[0].0, p[0].1, p[1].0, p[1].1,
+                                                              p[2].0, p[2].1, p[3].0, p[3].1))
         }
     }
     static func openSignedPq(_ envelope: [UInt8], recipientKemSecret: [UInt8],

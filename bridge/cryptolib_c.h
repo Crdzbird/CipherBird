@@ -256,6 +256,12 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq(
     const uint8_t* pt, size_t pt_len,
     const uint8_t* recipient_kem_public, size_t kem_pub_len,
     const uint8_t* aad, size_t aad_len);
+/** Same, but with the X25519+sntrup761 hybrid KEM (a different lattice family).
+ *  open_pq below auto-detects which KEM from the envelope's suite id. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_pq_sntrup(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len);
 CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(
     const uint8_t* envelope, size_t env_len,
     const uint8_t* recipient_kem_secret, size_t kem_sec_len,
@@ -264,6 +270,12 @@ CRYPTO_API CryptoBufferResult cryptolib_suite_open_pq(
 /** Signed + PQ-sealed (flagship): PQ confidentiality + hybrid-signature
  *  authenticity. open_* returns plaintext ONLY if the signature verifies. */
 CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* signer_sig_secret, size_t sig_sec_len,
+    const uint8_t* aad, size_t aad_len);
+/** Same, but with the X25519+sntrup761 hybrid KEM. */
+CRYPTO_API CryptoBufferResult cryptolib_suite_seal_signed_pq_sntrup(
     const uint8_t* pt, size_t pt_len,
     const uint8_t* recipient_kem_public, size_t kem_pub_len,
     const uint8_t* signer_sig_secret, size_t sig_sec_len,

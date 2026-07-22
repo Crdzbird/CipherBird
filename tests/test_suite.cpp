@@ -47,6 +47,47 @@ TEST("suite/pq/roundtrip") {
     CHECK(vec(out.value()) == pt);
 }
 
+// sntrup761 hybrid variant — open_pq auto-detects the KEM from the suite id.
+TEST("suite/pq/sntrup-roundtrip") {
+    auto bob = crypto::pq::SntrupX25519::generate_keypair();
+    CHECK_OK(bob);
+    auto pt = bytes("diversity hedge");
+    auto env = Suite::seal_pq_sntrup(pt, bob.value().public_key.span(), aad);
+    CHECK_OK(env);
+    auto out = Suite::open_pq(env.value().span(), bob.value().secret_key.span(), aad);
+    CHECK_OK(out);
+    CHECK(vec(out.value()) == pt);
+}
+
+TEST("suite/signed-pq/sntrup-roundtrip") {
+    auto bob = crypto::pq::SntrupX25519::generate_keypair();
+    auto signer = crypto::pq::HybridSig::generate_keypair();
+    CHECK_OK(signer);
+    auto pt = bytes("board resolution");
+    auto env = Suite::seal_signed_pq_sntrup(pt, bob.value().public_key.span(),
+                                            signer.value().secret_key.span(), aad);
+    CHECK_OK(env);
+    auto out = Suite::open_signed_pq(env.value().span(), bob.value().secret_key.span(),
+                                     signer.value().public_key.span(), aad);
+    CHECK_OK(out);
+    CHECK(vec(out.value()) == pt);
+    // Wrong signer still rejected on the sntrup path.
+    auto impostor = crypto::pq::HybridSig::generate_keypair();
+    CHECK_ERR(Suite::open_signed_pq(env.value().span(), bob.value().secret_key.span(),
+                                    impostor.value().public_key.span(), aad));
+}
+
+// Cross-KEM confusion: an ML-KEM secret must not open a sntrup envelope. The
+// suite id selects sntrup decapsulation, so the (differently sized) ML-KEM key
+// fails closed rather than silently producing a wrong secret.
+TEST("suite/pq/cross-kem-rejected") {
+    auto sntrup = crypto::pq::SntrupX25519::generate_keypair();
+    auto mlkem  = crypto::pq::HybridKem::generate_keypair();
+    auto env = Suite::seal_pq_sntrup(bytes("x"), sntrup.value().public_key.span(), aad);
+    CHECK_OK(env);
+    CHECK_ERR(Suite::open_pq(env.value().span(), mlkem.value().secret_key.span(), aad));
+}
+
 TEST("suite/pq/wrong-secret-fails") {
     auto bob = crypto::pq::HybridKem::generate_keypair();
     auto eve = crypto::pq::HybridKem::generate_keypair();
@@ -239,6 +280,9 @@ void run_tests_suite() {
     RUN("suite/envelope-type-confusion-rejected");
     RUN("suite/rejects-truncated-envelope");
     RUN("suite/rejects-unknown-suite-id");
+    RUN("suite/pq/sntrup-roundtrip");
+    RUN("suite/signed-pq/sntrup-roundtrip");
+    RUN("suite/pq/cross-kem-rejected");
     RUN("suite/file/roundtrip-and-wrong-file-fails");
     RUN("suite/keyring/either-slot-opens");
     RUN("suite/keyring/wrong-factor-fails");
