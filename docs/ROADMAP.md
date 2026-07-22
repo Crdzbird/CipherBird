@@ -18,13 +18,12 @@ prefer *constructions* composed from existing primitives over new primitives.
 
 ## Tier 1 — highest value, natural next steps
 
-- **PQ forward-secret ratchet (Double Ratchet + PQXDH-style handshake).** The one
-  real gap in Flagship/Fortress: they target a *static* recipient key, so they are
-  not forward-secret against recipient-key compromise. A ratchet adds forward
-  secrecy **and** post-compromise security for live, back-and-forth messaging.
-  This is a *construction* over primitives we already have (X25519/ML-KEM hybrid
-  handshake → symmetric ratchet with HKDF + AEAD), so no new dependency — the
-  highest-leverage addition for any messaging use case.
+- **PQ forward-secret ratchet — ✅ DONE (`crypto::Session`).** Closes the static-
+  recipient gap in Flagship/Fortress: a live channel with forward secrecy AND
+  post-compromise security, all post-quantum. Hybrid KEM Double Ratchet
+  (HybridKem asymmetric ratchet + HKDF root/chain + key-committing AEAD), PQ
+  X3DH-lite handshake, transactional decrypt (no desync-DoS). C++ core + 11 tests
+  landed; C ABI + bindings are the next step (same flow as Flagship/Fortress).
 - **FROST threshold signatures (Ed25519 + secp256k1).** N-of-M parties jointly
   sign without ever reconstructing the key — the custody/wallet primitive the
   library's EVM/BTC direction is missing. Well-specified (RFC 9591); complements
