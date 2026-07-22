@@ -45,6 +45,7 @@ function ensureLoaded() {
   koffi.struct('CryptoDerivedKeys', { symmetric_key: CryptoBuffer, vault_master_key: CryptoBuffer, signing_seed: CryptoBuffer, box_seed: CryptoBuffer, stream_key: CryptoBuffer, raw_entropy: CryptoBuffer });
   koffi.struct('CryptoEntropyInfo', { path: 'void *', file_size: 'uint64_t', chunks_read: 'uint64_t', entropy_bits: 'double' });
   koffi.struct('CryptoResult', { ok: 'int', error: 'void *' });
+  koffi.struct('CryptoSealedInfo', { ok: 'uint8', version: 'uint8', suite: 'uint8', streaming: 'uint8', fingerprint: koffi.array('uint8', 16), kem_ciphertext_len: 'size_t' });
 
   const f = (sig) => lib.func(sig);
   _native = {
@@ -216,6 +217,22 @@ function ensureLoaded() {
   suiteSealKrPw: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
   suiteOpenKrPw: f('CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
   suiteSealThr: f('CryptoBufferResult cryptolib_suite_seal_threshold(uint8_t*, size_t, uint8_t, uint8_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
+  // Flagship/Fortress sealed messaging (tier 0=Flagship, 1=Fortress).
+  sealedGenRecip: f('CryptoKeyPair cryptolib_sealed_generate_recipient(int)'),
+  sealedGenSender: f('CryptoKeyPair cryptolib_sealed_generate_sender(int)'),
+  sealedSeal: f('CryptoBufferResult cryptolib_sealed_seal(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  sealedOpen: f('CryptoBufferResult cryptolib_sealed_open(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  sealedInspect: f('CryptoSealedInfo cryptolib_sealed_inspect(uint8_t*, size_t)'),
+  sealedAddr: f('int cryptolib_sealed_addressed_to(uint8_t*, size_t, uint8_t*, size_t)'),
+  sealedSealerBegin: f('void *cryptolib_sealed_sealer_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sealedSealerPreamble: f('CryptoBufferResult cryptolib_sealed_sealer_preamble(void *)'),
+  sealedSealerPush: f('CryptoBufferResult cryptolib_sealed_sealer_push(void *, uint8_t*, size_t)'),
+  sealedSealerFinalize: f('CryptoBufferResult cryptolib_sealed_sealer_finalize(void *, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
+  sealedSealerFree: f('void cryptolib_sealed_sealer_free(void *)'),
+  sealedOpenerBegin: f('void *cryptolib_sealed_opener_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sealedOpenerPull: f('CryptoBufferResult cryptolib_sealed_opener_pull(void *, uint8_t*, size_t, _Out_ int*)'),
+  sealedOpenerFinalize: f('CryptoBufferResult cryptolib_sealed_opener_finalize(void *, uint8_t*, size_t)'),
+  sealedOpenerFree: f('void cryptolib_sealed_opener_free(void *)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -308,7 +325,108 @@ function preload() {
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
+// ═══ Flagship / Fortress — state-of-the-art sealed messaging ═══════════════════
+// Two assurance tiers of one construction (encapsulate → sign-then-encrypt inside
+// a key-committing cascade, recipient-bound, auth-first). A self-contained,
+// drop-in messaging layer.
+const SealedTier = Object.freeze({ Flagship: 0, Fortress: 1 });
+
+const _optA = (o) => (o && o.aad ? u8(o.aad) : null);
+const _optAL = (o) => (o && o.aad ? u8(o.aad).length : 0);
+const _optP = (o) => (o && o.purpose ? u8(o.purpose) : null);
+const _optPL = (o) => (o && o.purpose ? u8(o.purpose).length : 0);
+
+// StreamSealer — encrypt a stream: preamble() once, push() each chunk,
+// finalize() for the last chunk + signed trailer; close() when done.
+class SealedStreamSealer {
+  constructor(handle) { this._h = handle; }
+  preamble() { return consume(fn.sealedSealerPreamble(this._h)); }
+  push(chunk) { return consume(fn.sealedSealerPush(this._h, u8(chunk), u8(chunk).length)); }
+  finalize(last = null) {
+    const outTrailer = {};
+    const ciphertext = consume(fn.sealedSealerFinalize(this._h, last ? u8(last) : null, last ? u8(last).length : 0, outTrailer));
+    const trailer = (outTrailer.data && Number(outTrailer.len) > 0)
+      ? Buffer.from(koffi.decode(outTrailer.data, 'uint8_t', Number(outTrailer.len))) : Buffer.alloc(0);
+    fn.bufFree(outTrailer);
+    return { ciphertext, trailer };
+  }
+  close() { if (this._h) { fn.sealedSealerFree(this._h); this._h = null; } }
+}
+
+// StreamOpener — decrypt a stream: pull() each chunk ({plaintext, final}), then
+// finalize(trailer) to verify the sender signature over the whole stream.
+class SealedStreamOpener {
+  constructor(handle) { this._h = handle; }
+  pull(ct) {
+    const outFinal = [0];
+    const plaintext = consume(fn.sealedOpenerPull(this._h, u8(ct), u8(ct).length, outFinal));
+    return { plaintext, final: outFinal[0] === 1 };
+  }
+  finalize(trailer) { consume(fn.sealedOpenerFinalize(this._h, u8(trailer), u8(trailer).length)); return true; }
+  close() { if (this._h) { fn.sealedOpenerFree(this._h); this._h = null; } }
+}
+
+// Identity — the config/setup handle. Bundles a party's recipient (KEM) keypair
+// for receiving and sender (signature) keypair for signing. Publish the publics,
+// keep the secrets.
+class Identity {
+  constructor(tier, recipientPublic, recipientSecret, senderPublic, senderSecret) {
+    this.tier = tier;
+    this.recipientPublic = recipientPublic; this.recipientSecret = recipientSecret;
+    this.senderPublic = senderPublic; this.senderSecret = senderSecret;
+  }
+  static generate(tier = SealedTier.Flagship) {
+    const r = kp(fn.sealedGenRecip(tier));
+    const s = kp(fn.sealedGenSender(tier));
+    return new Identity(tier, r.publicKey, r.secretKey, s.publicKey, s.secretKey);
+  }
+  seal(plaintext, recipientPublic, opts = null) {
+    return consume(fn.sealedSeal(this.tier, u8(plaintext), u8(plaintext).length,
+      u8(recipientPublic), u8(recipientPublic).length, u8(this.senderSecret), u8(this.senderSecret).length,
+      _optA(opts), _optAL(opts), _optP(opts), _optPL(opts)));
+  }
+  open(envelope, senderPublic, opts = null) {
+    return consume(fn.sealedOpen(this.tier, u8(envelope), u8(envelope).length,
+      u8(this.recipientSecret), u8(this.recipientSecret).length,
+      u8(this.recipientPublic), u8(this.recipientPublic).length,
+      u8(senderPublic), u8(senderPublic).length,
+      _optA(opts), _optAL(opts), _optP(opts), _optPL(opts)));
+  }
+  newStreamSealer(recipientPublic, opts = null) {
+    const e = [null];
+    const h = fn.sealedSealerBegin(this.tier, u8(recipientPublic), u8(recipientPublic).length,
+      u8(this.senderSecret), u8(this.senderSecret).length, _optP(opts), _optPL(opts), e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: stream sealer begin failed');
+    return new SealedStreamSealer(h);
+  }
+  newStreamOpener(preamble, senderPublic, opts = null) {
+    const e = [null];
+    const h = fn.sealedOpenerBegin(this.tier, u8(preamble), u8(preamble).length,
+      u8(this.recipientSecret), u8(this.recipientSecret).length,
+      u8(this.recipientPublic), u8(this.recipientPublic).length,
+      u8(senderPublic), u8(senderPublic).length, _optP(opts), _optPL(opts), e);
+    if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
+    if (!h) throw new Error('cryptolib: stream opener begin failed');
+    return new SealedStreamOpener(h);
+  }
+}
+
+// Public envelope metadata (no secrets).
+function sealedInspect(envelope) {
+  const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
+  if (!i.ok) throw new Error('cryptolib: unrecognizable sealed envelope');
+  return {
+    version: i.version, suite: i.suite, streaming: i.streaming === 1,
+    fingerprint: Buffer.from(i.fingerprint), kemCiphertextLen: Number(i.kem_ciphertext_len),
+  };
+}
+function sealedAddressedTo(envelope, recipientPublic) {
+  return fn.sealedAddr(u8(envelope), u8(envelope).length, u8(recipientPublic), u8(recipientPublic).length) === 1;
+}
+
 module.exports = {
+  SealedTier, Identity, sealedInspect, sealedAddressedTo,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
