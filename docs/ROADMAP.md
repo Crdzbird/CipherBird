@@ -38,10 +38,16 @@ prefer *constructions* composed from existing primitives over new primitives.
 
 ## Tier 2 — standards interop & cryptographic diversity
 
-- **HPKE (RFC 9180), incl. the hybrid/PQ variants.** Flagship is deliberately
-  library-native (not a wire standard). HPKE is *the* standardized hybrid
-  public-key encryption; adding it gives wire-interoperability with TLS ECH, MLS,
-  and other ecosystems — the interop counterpart to the native tiers.
+- **HPKE (RFC 9180) — ✅ DONE (`crypto::Hpke`).** *The* standardized hybrid
+  public-key encryption (TLS ECH, MLS, Oblivious HTTP) — the wire-interop
+  counterpart to the library-native tiers; an envelope sealed here opens in any
+  conformant HPKE. KEM = DHKEM(X25519, HKDF-SHA256); KDF = HKDF-SHA256/512;
+  AEAD = AES-128/256-GCM / ChaCha20Poly1305 / export-only; all four modes
+  (Base/PSK/Auth/AuthPSK). Single-shot + streaming Context (seal/open/export).
+  Composition only over vetted primitives; validated byte-for-byte against the
+  CFRG RFC 9180 vectors. C++ core + 9 tests, C ABI (opaque context handle), and
+  all five bindings landed. Follow-up candidate: HPKE's hybrid/PQ KEM variants
+  (X25519MLKEM768) once the draft stabilizes — the KEM slots in cleanly.
 - **HQC (code-based KEM).** NIST's 2025 code-based backup to ML-KEM — a genuinely
   different math family (codes, not lattices). An optional X25519+HQC hybrid (or a
   "quad" KEM) extends diversity beyond the two lattice families. liboqs ships it.
@@ -81,8 +87,9 @@ demands them rather than folding them in here.
 
 1. ~~**PQ forward-secret ratchet**~~ — ✅ done (`crypto::Session`, all bindings).
 2. ~~**FROST threshold signatures**~~ — ✅ done (`crypto::Frost`, all bindings).
-3. **HPKE (RFC 9180)** — standards-interoperable sealed encryption alongside the
-   native tiers; next up.
+3. ~~**HPKE (RFC 9180)**~~ — ✅ done (`crypto::Hpke`, all bindings).
+4. **HQC (code-based KEM)** — cryptographic-family diversity beyond lattices;
+   ship as an opt-in hybrid hedge (Tier 2), next up.
 
 Everything else is demand-driven: add it when a target application needs it, and
 always behind the same discipline — vetted implementation, KATs before ship,
