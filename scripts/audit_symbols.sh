@@ -57,6 +57,14 @@ if [[ -n "$hard_hits" ]]; then
   echo "   ✗ FORBIDDEN network/exec symbols imported:"
   printf '        %s\n' $hard_hits
   echo "   A crypto library must not reach the network or spawn processes."
+  # On a FULLY-STATIC binary these are typically OpenSSL's libcrypto BIO-socket
+  # objects (dormant — no CryptoLib path invokes them). The shared dylib is
+  # clean because libcrypto is external there. To get a socket-free static
+  # build, link an OpenSSL built with `no-sock no-dso`.
+  if printf '%s\n' "$hard_hits" | grep -qE '_(socket|connect|sendto|recvmsg)$'; then
+    echo "   NOTE: if this is a static binary, these are usually OpenSSL BIO"
+    echo "         sockets — rebuild libcrypto with 'no-sock no-dso' to remove them."
+  fi
   exit 1
 fi
 echo "   ✓ no networking or process-execution symbols imported"

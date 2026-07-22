@@ -31,8 +31,9 @@ if [ ! -f "$BLAKE3_A" ]; then
     cmake --build build/host-deps/blake3-build >/dev/null
 fi
 
-# 2. Compile the bridge to an object file (no link).
-clang++ -std=c++20 -O2 -fPIC -c \
+# 2. Compile the bridge to an object file (no link). Same exploit-mitigation
+#    flags as the CMake shared-lib build (portable subset for the host arch).
+clang++ -std=c++20 -O2 -fPIC -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -c \
     -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_BLS=1 \
     -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
     -I include -I /opt/homebrew/include -I "$OSSL/include" -I "$SECP/include" \
