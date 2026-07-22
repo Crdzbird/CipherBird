@@ -46,6 +46,8 @@ function ensureLoaded() {
   koffi.struct('CryptoEntropyInfo', { path: 'void *', file_size: 'uint64_t', chunks_read: 'uint64_t', entropy_bits: 'double' });
   koffi.struct('CryptoResult', { ok: 'int', error: 'void *' });
   koffi.struct('CryptoSealedInfo', { ok: 'uint8', version: 'uint8', suite: 'uint8', streaming: 'uint8', fingerprint: koffi.array('uint8', 16), kem_ciphertext_len: 'size_t' });
+  koffi.struct('CryptoFrostKeyGen', { group_public_key: CryptoBuffer, secret_shares: CryptoBuffer, public_shares: CryptoBuffer, count: 'size_t', error: 'void *' });
+  koffi.struct('CryptoFrostCommit', { hiding_nonce: CryptoBuffer, binding_nonce: CryptoBuffer, hiding_commit: CryptoBuffer, binding_commit: CryptoBuffer, error: 'void *' });
 
   const f = (sig) => lib.func(sig);
   _native = {
@@ -241,6 +243,17 @@ function ensureLoaded() {
   sessEncrypt: f('CryptoBufferResult cryptolib_session_encrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
   sessDecrypt: f('CryptoBufferResult cryptolib_session_decrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
   sessFree: f('void cryptolib_session_free(void *)'),
+
+  // FROST(Ed25519, SHA-512) — RFC 9591 threshold signatures.
+  frostKeygen: f('CryptoFrostKeyGen cryptolib_frost_keygen(uint16_t, uint16_t)'),
+  frostKgFree: f('void cryptolib_frost_keygen_free(CryptoFrostKeyGen*)'),
+  frostCommit: f('CryptoFrostCommit cryptolib_frost_commit(uint8_t*, size_t, uint16_t)'),
+  frostCommitNonces: f('CryptoFrostCommit cryptolib_frost_commit_with_nonces(uint16_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  frostCommitFree: f('void cryptolib_frost_commit_free(CryptoFrostCommit*)'),
+  frostSign: f('CryptoBufferResult cryptolib_frost_sign(uint16_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t)'),
+  frostAggregate: f('CryptoBufferResult cryptolib_frost_aggregate(uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t, uint8_t*)'),
+  frostVerify: f('int cryptolib_frost_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  frostVerifyShare: f('int cryptolib_frost_verify_share(uint16_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -461,6 +474,92 @@ class Session {
   close() { if (this._h) { fn.sessFree(this._h); this._h = null; } }
 }
 
+// ═══ FROST(Ed25519, SHA-512) — t-of-n threshold signatures (RFC 9591) ══════════
+// t of n parties jointly produce ONE ordinary Ed25519 signature; no single party
+// can sign, any t can, and the result verifies with plain Ed25519 against the
+// group public key. Commitments/nonces are plain {hiding, binding} byte objects.
+//
+//   const kg = Frost.keygen(5, 3);                 // any 3-of-5 sign
+//   const r0 = Frost.commit(kg.secretShares[0], 1);
+//   const r1 = Frost.commit(kg.secretShares[1], 2);
+//   const r3 = Frost.commit(kg.secretShares[3], 4);
+//   const cs = [r0.commitment, r1.commitment, r3.commitment];
+//   const s0 = Frost.sign(1, kg.secretShares[0], kg.groupPublicKey, r0.nonces, msg, cs);
+//   const s1 = Frost.sign(2, kg.secretShares[1], kg.groupPublicKey, r1.nonces, msg, cs);
+//   const s3 = Frost.sign(4, kg.secretShares[3], kg.groupPublicKey, r3.nonces, msg, cs);
+//   const sig = Frost.aggregate(kg.groupPublicKey, msg, cs, [s0, s1, s3]);
+//   Frost.verify(msg, sig, kg.groupPublicKey);     // → true (standard Ed25519)
+function frostCommitOut(c, identifier) {
+  if (c.error) { const m = koffi.decode(c.error, 'char', -1); fn.frostCommitFree(c); throw new Error(m); }
+  const nonces = { hiding: b(c.hiding_nonce), binding: b(c.binding_nonce) };
+  const commitment = { identifier, hiding: b(c.hiding_commit), binding: b(c.binding_commit) };
+  fn.frostCommitFree(c);
+  return { nonces, commitment };
+}
+// Flatten commitments into the three parallel wire arrays.
+function frostBufs(cs) {
+  return {
+    ids: cs.map((c) => c.identifier),
+    hid: Buffer.concat(cs.map((c) => u8(c.hiding))),
+    bnd: Buffer.concat(cs.map((c) => u8(c.binding))),
+  };
+}
+const Frost = {
+  /** Trusted-dealer split: any t of n shares can sign. Share i has identifier i+1. */
+  keygen(n, t) {
+    const kg = fn.frostKeygen(n, t);
+    if (kg.error) { const m = koffi.decode(kg.error, 'char', -1); fn.frostKgFree(kg); throw new Error(m); }
+    const count = Number(kg.count);
+    const groupPublicKey = b(kg.group_public_key);
+    const secs = b(kg.secret_shares), pubs = b(kg.public_shares);
+    fn.frostKgFree(kg);
+    const secretShares = [], publicShares = [];
+    for (let i = 0; i < count; i++) {
+      secretShares.push(secs.subarray(i * 32, i * 32 + 32));
+      publicShares.push(pubs.subarray(i * 32, i * 32 + 32));
+    }
+    return { groupPublicKey, secretShares, publicShares };
+  },
+  /** Round 1: fresh random {nonces, commitment} for a share. Keep nonces secret. */
+  commit(shareSecret, identifier) {
+    return frostCommitOut(fn.frostCommit(u8(shareSecret), u8(shareSecret).length, identifier), identifier);
+  },
+  /** Deterministic round-1 commit from caller nonces (test vectors). */
+  commitWithNonces(identifier, hiding, binding) {
+    return frostCommitOut(fn.frostCommitNonces(identifier, u8(hiding), u8(hiding).length, u8(binding), u8(binding).length), identifier);
+  },
+  /** Round 2: this participant's 32-byte signature share. */
+  sign(identifier, shareSecret, groupPublicKey, nonces, msg, commitments) {
+    const { ids, hid, bnd } = frostBufs(commitments);
+    return consume(fn.frostSign(identifier, u8(shareSecret), u8(shareSecret).length,
+      u8(groupPublicKey), u8(groupPublicKey).length,
+      u8(nonces.hiding), u8(nonces.hiding).length,
+      u8(nonces.binding), u8(nonces.binding).length,
+      u8(msg), u8(msg).length, ids, hid, bnd, commitments.length));
+  },
+  /** Aggregate shares → one 64-byte Ed25519 signature. */
+  aggregate(groupPublicKey, msg, commitments, sigShares) {
+    const { ids, hid, bnd } = frostBufs(commitments);
+    const flat = Buffer.concat(sigShares.map(u8));
+    return consume(fn.frostAggregate(u8(groupPublicKey), u8(groupPublicKey).length,
+      u8(msg), u8(msg).length, ids, hid, bnd, commitments.length, flat));
+  },
+  /** Verify an aggregate signature (standard Ed25519). */
+  verify(msg, sig, groupPublicKey) {
+    return fn.frostVerify(u8(msg), u8(msg).length, u8(sig), u8(sig).length, u8(groupPublicKey), u8(groupPublicKey).length) === 1;
+  },
+  /** Verify one participant's signature share against its public share. */
+  verifyShare(identifier, publicShare, sigShare, commitment, groupPublicKey, msg, commitments) {
+    const { ids, hid, bnd } = frostBufs(commitments);
+    return fn.frostVerifyShare(identifier, u8(publicShare), u8(publicShare).length,
+      u8(sigShare), u8(sigShare).length,
+      u8(commitment.hiding), u8(commitment.hiding).length,
+      u8(commitment.binding), u8(commitment.binding).length,
+      u8(groupPublicKey), u8(groupPublicKey).length,
+      u8(msg), u8(msg).length, ids, hid, bnd, commitments.length) === 1;
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -475,7 +574,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },

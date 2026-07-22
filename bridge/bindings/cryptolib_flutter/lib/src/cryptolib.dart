@@ -43,6 +43,7 @@ part 'api/molecular_vault.dart';
 part 'api/suite.dart';
 part 'api/sealed.dart';
 part 'api/session.dart';
+part 'api/frost.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

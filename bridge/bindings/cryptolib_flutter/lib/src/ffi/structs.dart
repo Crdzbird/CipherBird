@@ -36,6 +36,24 @@ final class CryptoKemEncapsResult extends Struct {
   external CryptoBuffer sharedSecret;
 }
 
+final class CryptoFrostKeyGen extends Struct {
+  external CryptoBuffer groupPublicKey;
+  external CryptoBuffer secretShares;
+  external CryptoBuffer publicShares;
+
+  @Size()
+  external int count;
+  external Pointer<Utf8> error;
+}
+
+final class CryptoFrostCommit extends Struct {
+  external CryptoBuffer hidingNonce;
+  external CryptoBuffer bindingNonce;
+  external CryptoBuffer hidingCommit;
+  external CryptoBuffer bindingCommit;
+  external Pointer<Utf8> error;
+}
+
 final class CryptoAsymBundle extends Struct {
   external CryptoBuffer boxPublic;
   external CryptoBuffer boxSecret;
