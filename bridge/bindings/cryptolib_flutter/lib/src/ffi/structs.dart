@@ -54,6 +54,12 @@ final class CryptoFrostCommit extends Struct {
   external Pointer<Utf8> error;
 }
 
+final class CryptoOprfBlind extends Struct {
+  external CryptoBuffer blind;
+  external CryptoBuffer blindedElement;
+  external Pointer<Utf8> error;
+}
+
 final class CryptoAsymBundle extends Struct {
   external CryptoBuffer boxPublic;
   external CryptoBuffer boxSecret;

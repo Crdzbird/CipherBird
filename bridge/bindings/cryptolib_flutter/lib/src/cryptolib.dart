@@ -47,6 +47,7 @@ part 'api/frost.dart';
 part 'api/hpke.dart';
 part 'api/ecvrf.dart';
 part 'api/bbs.dart';
+part 'api/oprf.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

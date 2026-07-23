@@ -48,6 +48,7 @@ function ensureLoaded() {
   koffi.struct('CryptoSealedInfo', { ok: 'uint8', version: 'uint8', suite: 'uint8', streaming: 'uint8', fingerprint: koffi.array('uint8', 16), kem_ciphertext_len: 'size_t' });
   koffi.struct('CryptoFrostKeyGen', { group_public_key: CryptoBuffer, secret_shares: CryptoBuffer, public_shares: CryptoBuffer, count: 'size_t', error: 'void *' });
   koffi.struct('CryptoFrostCommit', { hiding_nonce: CryptoBuffer, binding_nonce: CryptoBuffer, hiding_commit: CryptoBuffer, binding_commit: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoOprfBlind', { blind: CryptoBuffer, blinded_element: CryptoBuffer, error: 'void *' });
 
   const f = (sig) => lib.func(sig);
   _native = {
@@ -271,6 +272,15 @@ function ensureLoaded() {
   ecvrfProve: f('CryptoBufferResult cryptolib_ecvrf_prove(uint8_t*, size_t, uint8_t*, size_t)'),
   ecvrfProofToHash: f('CryptoBufferResult cryptolib_ecvrf_proof_to_hash(uint8_t*, size_t)'),
   ecvrfVerify: f('CryptoBufferResult cryptolib_ecvrf_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+
+  // OPRF (RFC 9497) — oblivious pseudorandom function.
+  oprfDerive: f('CryptoKeyPair cryptolib_oprf_derive_keypair(uint8_t*, size_t, uint8_t*, size_t)'),
+  oprfBlind: f('CryptoOprfBlind cryptolib_oprf_blind(uint8_t*, size_t)'),
+  oprfBlindScalar: f('CryptoOprfBlind cryptolib_oprf_blind_with_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
+  oprfBlindFree: f('void cryptolib_oprf_blind_free(CryptoOprfBlind*)'),
+  oprfBlindEval: f('CryptoBufferResult cryptolib_oprf_blind_evaluate(uint8_t*, size_t, uint8_t*, size_t)'),
+  oprfFinalize: f('CryptoBufferResult cryptolib_oprf_finalize(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  oprfEvaluate: f('CryptoBufferResult cryptolib_oprf_evaluate(uint8_t*, size_t, uint8_t*, size_t)'),
 
   // BBS signatures + selective disclosure (BLS12-381-SHA-256).
   bbsKeygen: f('CryptoKeyPair cryptolib_bbs_keygen(uint8_t*, size_t, uint8_t*, size_t)'),
@@ -689,6 +699,40 @@ const Bbs = {
   },
 };
 
+// ═══ OPRF — Oblivious Pseudorandom Function (RFC 9497) ═════════════════════════
+// Client blinds its input; server evaluates under its key without seeing it;
+// client unblinds to the PRF output. Privacy Pass, PSI, password hardening.
+const Oprf = {
+  deriveKeyPair(seed, info = null) {
+    const k = kp(fn.oprfDerive(u8(seed), u8(seed).length, info ? u8(info) : null, info ? u8(info).length : 0));
+    if (k.publicKey.length === 0) throw new Error('cryptolib: oprf derive_keypair failed');
+    return k;
+  },
+  blind(input) {
+    const r = fn.oprfBlind(u8(input), u8(input).length);
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.oprfBlindFree(r); throw new Error(m); }
+    const out = { blind: b(r.blind), blindedElement: b(r.blinded_element) };
+    fn.oprfBlindFree(r);
+    return out;
+  },
+  blindWithScalar(input, blindScalar) {
+    const r = fn.oprfBlindScalar(u8(input), u8(input).length, u8(blindScalar), u8(blindScalar).length);
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.oprfBlindFree(r); throw new Error(m); }
+    const out = { blind: b(r.blind), blindedElement: b(r.blinded_element) };
+    fn.oprfBlindFree(r);
+    return out;
+  },
+  blindEvaluate(secretKey, blindedElement) {
+    return consume(fn.oprfBlindEval(u8(secretKey), u8(secretKey).length, u8(blindedElement), u8(blindedElement).length));
+  },
+  finalize(input, blindScalar, evaluatedElement) {
+    return consume(fn.oprfFinalize(u8(input), u8(input).length, u8(blindScalar), u8(blindScalar).length, u8(evaluatedElement), u8(evaluatedElement).length));
+  },
+  evaluate(secretKey, input) {
+    return consume(fn.oprfEvaluate(u8(secretKey), u8(secretKey).length, u8(input), u8(input).length));
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -703,7 +747,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },

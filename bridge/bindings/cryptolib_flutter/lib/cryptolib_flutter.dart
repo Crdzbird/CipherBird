@@ -41,6 +41,8 @@ export 'src/cryptolib.dart'
         CryptoLibHpke,
         CryptoLibEcvrf,
         CryptoLibBbs,
+        CryptoLibOprf,
+        OprfBlindResult,
         HpkeKdf,
         HpkeAead,
         HpkeMode,
