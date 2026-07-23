@@ -182,6 +182,15 @@ swift-hpke: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_hpke | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-ecvrf
+swift-ecvrf: lib
+	$(call hdr,Swift ECVRF (RFC 9381))
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/ecvrf.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_ecvrf && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_ecvrf | tail -12; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))

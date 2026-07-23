@@ -264,6 +264,13 @@ function ensureLoaded() {
   hpkeOpen: f('CryptoBufferResult cryptolib_hpke_open(void*, uint8_t*, size_t, uint8_t*, size_t)'),
   hpkeExport: f('CryptoBufferResult cryptolib_hpke_export(void*, uint8_t*, size_t, size_t)'),
   hpkeCtxFree: f('void cryptolib_hpke_context_free(void*)'),
+
+  // ECVRF (RFC 9381) — verifiable random function.
+  ecvrfKeygen: f('CryptoKeyPair cryptolib_ecvrf_keygen()'),
+  ecvrfPubkey: f('CryptoBufferResult cryptolib_ecvrf_public_key(uint8_t*, size_t)'),
+  ecvrfProve: f('CryptoBufferResult cryptolib_ecvrf_prove(uint8_t*, size_t, uint8_t*, size_t)'),
+  ecvrfProofToHash: f('CryptoBufferResult cryptolib_ecvrf_proof_to_hash(uint8_t*, size_t)'),
+  ecvrfVerify: f('CryptoBufferResult cryptolib_ecvrf_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -626,6 +633,20 @@ const Hpke = {
   },
 };
 
+// ═══ ECVRF — Verifiable Random Function (RFC 9381) ═════════════════════════════
+// A public-key PRF: prove(sk, alpha) yields a unique 64-byte output plus a proof
+// anyone can verify with the public key. verify throws on an invalid proof.
+const Ecvrf = {
+  keygen() { return kp(fn.ecvrfKeygen()); },
+  publicKey(secretKey) { return consume(fn.ecvrfPubkey(u8(secretKey), u8(secretKey).length)); },
+  prove(secretKey, alpha) { return consume(fn.ecvrfProve(u8(secretKey), u8(secretKey).length, u8(alpha), u8(alpha).length)); },
+  proofToHash(proof) { return consume(fn.ecvrfProofToHash(u8(proof), u8(proof).length)); },
+  /** Returns the 64-byte beta on success; throws if the proof is invalid. */
+  verify(publicKey, alpha, proof) {
+    return consume(fn.ecvrfVerify(u8(publicKey), u8(publicKey).length, u8(alpha), u8(alpha).length, u8(proof), u8(proof).length));
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -640,7 +661,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
