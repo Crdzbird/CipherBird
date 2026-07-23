@@ -60,6 +60,31 @@ final class CryptoOprfBlind extends Struct {
   external Pointer<Utf8> error;
 }
 
+final class CryptoOpaqueRecord extends Struct {
+  external CryptoBuffer record;
+  external CryptoBuffer exportKey;
+  external Pointer<Utf8> error;
+}
+
+final class CryptoOpaqueKe1 extends Struct {
+  external CryptoBuffer ke1;
+  external CryptoBuffer clientState;
+  external Pointer<Utf8> error;
+}
+
+final class CryptoOpaqueKe2 extends Struct {
+  external CryptoBuffer ke2;
+  external CryptoBuffer serverState;
+  external Pointer<Utf8> error;
+}
+
+final class CryptoOpaqueKe3 extends Struct {
+  external CryptoBuffer ke3;
+  external CryptoBuffer sessionKey;
+  external CryptoBuffer exportKey;
+  external Pointer<Utf8> error;
+}
+
 final class CryptoAsymBundle extends Struct {
   external CryptoBuffer boxPublic;
   external CryptoBuffer boxSecret;

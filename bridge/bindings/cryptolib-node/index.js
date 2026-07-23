@@ -49,6 +49,10 @@ function ensureLoaded() {
   koffi.struct('CryptoFrostKeyGen', { group_public_key: CryptoBuffer, secret_shares: CryptoBuffer, public_shares: CryptoBuffer, count: 'size_t', error: 'void *' });
   koffi.struct('CryptoFrostCommit', { hiding_nonce: CryptoBuffer, binding_nonce: CryptoBuffer, hiding_commit: CryptoBuffer, binding_commit: CryptoBuffer, error: 'void *' });
   koffi.struct('CryptoOprfBlind', { blind: CryptoBuffer, blinded_element: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoOpaqueRecord', { record: CryptoBuffer, export_key: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoOpaqueKe1', { ke1: CryptoBuffer, client_state: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoOpaqueKe2', { ke2: CryptoBuffer, server_state: CryptoBuffer, error: 'void *' });
+  koffi.struct('CryptoOpaqueKe3', { ke3: CryptoBuffer, session_key: CryptoBuffer, export_key: CryptoBuffer, error: 'void *' });
 
   const f = (sig) => lib.func(sig);
   _native = {
@@ -281,6 +285,19 @@ function ensureLoaded() {
   oprfBlindEval: f('CryptoBufferResult cryptolib_oprf_blind_evaluate(uint8_t*, size_t, uint8_t*, size_t)'),
   oprfFinalize: f('CryptoBufferResult cryptolib_oprf_finalize(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   oprfEvaluate: f('CryptoBufferResult cryptolib_oprf_evaluate(uint8_t*, size_t, uint8_t*, size_t)'),
+
+  // OPAQUE aPAKE (OPAQUE-3DH, ristretto255-SHA-512).
+  opaqueRegRequest: f('CryptoOprfBlind cryptolib_opaque_registration_request(uint8_t*, size_t)'),
+  opaqueRegResponse: f('CryptoBufferResult cryptolib_opaque_registration_response(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  opaqueFinalize: f('CryptoOpaqueRecord cryptolib_opaque_finalize_request(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  opaqueRecordFree: f('void cryptolib_opaque_record_free(CryptoOpaqueRecord*)'),
+  opaqueClientInit: f('CryptoOpaqueKe1 cryptolib_opaque_client_init(uint8_t*, size_t)'),
+  opaqueKe1Free: f('void cryptolib_opaque_ke1_free(CryptoOpaqueKe1*)'),
+  opaqueServerRespond: f('CryptoOpaqueKe2 cryptolib_opaque_server_respond(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  opaqueKe2Free: f('void cryptolib_opaque_ke2_free(CryptoOpaqueKe2*)'),
+  opaqueClientFinish: f('CryptoOpaqueKe3 cryptolib_opaque_client_finish(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  opaqueKe3Free: f('void cryptolib_opaque_ke3_free(CryptoOpaqueKe3*)'),
+  opaqueServerFinish: f('CryptoBufferResult cryptolib_opaque_server_finish(uint8_t*, size_t, uint8_t*, size_t)'),
 
   // BBS signatures + selective disclosure (BLS12-381-SHA-256).
   bbsKeygen: f('CryptoKeyPair cryptolib_bbs_keygen(uint8_t*, size_t, uint8_t*, size_t)'),
@@ -733,6 +750,60 @@ const Oprf = {
   },
 };
 
+// ═══ OPAQUE — asymmetric PAKE (OPAQUE-3DH, ristretto255-SHA-512) ═══════════════
+// Client and server agree on a session key from a password that never leaves the
+// client and is never stored server-side. Registration, then a 3DH login.
+const Opaque = {
+  registrationRequest(password) {
+    const r = fn.opaqueRegRequest(u8(password), u8(password).length);
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.oprfBlindFree(r); throw new Error(m); }
+    const out = { blind: b(r.blind), request: b(r.blinded_element) };
+    fn.oprfBlindFree(r);
+    return out;
+  },
+  registrationResponse(request, serverPublicKey, credentialIdentifier, oprfSeed) {
+    return consume(fn.opaqueRegResponse(u8(request), u8(request).length, u8(serverPublicKey), u8(serverPublicKey).length,
+      u8(credentialIdentifier), u8(credentialIdentifier).length, u8(oprfSeed), u8(oprfSeed).length));
+  },
+  finalizeRequest(password, blind, response, serverIdentity = null, clientIdentity = null) {
+    const r = fn.opaqueFinalize(u8(password), u8(password).length, u8(blind), u8(blind).length,
+      u8(response), u8(response).length, optr(serverIdentity), olen(serverIdentity), optr(clientIdentity), olen(clientIdentity));
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.opaqueRecordFree(r); throw new Error(m); }
+    const out = { record: b(r.record), exportKey: b(r.export_key) };
+    fn.opaqueRecordFree(r);
+    return out;
+  },
+  clientInit(password) {
+    const r = fn.opaqueClientInit(u8(password), u8(password).length);
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.opaqueKe1Free(r); throw new Error(m); }
+    const out = { ke1: b(r.ke1), clientState: b(r.client_state) };
+    fn.opaqueKe1Free(r);
+    return out;
+  },
+  serverRespond(context, serverPrivateKey, serverPublicKey, record, credentialIdentifier, oprfSeed, ke1, serverIdentity = null, clientIdentity = null) {
+    const r = fn.opaqueServerRespond(u8(context), u8(context).length, u8(serverPrivateKey), u8(serverPrivateKey).length,
+      u8(serverPublicKey), u8(serverPublicKey).length, u8(record), u8(record).length,
+      u8(credentialIdentifier), u8(credentialIdentifier).length, u8(oprfSeed), u8(oprfSeed).length, u8(ke1), u8(ke1).length,
+      optr(serverIdentity), olen(serverIdentity), optr(clientIdentity), olen(clientIdentity));
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.opaqueKe2Free(r); throw new Error(m); }
+    const out = { ke2: b(r.ke2), serverState: b(r.server_state) };
+    fn.opaqueKe2Free(r);
+    return out;
+  },
+  /** Authenticates the server; throws on a wrong password / server auth failure. */
+  clientFinish(clientState, ke2, context, serverIdentity = null, clientIdentity = null) {
+    const r = fn.opaqueClientFinish(u8(clientState), u8(clientState).length, u8(ke2), u8(ke2).length,
+      u8(context), u8(context).length, optr(serverIdentity), olen(serverIdentity), optr(clientIdentity), olen(clientIdentity));
+    if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.opaqueKe3Free(r); throw new Error(m); }
+    const out = { ke3: b(r.ke3), sessionKey: b(r.session_key), exportKey: b(r.export_key) };
+    fn.opaqueKe3Free(r);
+    return out;
+  },
+  serverFinish(serverState, ke3) {
+    return consume(fn.opaqueServerFinish(u8(serverState), u8(serverState).length, u8(ke3), u8(ke3).length));
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -747,7 +818,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
