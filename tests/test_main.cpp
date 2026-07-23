@@ -47,6 +47,7 @@ void run_tests_session();
 void run_tests_frost();
 void run_tests_ecvrf();
 void run_tests_bbs();
+void run_tests_oprf();
 void run_tests_hpke();
 void run_tests_noise();
 void run_tests_noise_kat();
@@ -94,6 +95,7 @@ int main() {
     run_suite("frost",          run_tests_frost);
     run_suite("ecvrf",          run_tests_ecvrf);
     run_suite("bbs",            run_tests_bbs);
+    run_suite("oprf",           run_tests_oprf);
     run_suite("hpke",           run_tests_hpke);
     run_suite("noise_xx",       run_tests_noise);
     run_suite("noise_xx_kat",   run_tests_noise_kat);
