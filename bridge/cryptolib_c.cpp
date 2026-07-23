@@ -2280,6 +2280,114 @@ CRYPTO_API CryptoBufferResult cryptolib_oprf_evaluate(
 } CL_FAIL_BUFRES
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * OPAQUE — asymmetric PAKE (draft-irtf-cfrg-opaque, OPAQUE-3DH)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API void cryptolib_opaque_record_free(CryptoOpaqueRecord* r) {
+    if (!r) return;
+    cryptolib_buffer_free(&r->record);
+    cryptolib_buffer_free(&r->export_key);
+    if (r->error) { std::free(r->error); r->error = nullptr; }
+}
+CRYPTO_API void cryptolib_opaque_ke1_free(CryptoOpaqueKe1* k) {
+    if (!k) return;
+    cryptolib_buffer_free(&k->ke1);
+    cryptolib_buffer_free(&k->client_state);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+CRYPTO_API void cryptolib_opaque_ke2_free(CryptoOpaqueKe2* k) {
+    if (!k) return;
+    cryptolib_buffer_free(&k->ke2);
+    cryptolib_buffer_free(&k->server_state);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+CRYPTO_API void cryptolib_opaque_ke3_free(CryptoOpaqueKe3* k) {
+    if (!k) return;
+    cryptolib_buffer_free(&k->ke3);
+    cryptolib_buffer_free(&k->session_key);
+    cryptolib_buffer_free(&k->export_key);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+
+CRYPTO_API CryptoOprfBlind cryptolib_opaque_registration_request(
+    const uint8_t* password, size_t password_len) try {
+    CryptoOprfBlind out{};
+    auto r = crypto::Opaque::create_registration_request(sp(password, password_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.blind = to_cbuf(r.value().blind);
+    out.blinded_element = to_cbuf(r.value().blinded_element);
+    return out;
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cryptolib_opaque_registration_response(
+    const uint8_t* request, size_t request_len, const uint8_t* server_public_key, size_t spk_len,
+    const uint8_t* credential_identifier, size_t ci_len, const uint8_t* oprf_seed, size_t seed_len) try {
+    auto r = crypto::Opaque::create_registration_response(sp(request, request_len),
+        sp(server_public_key, spk_len), sp(credential_identifier, ci_len), sp(oprf_seed, seed_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoOpaqueRecord cryptolib_opaque_finalize_request(
+    const uint8_t* password, size_t password_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* response, size_t response_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueRecord out{};
+    auto r = crypto::Opaque::finalize_registration_request(sp(password, password_len), sp(blind, blind_len),
+        sp(response, response_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.record = to_cbuf(r.value().record);
+    out.export_key = to_cbuf(r.value().export_key);
+    return out;
+} catch (...) { CryptoOpaqueRecord o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe1 cryptolib_opaque_client_init(const uint8_t* password, size_t password_len) try {
+    CryptoOpaqueKe1 out{};
+    auto r = crypto::Opaque::client_generate_ke1(sp(password, password_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke1 = to_cbuf(r.value().ke1);
+    out.client_state = to_cbuf(r.value().client_state);
+    return out;
+} catch (...) { CryptoOpaqueKe1 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe2 cryptolib_opaque_server_respond(
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_private_key, size_t sk_len, const uint8_t* server_public_key, size_t pk_len,
+    const uint8_t* record, size_t record_len, const uint8_t* credential_identifier, size_t ci_len,
+    const uint8_t* oprf_seed, size_t seed_len, const uint8_t* ke1, size_t ke1_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueKe2 out{};
+    auto r = crypto::Opaque::server_generate_ke2(sp(context, context_len), sp(server_private_key, sk_len),
+        sp(server_public_key, pk_len), sp(record, record_len), sp(credential_identifier, ci_len),
+        sp(oprf_seed, seed_len), sp(ke1, ke1_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke2 = to_cbuf(r.value().ke2);
+    out.server_state = to_cbuf(r.value().server_state);
+    return out;
+} catch (...) { CryptoOpaqueKe2 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe3 cryptolib_opaque_client_finish(
+    const uint8_t* client_state, size_t cs_len, const uint8_t* ke2, size_t ke2_len,
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueKe3 out{};
+    auto r = crypto::Opaque::client_generate_ke3(sp(client_state, cs_len), sp(ke2, ke2_len),
+        sp(context, context_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke3 = to_cbuf(r.value().ke3);
+    out.session_key = to_cbuf(r.value().session_key);
+    out.export_key = to_cbuf(r.value().export_key);
+    return out;
+} catch (...) { CryptoOpaqueKe3 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cryptolib_opaque_server_finish(
+    const uint8_t* server_state, size_t ss_len, const uint8_t* ke3, size_t ke3_len) try {
+    auto r = crypto::Opaque::server_finish(sp(server_state, ss_len), sp(ke3, ke3_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  * ═══════════════════════════════════════════════════════════════════════════ */
 

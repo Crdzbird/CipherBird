@@ -43,7 +43,7 @@ public:
     static constexpr std::size_t ENVELOPE_BYTES = Nn + Nm;               // 96
     static constexpr std::size_t REGISTRATION_REQUEST_BYTES = Noe;       // 32
     static constexpr std::size_t REGISTRATION_RESPONSE_BYTES = Noe + Npk; // 64
-    static constexpr std::size_t REGISTRATION_RECORD_BYTES = Npk + Nh + ENVELOPE_BYTES; // 196
+    static constexpr std::size_t REGISTRATION_RECORD_BYTES = Npk + Nh + ENVELOPE_BYTES; // 192
 
     struct FinalizeResult { SecureBuffer record; SecureBuffer export_key; };
 

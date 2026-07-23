@@ -1143,6 +1143,84 @@ CRYPTO_API CryptoBufferResult cryptolib_oprf_evaluate(
     const uint8_t* sk, size_t sk_len, const uint8_t* input, size_t input_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * OPAQUE — asymmetric PAKE (draft-irtf-cfrg-opaque, OPAQUE-3DH,
+ *   ristretto255-SHA-512). A client and server agree on a session key from a
+ *   password that never leaves the client and is never stored server-side.
+ *   Two phases: registration, then a 3DH login. Optional identity strings pass
+ *   NULL/0 to default to the public keys. libsodium only. Uses the OPRF above.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Registration record (upload to server) + export_key. */
+typedef struct {
+    CryptoBuffer record;      /**< 192 B — store on the server */
+    CryptoBuffer export_key;  /**< 64 B — client-side derived key */
+    char*        error;
+} CryptoOpaqueRecord;
+CRYPTO_API void cryptolib_opaque_record_free(CryptoOpaqueRecord* r);
+
+/** Client login message 1 + opaque client state (feed to client_finish). */
+typedef struct {
+    CryptoBuffer ke1;          /**< 96 B — send to server */
+    CryptoBuffer client_state; /**< opaque; keep for client_finish */
+    char*        error;
+} CryptoOpaqueKe1;
+CRYPTO_API void cryptolib_opaque_ke1_free(CryptoOpaqueKe1* k);
+
+/** Server login message 2 + opaque server state (feed to server_finish). */
+typedef struct {
+    CryptoBuffer ke2;          /**< 320 B — send to client */
+    CryptoBuffer server_state; /**< opaque; keep for server_finish */
+    char*        error;
+} CryptoOpaqueKe2;
+CRYPTO_API void cryptolib_opaque_ke2_free(CryptoOpaqueKe2* k);
+
+/** Client login message 3 + the agreed session key + export_key. */
+typedef struct {
+    CryptoBuffer ke3;          /**< 64 B — send to server */
+    CryptoBuffer session_key;  /**< 64 B — the shared session key */
+    CryptoBuffer export_key;   /**< 64 B */
+    char*        error;        /**< set on wrong password / server auth failure */
+} CryptoOpaqueKe3;
+CRYPTO_API void cryptolib_opaque_ke3_free(CryptoOpaqueKe3* k);
+
+/** Client registration step 1: blind the password. Returns {blind, request}
+ *  in a CryptoOprfBlind (send blinded_element as the request; keep blind). */
+CRYPTO_API CryptoOprfBlind cryptolib_opaque_registration_request(
+    const uint8_t* password, size_t password_len);
+
+/** Server registration step: → 64-byte registration response. */
+CRYPTO_API CryptoBufferResult cryptolib_opaque_registration_response(
+    const uint8_t* request, size_t request_len, const uint8_t* server_public_key, size_t spk_len,
+    const uint8_t* credential_identifier, size_t ci_len, const uint8_t* oprf_seed, size_t seed_len);
+
+/** Client registration step 2: → record + export_key. */
+CRYPTO_API CryptoOpaqueRecord cryptolib_opaque_finalize_request(
+    const uint8_t* password, size_t password_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* response, size_t response_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Client login step 1: → KE1 + client_state. */
+CRYPTO_API CryptoOpaqueKe1 cryptolib_opaque_client_init(const uint8_t* password, size_t password_len);
+
+/** Server login step 1: → KE2 + server_state. */
+CRYPTO_API CryptoOpaqueKe2 cryptolib_opaque_server_respond(
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_private_key, size_t sk_len, const uint8_t* server_public_key, size_t pk_len,
+    const uint8_t* record, size_t record_len, const uint8_t* credential_identifier, size_t ci_len,
+    const uint8_t* oprf_seed, size_t seed_len, const uint8_t* ke1, size_t ke1_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Client login step 2: authenticate the server → KE3 + session_key + export_key. */
+CRYPTO_API CryptoOpaqueKe3 cryptolib_opaque_client_finish(
+    const uint8_t* client_state, size_t cs_len, const uint8_t* ke2, size_t ke2_len,
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Server login step 2: verify KE3 → the session key (error on auth failure). */
+CRYPTO_API CryptoBufferResult cryptolib_opaque_server_finish(
+    const uint8_t* server_state, size_t ss_len, const uint8_t* ke3, size_t ke3_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather
