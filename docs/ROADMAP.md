@@ -48,16 +48,25 @@ prefer *constructions* composed from existing primitives over new primitives.
   CFRG RFC 9180 vectors. C++ core + 9 tests, C ABI (opaque context handle), and
   all five bindings landed. Follow-up candidate: HPKE's hybrid/PQ KEM variants
   (X25519MLKEM768) once the draft stabilizes — the KEM slots in cleanly.
-- **HQC (code-based KEM).** NIST's 2025 code-based backup to ML-KEM — a genuinely
-  different math family (codes, not lattices). An optional X25519+HQC hybrid (or a
-  "quad" KEM) extends diversity beyond the two lattice families. liboqs ships it.
-  Caveat: CVE-2024-54137 + side-channel history — ship as an opt-in hedge, not a
-  default.
+- **HQC (code-based KEM) — ⏸ DEFERRED (build-blocked).** NIST's 2025 code-based
+  backup to ML-KEM — a genuinely different math family (codes, not lattices). An
+  optional X25519+HQC hybrid (or a "quad" KEM) extends diversity beyond the two
+  lattice families. **Blocker:** the pinned Homebrew liboqs 0.15.0 is built with
+  `OQS_ENABLE_KEM_HQC` OFF (`OQS_KEM_new("HQC-*")` returns NULL), so it can't be
+  built or KAT-validated against the current dependency. Revisit once liboqs ships
+  HQC enabled (or via a vendored liboqs source build). Caveat: CVE-2024-54137 +
+  side-channel history — ship as an opt-in hedge, not a default.
 
 ## Tier 3 — targeted capabilities (adopt when a use case calls)
 
-- **ECVRF (RFC 9381)** — verifiable random function for leader election,
-  verifiable lotteries, on-chain randomness. Fits the existing chain-interop story.
+- **ECVRF (RFC 9381) — ✅ DONE (`crypto::Ecvrf`).** Verifiable random function
+  (ECVRF-EDWARDS25519-SHA512-TAI) for leader election, verifiable lotteries, and
+  on-chain randomness — the chain-interop counterpart to the EVM/BTC primitives.
+  prove/proof_to_hash/verify on libsodium edwards25519 + SHA-512; the
+  try-and-increment hash-to-curve clears the cofactor with three point additions
+  (no custom field arithmetic). Validated byte-for-byte against all three RFC 9381
+  Appendix B.3 vectors. C++ core + 4 tests, C ABI (stateless), and all five
+  bindings landed. (Pulled forward from Tier 3 when HQC was build-blocked.)
 - **BBS+ / anonymous credentials** over BLS12-381 (we already link blst) — selective
   disclosure and zero-knowledge attribute proofs (W3C Verifiable Credentials).
 - **OPAQUE (aPAKE, CFRG)** — password-authenticated key exchange so a password
@@ -88,8 +97,10 @@ demands them rather than folding them in here.
 1. ~~**PQ forward-secret ratchet**~~ — ✅ done (`crypto::Session`, all bindings).
 2. ~~**FROST threshold signatures**~~ — ✅ done (`crypto::Frost`, all bindings).
 3. ~~**HPKE (RFC 9180)**~~ — ✅ done (`crypto::Hpke`, all bindings).
-4. **HQC (code-based KEM)** — cryptographic-family diversity beyond lattices;
-   ship as an opt-in hybrid hedge (Tier 2), next up.
+4. ~~**ECVRF (RFC 9381)**~~ — ✅ done (`crypto::Ecvrf`, all bindings); pulled
+   forward from Tier 3 after HQC hit a build blocker.
+5. **HQC (code-based KEM)** — deferred until liboqs ships with HQC enabled;
+   then cryptographic-family diversity beyond lattices as an opt-in hedge.
 
 Everything else is demand-driven: add it when a target application needs it, and
 always behind the same discipline — vetted implementation, KATs before ship,
