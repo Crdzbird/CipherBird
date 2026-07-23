@@ -40,6 +40,7 @@ export 'src/cryptolib.dart'
         FrostNonces,
         CryptoLibHpke,
         CryptoLibEcvrf,
+        CryptoLibBbs,
         HpkeKdf,
         HpkeAead,
         HpkeMode,

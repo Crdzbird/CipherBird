@@ -271,6 +271,14 @@ function ensureLoaded() {
   ecvrfProve: f('CryptoBufferResult cryptolib_ecvrf_prove(uint8_t*, size_t, uint8_t*, size_t)'),
   ecvrfProofToHash: f('CryptoBufferResult cryptolib_ecvrf_proof_to_hash(uint8_t*, size_t)'),
   ecvrfVerify: f('CryptoBufferResult cryptolib_ecvrf_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+
+  // BBS signatures + selective disclosure (BLS12-381-SHA-256).
+  bbsKeygen: f('CryptoKeyPair cryptolib_bbs_keygen(uint8_t*, size_t, uint8_t*, size_t)'),
+  bbsSkToPk: f('CryptoBufferResult cryptolib_bbs_sk_to_pk(uint8_t*, size_t)'),
+  bbsSign: f('CryptoBufferResult cryptolib_bbs_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
+  bbsVerify: f('int cryptolib_bbs_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
+  bbsProofGen: f('CryptoBufferResult cryptolib_bbs_proof_gen(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
+  bbsProofVerify: f('int cryptolib_bbs_proof_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -647,6 +655,40 @@ const Ecvrf = {
   },
 };
 
+// ═══ BBS — multi-message signatures + selective disclosure (BLS12-381) ═════════
+// Sign a vector of messages; derive a proof revealing only a chosen subset while
+// proving a valid signature covers all of them (anonymous credentials).
+const Bbs = {
+  keygen(keyMaterial, keyInfo = null) {
+    const k = kp(fn.bbsKeygen(u8(keyMaterial), u8(keyMaterial).length, keyInfo ? u8(keyInfo) : null, keyInfo ? u8(keyInfo).length : 0));
+    if (k.publicKey.length === 0) throw new Error('cryptolib: bbs keygen failed (key material must be >= 32 bytes)');
+    return k;
+  },
+  skToPk(secretKey) { return consume(fn.bbsSkToPk(u8(secretKey), u8(secretKey).length)); },
+  sign(secretKey, publicKey, header, messages) {
+    const m = messages.map(u8);
+    return consume(fn.bbsSign(u8(secretKey), u8(secretKey).length, u8(publicKey), u8(publicKey).length,
+      u8(header), u8(header).length, m, m.map((x) => x.length), m.length));
+  },
+  verify(publicKey, signature, header, messages) {
+    const m = messages.map(u8);
+    return fn.bbsVerify(u8(publicKey), u8(publicKey).length, u8(signature), u8(signature).length,
+      u8(header), u8(header).length, m, m.map((x) => x.length), m.length) === 1;
+  },
+  proofGen(publicKey, signature, header, ph, messages, disclosedIndexes) {
+    const m = messages.map(u8);
+    return consume(fn.bbsProofGen(u8(publicKey), u8(publicKey).length, u8(signature), u8(signature).length,
+      u8(header), u8(header).length, u8(ph), u8(ph).length, m, m.map((x) => x.length), m.length,
+      disclosedIndexes, disclosedIndexes.length));
+  },
+  proofVerify(publicKey, proof, header, ph, disclosedMessages, disclosedIndexes) {
+    const m = disclosedMessages.map(u8);
+    return fn.bbsProofVerify(u8(publicKey), u8(publicKey).length, u8(proof), u8(proof).length,
+      u8(header), u8(header).length, u8(ph), u8(ph).length, m, m.map((x) => x.length), m.length,
+      disclosedIndexes, disclosedIndexes.length) === 1;
+  },
+};
+
 // Public envelope metadata (no secrets).
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
@@ -661,7 +703,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 module.exports = {
-  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf,
+  SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs,
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
