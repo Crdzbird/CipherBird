@@ -2223,6 +2223,63 @@ CRYPTO_API CryptoBufferResult cryptolib_ecvrf_verify(
 } CL_FAIL_BUFRES
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * OPRF — Oblivious Pseudorandom Function (RFC 9497)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API void cryptolib_oprf_blind_free(CryptoOprfBlind* b) {
+    if (!b) return;
+    cryptolib_buffer_free(&b->blind);
+    cryptolib_buffer_free(&b->blinded_element);
+    if (b->error) { std::free(b->error); b->error = nullptr; }
+}
+
+CRYPTO_API CryptoKeyPair cryptolib_oprf_derive_keypair(
+    const uint8_t* seed, size_t seed_len, const uint8_t* info, size_t info_len) try {
+    auto r = crypto::Oprf::derive_keypair(sp(seed, seed_len), sp(info, info_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+static CryptoOprfBlind oprf_blind_out(crypto::Result<crypto::Oprf::BlindResult>&& r) {
+    CryptoOprfBlind out{};
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.blind = to_cbuf(r.value().blind);
+    out.blinded_element = to_cbuf(r.value().blinded_element);
+    return out;
+}
+
+CRYPTO_API CryptoOprfBlind cryptolib_oprf_blind(const uint8_t* input, size_t input_len) try {
+    return oprf_blind_out(crypto::Oprf::blind(sp(input, input_len)));
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOprfBlind cryptolib_oprf_blind_with_scalar(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len) try {
+    return oprf_blind_out(crypto::Oprf::blind_with_scalar(sp(input, input_len), sp(blind, blind_len)));
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cryptolib_oprf_blind_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* blinded_element, size_t be_len) try {
+    auto r = crypto::Oprf::blind_evaluate(sp(sk, sk_len), sp(blinded_element, be_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_oprf_finalize(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* evaluated_element, size_t ee_len) try {
+    auto r = crypto::Oprf::finalize(sp(input, input_len), sp(blind, blind_len), sp(evaluated_element, ee_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_oprf_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* input, size_t input_len) try {
+    auto r = crypto::Oprf::evaluate(sp(sk, sk_len), sp(input, input_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  * ═══════════════════════════════════════════════════════════════════════════ */
 

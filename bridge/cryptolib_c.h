@@ -1101,6 +1101,48 @@ CRYPTO_API int cryptolib_bbs_proof_verify(
     const uint64_t* disclosed_indexes, size_t indexes_count);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * OPRF — Oblivious Pseudorandom Function (RFC 9497, ristretto255-SHA-512)
+ *   A two-party PRF: the client blinds its input, the server evaluates under
+ *   its key without seeing the input, the client unblinds to the PRF output.
+ *   Building block for Privacy Pass, PSI, password hardening, OPAQUE.
+ *   Elements/scalars are 32 B; the PRF output is 64 B. libsodium only.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** OPRF key pair from a seed (+ optional info). pk 32 B, sk 32 B. Empty on error. */
+CRYPTO_API CryptoKeyPair cryptolib_oprf_derive_keypair(
+    const uint8_t* seed, size_t seed_len, const uint8_t* info, size_t info_len);
+
+/** Client Blind output: the secret blind + the blinded element to send. */
+typedef struct {
+    CryptoBuffer blind;            /**< 32 B secret scalar (keep for finalize) */
+    CryptoBuffer blinded_element;  /**< 32 B — send to the server */
+    char*        error;            /**< heap-allocated; NULL on success */
+} CryptoOprfBlind;
+
+/** Free a CryptoOprfBlind (zeroises the blind). */
+CRYPTO_API void cryptolib_oprf_blind_free(CryptoOprfBlind* b);
+
+/** Client: blind an input with a fresh random scalar. */
+CRYPTO_API CryptoOprfBlind cryptolib_oprf_blind(const uint8_t* input, size_t input_len);
+
+/** Deterministic blind with a caller-supplied 32-byte scalar (test vectors). */
+CRYPTO_API CryptoOprfBlind cryptolib_oprf_blind_with_scalar(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len);
+
+/** Server: evaluate a blinded element under the secret key → evaluated element. */
+CRYPTO_API CryptoBufferResult cryptolib_oprf_blind_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* blinded_element, size_t be_len);
+
+/** Client: unblind the evaluated element → 64-byte PRF output. */
+CRYPTO_API CryptoBufferResult cryptolib_oprf_finalize(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* evaluated_element, size_t ee_len);
+
+/** Server one-shot: compute the PRF output directly from the key + input. */
+CRYPTO_API CryptoBufferResult cryptolib_oprf_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* input, size_t input_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather
