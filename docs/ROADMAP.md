@@ -84,10 +84,16 @@ prefer *constructions* composed from existing primitives over new primitives.
   and OPAQUE's core. Validated byte-for-byte against RFC 9497 Appendix A.1.1. C++
   core + 2 tests, C ABI, and all five bindings landed. (A final RFC, cleaner on the
   KAT discipline than the OPAQUE draft; pulled in first as OPAQUE's foundation.)
-- **OPAQUE (aPAKE, CFRG)** — password-authenticated key exchange so a password
-  yields a strong key without ever being sent. Its OPRF core is now done
-  (`crypto::Oprf`); remaining is the 3DH AKE + envelope. Composes with our
-  Argon2id + Noise. Still a draft (not a final RFC).
+- **OPAQUE (aPAKE, CFRG) — ✅ DONE (`crypto::Opaque`).** Asymmetric PAKE
+  (OPAQUE-3DH, ristretto255-SHA-512, KSF=Identity): client and server agree on a
+  session key from a password that never leaves the client and is never stored
+  server-side; a server compromise is offline-dictionary-hard and the password is
+  hidden even from a malicious server. Registration (request/response/finalize +
+  envelope) and a 3DH login (KE1/KE2/KE3 + mutual auth + session key), built on
+  `crypto::Oprf` + HKDF-SHA-512 + HMAC-SHA-512. Validated byte-for-byte against
+  the draft's official test vector (full registration AND the complete 3DH login,
+  both sides' session keys). C++ core + 3 tests, C ABI, and all five bindings.
+  Still a draft (not a final RFC).
 - **FN-DSA / FALCON (FIPS 206, in progress)** — compact PQ signatures (much smaller
   than ML-DSA) where signature size dominates. **Wait for a vetted constant-time
   implementation:** its floating-point Gaussian sampling is a notorious
