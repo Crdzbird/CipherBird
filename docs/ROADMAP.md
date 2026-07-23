@@ -77,8 +77,17 @@ prefer *constructions* composed from existing primitives over new primitives.
   draft fixtures (signatures + a proof reproduced via the fixture-trace mocked
   randomness). C++ core + 3 tests, C ABI (guarded by CRYPTOLIB_HAS_BLS), and all
   five bindings landed.
+- **OPRF (RFC 9497) — ✅ DONE (`crypto::Oprf`).** Oblivious pseudorandom function
+  (base-mode ristretto255-SHA-512): the client blinds its input, the server
+  evaluates under its key without seeing it, the client unblinds to a PRF output.
+  Building block for Privacy Pass, private set intersection, password hardening —
+  and OPAQUE's core. Validated byte-for-byte against RFC 9497 Appendix A.1.1. C++
+  core + 2 tests, C ABI, and all five bindings landed. (A final RFC, cleaner on the
+  KAT discipline than the OPAQUE draft; pulled in first as OPAQUE's foundation.)
 - **OPAQUE (aPAKE, CFRG)** — password-authenticated key exchange so a password
-  yields a strong key without ever being sent. Composes with our Argon2id + Noise.
+  yields a strong key without ever being sent. Its OPRF core is now done
+  (`crypto::Oprf`); remaining is the 3DH AKE + envelope. Composes with our
+  Argon2id + Noise. Still a draft (not a final RFC).
 - **FN-DSA / FALCON (FIPS 206, in progress)** — compact PQ signatures (much smaller
   than ML-DSA) where signature size dominates. **Wait for a vetted constant-time
   implementation:** its floating-point Gaussian sampling is a notorious
