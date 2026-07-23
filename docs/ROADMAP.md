@@ -67,8 +67,16 @@ prefer *constructions* composed from existing primitives over new primitives.
   (no custom field arithmetic). Validated byte-for-byte against all three RFC 9381
   Appendix B.3 vectors. C++ core + 4 tests, C ABI (stateless), and all five
   bindings landed. (Pulled forward from Tier 3 when HQC was build-blocked.)
-- **BBS+ / anonymous credentials** over BLS12-381 (we already link blst) — selective
-  disclosure and zero-knowledge attribute proofs (W3C Verifiable Credentials).
+- **BBS signatures / anonymous credentials — ✅ DONE (`crypto::Bbs`).** Multi-message
+  signatures with zero-knowledge SELECTIVE DISCLOSURE (W3C Verifiable Credentials,
+  mDL-style): sign a vector of messages; the holder derives a proof revealing only
+  a chosen subset while proving a valid signature covers all of them.
+  draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256, over blst (G1/G2 + pairings) +
+  SHA-256; only expand_message_xmd (RFC 9380) is assembled locally. keygen / sign /
+  verify / proof_gen / proof_verify. Validated byte-for-byte against the official
+  draft fixtures (signatures + a proof reproduced via the fixture-trace mocked
+  randomness). C++ core + 3 tests, C ABI (guarded by CRYPTOLIB_HAS_BLS), and all
+  five bindings landed.
 - **OPAQUE (aPAKE, CFRG)** — password-authenticated key exchange so a password
   yields a strong key without ever being sent. Composes with our Argon2id + Noise.
 - **FN-DSA / FALCON (FIPS 206, in progress)** — compact PQ signatures (much smaller
