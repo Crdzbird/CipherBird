@@ -1028,6 +1028,32 @@ CRYPTO_API CryptoBufferResult cryptolib_hpke_export(
 CRYPTO_API void cryptolib_hpke_context_free(CryptoHpkeContext h);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * ECVRF — Verifiable Random Function (RFC 9381)
+ *   ECVRF-EDWARDS25519-SHA512-TAI. A public-key PRF: the secret-key holder maps
+ *   an input to a unique, unpredictable 64-byte output plus an 80-byte proof
+ *   anyone can verify with the public key. libsodium only — no build guard.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Fresh Ed25519-style key pair (pk 32 B, sk = 32-byte seed). */
+CRYPTO_API CryptoKeyPair cryptolib_ecvrf_keygen(void);
+
+/** Derive the public key Y = x·B from a 32-byte secret seed. */
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_public_key(const uint8_t* sk, size_t sk_len);
+
+/** Prove: returns the 80-byte proof pi for (sk, alpha). */
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_prove(
+    const uint8_t* sk, size_t sk_len, const uint8_t* alpha, size_t alpha_len);
+
+/** proof_to_hash: returns the 64-byte VRF output beta for a proof. */
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_proof_to_hash(const uint8_t* pi, size_t pi_len);
+
+/** Verify: returns the 64-byte beta on success, or an error if the proof is
+ *  invalid (check .error). */
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* alpha, size_t alpha_len,
+    const uint8_t* pi, size_t pi_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather

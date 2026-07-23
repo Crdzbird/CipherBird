@@ -2081,6 +2081,41 @@ CRYPTO_API void cryptolib_hpke_context_free(CryptoHpkeContext h) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * ECVRF — Verifiable Random Function (RFC 9381)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoKeyPair cryptolib_ecvrf_keygen(void) try {
+    auto kp = crypto::Ecvrf::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_public_key(const uint8_t* sk, size_t sk_len) try {
+    if (sk_len != crypto::Ecvrf::SK_BYTES) return err_buf("ECVRF: secret key must be 32 bytes");
+    return ok_buf(crypto::Ecvrf::derive_public_key(sp(sk, sk_len)));
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_prove(
+    const uint8_t* sk, size_t sk_len, const uint8_t* alpha, size_t alpha_len) try {
+    auto r = crypto::Ecvrf::prove(sp(sk, sk_len), sp(alpha, alpha_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_proof_to_hash(const uint8_t* pi, size_t pi_len) try {
+    auto r = crypto::Ecvrf::proof_to_hash(sp(pi, pi_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_ecvrf_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* alpha, size_t alpha_len,
+    const uint8_t* pi, size_t pi_len) try {
+    auto r = crypto::Ecvrf::verify(sp(pk, pk_len), sp(alpha, alpha_len), sp(pi, pi_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  * ═══════════════════════════════════════════════════════════════════════════ */
 
