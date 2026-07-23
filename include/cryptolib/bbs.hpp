@@ -21,6 +21,8 @@
  * ╚════════════════════════════════════════════════════════════════════════════╝
  */
 
+#ifdef CRYPTOLIB_HAS_BLS
+
 #include "types.hpp"
 
 #include <blst/blst.h>
@@ -595,3 +597,5 @@ private:
 };
 
 } // namespace crypto
+
+#endif // CRYPTOLIB_HAS_BLS

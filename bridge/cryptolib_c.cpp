@@ -2081,6 +2081,113 @@ CRYPTO_API void cryptolib_hpke_context_free(CryptoHpkeContext h) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * BBS Signatures — multi-message signatures + selective disclosure
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#ifdef CRYPTOLIB_HAS_BLS
+static std::vector<std::span<const uint8_t>>
+bbs_msgs(const uint8_t* const* msgs, const size_t* lens, size_t count) {
+    std::vector<std::span<const uint8_t>> out;
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i) out.push_back(sp(msgs[i], lens[i]));
+    return out;
+}
+static std::vector<std::size_t>
+bbs_indexes(const uint64_t* idx, size_t count) {
+    std::vector<std::size_t> out;
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i) out.push_back(static_cast<std::size_t>(idx[i]));
+    return out;
+}
+#endif
+
+CRYPTO_API CryptoKeyPair cryptolib_bbs_keygen(
+    const uint8_t* key_material, size_t km_len, const uint8_t* key_info, size_t ki_len) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::keygen(sp(key_material, km_len), sp(key_info, ki_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)key_material; (void)km_len; (void)key_info; (void)ki_len;
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_sk_to_pk(const uint8_t* sk, size_t sk_len) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::sk_to_pk(sp(sk, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)sk; (void)sk_len;
+    return err_buf("BBS not enabled (build with -DCRYPTOLIB_BLS=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::sign(sp(sk, sk_len), sp(pk, pk_len), sp(header, header_len),
+                               bbs_msgs(msgs, msg_lens, msg_count));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_bbs_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    return crypto::Bbs::verify(sp(pk, pk_len), sp(signature, sig_len), sp(header, header_len),
+                               bbs_msgs(msgs, msg_lens, msg_count)) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_proof_gen(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint64_t* disclosed_indexes, size_t disclosed_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::proof_gen(sp(pk, pk_len), sp(signature, sig_len),
+                                    sp(header, header_len), sp(ph, ph_len),
+                                    bbs_msgs(msgs, msg_lens, msg_count),
+                                    bbs_indexes(disclosed_indexes, disclosed_count));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)disclosed_indexes;(void)disclosed_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_bbs_proof_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    return crypto::Bbs::proof_verify(sp(pk, pk_len), sp(proof, proof_len),
+                                     sp(header, header_len), sp(ph, ph_len),
+                                     bbs_msgs(disclosed_msgs, disclosed_lens, disclosed_count),
+                                     bbs_indexes(disclosed_indexes, indexes_count)) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)proof;(void)proof_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)disclosed_msgs;(void)disclosed_lens;(void)disclosed_count;(void)disclosed_indexes;(void)indexes_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * ECVRF — Verifiable Random Function (RFC 9381)
  * ═══════════════════════════════════════════════════════════════════════════ */
 

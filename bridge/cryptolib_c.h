@@ -1054,6 +1054,53 @@ CRYPTO_API CryptoBufferResult cryptolib_ecvrf_verify(
     const uint8_t* pi, size_t pi_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * BBS Signatures — multi-message signatures + zero-knowledge selective
+ *   disclosure (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256).
+ *   The privacy primitive for anonymous credentials: sign a vector of messages,
+ *   then derive a proof revealing only a chosen subset. Requires blst.
+ *
+ *   Messages cross as parallel arrays: msgs[i] (pointer) + msg_lens[i] (length),
+ *   msg_count entries. Disclosed indexes are `disclosed_count` uint64 positions
+ *   into the message vector (0-based). Sizes: sk 32 B, pk 96 B, signature 80 B.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** BBS KeyGen from key material (>= 32 B) + optional key info. pk 96 B, sk 32 B.
+ *  Returns an empty key pair (data=NULL) on failure. */
+CRYPTO_API CryptoKeyPair cryptolib_bbs_keygen(
+    const uint8_t* key_material, size_t km_len, const uint8_t* key_info, size_t ki_len);
+
+/** Derive the 96-byte public key from a 32-byte secret key. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_sk_to_pk(const uint8_t* sk, size_t sk_len);
+
+/** Sign a vector of messages → 80-byte signature. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/** Verify a signature over a vector of messages. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cryptolib_bbs_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/** Derive a selective-disclosure proof. `msgs` is the FULL signed vector;
+ *  `disclosed_indexes` (uint64, 0-based) selects which to reveal. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_proof_gen(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint64_t* disclosed_indexes, size_t disclosed_count);
+
+/** Verify a selective-disclosure proof. `disclosed_msgs` are the revealed
+ *  messages, aligned with `disclosed_indexes`. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cryptolib_bbs_proof_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
  *   secp256k1 functions require CRYPTOLIB_HAS_SECP256K1 (libsecp256k1 w/
  *   recovery module). When disabled they return an error result / 0 rather
