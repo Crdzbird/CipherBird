@@ -131,6 +131,7 @@
 #include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase)
 #include "shamir.hpp"             // → Shamir secret sharing (GF(256), M-of-N)
 #include "frost.hpp"          // → FROST(Ed25519,SHA-512) threshold signatures
+#include "ecvrf.hpp"          // → ECVRF (RFC 9381) verifiable random function
 #include "hpke.hpp"           // → HPKE (RFC 9180) hybrid public-key encryption
 #include "session.hpp"        // → PQ forward-secret ratchet (needs PQ)
 #include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
