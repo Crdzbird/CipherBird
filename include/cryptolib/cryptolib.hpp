@@ -134,6 +134,7 @@
 #include "ecvrf.hpp"          // → ECVRF (RFC 9381) verifiable random function
 #include "bbs.hpp"            // → BBS signatures + selective disclosure (BLS12-381)
 #include "oprf.hpp"           // → OPRF (RFC 9497) oblivious pseudorandom function
+#include "opaque.hpp"         // → OPAQUE aPAKE (draft-irtf-cfrg-opaque, needs OPRF)
 #include "hpke.hpp"           // → HPKE (RFC 9180) hybrid public-key encryption
 #include "session.hpp"        // → PQ forward-secret ratchet (needs PQ)
 #include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
