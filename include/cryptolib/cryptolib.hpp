@@ -143,6 +143,7 @@
 #include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
 #include "physical_seal.hpp"      // → PhysicalSeal: two-factor media-entropy seal + keyed stego
 #include "oprf_image_seal.hpp"    // → ImageFactorSeal: OPRF-gated image second-factor + keyed stego
+#include "hpke_stego_seal.hpp"    // → HpkeStegoSeal: keyed stego bound to an HPKE session (exporter)
 
 #include <sodium.h>
 
