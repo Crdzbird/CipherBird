@@ -141,6 +141,7 @@
 #include "suite.hpp"             // → Suite: one-call advanced combinations (needs OpenSSL + PQ)
 #include "molecular_vault.hpp"    // → max-assurance layered vault (cascade + Argon2id + committing)
 #include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
+#include "physical_seal.hpp"      // → PhysicalSeal: two-factor media-entropy seal + keyed stego
 
 #include <sodium.h>
 
