@@ -19,6 +19,8 @@ void run_tests_aead_siv();
 void run_tests_asymmetric();
 void run_tests_vault();
 void run_tests_media_entropy();
+void run_tests_entropy_drbg();
+void run_tests_entropy_health();
 void run_tests_stego_image();
 void run_tests_stego_audio();
 void run_tests_stego_video();
@@ -69,6 +71,8 @@ int main() {
     run_suite("asymmetric",     run_tests_asymmetric);
     run_suite("vault",          run_tests_vault);
     run_suite("media_entropy",  run_tests_media_entropy);
+    run_suite("entropy_drbg",   run_tests_entropy_drbg);
+    run_suite("entropy_health", run_tests_entropy_health);
     run_suite("stego_image",    run_tests_stego_image);
     run_suite("stego_audio",    run_tests_stego_audio);
     run_suite("stego_video",    run_tests_stego_video);

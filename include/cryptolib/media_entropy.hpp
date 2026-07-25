@@ -58,6 +58,8 @@
 
 #include "types.hpp"
 #include "hash.hpp"
+#include "entropy_drbg.hpp"
+#include "entropy_health.hpp"
 #include "asymmetric.hpp"
 #include "vault.hpp"
 
@@ -293,6 +295,50 @@ public:
     /// Each distinct label yields an independent key.
     [[nodiscard]] SecureBuffer derive(std::string_view label, std::size_t len = 32) const {
         return std::move(hash::HkdfSha512::derive(entropy_.span(), {}, label, len).value());
+    }
+
+    /// Seed an HMAC-DRBG (SP 800-90A) from the harvested entropy — turns the
+    /// one-shot 64-byte pull into a beacon that yields an arbitrarily long
+    /// keystream via drbg.generate(n). In deterministic mode the beacon is fully
+    /// reproducible from the media; in mixed mode it also folds in system entropy.
+    [[nodiscard]] Result<HmacDrbg>
+    make_drbg(std::string_view personalization = {}) const {
+        return HmacDrbg::instantiate(entropy_.span(), {},
+            { reinterpret_cast<const uint8_t*>(personalization.data()), personalization.size() });
+    }
+
+    /// Assess the *raw* source file against the SP 800-90B health tests
+    /// (Most-Common-Value min-entropy, Repetition-Count, Adaptive-Proportion)
+    /// BEFORE trusting it — especially in deterministic "the file IS the key"
+    /// mode, where a low-entropy carrier (a blank frame, a solid-colour image)
+    /// silently weakens every derived key.
+    ///
+    /// Samples up to `max_bytes` from the start of the file (media entropy is
+    /// spread throughout, so a leading sample is representative and bounds cost).
+    ///
+    ///   auto h = MediaEntropy::assess_file_health("photo.ppm").value();
+    ///   if (!h.healthy(1.0)) { /* reject: too little entropy per byte */ }
+    [[nodiscard]] static Result<HealthReport>
+    assess_file_health(const std::filesystem::path& path,
+                       std::size_t max_bytes = (1u << 20)) {
+        std::error_code ec;
+        auto file_size = std::filesystem::file_size(path, ec);
+        if (ec)
+            return Result<HealthReport>::err("MediaEntropy: cannot stat: " + path.string());
+        if (file_size < MIN_FILE_BYTES)
+            return Result<HealthReport>::err("MediaEntropy: file too small (<256 bytes): " + path.string());
+
+        std::ifstream file(path, std::ios::binary);
+        if (!file)
+            return Result<HealthReport>::err("MediaEntropy: cannot open: " + path.string());
+
+        const std::size_t want = std::min<std::size_t>(max_bytes, static_cast<std::size_t>(file_size));
+        std::vector<uint8_t> sample(want);
+        file.read(reinterpret_cast<char*>(sample.data()), static_cast<std::streamsize>(want));
+        sample.resize(static_cast<std::size_t>(file.gcount()));
+        auto report = assess_health({ sample.data(), sample.size() });
+        sodium_memzero(sample.data(), sample.size());
+        return Result<HealthReport>::ok(report);
     }
 
     /// Return a 32-byte entropy boost key suitable for injection into
