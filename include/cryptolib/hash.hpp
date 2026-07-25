@@ -564,6 +564,21 @@ public:
         sodium_memzero(prev, HASH_BYTES);
         return Result<SecureBuffer>::ok(std::move(okm));
     }
+
+    /// One-shot: extract → expand.
+    [[nodiscard]] static Result<SecureBuffer>
+    derive(std::span<const uint8_t> ikm, std::span<const uint8_t> salt,
+           std::span<const uint8_t> info, std::size_t out_len) {
+        auto prk = extract(salt, ikm);
+        if (prk.is_err()) return Result<SecureBuffer>::err(prk.error().message);
+        return expand(prk.value().span(), info, out_len);
+    }
+    [[nodiscard]] static Result<SecureBuffer>
+    derive(std::span<const uint8_t> ikm, std::span<const uint8_t> salt,
+           std::string_view info, std::size_t out_len) {
+        return derive(ikm, salt,
+            { reinterpret_cast<const uint8_t*>(info.data()), info.size() }, out_len);
+    }
 };
 
 } // namespace crypto::hash

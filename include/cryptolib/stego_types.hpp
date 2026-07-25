@@ -21,12 +21,14 @@
  */
 
 #include "types.hpp"
+#include "stego_keyed.hpp"
 
 #include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace crypto::stego {
 
@@ -109,6 +111,15 @@ struct StegoParams {
     int audio_bin_count       = 8;     // bits encoded per frame (= bins used)
     // 8 bits/frame × (total_samples/512) frames = capacity in bits.
     // For 44.1 kHz mono: 10 s → ~690 bytes; 60 s → ~4 kB.
+
+    // ── Keyed embedding (Phase 1 hardening) ──────────────────────────────────
+    // When non-empty, the embedded stream is whitened with a key-derived
+    // ChaCha20 keystream (no detectable 'CSTG' magic) and — where the carrier
+    // supports it (DCT image path) — the carrier slots are visited in a
+    // key-seeded permuted order. The SAME key must be supplied to extract.
+    // The payload should still be AEAD-encrypted; the key here governs
+    // concealment, not confidentiality. Empty ⇒ legacy (unkeyed) behaviour.
+    std::vector<uint8_t> key;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -260,6 +271,31 @@ struct StegoHeader {
         return Result<Bytes>::err("stego stream: CRC-32 mismatch — data corrupted");
 
     return Result<Bytes>::ok(Bytes(payload_span.begin(), payload_span.end()));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyed variants (Phase 1). Identical to the above but the assembled stream is
+// whitened with a key-derived ChaCha20 keystream, so the extracted bits carry no
+// 'CSTG' fingerprint. An empty key falls through to the legacy behaviour, so
+// every call site can pass its key unconditionally.
+// ─────────────────────────────────────────────────────────────────────────────
+[[nodiscard]] inline Bytes make_embed_stream(
+    std::span<const uint8_t> payload, MediaFormat fmt, std::span<const uint8_t> key)
+{
+    Bytes stream = make_embed_stream(payload, fmt);
+    stego_whiten(std::span<uint8_t>(stream.data(), stream.size()), key);
+    return stream;
+}
+
+[[nodiscard]] inline Result<Bytes> parse_embed_stream(
+    std::span<const uint8_t> stream, std::span<const uint8_t> key)
+{
+    if (key.empty()) return parse_embed_stream(stream);
+    // Un-whiten a mutable copy (stream-cipher is position-addressable, so the
+    // header un-whitens correctly even though we hold more bytes than payload).
+    Bytes buf(stream.begin(), stream.end());
+    stego_whiten(std::span<uint8_t>(buf.data(), buf.size()), key);
+    return parse_embed_stream(std::span<const uint8_t>(buf.data(), buf.size()));
 }
 
 } // namespace crypto::stego

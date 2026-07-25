@@ -283,6 +283,18 @@ public:
     /// Return the raw 64-byte mixed entropy — plug into any custom pipeline.
     [[nodiscard]] const SecureBuffer& raw() const noexcept { return entropy_; }
 
+    /// Derive an arbitrary-length, namespaced key from the harvested entropy via
+    /// HKDF-SHA-512 (RFC 5869): the entropy is the IKM, `label` the info string.
+    /// A vetted randomness extractor + expander — unlike derive_key()'s keyed
+    /// BLAKE2b (kept for the fixed 32-byte purpose keys), this supports any
+    /// length and any label, ideal for seeding the newer primitives, e.g.
+    ///   auto oprf_seed = me.derive("opaque:oprf_seed:v1", 64);
+    ///   auto stego_key = me.derive("stego:embed_key:v1", 32);
+    /// Each distinct label yields an independent key.
+    [[nodiscard]] SecureBuffer derive(std::string_view label, std::size_t len = 32) const {
+        return std::move(hash::HkdfSha512::derive(entropy_.span(), {}, label, len).value());
+    }
+
     /// Return a 32-byte entropy boost key suitable for injection into
     /// SecureVault::seal() / open() or AsymmetricVault::seal() / open().
     ///

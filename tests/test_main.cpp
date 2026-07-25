@@ -23,6 +23,7 @@ void run_tests_stego_image();
 void run_tests_stego_audio();
 void run_tests_stego_video();
 void run_tests_stego_engine();
+void run_tests_stego_keyed();
 void run_tests_vault_stego();
 void run_tests_entropy_stego();
 void run_tests_asym_stego();
@@ -72,6 +73,7 @@ int main() {
     run_suite("stego_audio",    run_tests_stego_audio);
     run_suite("stego_video",    run_tests_stego_video);
     run_suite("stego_engine",   run_tests_stego_engine);
+    run_suite("stego_keyed",    run_tests_stego_keyed);
     run_suite("vault_stego",    run_tests_vault_stego);
     run_suite("entropy_stego",  run_tests_entropy_stego);
     run_suite("asym_stego",     run_tests_asym_stego);

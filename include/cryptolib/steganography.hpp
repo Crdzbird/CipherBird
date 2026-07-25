@@ -49,8 +49,19 @@ public:
         std::string_view         output_path,
         const StegoParams&       params = {})
     {
-        switch (detect_format(cover_path)) {
+        auto fmt = detect_format(cover_path);
+        // Keyed embedding (whitened + permuted) is implemented for the DCT image
+        // path in this version; reject a key on carriers that don't support it
+        // rather than silently ignoring it (which would leave a 'CSTG' signature).
+        if (!params.key.empty() && fmt != MediaFormat::PPM_IMAGE)
+            return Result<void>::err(
+                "StegoEngine::embed — keyed embedding currently supports .ppm carriers only");
+        switch (fmt) {
         case MediaFormat::PPM_IMAGE:
+            if (!params.key.empty())
+                return ImageSteganographer::embed(
+                    std::string(cover_path), payload, std::string(output_path),
+                    std::span<const uint8_t>(params.key), params.image_quant_step);
             return ImageSteganographer::embed(
                 std::string(cover_path), payload,
                 std::string(output_path), params.image_quant_step);
@@ -107,8 +118,15 @@ public:
         std::string_view   stego_path,
         const StegoParams& params = {})
     {
-        switch (detect_format(stego_path)) {
+        auto fmt = detect_format(stego_path);
+        if (!params.key.empty() && fmt != MediaFormat::PPM_IMAGE)
+            return Result<Bytes>::err(
+                "StegoEngine::extract — keyed extraction currently supports .ppm carriers only");
+        switch (fmt) {
         case MediaFormat::PPM_IMAGE:
+            if (!params.key.empty())
+                return ImageSteganographer::extract(
+                    std::string(stego_path), std::span<const uint8_t>(params.key), params.image_quant_step);
             return ImageSteganographer::extract(
                 std::string(stego_path), params.image_quant_step);
         case MediaFormat::BMP_IMAGE:

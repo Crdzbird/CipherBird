@@ -39,66 +39,69 @@ public:
     }
 
     /// Embed bits into the blue channel of an RGB24 pixel buffer using DCT/QIM.
+    /// `perm`, when non-null, remaps logical block k → physical block perm[k],
+    /// scattering the payload across the carrier (keyed permutation).
     static void embed_bits(
         std::vector<uint8_t>& pixels,
         std::size_t           w,
         std::size_t           h,
         const Bytes&          stream,
-        int                   Q)
+        int                   Q,
+        const std::vector<uint32_t>* perm = nullptr)
     {
         const std::size_t blocks_x = w / 8;
         const std::size_t blocks_y = h / 8;
-
-        std::size_t bit_idx = 0;
+        const std::size_t total_blocks = blocks_x * blocks_y;
         const std::size_t total_bits = stream.size() * 8;
+        const std::size_t bpb = static_cast<std::size_t>(EMBED_BITS_PER_BLOCK);
+        const std::size_t needed_blocks = (total_bits + bpb - 1) / bpb;
 
-        for (std::size_t by = 0; by < blocks_y && bit_idx < total_bits; ++by) {
-            for (std::size_t bx = 0; bx < blocks_x && bit_idx < total_bits; ++bx) {
-                std::size_t bits_here = std::min(
-                    static_cast<std::size_t>(EMBED_BITS_PER_BLOCK),
-                    total_bits - bit_idx);
-                embed_block_cl(pixels, bx, by, w, stream, bit_idx, bits_here, Q);
-                bit_idx += bits_here;
-            }
+        for (std::size_t k = 0; k < needed_blocks && k < total_blocks; ++k) {
+            std::size_t p = perm ? static_cast<std::size_t>((*perm)[k]) : k;
+            std::size_t bx = p % blocks_x, by = p / blocks_x;
+            std::size_t first_bit = k * bpb;
+            std::size_t bits_here = std::min(bpb, total_bits - first_bit);
+            embed_block_cl(pixels, bx, by, w, stream, first_bit, bits_here, Q);
         }
     }
 
     /// Extract bits from the blue channel of an RGB24 pixel buffer using DCT/QIM.
+    /// `perm` must match the permutation used at embed time (or null for none).
     [[nodiscard]] static Bytes extract_bits(
         const std::vector<uint8_t>& pixels,
         std::size_t                 w,
         std::size_t                 h,
         std::size_t                 max_stream_bytes,
-        int                         Q)
+        int                         Q,
+        const std::vector<uint32_t>* perm = nullptr)
     {
-        const std::size_t blocks_x  = w / 8;
-        const std::size_t blocks_y  = h / 8;
+        const std::size_t blocks_x = w / 8;
+        const std::size_t blocks_y = h / 8;
+        const std::size_t total_blocks = blocks_x * blocks_y;
         const std::size_t total_bits = max_stream_bytes * 8;
+        const std::size_t bpb = static_cast<std::size_t>(EMBED_BITS_PER_BLOCK);
+        const std::size_t needed_blocks = (total_bits + bpb - 1) / bpb;
 
         Bytes result(max_stream_bytes, 0);
-        std::size_t bit_idx = 0;
+        for (std::size_t k = 0; k < needed_blocks && k < total_blocks; ++k) {
+            std::size_t p = perm ? static_cast<std::size_t>((*perm)[k]) : k;
+            std::size_t bx = p % blocks_x, by = p / blocks_x;
+            double blk[8][8];
+            for (int r = 0; r < 8; ++r)
+                for (int c = 0; c < 8; ++c)
+                    blk[r][c] = static_cast<double>(pixels[blue_idx(bx*8+c, by*8+r, w)]);
+            dct2d(blk);
 
-        for (std::size_t by = 0; by < blocks_y && bit_idx < total_bits; ++by) {
-            for (std::size_t bx = 0; bx < blocks_x && bit_idx < total_bits; ++bx) {
-                double blk[8][8];
-                for (int r = 0; r < 8; ++r)
-                    for (int c = 0; c < 8; ++c)
-                        blk[r][c] = static_cast<double>(
-                            pixels[blue_idx(bx*8+c, by*8+r, w)]);
-
-                dct2d(blk);
-
-                for (const auto& [pr, pc] : EMBED_COORDS) {
-                    if (bit_idx >= total_bits) break;
-                    int bit    = qim_extract(blk[pr][pc], Q);
-                    int byte_i = static_cast<int>(bit_idx / 8);
-                    int bit_i  = 7 - static_cast<int>(bit_idx % 8);
-                    if (bit) result[byte_i] |= static_cast<uint8_t>(1 << bit_i);
-                    ++bit_idx;
-                }
+            std::size_t bit_idx = k * bpb;
+            for (const auto& [pr, pc] : EMBED_COORDS) {
+                if (bit_idx >= total_bits) break;
+                int bit    = qim_extract(blk[pr][pc], Q);
+                int byte_i = static_cast<int>(bit_idx / 8);
+                int bit_i  = 7 - static_cast<int>(bit_idx % 8);
+                if (bit) result[byte_i] |= static_cast<uint8_t>(1 << bit_i);
+                ++bit_idx;
             }
         }
-
         return result;
     }
 

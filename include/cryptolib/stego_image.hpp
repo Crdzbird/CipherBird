@@ -44,6 +44,32 @@ public:
         return write_ppm(output_path, w, h, pixels);
     }
 
+    /// Keyed embed: whitens the stream (no 'CSTG' magic) and scatters the
+    /// payload across a key-seeded block permutation. Extract with the same key.
+    [[nodiscard]] static Result<void> embed(
+        const std::string&       cover_path,
+        std::span<const uint8_t> payload,
+        const std::string&       output_path,
+        std::span<const uint8_t> key,
+        int                      Q = 16)
+    {
+        auto img = read_ppm(cover_path);
+        if (img.is_err()) return Result<void>::err(img.error().message);
+
+        auto [w, h, pixels] = img.value();
+        std::size_t cap = capacity(w, h);
+        if (payload.size() > cap)
+            return Result<void>::err(
+                "ImageSteganographer::embed — payload too large: need "
+                + std::to_string(payload.size()) + " bytes, capacity is "
+                + std::to_string(cap) + " bytes");
+
+        Bytes stream = make_embed_stream(payload, MediaFormat::PPM_IMAGE, key);
+        auto perm = block_permutation((w / 8) * (h / 8), key);
+        DctQimEngine::embed_bits(pixels, w, h, stream, Q, key.empty() ? nullptr : &perm);
+        return write_ppm(output_path, w, h, pixels);
+    }
+
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
         int                Q = 16)
@@ -55,6 +81,22 @@ public:
         std::size_t max_stream = capacity(w, h) + StegoHeader::SIZE;
         Bytes raw = DctQimEngine::extract_bits(pixels, w, h, max_stream, Q);
         return parse_embed_stream(std::span<const uint8_t>(raw));
+    }
+
+    /// Keyed extract — supply the same key used at embed time.
+    [[nodiscard]] static Result<Bytes> extract(
+        const std::string&       stego_path,
+        std::span<const uint8_t> key,
+        int                      Q = 16)
+    {
+        auto img = read_ppm(stego_path);
+        if (img.is_err()) return Result<Bytes>::err(img.error().message);
+
+        auto [w, h, pixels] = img.value();
+        std::size_t max_stream = capacity(w, h) + StegoHeader::SIZE;
+        auto perm = block_permutation((w / 8) * (h / 8), key);
+        Bytes raw = DctQimEngine::extract_bits(pixels, w, h, max_stream, Q, key.empty() ? nullptr : &perm);
+        return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {
