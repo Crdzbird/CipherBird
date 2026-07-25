@@ -122,9 +122,19 @@ on failure.
 Stego is **security through obscurity**, not confidentiality: it hides *that* a
 message exists, not its contents, and naive LSB/DCT carriers are readily broken
 by (AI-assisted) steganalysis. Always encrypt *before* embedding; treat stego as
-defense-in-depth only. "LavaRand" media-entropy is a novelty entropy *source* —
-keys must still come from the OS CSPRNG; the entropy estimate is reported
-conservatively (`entropy_bits()`).
+defense-in-depth only. `StegoEngine::embed_encrypted()` / `extract_decrypt()`
+enforce this — one master key drives a domain-separated XChaCha20-Poly1305 seal,
+whitening (no surviving `CSTG` signature), and a key-seeded block permutation, so
+the always-encrypt path cannot place cleartext in a carrier. Keyed embedding is
+`.ppm`-only for now; other carriers reject a key rather than silently ignoring it.
+
+"LavaRand" media-entropy is a novelty entropy *source* — keys must still come
+from the OS CSPRNG. Its trust signal is a real SP 800-90B **Most-Common-Value
+min-entropy lower bound** (`MediaEntropy::assess_file_health()`, with SP 800-90B
+Repetition-Count + Adaptive-Proportion local tests), not the legacy Shannon
+i.i.d. *upper* bound. `MediaEntropy::make_drbg()` exposes an SP 800-90A HMAC-DRBG
+beacon seeded from the conditioned entropy (deterministic mode reproducible,
+mixed mode folds in system entropy).
 
 ## 7. Assurance posture (current → target)
 
