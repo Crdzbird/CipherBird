@@ -23,6 +23,7 @@ void run_tests_entropy_drbg();
 void run_tests_entropy_health();
 void run_tests_stego_encrypted();
 void run_tests_physical_seal();
+void run_tests_oprf_image_seal();
 void run_tests_stego_image();
 void run_tests_stego_audio();
 void run_tests_stego_video();
@@ -82,6 +83,7 @@ int main() {
     run_suite("stego_keyed",    run_tests_stego_keyed);
     run_suite("stego_encrypted", run_tests_stego_encrypted);
     run_suite("physical_seal",  run_tests_physical_seal);
+    run_suite("image_factor",   run_tests_oprf_image_seal);
     run_suite("vault_stego",    run_tests_vault_stego);
     run_suite("entropy_stego",  run_tests_entropy_stego);
     run_suite("asym_stego",     run_tests_asym_stego);
