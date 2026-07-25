@@ -21,6 +21,7 @@
  */
 
 #include "stego_types.hpp"
+#include "symmetric.hpp"
 #include "stego_image.hpp"
 #include "stego_audio.hpp"
 #include "stego_video.hpp"
@@ -193,6 +194,69 @@ public:
             std::span<const uint8_t>(bytes.data(), bytes.size()));
     }
 
+    /// Encrypt-then-hide (the always-encrypt path). AEAD-seals `plaintext`
+    /// under a key derived from `master_key`, then embeds the *ciphertext* via
+    /// the keyed (whitened + block-permuted) stego path. A single master key
+    /// fans out into three domain-separated subkeys — AEAD, whitening,
+    /// permutation — so confidentiality (XChaCha20-Poly1305), integrity (the
+    /// Poly1305 tag) and unlinkability (no surviving 'CSTG' signature) all hold
+    /// under one secret. Unlike embed(), the payload is never written to the
+    /// carrier as cleartext, so a caller cannot accidentally hide a secret in
+    /// the clear. Currently restricted to the .ppm DCT carrier (the keyed path).
+    [[nodiscard]] static Result<void> embed_encrypted(
+        std::string_view         cover_path,
+        std::span<const uint8_t> plaintext,
+        std::string_view         output_path,
+        std::span<const uint8_t> master_key,
+        const StegoParams&       base_params = {})
+    {
+        if (master_key.empty())
+            return Result<void>::err("StegoEngine::embed_encrypted — master_key must be non-empty");
+
+        // AEAD subkey — domain-separated from the whiten/perm subkeys.
+        auto aead_key = stego_subkey(master_key, kAeadLabel);
+        auto ct = crypto::symmetric::XChaCha20Poly1305::encrypt(
+            plaintext, { aead_key.data(), aead_key.size() });
+        sodium_memzero(aead_key.data(), aead_key.size());
+        if (ct.is_err()) return Result<void>::err(ct.error().message);
+
+        StegoParams p = base_params;
+        p.key.assign(master_key.begin(), master_key.end());
+        const auto& blob = ct.value();
+        auto r = embed(cover_path, { blob.data(), blob.size() }, output_path, p);
+        sodium_memzero(p.key.data(), p.key.size());
+        return r;
+    }
+
+    /// Inverse of embed_encrypted(): keyed-extract the ciphertext, then AEAD-open
+    /// it. A wrong key fails fast at the CRC/whitening layer and, underneath, at
+    /// the Poly1305 tag; a tampered carrier fails the tag. Returns the recovered
+    /// plaintext bytes.
+    [[nodiscard]] static Result<Bytes> extract_decrypt(
+        std::string_view         stego_path,
+        std::span<const uint8_t> master_key,
+        const StegoParams&       base_params = {})
+    {
+        if (master_key.empty())
+            return Result<Bytes>::err("StegoEngine::extract_decrypt — master_key must be non-empty");
+
+        StegoParams p = base_params;
+        p.key.assign(master_key.begin(), master_key.end());
+        auto ct = extract(stego_path, p);
+        sodium_memzero(p.key.data(), p.key.size());
+        if (ct.is_err()) return Result<Bytes>::err(ct.error().message);
+
+        auto aead_key = stego_subkey(master_key, kAeadLabel);
+        const auto& blob = ct.value();
+        auto pt = crypto::symmetric::XChaCha20Poly1305::decrypt(
+            { blob.data(), blob.size() }, { aead_key.data(), aead_key.size() });
+        sodium_memzero(aead_key.data(), aead_key.size());
+        if (pt.is_err()) return Result<Bytes>::err(pt.error().message);
+
+        const auto& sb = pt.value();
+        return Result<Bytes>::ok(Bytes(sb.data(), sb.data() + sb.size()));
+    }
+
     /// Query the maximum payload capacity of a carrier file.
     [[nodiscard]] static Result<StegoCapacity> capacity(
         std::string_view   cover_path,
@@ -343,6 +407,11 @@ public:
     }
 
 private:
+    // Domain-separation label for the AEAD subkey — distinct from the whitening
+    // ("...-whiten-v1") and permutation ("...-perm-v1") labels in stego_keyed.hpp,
+    // so all three subkeys derived from one master key are independent.
+    static constexpr std::string_view kAeadLabel = "cryptolib-stego-aead-v1";
+
     [[nodiscard]] static Result<std::pair<std::size_t,std::size_t>>
     read_ppm_dims(const std::string& path) {
         std::ifstream f(path);
