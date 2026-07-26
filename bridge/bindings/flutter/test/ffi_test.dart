@@ -138,4 +138,83 @@ void main() {
     lib.keyringFree(kr);
     lib.keyringFree(kr2);
   });
+
+  // ── Phase 1-4 stego / FEC / analysis (synced from the standalone binding) ──
+  late Directory tmp;
+  String ppm(int seed, [int w = 256, int h = 256]) {
+    tmp = Directory.systemTemp.createTempSync('cl_flutter_p4_');
+    final p = '${tmp.path}/c_$seed.ppm';
+    final body = Uint8List(w * h * 3);
+    var s = seed == 0 ? 1 : seed;
+    for (var i = 0; i < body.length; i++) {
+      s ^= (s << 13) & 0xFFFFFFFF;
+      s ^= s >> 17;
+      s ^= (s << 5) & 0xFFFFFFFF;
+      body[i] = s & 0xFF;
+    }
+    final f = File(p).openSync(mode: FileMode.write);
+    f.writeFromSync('P6\n$w $h\n255\n'.codeUnits);
+    f.writeFromSync(body);
+    f.closeSync();
+    return p;
+  }
+
+  test('keyed stego round-trip + wrong-key', () {
+    final cover = ppm(0xC0FFEE);
+    final out = '${tmp.path}/keyed.ppm';
+    final key = Uint8List.fromList(List.filled(32, 0x5a));
+    final payload = _u('keyed stego via Flutter');
+    lib.stegoEmbedKeyed(cover, payload, out, key);
+    expect(_eq(lib.stegoExtractKeyed(out, key), payload), isTrue);
+    expect(() => lib.stegoExtractKeyed(out, Uint8List.fromList(List.filled(32, 0x99))),
+        throwsException);
+  });
+
+  test('always-encrypt round-trip + wrong-key', () {
+    final cover = ppm(0xBEEF);
+    final out = '${tmp.path}/enc.ppm';
+    final key = Uint8List.fromList(List.filled(32, 0x11));
+    final secret = _u('never in the clear');
+    lib.stegoEmbedEncrypted(cover, secret, out, key);
+    expect(_eq(lib.stegoExtractDecrypt(out, key), secret), isTrue);
+    expect(() => lib.stegoExtractDecrypt(out, Uint8List.fromList(List.filled(32, 0x22))),
+        throwsException);
+  });
+
+  test('PhysicalSeal round-trip + wrong-aad', () {
+    final keyMedia = ppm(0xABCDEF, 64, 64);
+    final cover = ppm(0x123456);
+    final out = '${tmp.path}/phys.ppm';
+    final msg = _u('the photo is the key');
+    final aad = _u('flutter-ctx');
+    lib.physicalSeal(keyMedia, msg, aad, cover, out);
+    expect(_eq(lib.physicalOpen(keyMedia, aad, out), msg), isTrue);
+    expect(() => lib.physicalOpen(keyMedia, _u('wrong'), out), throwsException);
+  });
+
+  test('FEC corrects a single-bit flip (all schemes)', () {
+    final data = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF]);
+    for (final scheme in [1, 2, 3]) {
+      final enc = lib.fecEncode(data, scheme);
+      enc[0] ^= 0x40;
+      expect(_eq(lib.fecDecode(enc, scheme, data.length), data), isTrue);
+    }
+  });
+
+  test('analysis: validity, tamper digest, hidden-data probe', () {
+    final cover = ppm(0x99, 128, 128);
+    final insp = lib.stegoInspect(cover);
+    expect(insp.parses && insp.extMatches && insp.width == 128, isTrue);
+
+    final d1 = lib.stegoContentDigest(cover);
+    File(cover).writeAsBytesSync([0], mode: FileMode.append);
+    final d2 = lib.stegoContentDigest(cover);
+    expect(lib.secureEqual(d1, d2), isFalse); // tamper detected vs stored digest
+
+    final clean = ppm(0x99, 128, 128);
+    final stego = '${tmp.path}/as.ppm';
+    lib.stegoEmbed(clean, _u('hi'), stego);
+    final rep = lib.stegoDetectHidden(stego);
+    expect(rep.cryptolibPayload && rep.note.isNotEmpty, isTrue);
+  });
 }
