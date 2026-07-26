@@ -2626,6 +2626,25 @@ CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path
     return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_err_cstr("internal error") };
 }
 
+CRYPTO_API CryptoHealthReport cryptolib_entropy_assess_file_health(
+    const char* path, size_t max_bytes) try
+{
+    auto r = crypto::entropy::MediaEntropy::assess_file_health(
+        path ? path : "", max_bytes ? max_bytes : (1u << 20));
+    if (r.is_err())
+        return CryptoHealthReport{ 0.0, 0, 0, 0, 0, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoHealthReport{
+        v.min_entropy_per_byte,
+        static_cast<uint64_t>(v.longest_run),
+        static_cast<uint64_t>(v.max_window_count),
+        v.rct_passed ? 1 : 0,
+        v.apt_passed ? 1 : 0,
+        nullptr };
+} catch (...) {
+    return CryptoHealthReport{ 0.0, 0, 0, 0, 0, dup_err_cstr("internal error") };
+}
+
 // ── ImageFactorSeal (C2) ─────────────────────────────────────────────────────
 CRYPTO_API CryptoResult cryptolib_image_factor_seal(
     const uint8_t* oprf_seed, size_t seed_len, const char* ref_img,

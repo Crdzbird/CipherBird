@@ -266,4 +266,14 @@ void main() {
     expect(f.generate(64).length, 64);
     f.close();
   });
+
+  test('assess_file_health (A1)', () {
+    final good = ppm(0x1357, 128, 128);
+    final h = lib.assessFileHealth(good);
+    expect(h.minEntropyPerByte > 1.0 && h.rctPassed && h.aptPassed && h.healthy(1.0), isTrue);
+    // A constant-body PPM → flagged unhealthy.
+    final flat = '${tmp.path}/flat.ppm';
+    File(flat).writeAsBytesSync(<int>[...'P6\n64 64\n255\n'.codeUnits, ...List.filled(64 * 64 * 3, 0)]);
+    expect(lib.assessFileHealth(flat).healthy(1.0), isFalse);
+  });
 }

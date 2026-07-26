@@ -215,6 +215,23 @@ const key = Buffer.alloc(32, 0x5a);
   fFree(h);
 }
 
+// 10. assess_file_health (A1)
+{
+  const CryptoHealthReport = koffi.struct('CryptoHealthReport', {
+    min_entropy_per_byte: 'double', longest_run: 'uint64_t', max_window_count: 'uint64_t',
+    rct_passed: 'int', apt_passed: 'int', error: 'void *',
+  });
+  const assess = lib.func('CryptoHealthReport cryptolib_entropy_assess_file_health(const char*, size_t)');
+  const good = path.join(dir, 'good.ppm'); noisePpm(good, 128, 128, 0x1357);
+  const h = assess(good, 0);
+  const healthy = h.error === null && h.min_entropy_per_byte > 1.0 && h.rct_passed !== 0 && h.apt_passed !== 0;
+  check(healthy, 'assess_file_health: noise carrier healthy');
+  const flat = path.join(dir, 'flat.ppm');
+  fs.writeFileSync(flat, Buffer.concat([Buffer.from('P6\n64 64\n255\n'), Buffer.alloc(64 * 64 * 3)]));
+  const hf = assess(flat, 0);
+  check(!(hf.min_entropy_per_byte >= 1.0 && hf.rct_passed !== 0 && hf.apt_passed !== 0), 'assess_file_health: constant carrier flagged');
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

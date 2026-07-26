@@ -1386,6 +1386,26 @@ CRYPTO_API CryptoBufferResult cryptolib_stego_content_digest(const char* path);
 /** Heuristic hidden-data probe (see caveats above). */
 CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path);
 
+/** NIST SP 800-90B source-health report for a media file (A1). `min_entropy_per_byte`
+ *  is the Most-Common-Value lower bound (0..8); `rct_passed`/`apt_passed` are the
+ *  Repetition-Count / Adaptive-Proportion local tests. A source is "healthy" when
+ *  min_entropy_per_byte >= your threshold AND both tests passed. On error, `error`
+ *  is set (free with cryptolib_str_free). */
+typedef struct {
+    double   min_entropy_per_byte;
+    uint64_t longest_run;
+    uint64_t max_window_count;
+    int      rct_passed;   /**< 1 = passed */
+    int      apt_passed;   /**< 1 = passed */
+    char*    error;        /**< NULL on success */
+} CryptoHealthReport;
+
+/** Assess a media file against the SP 800-90B health tests. `max_bytes` caps the
+ *  sample size; pass 0 for the default (1 MiB). Use BEFORE trusting a file as a
+ *  deterministic key source. */
+CRYPTO_API CryptoHealthReport cryptolib_entropy_assess_file_health(
+    const char* path, size_t max_bytes);
+
 /* ── ImageFactorSeal — a shared reference image as an OPRF-gated 2nd factor ──
  * Two factors to open: the OPRF secret (know) AND the exact reference image
  * (have). Local one-shot mode (the oblivious remote mode stays C++-only). */

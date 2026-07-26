@@ -29,6 +29,10 @@ private val CRYPTO_HIDDEN = MemoryLayout.structLayout(
     JAVA_LONG.withName("samples_analysed"), ADDRESS.withName("note"), ADDRESS.withName("error"))
 private val CRYPTO_KEYPAIR = MemoryLayout.structLayout(
     CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"))
+private val CRYPTO_HEALTH = MemoryLayout.structLayout(
+    JAVA_DOUBLE.withName("min_entropy_per_byte"), JAVA_LONG.withName("longest_run"),
+    JAVA_LONG.withName("max_window_count"), JAVA_INT.withName("rct_passed"),
+    JAVA_INT.withName("apt_passed"), ADDRESS.withName("error"))
 
 class Native(libPath: String) {
     val arena: Arena = Arena.ofConfined()
@@ -67,6 +71,7 @@ class Native(libPath: String) {
     val fortReseed = h("cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS))
     val fortCount = h("cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
     val fortFree = h("cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val assessHealth = h("cryptolib_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG))
 
     fun cstr(s: String): MemorySegment = arena.allocateFrom(s)
     fun bytes(b: ByteArray): MemorySegment {
@@ -241,6 +246,22 @@ fun main(args: Array<String>) {
         check((n.fortCount.invoke(h) as Long) >= 1, "Fortuna reseed count advances")
         check(n.consume(n.fortGen.invoke(n.arena, h, 64L) as MemorySegment).size == 64, "Fortuna generate after seeding")
         n.fortFree.invoke(h)
+    }
+
+    // 10. assess_file_health (A1)
+    run {
+        val good = dir.resolve("good.ppm"); noisePpm(good, 128, 128, 0x1357)
+        val hr = n.assessHealth.invoke(n.arena, n.cstr(good.toString()), 0L) as MemorySegment
+        val healthy = hr.get(ADDRESS, 32) == MemorySegment.NULL &&
+            hr.get(JAVA_DOUBLE, 0) > 1.0 && hr.get(JAVA_INT, 24) != 0 && hr.get(JAVA_INT, 28) != 0
+        check(healthy, "assess_file_health: noise carrier healthy")
+        val flat = dir.resolve("flat.ppm")
+        val header = "P6\n64 64\n255\n".toByteArray()
+        val body = ByteArray(header.size + 64 * 64 * 3); System.arraycopy(header, 0, body, 0, header.size)
+        Files.write(flat, body)
+        val hf = n.assessHealth.invoke(n.arena, n.cstr(flat.toString()), 0L) as MemorySegment
+        val flatHealthy = hf.get(JAVA_DOUBLE, 0) >= 1.0 && hf.get(JAVA_INT, 24) != 0 && hf.get(JAVA_INT, 28) != 0
+        check(!flatHealthy, "assess_file_health: constant carrier flagged")
     }
 
     println(if (failures == 0) "ALL PASS" else "$failures FAILURE(S)")

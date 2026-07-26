@@ -191,6 +191,20 @@ void main(List<String> args) {
     f.close();
   }
 
+  // 10. assess_file_health (A1)
+  {
+    final good = '${dir.path}/good.ppm';
+    writeNoisePpm(good, 128, 128, 0x1357);
+    final h = lib.assessFileHealth(good);
+    check(h.minEntropyPerByte > 1.0 && h.rctPassed && h.aptPassed && h.healthy(1.0),
+        'assess_file_health: noise carrier healthy');
+    final flat = '${dir.path}/flat.ppm';
+    final body = <int>[...'P6\n64 64\n255\n'.codeUnits, ...List.filled(64 * 64 * 3, 0)];
+    File(flat).writeAsBytesSync(body);
+    check(!lib.assessFileHealth(flat).healthy(1.0),
+        'assess_file_health: constant carrier flagged');
+  }
+
   dir.deleteSync(recursive: true);
   stdout.writeln(_failures == 0
       ? 'ALL PASS'

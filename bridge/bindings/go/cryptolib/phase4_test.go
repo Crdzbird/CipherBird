@@ -245,6 +245,33 @@ func TestFortunaHandle(t *testing.T) {
 	}
 }
 
+func TestAssessFileHealth(t *testing.T) {
+	dir := t.TempDir()
+	// High-entropy noise carrier → healthy.
+	good := filepath.Join(dir, "good.ppm")
+	writeNoisePPM(t, good, 128, 128, 0x1357)
+	h, err := AssessFileHealth(good, 0)
+	if err != nil {
+		t.Fatalf("assess: %v", err)
+	}
+	if h.MinEntropyPerByte <= 1.0 || !h.RctPassed || !h.AptPassed || !h.Healthy(1.0) {
+		t.Fatalf("noise carrier should be healthy: %+v", h)
+	}
+	// A near-constant PPM body → low min-entropy, not healthy.
+	flat := filepath.Join(dir, "flat.ppm")
+	body := append([]byte("P6\n64 64\n255\n"), make([]byte, 64*64*3)...) // zero-filled pixels
+	if err := os.WriteFile(flat, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hf, err := AssessFileHealth(flat, 0)
+	if err != nil {
+		t.Fatalf("assess flat: %v", err)
+	}
+	if hf.Healthy(1.0) {
+		t.Fatalf("constant-body carrier must be flagged unhealthy: %+v", hf)
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)

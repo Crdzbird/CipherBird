@@ -149,6 +149,21 @@ final class CryptoFileInspection extends Struct {
   external Pointer<Utf8> error;
 }
 
+/// SP 800-90B source-health report (cryptolib_entropy_assess_file_health).
+final class CryptoHealthReport extends Struct {
+  @Double()
+  external double minEntropyPerByte;
+  @Uint64()
+  external int longestRun;
+  @Uint64()
+  external int maxWindowCount;
+  @Int32()
+  external int rctPassed;
+  @Int32()
+  external int aptPassed;
+  external Pointer<Utf8> error;
+}
+
 /// Heuristic hidden-data report (cryptolib_stego_detect_hidden). Not proof.
 final class CryptoHiddenDataReport extends Struct {
   @Int32()
@@ -619,6 +634,9 @@ typedef _StegoContentDigestDart = CryptoBufferResult Function(Pointer<Utf8> path
 typedef _StegoDetectHiddenC = CryptoHiddenDataReport Function(Pointer<Utf8> path);
 typedef _StegoDetectHiddenDart = CryptoHiddenDataReport Function(Pointer<Utf8> path);
 
+typedef _AssessHealthC = CryptoHealthReport Function(Pointer<Utf8> path, Size maxBytes);
+typedef _AssessHealthDart = CryptoHealthReport Function(Pointer<Utf8> path, int maxBytes);
+
 // ImageFactorSeal (C2)
 typedef _ImageFactorSealC = CryptoResult Function(
     Pointer<Uint8> seed, Size seedLen, Pointer<Utf8> ref,
@@ -775,6 +793,26 @@ class StegoFileInspection {
     required this.fileSize,
     required this.detail,
   });
+}
+
+/// A NIST SP 800-90B source-health report (see [CryptoLib.assessFileHealth]).
+class HealthReport {
+  final double minEntropyPerByte; // Most-Common-Value lower bound, 0..8 bits/byte
+  final int longestRun;
+  final int maxWindowCount;
+  final bool rctPassed;
+  final bool aptPassed;
+  HealthReport({
+    required this.minEntropyPerByte,
+    required this.longestRun,
+    required this.maxWindowCount,
+    required this.rctPassed,
+    required this.aptPassed,
+  });
+
+  /// True when the source clears [minBits] per byte AND both local tests passed.
+  bool healthy([double minBits = 1.0]) =>
+      minEntropyPerByte >= minBits && rctPassed && aptPassed;
 }
 
 /// A HEURISTIC hidden-data report. [cryptolibPayload] is definitive; the LSB
@@ -992,6 +1030,7 @@ class CryptoLib {
   late final _StegoInspectDart _stegoInspect;
   late final _StegoContentDigestDart _stegoContentDigest;
   late final _StegoDetectHiddenDart _stegoDetectHidden;
+  late final _AssessHealthDart _assessHealth;
   late final _ImageFactorSealDart _imageFactorSeal;
   late final _ImageFactorOpenDart _imageFactorOpen;
   late final _HpkeStegoSealDart _hpkeStegoSeal;
@@ -1125,6 +1164,7 @@ class CryptoLib {
     _stegoInspect = _lib.lookupFunction<_StegoInspectC, _StegoInspectDart>('cryptolib_stego_inspect');
     _stegoContentDigest = _lib.lookupFunction<_StegoContentDigestC, _StegoContentDigestDart>('cryptolib_stego_content_digest');
     _stegoDetectHidden = _lib.lookupFunction<_StegoDetectHiddenC, _StegoDetectHiddenDart>('cryptolib_stego_detect_hidden');
+    _assessHealth = _lib.lookupFunction<_AssessHealthC, _AssessHealthDart>('cryptolib_entropy_assess_file_health');
     _imageFactorSeal = _lib.lookupFunction<_ImageFactorSealC, _ImageFactorSealDart>('cryptolib_image_factor_seal');
     _imageFactorOpen = _lib.lookupFunction<_ImageFactorOpenC, _ImageFactorOpenDart>('cryptolib_image_factor_open');
     _hpkeStegoSeal = _lib.lookupFunction<_HpkeStegoSealC, _HpkeStegoSealDart>('cryptolib_hpke_stego_seal');
@@ -2937,6 +2977,29 @@ class CryptoLib {
         lsbEmbeddingLikelihood: r.lsbEmbeddingLikelihood,
         samplesAnalysed: r.samplesAnalysed,
         note: note,
+      );
+    } finally {
+      calloc.free(cp);
+    }
+  }
+
+  /// Assess a media file against the SP 800-90B health tests. [maxBytes] caps the
+  /// sample size (0 = default 1 MiB). Use before trusting a file as a key source.
+  HealthReport assessFileHealth(String path, [int maxBytes = 0]) {
+    final cp = path.toNativeUtf8();
+    try {
+      final r = _assessHealth(cp, maxBytes);
+      if (r.error != nullptr) {
+        final msg = r.error.toDartString();
+        _strFree(r.error);
+        throw Exception(msg);
+      }
+      return HealthReport(
+        minEntropyPerByte: r.minEntropyPerByte,
+        longestRun: r.longestRun,
+        maxWindowCount: r.maxWindowCount,
+        rctPassed: r.rctPassed != 0,
+        aptPassed: r.aptPassed != 0,
       );
     } finally {
       calloc.free(cp);

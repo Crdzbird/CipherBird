@@ -1258,6 +1258,41 @@ func StegoDetectHidden(path string) (HiddenDataReport, error) {
 	return rep, nil
 }
 
+// HealthReport is a NIST SP 800-90B source-health assessment (see AssessFileHealth).
+type HealthReport struct {
+	MinEntropyPerByte float64 // Most-Common-Value lower bound, 0..8 bits/byte
+	LongestRun        uint64
+	MaxWindowCount    uint64
+	RctPassed         bool
+	AptPassed         bool
+}
+
+// Healthy reports whether the source clears minBits per byte AND both local tests passed.
+func (h HealthReport) Healthy(minBits float64) bool {
+	return h.MinEntropyPerByte >= minBits && h.RctPassed && h.AptPassed
+}
+
+// AssessFileHealth runs the SP 800-90B health tests over a media file. maxBytes
+// caps the sample size (0 = default 1 MiB). Use before trusting a file as a
+// deterministic key source.
+func AssessFileHealth(path string, maxBytes int) (HealthReport, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	r := C.cryptolib_entropy_assess_file_health(cp, C.size_t(maxBytes))
+	if r.error != nil {
+		msg := C.GoString(r.error)
+		C.cryptolib_str_free(r.error)
+		return HealthReport{}, errors.New(msg)
+	}
+	return HealthReport{
+		MinEntropyPerByte: float64(r.min_entropy_per_byte),
+		LongestRun:        uint64(r.longest_run),
+		MaxWindowCount:    uint64(r.max_window_count),
+		RctPassed:         r.rct_passed != 0,
+		AptPassed:         r.apt_passed != 0,
+	}, nil
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ImageFactorSeal (C2) — a shared reference image as an OPRF-gated second factor
 // ═══════════════════════════════════════════════════════════════════════════════

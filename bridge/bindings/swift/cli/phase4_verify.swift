@@ -198,6 +198,22 @@ do {
     cryptolib_fortuna_free(h)
 }
 
+// 10. assess_file_health (A1)
+do {
+    let good = dir + "good.ppm"; noisePpm(good, 128, 128, 0x1357)
+    let h = cryptolib_entropy_assess_file_health(good, 0)
+    check(h.error == nil && h.min_entropy_per_byte > 1.0 && h.rct_passed != 0 && h.apt_passed != 0,
+          "assess_file_health: noise carrier healthy")
+    if let e = h.error { cryptolib_str_free(e) }
+    let flat = dir + "flat.ppm"
+    var body = Array("P6\n64 64\n255\n".utf8); body.append(contentsOf: [UInt8](repeating: 0, count: 64 * 64 * 3))
+    try? Data(body).write(to: URL(fileURLWithPath: flat))
+    let hf = cryptolib_entropy_assess_file_health(flat, 0)
+    check(!(hf.min_entropy_per_byte >= 1.0 && hf.rct_passed != 0 && hf.apt_passed != 0),
+          "assess_file_health: constant carrier flagged")
+    if let e = hf.error { cryptolib_str_free(e) }
+}
+
 try? FileManager.default.removeItem(atPath: dir)
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURE(S)")
 exit(failures == 0 ? 0 : 1)

@@ -32,13 +32,18 @@ public final class Phase4Verify {
     final Arena arena = Arena.ofConfined();
     static final GroupLayout CRYPTO_KEYPAIR = MemoryLayout.structLayout(
             CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"));
+    static final GroupLayout CRYPTO_HEALTH = MemoryLayout.structLayout(
+            JAVA_DOUBLE.withName("min_entropy_per_byte"), JAVA_LONG.withName("longest_run"),
+            JAVA_LONG.withName("max_window_count"), JAVA_INT.withName("rct_passed"),
+            JAVA_INT.withName("apt_passed"), ADDRESS.withName("error"));
 
     final MethodHandle init, strFree, bufferFree, embed,
             embedKeyed, extractKeyed, embedEnc, extractDec,
             physSeal, physOpen, fecEncode, fecDecode,
             inspect, digest, detect,
             ifSeal, ifOpen, hpkeKeygen, keypairFree, hsSeal, hsOpen,
-            drbgNew, drbgGen, drbgFree, fortNew, fortAdd, fortGen, fortReseed, fortCount, fortFree;
+            drbgNew, drbgGen, drbgFree, fortNew, fortAdd, fortGen, fortReseed, fortCount, fortFree,
+            assessHealth;
 
     static int failures = 0;
     static void check(boolean ok, String label) {
@@ -79,6 +84,7 @@ public final class Phase4Verify {
         fortReseed  = h(l, lib, "cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS));
         fortCount   = h(l, lib, "cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
         fortFree    = h(l, lib, "cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS));
+        assessHealth= h(l, lib, "cryptolib_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG));
     }
 
     static MethodHandle h(Linker l, SymbolLookup lib, String name, FunctionDescriptor fd) {
@@ -262,6 +268,24 @@ public final class Phase4Verify {
             check((long) fortCount.invoke(h) >= 1, "Fortuna reseed count advances");
             check(consume((MemorySegment) fortGen.invoke(arena, h, 64L)).length == 64, "Fortuna generate after seeding");
             fortFree.invoke(h);
+        }
+
+        // 10. assess_file_health (A1)
+        {
+            Path good = dir.resolve("good.ppm"); noisePpm(good, 128, 128, 0x1357);
+            MemorySegment hr = (MemorySegment) assessHealth.invoke(arena, cstr(good.toString()), 0L);
+            boolean healthy = hr.get(ADDRESS, CRYPTO_HEALTH.byteOffset(MemoryLayout.PathElement.groupElement("error"))).equals(MemorySegment.NULL)
+                    && hr.get(JAVA_DOUBLE, 0) > 1.0
+                    && hr.get(JAVA_INT, 24) != 0 && hr.get(JAVA_INT, 28) != 0;
+            check(healthy, "assess_file_health: noise carrier healthy");
+            Path flat = dir.resolve("flat.ppm");
+            byte[] header = "P6\n64 64\n255\n".getBytes();
+            byte[] body = new byte[header.length + 64 * 64 * 3];
+            System.arraycopy(header, 0, body, 0, header.length);
+            Files.write(flat, body);
+            MemorySegment hf = (MemorySegment) assessHealth.invoke(arena, cstr(flat.toString()), 0L);
+            boolean flatHealthy = hf.get(JAVA_DOUBLE, 0) >= 1.0 && hf.get(JAVA_INT, 24) != 0 && hf.get(JAVA_INT, 28) != 0;
+            check(!flatHealthy, "assess_file_health: constant carrier flagged");
         }
     }
 
