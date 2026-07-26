@@ -543,6 +543,41 @@ typedef _StegoExtractDart = CryptoBufferResult Function(Pointer<Utf8> path);
 typedef _StegoCapacityC = Size Function(Pointer<Utf8> path);
 typedef _StegoCapacityDart = int Function(Pointer<Utf8> path);
 
+// Keyed stego / always-encrypt / PhysicalSeal / FEC (Phase 1-4 additions).
+typedef _StegoEmbedKeyedC = CryptoResult Function(Pointer<Utf8> cover,
+    Pointer<Uint8> payload, Size payloadLen, Pointer<Utf8> output,
+    Pointer<Uint8> key, Size keyLen);
+typedef _StegoEmbedKeyedDart = CryptoResult Function(Pointer<Utf8> cover,
+    Pointer<Uint8> payload, int payloadLen, Pointer<Utf8> output,
+    Pointer<Uint8> key, int keyLen);
+
+typedef _StegoExtractKeyedC = CryptoBufferResult Function(
+    Pointer<Utf8> stego, Pointer<Uint8> key, Size keyLen);
+typedef _StegoExtractKeyedDart = CryptoBufferResult Function(
+    Pointer<Utf8> stego, Pointer<Uint8> key, int keyLen);
+
+typedef _PhysicalSealC = CryptoResult Function(Pointer<Utf8> keyMedia,
+    Pointer<Uint8> pt, Size ptLen, Pointer<Uint8> aad, Size aadLen,
+    Pointer<Utf8> cover, Pointer<Utf8> output);
+typedef _PhysicalSealDart = CryptoResult Function(Pointer<Utf8> keyMedia,
+    Pointer<Uint8> pt, int ptLen, Pointer<Uint8> aad, int aadLen,
+    Pointer<Utf8> cover, Pointer<Utf8> output);
+
+typedef _PhysicalOpenC = CryptoBufferResult Function(
+    Pointer<Utf8> keyMedia, Pointer<Uint8> aad, Size aadLen, Pointer<Utf8> stego);
+typedef _PhysicalOpenDart = CryptoBufferResult Function(
+    Pointer<Utf8> keyMedia, Pointer<Uint8> aad, int aadLen, Pointer<Utf8> stego);
+
+typedef _FecEncodeC = CryptoBufferResult Function(
+    Pointer<Uint8> data, Size len, Int scheme);
+typedef _FecEncodeDart = CryptoBufferResult Function(
+    Pointer<Uint8> data, int len, int scheme);
+
+typedef _FecDecodeC = CryptoBufferResult Function(
+    Pointer<Uint8> data, Size len, Int scheme, Size originalLen);
+typedef _FecDecodeDart = CryptoBufferResult Function(
+    Pointer<Uint8> data, int len, int scheme, int originalLen);
+
 // =============================================================================
 // High-level Dart types
 // =============================================================================
@@ -731,6 +766,14 @@ class CryptoLib {
   late final _StegoEmbedDart _stegoEmbed;
   late final _StegoExtractDart _stegoExtract;
   late final _StegoCapacityDart _stegoCapacity;
+  late final _StegoEmbedKeyedDart _stegoEmbedKeyed;
+  late final _StegoExtractKeyedDart _stegoExtractKeyed;
+  late final _StegoEmbedKeyedDart _stegoEmbedEncrypted;
+  late final _StegoExtractKeyedDart _stegoExtractDecrypt;
+  late final _PhysicalSealDart _physicalSeal;
+  late final _PhysicalOpenDart _physicalOpen;
+  late final _FecEncodeDart _fecEncode;
+  late final _FecDecodeDart _fecDecode;
 
   CryptoLib._(this._lib) {
     // Init & version
@@ -839,6 +882,14 @@ class CryptoLib {
     _stegoEmbed = _lib.lookupFunction<_StegoEmbedC, _StegoEmbedDart>('cryptolib_stego_embed');
     _stegoExtract = _lib.lookupFunction<_StegoExtractC, _StegoExtractDart>('cryptolib_stego_extract');
     _stegoCapacity = _lib.lookupFunction<_StegoCapacityC, _StegoCapacityDart>('cryptolib_stego_capacity');
+    _stegoEmbedKeyed = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cryptolib_stego_embed_keyed');
+    _stegoExtractKeyed = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cryptolib_stego_extract_keyed');
+    _stegoEmbedEncrypted = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cryptolib_stego_embed_encrypted');
+    _stegoExtractDecrypt = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cryptolib_stego_extract_decrypt');
+    _physicalSeal = _lib.lookupFunction<_PhysicalSealC, _PhysicalSealDart>('cryptolib_physical_seal');
+    _physicalOpen = _lib.lookupFunction<_PhysicalOpenC, _PhysicalOpenDart>('cryptolib_physical_open');
+    _fecEncode = _lib.lookupFunction<_FecEncodeC, _FecEncodeDart>('cryptolib_fec_encode');
+    _fecDecode = _lib.lookupFunction<_FecDecodeC, _FecDecodeDart>('cryptolib_fec_decode');
   }
 
   /// Load the native library. Resolution order:
@@ -2454,6 +2505,127 @@ class CryptoLib {
       return _stegoCapacity(cp);
     } finally {
       calloc.free(cp);
+    }
+  }
+
+  /// Embed with key-derived whitening (and, for .ppm, block permutation) so no
+  /// 'CSTG' signature survives. The same key must be used to [stegoExtractKeyed].
+  void stegoEmbedKeyed(
+      String coverPath, Uint8List payload, String outputPath, Uint8List key) {
+    final cc = coverPath.toNativeUtf8();
+    final pp = _toNative(payload);
+    final co = outputPath.toNativeUtf8();
+    final kk = _toNative(key);
+    try {
+      _checkResult(_stegoEmbedKeyed(cc, pp, payload.length, co, kk, key.length));
+    } finally {
+      calloc.free(cc);
+      if (pp != nullptr) calloc.free(pp);
+      calloc.free(co);
+      if (kk != nullptr) calloc.free(kk);
+    }
+  }
+
+  /// Extract a keyed-embedded payload. A wrong key fails fast.
+  Uint8List stegoExtractKeyed(String stegoPath, Uint8List key) {
+    final cp = stegoPath.toNativeUtf8();
+    final kk = _toNative(key);
+    try {
+      return _checkBufResult(_stegoExtractKeyed(cp, kk, key.length));
+    } finally {
+      calloc.free(cp);
+      if (kk != nullptr) calloc.free(kk);
+    }
+  }
+
+  /// AEAD-seal [plaintext] under a key derived from [masterKey], then hide the
+  /// ciphertext (always-encrypt: no cleartext in the carrier). .ppm carrier.
+  void stegoEmbedEncrypted(
+      String coverPath, Uint8List plaintext, String outputPath, Uint8List masterKey) {
+    final cc = coverPath.toNativeUtf8();
+    final pp = _toNative(plaintext);
+    final co = outputPath.toNativeUtf8();
+    final kk = _toNative(masterKey);
+    try {
+      _checkResult(
+          _stegoEmbedEncrypted(cc, pp, plaintext.length, co, kk, masterKey.length));
+    } finally {
+      calloc.free(cc);
+      if (pp != nullptr) calloc.free(pp);
+      calloc.free(co);
+      if (kk != nullptr) calloc.free(kk);
+    }
+  }
+
+  /// Extract and AEAD-open a carrier written by [stegoEmbedEncrypted]. Wrong key
+  /// or tampering throws.
+  Uint8List stegoExtractDecrypt(String stegoPath, Uint8List masterKey) {
+    final cp = stegoPath.toNativeUtf8();
+    final kk = _toNative(masterKey);
+    try {
+      return _checkBufResult(_stegoExtractDecrypt(cp, kk, masterKey.length));
+    } finally {
+      calloc.free(cp);
+      if (kk != nullptr) calloc.free(kk);
+    }
+  }
+
+  /// Two-factor "the photo is the key" seal: [keyMediaPath] is conditioned into
+  /// AEAD + stego keys; [plaintext] (binding [aad]) is sealed and hidden in a
+  /// SEPARATE [coverPath], written to [outputPath]. Both files are required to open.
+  void physicalSeal(String keyMediaPath, Uint8List plaintext, Uint8List aad,
+      String coverPath, String outputPath) {
+    final km = keyMediaPath.toNativeUtf8();
+    final pp = _toNative(plaintext);
+    final aa = _toNative(aad);
+    final cc = coverPath.toNativeUtf8();
+    final co = outputPath.toNativeUtf8();
+    try {
+      _checkResult(_physicalSeal(
+          km, pp, plaintext.length, aa, aad.length, cc, co));
+    } finally {
+      calloc.free(km);
+      if (pp != nullptr) calloc.free(pp);
+      if (aa != nullptr) calloc.free(aa);
+      calloc.free(cc);
+      calloc.free(co);
+    }
+  }
+
+  /// Recover a [physicalSeal] message: reconstruct keys from [keyMediaPath],
+  /// extract from [stegoPath], and AEAD-open under [aad].
+  Uint8List physicalOpen(String keyMediaPath, Uint8List aad, String stegoPath) {
+    final km = keyMediaPath.toNativeUtf8();
+    final aa = _toNative(aad);
+    final sp = stegoPath.toNativeUtf8();
+    try {
+      return _checkBufResult(_physicalOpen(km, aa, aad.length, sp));
+    } finally {
+      calloc.free(km);
+      if (aa != nullptr) calloc.free(aa);
+      calloc.free(sp);
+    }
+  }
+
+  /// Forward error correction encode. scheme: 0=None, 1=Repetition-3,
+  /// 2=Repetition-5, 3=Hamming(7,4). Trades capacity for bit-error recovery.
+  Uint8List fecEncode(Uint8List data, int scheme) {
+    final dp = _toNative(data);
+    try {
+      return _checkBufResult(_fecEncode(dp, data.length, scheme));
+    } finally {
+      if (dp != nullptr) calloc.free(dp);
+    }
+  }
+
+  /// Forward error correction decode: recover [originalLen] bytes from [data],
+  /// correcting within the scheme's capability. Throws if [data] is too short.
+  Uint8List fecDecode(Uint8List data, int scheme, int originalLen) {
+    final dp = _toNative(data);
+    try {
+      return _checkBufResult(_fecDecode(dp, data.length, scheme, originalLen));
+    } finally {
+      if (dp != nullptr) calloc.free(dp);
     }
   }
 
