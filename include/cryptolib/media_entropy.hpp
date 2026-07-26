@@ -60,6 +60,7 @@
 #include "hash.hpp"
 #include "entropy_drbg.hpp"
 #include "entropy_health.hpp"
+#include "entropy_fortuna.hpp"
 #include "asymmetric.hpp"
 #include "vault.hpp"
 

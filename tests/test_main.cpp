@@ -21,6 +21,7 @@ void run_tests_vault();
 void run_tests_media_entropy();
 void run_tests_entropy_drbg();
 void run_tests_entropy_health();
+void run_tests_entropy_fortuna();
 void run_tests_stego_encrypted();
 void run_tests_physical_seal();
 void run_tests_oprf_image_seal();
@@ -79,6 +80,7 @@ int main() {
     run_suite("media_entropy",  run_tests_media_entropy);
     run_suite("entropy_drbg",   run_tests_entropy_drbg);
     run_suite("entropy_health", run_tests_entropy_health);
+    run_suite("entropy_fortuna", run_tests_entropy_fortuna);
     run_suite("stego_image",    run_tests_stego_image);
     run_suite("stego_audio",    run_tests_stego_audio);
     run_suite("stego_video",    run_tests_stego_video);
