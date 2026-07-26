@@ -198,6 +198,10 @@ if(CRYPTOLIB_BUILD_EXAMPLE)
     add_executable(cryptolib_recipes example/recipes.cpp)
     target_compile_options(cryptolib_recipes PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
     target_link_libraries(cryptolib_recipes PRIVATE crypto::cryptolib)
+
+    add_executable(cryptolib_stego_advanced example/stego_advanced.cpp)
+    target_compile_options(cryptolib_stego_advanced PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
+    target_link_libraries(cryptolib_stego_advanced PRIVATE crypto::cryptolib)
 endif()
 
 # ─── Tests ───────────────────────────────────────────────────────────────────
