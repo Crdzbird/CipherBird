@@ -2487,6 +2487,102 @@ CRYPTO_API size_t cryptolib_stego_capacity(const char* cover_path) try {
     return r.value().max_payload_bytes;
 } CL_FAIL_SIZE
 
+// ── Keyed steganography ──────────────────────────────────────────────────────
+CRYPTO_API CryptoResult cryptolib_stego_embed_keyed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path,
+    const uint8_t* key, size_t key_len) try
+{
+    crypto::stego::StegoParams p;
+    if (key && key_len) p.key.assign(key, key + key_len);
+    auto r = crypto::stego::StegoEngine::embed(cover_path, sp(payload, payload_len), output_path, p);
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cryptolib_stego_extract_keyed(
+    const char* stego_path,
+    const uint8_t* key, size_t key_len) try
+{
+    crypto::stego::StegoParams p;
+    if (key && key_len) p.key.assign(key, key + key_len);
+    auto r = crypto::stego::StegoEngine::extract(stego_path, p);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── Always-encrypt stego (AEAD-then-hide) ────────────────────────────────────
+CRYPTO_API CryptoResult cryptolib_stego_embed_encrypted(
+    const char* cover_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* output_path,
+    const uint8_t* master_key, size_t key_len) try
+{
+    auto r = crypto::stego::StegoEngine::embed_encrypted(
+        cover_path, sp(plaintext, pt_len), output_path, sp(master_key, key_len));
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cryptolib_stego_extract_decrypt(
+    const char* stego_path,
+    const uint8_t* master_key, size_t key_len) try
+{
+    auto r = crypto::stego::StegoEngine::extract_decrypt(stego_path, sp(master_key, key_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── PhysicalSeal — two-factor media-entropy seal ─────────────────────────────
+CRYPTO_API CryptoResult cryptolib_physical_seal(
+    const char* key_media_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path,
+    const char* output_path) try
+{
+    auto r = crypto::PhysicalSeal::seal(
+        key_media_path, sp(plaintext, pt_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        cover_path, output_path);
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cryptolib_physical_open(
+    const char* key_media_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path) try
+{
+    auto r = crypto::PhysicalSeal::open(
+        key_media_path,
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        stego_path);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── Forward error correction ─────────────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cryptolib_fec_encode(
+    const uint8_t* data, size_t len, int scheme) try
+{
+    if (scheme < 0 || scheme > 3) return err_buf("FEC: invalid scheme (0-3)");
+    auto enc = crypto::stego::fec::encode(
+        sp(data, len), static_cast<crypto::stego::fec::Scheme>(scheme));
+    return { to_cbuf(std::span<const uint8_t>(enc)), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fec_decode(
+    const uint8_t* data, size_t len, int scheme, size_t original_len) try
+{
+    if (scheme < 0 || scheme > 3) return err_buf("FEC: invalid scheme (0-3)");
+    auto r = crypto::stego::fec::decode(
+        sp(data, len), static_cast<crypto::stego::fec::Scheme>(scheme), original_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
  * ═══════════════════════════════════════════════════════════════════════════ */

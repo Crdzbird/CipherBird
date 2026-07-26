@@ -1275,6 +1275,73 @@ CRYPTO_API CryptoBufferResult cryptolib_stego_extract(const char* stego_path);
 /** Get the steganographic capacity of a cover file (in bytes). */
 CRYPTO_API size_t cryptolib_stego_capacity(const char* cover_path);
 
+/* ── Keyed steganography (whitened, no 'CSTG' signature) ────────────────────
+ * A non-empty key whitens the embedded stream for EVERY carrier format and, for
+ * the .ppm/DCT path, additionally permutes carrier slots. The SAME key must be
+ * supplied to extract. The payload should still be encrypted — the key governs
+ * concealment, not confidentiality. */
+
+/** Embed with key-derived whitening (+ permutation on .ppm). */
+CRYPTO_API CryptoResult cryptolib_stego_embed_keyed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path,
+    const uint8_t* key, size_t key_len);
+
+/** Extract a keyed-embedded payload. Wrong key → error (CRC fast-fail). */
+CRYPTO_API CryptoBufferResult cryptolib_stego_extract_keyed(
+    const char* stego_path,
+    const uint8_t* key, size_t key_len);
+
+/* ── Always-encrypt stego (AEAD-then-hide) ──────────────────────────────────
+ * One master key → domain-separated XChaCha20-Poly1305 (confidentiality +
+ * integrity) + whitening + permutation. The payload is never placed in the
+ * carrier as cleartext. .ppm carrier. */
+
+/** AEAD-seal then hide the ciphertext. */
+CRYPTO_API CryptoResult cryptolib_stego_embed_encrypted(
+    const char* cover_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* output_path,
+    const uint8_t* master_key, size_t key_len);
+
+/** Extract + AEAD-open. Wrong key or tamper → error. */
+CRYPTO_API CryptoBufferResult cryptolib_stego_extract_decrypt(
+    const char* stego_path,
+    const uint8_t* master_key, size_t key_len);
+
+/* ── PhysicalSeal — two-factor "the photo is the key" ───────────────────────
+ * A key-media file (conditioned via deterministic MediaEntropy) seeds an AEAD
+ * key and a stego key; the plaintext is sealed and hidden in a SEPARATE cover
+ * carrier. Both files are required to recover the message. */
+
+/** Seal `plaintext` (binds `aad`) using `key_media`, hiding it in `cover`. */
+CRYPTO_API CryptoResult cryptolib_physical_seal(
+    const char* key_media_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path,
+    const char* output_path);
+
+/** Recover: reconstruct keys from `key_media`, extract from `stego`, open. */
+CRYPTO_API CryptoBufferResult cryptolib_physical_open(
+    const char* key_media_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path);
+
+/* ── Forward error correction (stego robustness knob) ───────────────────────
+ * scheme: 0 = None, 1 = Repetition-3, 2 = Repetition-5, 3 = Hamming(7,4).
+ * Trades capacity for recovery from bounded bit errors. Classic codes. */
+
+/** FEC-encode `data` under `scheme`. */
+CRYPTO_API CryptoBufferResult cryptolib_fec_encode(
+    const uint8_t* data, size_t len, int scheme);
+
+/** FEC-decode `original_len` bytes from `data`, correcting within the scheme's
+ *  bound. Errs if `data` is too short. */
+CRYPTO_API CryptoBufferResult cryptolib_fec_decode(
+    const uint8_t* data, size_t len, int scheme, size_t original_len);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
  *

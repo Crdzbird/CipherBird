@@ -75,6 +75,17 @@ func checkBufResult(r C.CryptoBufferResult) ([]byte, error) {
 	return goBytes(r.buf), nil
 }
 
+// checkResult turns a CryptoResult (ok/error) into a Go error, freeing the
+// heap-allocated error string.
+func checkResult(r C.CryptoResult) error {
+	if r.ok == 0 {
+		msg := C.GoString(r.error)
+		C.cryptolib_str_free(r.error)
+		return errors.New(msg)
+	}
+	return nil
+}
+
 // Hex returns the hex encoding of a byte slice.
 func Hex(b []byte) string {
 	return hex.EncodeToString(b)
@@ -1066,6 +1077,99 @@ func StegoCapacity(coverPath string) int {
 	cc := C.CString(coverPath)
 	defer C.free(unsafe.Pointer(cc))
 	return int(C.cryptolib_stego_capacity(cc))
+}
+
+// StegoEmbedKeyed hides payload bytes with key-derived whitening (and, for
+// .ppm carriers, block permutation), so no 'CSTG' signature survives. The same
+// key must be supplied to StegoExtractKeyed. The payload should still be
+// encrypted — the key governs concealment, not confidentiality.
+func StegoEmbedKeyed(coverPath string, payload []byte, outputPath string, key []byte) error {
+	cc := C.CString(coverPath)
+	co := C.CString(outputPath)
+	defer C.free(unsafe.Pointer(cc))
+	defer C.free(unsafe.Pointer(co))
+	r := C.cryptolib_stego_embed_keyed(cc,
+		u8(payload), C.size_t(len(payload)), co,
+		u8(key), C.size_t(len(key)))
+	return checkResult(r)
+}
+
+// StegoExtractKeyed retrieves a keyed-embedded payload. A wrong key fails fast.
+func StegoExtractKeyed(stegoPath string, key []byte) ([]byte, error) {
+	cs := C.CString(stegoPath)
+	defer C.free(unsafe.Pointer(cs))
+	return checkBufResult(C.cryptolib_stego_extract_keyed(cs, u8(key), C.size_t(len(key))))
+}
+
+// StegoEmbedEncrypted AEAD-seals plaintext under a key derived from masterKey,
+// then hides the ciphertext (always-encrypt: no cleartext in the carrier). The
+// carrier must be .ppm. Use StegoExtractDecrypt with the same key to recover.
+func StegoEmbedEncrypted(coverPath string, plaintext []byte, outputPath string, masterKey []byte) error {
+	cc := C.CString(coverPath)
+	co := C.CString(outputPath)
+	defer C.free(unsafe.Pointer(cc))
+	defer C.free(unsafe.Pointer(co))
+	r := C.cryptolib_stego_embed_encrypted(cc,
+		u8(plaintext), C.size_t(len(plaintext)), co,
+		u8(masterKey), C.size_t(len(masterKey)))
+	return checkResult(r)
+}
+
+// StegoExtractDecrypt extracts and AEAD-opens a carrier written by
+// StegoEmbedEncrypted. Wrong key or tampering returns an error.
+func StegoExtractDecrypt(stegoPath string, masterKey []byte) ([]byte, error) {
+	cs := C.CString(stegoPath)
+	defer C.free(unsafe.Pointer(cs))
+	return checkBufResult(C.cryptolib_stego_extract_decrypt(cs, u8(masterKey), C.size_t(len(masterKey))))
+}
+
+// PhysicalSeal is the two-factor "the photo is the key" seal: keyMediaPath is
+// conditioned into AEAD + stego keys, plaintext (binding aad) is sealed and
+// hidden in a SEPARATE coverPath, written to outputPath. Both the key-media and
+// the stego carrier are required to recover the message.
+func PhysicalSeal(keyMediaPath string, plaintext, aad []byte, coverPath, outputPath string) error {
+	km := C.CString(keyMediaPath)
+	cc := C.CString(coverPath)
+	co := C.CString(outputPath)
+	defer C.free(unsafe.Pointer(km))
+	defer C.free(unsafe.Pointer(cc))
+	defer C.free(unsafe.Pointer(co))
+	r := C.cryptolib_physical_seal(km,
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(aad), C.size_t(len(aad)),
+		cc, co)
+	return checkResult(r)
+}
+
+// PhysicalOpen recovers a PhysicalSeal message: reconstruct keys from
+// keyMediaPath, extract from stegoPath, and AEAD-open under aad.
+func PhysicalOpen(keyMediaPath string, aad []byte, stegoPath string) ([]byte, error) {
+	km := C.CString(keyMediaPath)
+	cs := C.CString(stegoPath)
+	defer C.free(unsafe.Pointer(km))
+	defer C.free(unsafe.Pointer(cs))
+	return checkBufResult(C.cryptolib_physical_open(km, u8(aad), C.size_t(len(aad)), cs))
+}
+
+// FecScheme selects a forward-error-correction code for the stego robustness knob.
+type FecScheme int
+
+const (
+	FecNone        FecScheme = 0 // no correction
+	FecRepetition3 FecScheme = 1 // corrects 1 flip/bit, 3x size
+	FecRepetition5 FecScheme = 2 // corrects 2 flips/bit, 5x size
+	FecHamming74   FecScheme = 3 // corrects 1 flip per 7-bit block, 1.75x size
+)
+
+// FecEncode applies forward error correction to data.
+func FecEncode(data []byte, scheme FecScheme) ([]byte, error) {
+	return checkBufResult(C.cryptolib_fec_encode(u8(data), C.size_t(len(data)), C.int(scheme)))
+}
+
+// FecDecode recovers originalLen bytes from FEC-encoded data, correcting bit
+// errors within the scheme's capability. Returns an error if data is too short.
+func FecDecode(data []byte, scheme FecScheme, originalLen int) ([]byte, error) {
+	return checkBufResult(C.cryptolib_fec_decode(u8(data), C.size_t(len(data)), C.int(scheme), C.size_t(originalLen)))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
