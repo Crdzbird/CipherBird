@@ -1259,6 +1259,171 @@ func StegoDetectHidden(path string) (HiddenDataReport, error) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ImageFactorSeal (C2) — a shared reference image as an OPRF-gated second factor
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ImageFactorSeal seals plaintext (binding aad) under OPRF(oprfSecretSeed,
+// referenceImage), hiding the ciphertext in coverPath → outputPath. Two factors
+// are required to open: the OPRF secret AND the exact reference image.
+func ImageFactorSeal(oprfSecretSeed []byte, referenceImagePath string, plaintext, aad []byte, coverPath, outputPath string) error {
+	ri := C.CString(referenceImagePath)
+	cc := C.CString(coverPath)
+	co := C.CString(outputPath)
+	defer C.free(unsafe.Pointer(ri))
+	defer C.free(unsafe.Pointer(cc))
+	defer C.free(unsafe.Pointer(co))
+	return checkResult(C.cryptolib_image_factor_seal(
+		u8(oprfSecretSeed), C.size_t(len(oprfSecretSeed)), ri,
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(aad), C.size_t(len(aad)), cc, co))
+}
+
+// ImageFactorOpen recovers an ImageFactorSeal message. Wrong secret / wrong
+// reference image / tamper → error.
+func ImageFactorOpen(oprfSecretSeed []byte, referenceImagePath string, aad []byte, stegoPath string) ([]byte, error) {
+	ri := C.CString(referenceImagePath)
+	cs := C.CString(stegoPath)
+	defer C.free(unsafe.Pointer(ri))
+	defer C.free(unsafe.Pointer(cs))
+	return checkBufResult(C.cryptolib_image_factor_open(
+		u8(oprfSecretSeed), C.size_t(len(oprfSecretSeed)), ri,
+		u8(aad), C.size_t(len(aad)), cs))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HpkeStegoSeal (C3) — keyed stego bound to an HPKE session
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// HpkeStegoSeal seals plaintext to recipient public key pkR, hiding the
+// ciphertext in coverPath → outputPath, and returns the PUBLIC KEM encapsulation
+// `enc` (transmit it alongside the carrier). Get pkR from HpkeKeygen.
+func HpkeStegoSeal(pkR, plaintext, aad, info []byte, coverPath, outputPath string) ([]byte, error) {
+	cc := C.CString(coverPath)
+	co := C.CString(outputPath)
+	defer C.free(unsafe.Pointer(cc))
+	defer C.free(unsafe.Pointer(co))
+	return checkBufResult(C.cryptolib_hpke_stego_seal(
+		u8(pkR), C.size_t(len(pkR)),
+		u8(plaintext), C.size_t(len(plaintext)),
+		u8(aad), C.size_t(len(aad)),
+		u8(info), C.size_t(len(info)), cc, co))
+}
+
+// HpkeStegoOpen rebuilds the session from enc + recipient secret skR, extracts,
+// and AEAD-opens. Only the holder of skR can.
+func HpkeStegoOpen(skR, enc, aad, info []byte, stegoPath string) ([]byte, error) {
+	cs := C.CString(stegoPath)
+	defer C.free(unsafe.Pointer(cs))
+	return checkBufResult(C.cryptolib_hpke_stego_open(
+		u8(skR), C.size_t(len(skR)),
+		u8(enc), C.size_t(len(enc)),
+		u8(aad), C.size_t(len(aad)),
+		u8(info), C.size_t(len(info)), cs))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HMAC-DRBG (A3) — stateful accumulator/beacon
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Drbg is a stateful HMAC-DRBG (SP 800-90A). Close it (or let the finalizer) to
+// free the native handle.
+type Drbg struct {
+	handle C.CryptoDrbgHandle
+}
+
+// NewDrbg instantiates an HMAC-DRBG from entropy (>= 32 bytes), an optional
+// nonce, and an optional personalization string.
+func NewDrbg(entropy, nonce, personalization []byte) (*Drbg, error) {
+	var cerr *C.char
+	h := C.cryptolib_drbg_instantiate(
+		u8(entropy), C.size_t(len(entropy)),
+		u8(nonce), C.size_t(len(nonce)),
+		u8(personalization), C.size_t(len(personalization)), &cerr)
+	if cerr != nil {
+		msg := C.GoString(cerr)
+		C.cryptolib_str_free(cerr)
+		return nil, errors.New(msg)
+	}
+	d := &Drbg{handle: h}
+	runtime.SetFinalizer(d, func(d *Drbg) { d.Close() })
+	return d, nil
+}
+
+// Generate returns numBytes pseudo-random bytes (<= 65536), optional additional input.
+func (d *Drbg) Generate(numBytes int, additional []byte) ([]byte, error) {
+	r, err := checkBufResult(C.cryptolib_drbg_generate(
+		d.handle, C.size_t(numBytes), u8(additional), C.size_t(len(additional))))
+	runtime.KeepAlive(d)
+	return r, err
+}
+
+// Reseed folds fresh entropy into the state.
+func (d *Drbg) Reseed(entropy, additional []byte) error {
+	err := checkResult(C.cryptolib_drbg_reseed(
+		d.handle, u8(entropy), C.size_t(len(entropy)), u8(additional), C.size_t(len(additional))))
+	runtime.KeepAlive(d)
+	return err
+}
+
+// Close frees the native handle (idempotent).
+func (d *Drbg) Close() {
+	runtime.SetFinalizer(d, nil)
+	if d.handle != nil {
+		C.cryptolib_drbg_free(d.handle)
+		d.handle = nil
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Fortuna pool (A5) — stateful entropy accumulator
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Fortuna is a stateful Fortuna-style entropy pool. Close it (or let the
+// finalizer) to free the native handle.
+type Fortuna struct {
+	handle C.CryptoFortunaHandle
+}
+
+// NewFortuna creates a new, unseeded pool.
+func NewFortuna() *Fortuna {
+	f := &Fortuna{handle: C.cryptolib_fortuna_new()}
+	runtime.SetFinalizer(f, func(f *Fortuna) { f.Close() })
+	return f
+}
+
+// AddEntropy adds an entropy event from logical source sourceID.
+func (f *Fortuna) AddEntropy(sourceID byte, data []byte) {
+	C.cryptolib_fortuna_add_entropy(f.handle, C.uint8_t(sourceID), u8(data), C.size_t(len(data)))
+	runtime.KeepAlive(f)
+}
+
+// Generate returns numBytes; errors if the pool has never been seeded.
+func (f *Fortuna) Generate(numBytes int) ([]byte, error) {
+	r, err := checkBufResult(C.cryptolib_fortuna_generate(f.handle, C.size_t(numBytes)))
+	runtime.KeepAlive(f)
+	return r, err
+}
+
+// Reseed forces a reseed now (folds in the catch-up-scheduled pools).
+func (f *Fortuna) Reseed() { C.cryptolib_fortuna_reseed(f.handle); runtime.KeepAlive(f) }
+
+// ReseedCount returns the number of reseeds so far (0 = never seeded).
+func (f *Fortuna) ReseedCount() uint64 {
+	n := uint64(C.cryptolib_fortuna_reseed_count(f.handle))
+	runtime.KeepAlive(f)
+	return n
+}
+
+// Close frees the native handle (idempotent).
+func (f *Fortuna) Close() {
+	runtime.SetFinalizer(f, nil)
+	if f.handle != nil {
+		C.cryptolib_fortuna_free(f.handle)
+		f.handle = nil
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Pretty-print helper for examples
 // ═══════════════════════════════════════════════════════════════════════════════
 

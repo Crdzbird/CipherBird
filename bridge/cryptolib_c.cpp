@@ -123,6 +123,8 @@ struct EntropyImpl   { crypto::entropy::MediaEntropy me; };
 struct StreamEncImpl { crypto::symmetric::SecretStream::Encryptor enc; };
 struct StreamDecImpl { crypto::symmetric::SecretStream::Decryptor dec; };
 struct KeyringImpl   { crypto::Keyring kr; };
+struct DrbgImpl      { crypto::entropy::HmacDrbg d; };
+struct FortunaImpl   { crypto::entropy::FortunaPool p; };
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Memory management
@@ -2622,6 +2624,132 @@ CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path
         nullptr };
 } catch (...) {
     return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_err_cstr("internal error") };
+}
+
+// ── ImageFactorSeal (C2) ─────────────────────────────────────────────────────
+CRYPTO_API CryptoResult cryptolib_image_factor_seal(
+    const uint8_t* oprf_seed, size_t seed_len, const char* ref_img,
+    const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len,
+    const char* cover, const char* out) try
+{
+    auto r = crypto::ImageFactorSeal::seal(
+        sp(oprf_seed, seed_len), ref_img ? ref_img : "",
+        sp(pt, pt_len), aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        cover ? cover : "", out ? out : "");
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cryptolib_image_factor_open(
+    const uint8_t* oprf_seed, size_t seed_len, const char* ref_img,
+    const uint8_t* aad, size_t aad_len, const char* stego) try
+{
+    auto r = crypto::ImageFactorSeal::open(
+        sp(oprf_seed, seed_len), ref_img ? ref_img : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{}, stego ? stego : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── HpkeStegoSeal (C3) ───────────────────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cryptolib_hpke_stego_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* pt, size_t pt_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* info, size_t info_len,
+    const char* cover, const char* out) try
+{
+    auto r = crypto::HpkeStegoSeal::seal(
+        sp(pkR, pkR_len), sp(pt, pt_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        cover ? cover : "", out ? out : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());   // the public KEM encapsulation `enc`
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_hpke_stego_open(
+    const uint8_t* skR, size_t skR_len, const uint8_t* enc, size_t enc_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* info, size_t info_len,
+    const char* stego) try
+{
+    auto r = crypto::HpkeStegoSeal::open(
+        sp(skR, skR_len), sp(enc, enc_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        stego ? stego : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── HMAC-DRBG handle (A3) ────────────────────────────────────────────────────
+CRYPTO_API CryptoDrbgHandle cryptolib_drbg_instantiate(
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* nonce, size_t nonce_len,
+    const uint8_t* perso, size_t perso_len, char** out_error) try
+{
+    auto r = crypto::entropy::HmacDrbg::instantiate(
+        sp(entropy, entropy_len),
+        nonce ? sp(nonce, nonce_len) : std::span<const uint8_t>{},
+        perso ? sp(perso, perso_len) : std::span<const uint8_t>{});
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoDrbgHandle>(new DrbgImpl{ std::move(r.value()) });
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cryptolib_drbg_generate(
+    CryptoDrbgHandle h, size_t num_bytes, const uint8_t* additional, size_t additional_len) try
+{
+    if (!h) return err_buf("DRBG: null handle");
+    auto r = static_cast<DrbgImpl*>(h)->d.generate(
+        num_bytes, additional ? sp(additional, additional_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoResult cryptolib_drbg_reseed(
+    CryptoDrbgHandle h, const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* additional, size_t additional_len) try
+{
+    if (!h) return { 0, dup_str("DRBG: null handle") };
+    static_cast<DrbgImpl*>(h)->d.reseed(
+        sp(entropy, entropy_len),
+        additional ? sp(additional, additional_len) : std::span<const uint8_t>{});
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API void cryptolib_drbg_free(CryptoDrbgHandle h) {
+    delete static_cast<DrbgImpl*>(h);
+}
+
+// ── Fortuna pool handle (A5) ─────────────────────────────────────────────────
+CRYPTO_API CryptoFortunaHandle cryptolib_fortuna_new(void) try {
+    return static_cast<CryptoFortunaHandle>(new FortunaImpl{});
+} CL_FAIL_PTR
+
+CRYPTO_API void cryptolib_fortuna_add_entropy(
+    CryptoFortunaHandle h, uint8_t source_id, const uint8_t* data, size_t len) {
+    if (!h) return;
+    static_cast<FortunaImpl*>(h)->p.add_entropy(source_id, sp(data, len));
+}
+
+CRYPTO_API CryptoBufferResult cryptolib_fortuna_generate(
+    CryptoFortunaHandle h, size_t num_bytes) try
+{
+    if (!h) return err_buf("Fortuna: null handle");
+    auto r = static_cast<FortunaImpl*>(h)->p.generate(num_bytes);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_fortuna_reseed(CryptoFortunaHandle h) {
+    if (h) static_cast<FortunaImpl*>(h)->p.reseed_now();
+}
+
+CRYPTO_API uint64_t cryptolib_fortuna_reseed_count(CryptoFortunaHandle h) {
+    return h ? static_cast<FortunaImpl*>(h)->p.reseed_count() : 0;
+}
+
+CRYPTO_API void cryptolib_fortuna_free(CryptoFortunaHandle h) {
+    delete static_cast<FortunaImpl*>(h);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

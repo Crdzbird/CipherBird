@@ -152,6 +152,99 @@ func TestStegoAnalysis(t *testing.T) {
 	}
 }
 
+func TestImageFactorSeal(t *testing.T) {
+	dir := t.TempDir()
+	img := filepath.Join(dir, "ref.ppm")
+	cover := filepath.Join(dir, "cover.ppm")
+	out := filepath.Join(dir, "out.ppm")
+	writeNoisePPM(t, img, 64, 64, 0xFEED)
+	writeNoisePPM(t, cover, 256, 256, 0xCAFE)
+
+	seed := bytes.Repeat([]byte{0x42}, 32)
+	msg := []byte("image is the second factor")
+	if err := ImageFactorSeal(seed, img, msg, nil, cover, out); err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+	got, err := ImageFactorOpen(seed, img, nil, out)
+	if err != nil || !bytes.Equal(got, msg) {
+		t.Fatalf("open mismatch: %v %q", err, got)
+	}
+	// Wrong reference image → fail.
+	other := filepath.Join(dir, "other.ppm")
+	writeNoisePPM(t, other, 64, 64, 0xBEEF)
+	if _, err := ImageFactorOpen(seed, other, nil, out); err == nil {
+		t.Fatal("expected wrong-image open to fail")
+	}
+}
+
+func TestHpkeStegoSeal(t *testing.T) {
+	dir := t.TempDir()
+	cover := filepath.Join(dir, "cover.ppm")
+	out := filepath.Join(dir, "out.ppm")
+	writeNoisePPM(t, cover, 256, 256, 0x1234)
+
+	recip := HpkeKeygen()
+	info := []byte("session")
+	msg := []byte("one session keys both cipher and cover")
+	enc, err := HpkeStegoSeal(recip.Public, msg, nil, info, cover, out)
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+	got, err := HpkeStegoOpen(recip.Secret, enc, nil, info, out)
+	if err != nil || !bytes.Equal(got, msg) {
+		t.Fatalf("open mismatch: %v %q", err, got)
+	}
+	// Wrong recipient secret → fail.
+	mallory := HpkeKeygen()
+	if _, err := HpkeStegoOpen(mallory.Secret, enc, nil, info, out); err == nil {
+		t.Fatal("expected wrong-recipient open to fail")
+	}
+}
+
+func TestDrbgHandle(t *testing.T) {
+	seed := bytes.Repeat([]byte{0x01}, 32)
+	d1, err := NewDrbg(seed, nil, []byte("beacon"))
+	if err != nil {
+		t.Fatalf("instantiate: %v", err)
+	}
+	defer d1.Close()
+	a, _ := d1.Generate(64, nil)
+	b, _ := d1.Generate(64, nil)
+	if bytes.Equal(a, b) {
+		t.Fatal("successive DRBG blocks must differ")
+	}
+	// Same seed+perso reproduces the stream.
+	d2, _ := NewDrbg(seed, nil, []byte("beacon"))
+	defer d2.Close()
+	a2, _ := d2.Generate(64, nil)
+	if !bytes.Equal(a, a2) {
+		t.Fatal("same seed must reproduce the first block")
+	}
+	// Too-little entropy is rejected.
+	if _, err := NewDrbg([]byte{1, 2, 3}, nil, nil); err == nil {
+		t.Fatal("expected short-entropy instantiate to fail")
+	}
+}
+
+func TestFortunaHandle(t *testing.T) {
+	f := NewFortuna()
+	defer f.Close()
+	if _, err := f.Generate(32); err == nil {
+		t.Fatal("expected unseeded generate to fail")
+	}
+	for i := 0; i < 40; i++ {
+		f.AddEntropy(byte(i&7), bytes.Repeat([]byte{byte(i)}, 16))
+	}
+	f.Reseed()
+	if f.ReseedCount() < 1 {
+		t.Fatal("reseed count should advance")
+	}
+	out, err := f.Generate(64)
+	if err != nil || len(out) != 64 {
+		t.Fatalf("generate: %v len=%d", err, len(out))
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)

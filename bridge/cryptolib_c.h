@@ -64,6 +64,8 @@ typedef void* CryptoEntropyHandle;
 typedef void* CryptoStreamEncHandle;
 typedef void* CryptoStreamDecHandle;
 typedef void* CryptoKeyringHandle;
+typedef void* CryptoDrbgHandle;     /**< HMAC-DRBG (SP 800-90A) accumulator */
+typedef void* CryptoFortunaHandle;  /**< Fortuna-style entropy pool */
 
 /** Key pair (two buffers). */
 typedef struct {
@@ -1383,6 +1385,101 @@ CRYPTO_API CryptoBufferResult cryptolib_stego_content_digest(const char* path);
 
 /** Heuristic hidden-data probe (see caveats above). */
 CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path);
+
+/* ── ImageFactorSeal — a shared reference image as an OPRF-gated 2nd factor ──
+ * Two factors to open: the OPRF secret (know) AND the exact reference image
+ * (have). Local one-shot mode (the oblivious remote mode stays C++-only). */
+
+/** Seal `plaintext` (binds `aad`) under OPRF(oprf_secret_seed, reference_image),
+ *  hiding the ciphertext in `cover`. */
+CRYPTO_API CryptoResult cryptolib_image_factor_seal(
+    const uint8_t* oprf_secret_seed, size_t seed_len,
+    const char* reference_image_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path, const char* output_path);
+
+/** Recover: re-derive the keys from the OPRF secret + reference image, extract,
+ *  AEAD-open. Wrong secret / wrong image / tamper → error. */
+CRYPTO_API CryptoBufferResult cryptolib_image_factor_open(
+    const uint8_t* oprf_secret_seed, size_t seed_len,
+    const char* reference_image_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path);
+
+/* ── HpkeStegoSeal — keyed stego bound to an HPKE session (RFC 9180) ─────────
+ * One HPKE session (DHKEM-X25519 + HKDF-SHA256 + ChaCha20-Poly1305) governs both
+ * the AEAD ciphertext and the stego key (via the exporter). Get pkR/skR from
+ * cryptolib_hpke_keygen / cryptolib_hpke_derive_keypair. */
+
+/** Seal `plaintext` to recipient public key `pkR`, hiding the ciphertext in
+ *  `cover`. Returns the PUBLIC KEM encapsulation `enc` — transmit it alongside
+ *  the carrier (the receiver needs it). */
+CRYPTO_API CryptoBufferResult cryptolib_hpke_stego_seal(
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* info, size_t info_len,
+    const char* cover_path, const char* output_path);
+
+/** Recover: rebuild the session from `enc` + recipient secret `skR`, extract,
+ *  AEAD-open. Only the holder of skR can. */
+CRYPTO_API CryptoBufferResult cryptolib_hpke_stego_open(
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* info, size_t info_len,
+    const char* stego_path);
+
+/* ── HMAC-DRBG (SP 800-90A) — stateful accumulator/beacon ───────────────────
+ * Instantiate once from >= 32 bytes of entropy, then pull a forward-secure
+ * keystream. Free the handle with cryptolib_drbg_free. */
+
+/** Instantiate from entropy (>=32 B) + optional nonce + optional personalization.
+ *  Returns NULL on failure (out_error set; free with cryptolib_str_free). */
+CRYPTO_API CryptoDrbgHandle cryptolib_drbg_instantiate(
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* nonce, size_t nonce_len,
+    const uint8_t* personalization, size_t perso_len,
+    char** out_error);
+
+/** Generate `num_bytes` (<= 65536) pseudo-random bytes, optional additional input. */
+CRYPTO_API CryptoBufferResult cryptolib_drbg_generate(
+    CryptoDrbgHandle h, size_t num_bytes,
+    const uint8_t* additional, size_t additional_len);
+
+/** Reseed with fresh entropy + optional additional input. */
+CRYPTO_API CryptoResult cryptolib_drbg_reseed(
+    CryptoDrbgHandle h,
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* additional, size_t additional_len);
+
+/** Free a DRBG handle. */
+CRYPTO_API void cryptolib_drbg_free(CryptoDrbgHandle h);
+
+/* ── Fortuna-style entropy pool — stateful accumulator ──────────────────────
+ * Add entropy events from many sources; generate() reseeds automatically once
+ * pool 0 fills, then yields a forward-secret ChaCha20 keystream. */
+
+/** Create a new (unseeded) pool. Free with cryptolib_fortuna_free. */
+CRYPTO_API CryptoFortunaHandle cryptolib_fortuna_new(void);
+
+/** Add an entropy event from logical source `source_id`. */
+CRYPTO_API void cryptolib_fortuna_add_entropy(
+    CryptoFortunaHandle h, uint8_t source_id, const uint8_t* data, size_t len);
+
+/** Generate `num_bytes`. Errors if the pool has never been seeded. */
+CRYPTO_API CryptoBufferResult cryptolib_fortuna_generate(
+    CryptoFortunaHandle h, size_t num_bytes);
+
+/** Force a reseed now (folds in the catch-up-scheduled pools). */
+CRYPTO_API void cryptolib_fortuna_reseed(CryptoFortunaHandle h);
+
+/** Number of reseeds so far (0 = never seeded). */
+CRYPTO_API uint64_t cryptolib_fortuna_reseed_count(CryptoFortunaHandle h);
+
+/** Free a Fortuna handle. */
+CRYPTO_API void cryptolib_fortuna_free(CryptoFortunaHandle h);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
