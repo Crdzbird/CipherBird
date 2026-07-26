@@ -110,6 +110,25 @@ void main(List<String> args) {
     }
   }
 
+  // 5. Carrier analysis: validity, tamper digest, hidden-data probe.
+  {
+    final cover = '${dir.path}/a.ppm', stego = '${dir.path}/as.ppm';
+    writeNoisePpm(cover, 128, 128, 0x99);
+    final insp = lib.stegoInspect(cover);
+    check(insp.parses && insp.extMatches && insp.width == 128, 'inspect valid PPM');
+
+    final d1 = lib.stegoContentDigest(cover);
+    File(cover).writeAsBytesSync([0], mode: FileMode.append);
+    final d2 = lib.stegoContentDigest(cover);
+    check(!lib.secureEqual(d1, d2), 'content digest changes on tamper');
+
+    writeNoisePpm(cover, 128, 128, 0x99);
+    lib.stegoEmbed(cover, Uint8List.fromList('hi'.codeUnits), stego);
+    final rep = lib.stegoDetectHidden(stego);
+    check(rep.cryptolibPayload && rep.note.isNotEmpty,
+        'detect unkeyed cryptolib payload + honesty note');
+  }
+
   dir.deleteSync(recursive: true);
   stdout.writeln(_failures == 0
       ? 'ALL PASS'

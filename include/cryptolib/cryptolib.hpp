@@ -141,6 +141,7 @@
 #include "suite.hpp"             // → Suite: one-call advanced combinations (needs OpenSSL + PQ)
 #include "molecular_vault.hpp"    // → max-assurance layered vault (cascade + Argon2id + committing)
 #include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
+#include "stego_analysis.hpp"     // → StegoAnalyzer: carrier validity, tamper digest, hidden-data probe
 #include "physical_seal.hpp"      // → PhysicalSeal: two-factor media-entropy seal + keyed stego
 #include "oprf_image_seal.hpp"    // → ImageFactorSeal: OPRF-gated image second-factor + keyed stego
 #include "hpke_stego_seal.hpp"    // → HpkeStegoSeal: keyed stego bound to an HPKE session (exporter)

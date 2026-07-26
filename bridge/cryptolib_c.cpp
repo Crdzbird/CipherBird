@@ -2583,6 +2583,47 @@ CRYPTO_API CryptoBufferResult cryptolib_fec_decode(
     return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
 } CL_FAIL_BUFRES
 
+// ── Carrier analysis ─────────────────────────────────────────────────────────
+CRYPTO_API CryptoFileInspection cryptolib_stego_inspect(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::inspect(path ? path : "");
+    if (r.is_err())
+        return CryptoFileInspection{ 0, 0xFF, 0, 0, 0, 0, nullptr, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoFileInspection{
+        v.parses ? 1 : 0,
+        static_cast<uint8_t>(v.format),
+        v.ext_matches ? 1 : 0,
+        static_cast<uint64_t>(v.width),
+        static_cast<uint64_t>(v.height),
+        static_cast<uint64_t>(v.file_size),
+        dup_str(v.detail),
+        nullptr };
+} catch (...) {
+    return CryptoFileInspection{ 0, 0xFF, 0, 0, 0, 0, nullptr, dup_err_cstr("internal error") };
+}
+
+CRYPTO_API CryptoBufferResult cryptolib_stego_content_digest(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::content_digest(path ? path : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value().data(), r.value().size())), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::detect_hidden(path ? path : "");
+    if (r.is_err())
+        return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoHiddenDataReport{
+        v.cryptolib_payload ? 1 : 0,
+        v.lsb_chi_square,
+        v.lsb_embedding_likelihood,
+        static_cast<uint64_t>(v.samples_analysed),
+        dup_str(v.note),
+        nullptr };
+} catch (...) {
+    return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_err_cstr("internal error") };
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
  * ═══════════════════════════════════════════════════════════════════════════ */

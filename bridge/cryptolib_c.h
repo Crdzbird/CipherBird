@@ -1342,6 +1342,48 @@ CRYPTO_API CryptoBufferResult cryptolib_fec_encode(
 CRYPTO_API CryptoBufferResult cryptolib_fec_decode(
     const uint8_t* data, size_t len, int scheme, size_t original_len);
 
+/* ── Carrier analysis — validity, tamper, hidden-data (heuristic) ────────────
+ * Honest probes; NONE is a proof. See the notes below and the C++ header. */
+
+/** File-validity / format inspection. `format` is the MediaFormat inferred from
+ *  CONTENT (magic bytes), 0xFF = unknown; `ext_matches`=1 iff it matches the
+ *  file extension. On error, `error` is set (free with cryptolib_str_free). */
+typedef struct {
+    int      parses;       /**< 1 = recognised, structurally plausible carrier */
+    uint8_t  format;       /**< MediaFormat from content (0xFF unknown) */
+    int      ext_matches;  /**< 1 = content format == extension format */
+    uint64_t width;        /**< images only (0 otherwise) */
+    uint64_t height;
+    uint64_t file_size;
+    char*    detail;       /**< human summary (heap-allocated) — free with cryptolib_str_free */
+    char*    error;        /**< NULL on success */
+} CryptoFileInspection;
+
+/** Heuristic hidden-data report. `cryptolib_payload`=1 is definitive (an UNKEYED
+ *  cryptolib payload was recovered); `lsb_embedding_likelihood` is a 0..1
+ *  heuristic (Westfeld–Pfitzmann LSB attack) — NOT proof, false-positives on
+ *  high-entropy carriers, blind to keyed/whitened & DCT payloads. `note` states
+ *  the limits. Free `note`/`error` with cryptolib_str_free. */
+typedef struct {
+    int      cryptolib_payload;         /**< 1 = an unkeyed cryptolib payload is recoverable */
+    double   lsb_chi_square;            /**< raw statistic */
+    double   lsb_embedding_likelihood;  /**< 0..1 heuristic */
+    uint64_t samples_analysed;
+    char*    note;                      /**< honesty caveat (heap-allocated) */
+    char*    error;                     /**< NULL on success */
+} CryptoHiddenDataReport;
+
+/** Inspect a media file's structural validity + format. */
+CRYPTO_API CryptoFileInspection cryptolib_stego_inspect(const char* path);
+
+/** 32-byte BLAKE2b digest of the whole file — store it, recompute later, and
+ *  compare with cryptolib_secure_equal to detect ANY change (reference-based
+ *  tamper detection). */
+CRYPTO_API CryptoBufferResult cryptolib_stego_content_digest(const char* path);
+
+/** Heuristic hidden-data probe (see caveats above). */
+CRYPTO_API CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char* path);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
  *

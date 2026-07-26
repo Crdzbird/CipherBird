@@ -103,6 +103,64 @@ func TestPhysicalSealRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStegoAnalysis(t *testing.T) {
+	dir := t.TempDir()
+	cover := filepath.Join(dir, "cover.ppm")
+	stego := filepath.Join(dir, "stego.ppm")
+	writeNoisePPM(t, cover, 128, 128, 0x77)
+
+	// Validity: a real PPM parses; its content matches the .ppm extension.
+	fi, err := StegoInspect(cover)
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !fi.Parses || !fi.ExtMatches || fi.Width != 128 {
+		t.Fatalf("unexpected inspection: %+v", fi)
+	}
+
+	// Tamper detection via stored digest.
+	d1, err := StegoContentDigest(cover)
+	if err != nil {
+		t.Fatalf("digest: %v", err)
+	}
+	d1b, _ := StegoContentDigest(cover)
+	if !bytes.Equal(d1, d1b) {
+		t.Fatal("digest not stable")
+	}
+	if err := os.WriteFile(cover, append(mustRead(t, cover), 0x00), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d2, _ := StegoContentDigest(cover)
+	if bytes.Equal(d1, d2) {
+		t.Fatal("digest should change after tamper")
+	}
+
+	// Hidden-data probe: an unkeyed cryptolib embed is detected definitively.
+	writeNoisePPM(t, cover, 128, 128, 0x77)
+	if err := StegoEmbed(cover, []byte("hi there"), stego); err != nil {
+		t.Fatalf("embed: %v", err)
+	}
+	rep, err := StegoDetectHidden(stego)
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if !rep.CryptolibPayload {
+		t.Fatal("expected cryptolib payload to be detected")
+	}
+	if rep.Note == "" {
+		t.Fatal("expected an honesty note")
+	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func TestFecRoundTripWithErrors(t *testing.T) {
 	data := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF}
 	for _, s := range []FecScheme{FecRepetition3, FecRepetition5, FecHamming74} {

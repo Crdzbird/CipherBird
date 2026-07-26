@@ -131,6 +131,38 @@ final class CryptoEntropyInfo extends Struct {
   external double entropyBits;
 }
 
+/// Carrier structural-validity report (cryptolib_stego_inspect).
+final class CryptoFileInspection extends Struct {
+  @Int32()
+  external int parses;
+  @Uint8()
+  external int format;
+  @Int32()
+  external int extMatches;
+  @Uint64()
+  external int width;
+  @Uint64()
+  external int height;
+  @Uint64()
+  external int fileSize;
+  external Pointer<Utf8> detail;
+  external Pointer<Utf8> error;
+}
+
+/// Heuristic hidden-data report (cryptolib_stego_detect_hidden). Not proof.
+final class CryptoHiddenDataReport extends Struct {
+  @Int32()
+  external int cryptolibPayload;
+  @Double()
+  external double lsbChiSquare;
+  @Double()
+  external double lsbEmbeddingLikelihood;
+  @Uint64()
+  external int samplesAnalysed;
+  external Pointer<Utf8> note;
+  external Pointer<Utf8> error;
+}
+
 /// Public metadata of a sealed (Flagship/Fortress) envelope. No secrets.
 final class CryptoSealedInfo extends Struct {
   @Uint8()
@@ -578,6 +610,15 @@ typedef _FecDecodeC = CryptoBufferResult Function(
 typedef _FecDecodeDart = CryptoBufferResult Function(
     Pointer<Uint8> data, int len, int scheme, int originalLen);
 
+typedef _StegoInspectC = CryptoFileInspection Function(Pointer<Utf8> path);
+typedef _StegoInspectDart = CryptoFileInspection Function(Pointer<Utf8> path);
+
+typedef _StegoContentDigestC = CryptoBufferResult Function(Pointer<Utf8> path);
+typedef _StegoContentDigestDart = CryptoBufferResult Function(Pointer<Utf8> path);
+
+typedef _StegoDetectHiddenC = CryptoHiddenDataReport Function(Pointer<Utf8> path);
+typedef _StegoDetectHiddenDart = CryptoHiddenDataReport Function(Pointer<Utf8> path);
+
 // =============================================================================
 // High-level Dart types
 // =============================================================================
@@ -649,6 +690,43 @@ class AsymBundleResult {
     required this.boxSecret,
     required this.signPublic,
     required this.signSecret,
+  });
+}
+
+/// A media carrier's structural-validity report.
+class StegoFileInspection {
+  final bool parses;
+  final int format; // MediaFormat from content, 0xFF = unknown
+  final bool extMatches;
+  final int width;
+  final int height;
+  final int fileSize;
+  final String detail;
+  StegoFileInspection({
+    required this.parses,
+    required this.format,
+    required this.extMatches,
+    required this.width,
+    required this.height,
+    required this.fileSize,
+    required this.detail,
+  });
+}
+
+/// A HEURISTIC hidden-data report. [cryptolibPayload] is definitive; the LSB
+/// figures are indicators only — read [note] for the limits. Never a proof.
+class StegoHiddenDataReport {
+  final bool cryptolibPayload;
+  final double lsbChiSquare;
+  final double lsbEmbeddingLikelihood;
+  final int samplesAnalysed;
+  final String note;
+  StegoHiddenDataReport({
+    required this.cryptolibPayload,
+    required this.lsbChiSquare,
+    required this.lsbEmbeddingLikelihood,
+    required this.samplesAnalysed,
+    required this.note,
   });
 }
 
@@ -774,6 +852,9 @@ class CryptoLib {
   late final _PhysicalOpenDart _physicalOpen;
   late final _FecEncodeDart _fecEncode;
   late final _FecDecodeDart _fecDecode;
+  late final _StegoInspectDart _stegoInspect;
+  late final _StegoContentDigestDart _stegoContentDigest;
+  late final _StegoDetectHiddenDart _stegoDetectHidden;
 
   CryptoLib._(this._lib) {
     // Init & version
@@ -890,6 +971,9 @@ class CryptoLib {
     _physicalOpen = _lib.lookupFunction<_PhysicalOpenC, _PhysicalOpenDart>('cryptolib_physical_open');
     _fecEncode = _lib.lookupFunction<_FecEncodeC, _FecEncodeDart>('cryptolib_fec_encode');
     _fecDecode = _lib.lookupFunction<_FecDecodeC, _FecDecodeDart>('cryptolib_fec_decode');
+    _stegoInspect = _lib.lookupFunction<_StegoInspectC, _StegoInspectDart>('cryptolib_stego_inspect');
+    _stegoContentDigest = _lib.lookupFunction<_StegoContentDigestC, _StegoContentDigestDart>('cryptolib_stego_content_digest');
+    _stegoDetectHidden = _lib.lookupFunction<_StegoDetectHiddenC, _StegoDetectHiddenDart>('cryptolib_stego_detect_hidden');
   }
 
   /// Load the native library. Resolution order:
@@ -2626,6 +2710,71 @@ class CryptoLib {
       return _checkBufResult(_fecDecode(dp, data.length, scheme, originalLen));
     } finally {
       if (dp != nullptr) calloc.free(dp);
+    }
+  }
+
+  /// Inspect a media file's structural validity and whether its content matches
+  /// its extension.
+  StegoFileInspection stegoInspect(String path) {
+    final cp = path.toNativeUtf8();
+    try {
+      final r = _stegoInspect(cp);
+      if (r.error != nullptr) {
+        final msg = r.error.toDartString();
+        _strFree(r.error);
+        if (r.detail != nullptr) _strFree(r.detail);
+        throw Exception(msg);
+      }
+      final detail = r.detail != nullptr ? r.detail.toDartString() : '';
+      if (r.detail != nullptr) _strFree(r.detail);
+      return StegoFileInspection(
+        parses: r.parses != 0,
+        format: r.format,
+        extMatches: r.extMatches != 0,
+        width: r.width,
+        height: r.height,
+        fileSize: r.fileSize,
+        detail: detail,
+      );
+    } finally {
+      calloc.free(cp);
+    }
+  }
+
+  /// 32-byte BLAKE2b of the whole file. Store it and recompute later to detect
+  /// ANY change (reference-based tamper detection).
+  Uint8List stegoContentDigest(String path) {
+    final cp = path.toNativeUtf8();
+    try {
+      return _checkBufResult(_stegoContentDigest(cp));
+    } finally {
+      calloc.free(cp);
+    }
+  }
+
+  /// Heuristic hidden-data probe. See [StegoHiddenDataReport.note] for the
+  /// limits — this is an indicator, not proof.
+  StegoHiddenDataReport stegoDetectHidden(String path) {
+    final cp = path.toNativeUtf8();
+    try {
+      final r = _stegoDetectHidden(cp);
+      if (r.error != nullptr) {
+        final msg = r.error.toDartString();
+        _strFree(r.error);
+        if (r.note != nullptr) _strFree(r.note);
+        throw Exception(msg);
+      }
+      final note = r.note != nullptr ? r.note.toDartString() : '';
+      if (r.note != nullptr) _strFree(r.note);
+      return StegoHiddenDataReport(
+        cryptolibPayload: r.cryptolibPayload != 0,
+        lsbChiSquare: r.lsbChiSquare,
+        lsbEmbeddingLikelihood: r.lsbEmbeddingLikelihood,
+        samplesAnalysed: r.samplesAnalysed,
+        note: note,
+      );
+    } finally {
+      calloc.free(cp);
     }
   }
 

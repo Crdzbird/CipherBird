@@ -1172,6 +1172,92 @@ func FecDecode(data []byte, scheme FecScheme, originalLen int) ([]byte, error) {
 	return checkBufResult(C.cryptolib_fec_decode(u8(data), C.size_t(len(data)), C.int(scheme), C.size_t(originalLen)))
 }
 
+// FileInspection reports a media carrier's structural validity (see StegoInspect).
+type FileInspection struct {
+	Parses     bool   // recognised, structurally plausible carrier
+	Format     uint8  // MediaFormat inferred from content (0xFF = unknown)
+	ExtMatches bool   // content format matches the file extension
+	Width      uint64 // images only
+	Height     uint64
+	FileSize   uint64
+	Detail     string // human summary
+}
+
+// StegoInspect checks whether a file is a structurally valid media carrier and
+// whether its content matches its extension.
+func StegoInspect(path string) (FileInspection, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	r := C.cryptolib_stego_inspect(cp)
+	if r.error != nil {
+		msg := C.GoString(r.error)
+		C.cryptolib_str_free(r.error)
+		if r.detail != nil {
+			C.cryptolib_str_free(r.detail)
+		}
+		return FileInspection{}, errors.New(msg)
+	}
+	fi := FileInspection{
+		Parses:     r.parses != 0,
+		Format:     uint8(r.format),
+		ExtMatches: r.ext_matches != 0,
+		Width:      uint64(r.width),
+		Height:     uint64(r.height),
+		FileSize:   uint64(r.file_size),
+		Detail:     C.GoString(r.detail),
+	}
+	if r.detail != nil {
+		C.cryptolib_str_free(r.detail)
+	}
+	return fi, nil
+}
+
+// StegoContentDigest returns the 32-byte BLAKE2b of the whole file. Store it and
+// recompute later to detect ANY change (reference-based tamper detection).
+func StegoContentDigest(path string) ([]byte, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	return checkBufResult(C.cryptolib_stego_content_digest(cp))
+}
+
+// HiddenDataReport is a HEURISTIC hidden-data probe. CryptolibPayload is
+// definitive (an unkeyed cryptolib payload was recovered); LsbEmbeddingLikelihood
+// is a 0..1 heuristic with the caveats in Note — never a proof.
+type HiddenDataReport struct {
+	CryptolibPayload      bool
+	LsbChiSquare          float64
+	LsbEmbeddingLikelihood float64
+	SamplesAnalysed       uint64
+	Note                  string
+}
+
+// StegoDetectHidden runs the heuristic hidden-data probe over a file. See the
+// caveats in the returned Note — this is an indicator, not proof.
+func StegoDetectHidden(path string) (HiddenDataReport, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	r := C.cryptolib_stego_detect_hidden(cp)
+	if r.error != nil {
+		msg := C.GoString(r.error)
+		C.cryptolib_str_free(r.error)
+		if r.note != nil {
+			C.cryptolib_str_free(r.note)
+		}
+		return HiddenDataReport{}, errors.New(msg)
+	}
+	rep := HiddenDataReport{
+		CryptolibPayload:       r.cryptolib_payload != 0,
+		LsbChiSquare:           float64(r.lsb_chi_square),
+		LsbEmbeddingLikelihood: float64(r.lsb_embedding_likelihood),
+		SamplesAnalysed:        uint64(r.samples_analysed),
+		Note:                   C.GoString(r.note),
+	}
+	if r.note != nil {
+		C.cryptolib_str_free(r.note)
+	}
+	return rep, nil
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Pretty-print helper for examples
 // ═══════════════════════════════════════════════════════════════════════════════
