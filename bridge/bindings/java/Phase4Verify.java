@@ -30,10 +30,15 @@ public final class Phase4Verify {
             JAVA_LONG.withName("samples_analysed"), ADDRESS.withName("note"), ADDRESS.withName("error"));
 
     final Arena arena = Arena.ofConfined();
+    static final GroupLayout CRYPTO_KEYPAIR = MemoryLayout.structLayout(
+            CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"));
+
     final MethodHandle init, strFree, bufferFree, embed,
             embedKeyed, extractKeyed, embedEnc, extractDec,
             physSeal, physOpen, fecEncode, fecDecode,
-            inspect, digest, detect;
+            inspect, digest, detect,
+            ifSeal, ifOpen, hpkeKeygen, keypairFree, hsSeal, hsOpen,
+            drbgNew, drbgGen, drbgFree, fortNew, fortAdd, fortGen, fortReseed, fortCount, fortFree;
 
     static int failures = 0;
     static void check(boolean ok, String label) {
@@ -59,6 +64,21 @@ public final class Phase4Verify {
         inspect     = h(l, lib, "cryptolib_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS));
         digest      = h(l, lib, "cryptolib_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS));
         detect      = h(l, lib, "cryptolib_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS));
+        ifSeal      = h(l, lib, "cryptolib_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        ifOpen      = h(l, lib, "cryptolib_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        hpkeKeygen  = h(l, lib, "cryptolib_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR));
+        keypairFree = h(l, lib, "cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
+        hsSeal      = h(l, lib, "cryptolib_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        hsOpen      = h(l, lib, "cryptolib_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
+        drbgNew     = h(l, lib, "cryptolib_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
+        drbgGen     = h(l, lib, "cryptolib_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        drbgFree    = h(l, lib, "cryptolib_drbg_free", FunctionDescriptor.ofVoid(ADDRESS));
+        fortNew     = h(l, lib, "cryptolib_fortuna_new", FunctionDescriptor.of(ADDRESS));
+        fortAdd     = h(l, lib, "cryptolib_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG));
+        fortGen     = h(l, lib, "cryptolib_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG));
+        fortReseed  = h(l, lib, "cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS));
+        fortCount   = h(l, lib, "cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
+        fortFree    = h(l, lib, "cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS));
     }
 
     static MethodHandle h(Linker l, SymbolLookup lib, String name, FunctionDescriptor fd) {
@@ -176,6 +196,72 @@ public final class Phase4Verify {
             String noteStr = note.equals(MemorySegment.NULL) ? "" : note.reinterpret(Long.MAX_VALUE).getString(0);
             if (!note.equals(MemorySegment.NULL)) strFree.invoke(note);
             check(payload && !noteStr.isEmpty(), "detect unkeyed payload + honesty note");
+        }
+
+        // 6. ImageFactorSeal (C2)
+        {
+            Path img = dir.resolve("ref.ppm"), cover = dir.resolve("ifs_cover.ppm"), out = dir.resolve("ifs_out.ppm");
+            noisePpm(img, 64, 64, 0xFEED); noisePpm(cover, 256, 256, 0xCAFE);
+            byte[] seed = new byte[32]; java.util.Arrays.fill(seed, (byte) 0x42);
+            byte[] msg = "image is the second factor".getBytes();
+            check(okResult((MemorySegment) ifSeal.invoke(arena, bytes(seed), (long) seed.length, cstr(img.toString()), bytes(msg), (long) msg.length, MemorySegment.NULL, 0L, cstr(cover.toString()), cstr(out.toString()))), "image_factor_seal");
+            byte[] got = consume((MemorySegment) ifOpen.invoke(arena, bytes(seed), (long) seed.length, cstr(img.toString()), MemorySegment.NULL, 0L, cstr(out.toString())));
+            check(eq(got, msg), "ImageFactorSeal round-trip");
+            Path other = dir.resolve("ref2.ppm"); noisePpm(other, 64, 64, 0xBEEF);
+            byte[] bad = consume((MemorySegment) ifOpen.invoke(arena, bytes(seed), (long) seed.length, cstr(other.toString()), MemorySegment.NULL, 0L, cstr(out.toString())));
+            check(bad.length == 0, "ImageFactorSeal wrong-image rejected");
+        }
+
+        // 7. HpkeStegoSeal (C3)
+        {
+            Path cover = dir.resolve("hss_cover.ppm"), out = dir.resolve("hss_out.ppm");
+            noisePpm(cover, 256, 256, 0x4321);
+            MemorySegment kp = (MemorySegment) hpkeKeygen.invoke(arena);
+            long bufSz = CRYPTO_BUFFER.byteSize();
+            byte[] pk = kp.get(ADDRESS, 0).reinterpret(kp.get(JAVA_LONG, ADDRESS.byteSize())).toArray(JAVA_BYTE);
+            byte[] sk = kp.get(ADDRESS, bufSz).reinterpret(kp.get(JAVA_LONG, bufSz + ADDRESS.byteSize())).toArray(JAVA_BYTE);
+            keypairFree.invoke(kp);
+            byte[] info = "session".getBytes(), msg = "one session keys both".getBytes();
+            byte[] enc = consume((MemorySegment) hsSeal.invoke(arena, bytes(pk), (long) pk.length, bytes(msg), (long) msg.length, MemorySegment.NULL, 0L, bytes(info), (long) info.length, cstr(cover.toString()), cstr(out.toString())));
+            byte[] got = consume((MemorySegment) hsOpen.invoke(arena, bytes(sk), (long) sk.length, bytes(enc), (long) enc.length, MemorySegment.NULL, 0L, bytes(info), (long) info.length, cstr(out.toString())));
+            check(eq(got, msg), "HpkeStegoSeal round-trip");
+            MemorySegment kp2 = (MemorySegment) hpkeKeygen.invoke(arena);
+            byte[] sk2 = kp2.get(ADDRESS, bufSz).reinterpret(kp2.get(JAVA_LONG, bufSz + ADDRESS.byteSize())).toArray(JAVA_BYTE);
+            keypairFree.invoke(kp2);
+            byte[] bad = consume((MemorySegment) hsOpen.invoke(arena, bytes(sk2), (long) sk2.length, bytes(enc), (long) enc.length, MemorySegment.NULL, 0L, bytes(info), (long) info.length, cstr(out.toString())));
+            check(bad.length == 0, "HpkeStegoSeal wrong-recipient rejected");
+        }
+
+        // 8. HMAC-DRBG handle (A3)
+        {
+            byte[] seed = new byte[32]; java.util.Arrays.fill(seed, (byte) 0x01);
+            byte[] perso = "beacon".getBytes();
+            MemorySegment errBox = arena.allocate(ADDRESS);
+            MemorySegment h1 = (MemorySegment) drbgNew.invoke(bytes(seed), (long) seed.length, MemorySegment.NULL, 0L, bytes(perso), (long) perso.length, errBox);
+            byte[] a = consume((MemorySegment) drbgGen.invoke(arena, h1, 64L, MemorySegment.NULL, 0L));
+            byte[] b = consume((MemorySegment) drbgGen.invoke(arena, h1, 64L, MemorySegment.NULL, 0L));
+            check(!eq(a, b), "DRBG successive blocks differ");
+            MemorySegment h2 = (MemorySegment) drbgNew.invoke(bytes(seed), (long) seed.length, MemorySegment.NULL, 0L, bytes(perso), (long) perso.length, errBox);
+            check(eq(a, consume((MemorySegment) drbgGen.invoke(arena, h2, 64L, MemorySegment.NULL, 0L))), "DRBG reproducible from same seed");
+            drbgFree.invoke(h1); drbgFree.invoke(h2);
+            MemorySegment bad = (MemorySegment) drbgNew.invoke(bytes(new byte[]{1, 2, 3}), 3L, MemorySegment.NULL, 0L, MemorySegment.NULL, 0L, errBox);
+            MemorySegment err = errBox.get(ADDRESS, 0);
+            check(bad.equals(MemorySegment.NULL) && !err.equals(MemorySegment.NULL), "DRBG short-entropy rejected");
+            if (!err.equals(MemorySegment.NULL)) strFree.invoke(err);
+        }
+
+        // 9. Fortuna handle (A5)
+        {
+            MemorySegment h = (MemorySegment) fortNew.invoke();
+            check(consume((MemorySegment) fortGen.invoke(arena, h, 32L)).length == 0, "Fortuna unseeded generate rejected");
+            for (int i = 0; i < 40; i++) {
+                byte[] d = new byte[16]; java.util.Arrays.fill(d, (byte) i);
+                fortAdd.invoke(h, (byte) (i & 7), bytes(d), (long) d.length);
+            }
+            fortReseed.invoke(h);
+            check((long) fortCount.invoke(h) >= 1, "Fortuna reseed count advances");
+            check(consume((MemorySegment) fortGen.invoke(arena, h, 64L)).length == 64, "Fortuna generate after seeding");
+            fortFree.invoke(h);
         }
     }
 

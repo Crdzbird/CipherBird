@@ -27,6 +27,8 @@ private val CRYPTO_HIDDEN = MemoryLayout.structLayout(
     JAVA_INT.withName("cryptolib_payload"), MemoryLayout.paddingLayout(4),
     JAVA_DOUBLE.withName("lsb_chi_square"), JAVA_DOUBLE.withName("lsb_embedding_likelihood"),
     JAVA_LONG.withName("samples_analysed"), ADDRESS.withName("note"), ADDRESS.withName("error"))
+private val CRYPTO_KEYPAIR = MemoryLayout.structLayout(
+    CRYPTO_BUFFER.withName("public_key"), CRYPTO_BUFFER.withName("secret_key"))
 
 class Native(libPath: String) {
     val arena: Arena = Arena.ofConfined()
@@ -50,6 +52,21 @@ class Native(libPath: String) {
     val inspect = h("cryptolib_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS))
     val digest = h("cryptolib_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS))
     val detect = h("cryptolib_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS))
+    val ifSeal = h("cryptolib_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    val ifOpen = h("cryptolib_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
+    val hpkeKeygen = h("cryptolib_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
+    val keypairFree = h("cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val hsSeal = h("cryptolib_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    val hsOpen = h("cryptolib_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
+    val drbgNew = h("cryptolib_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
+    val drbgGen = h("cryptolib_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    val drbgFree = h("cryptolib_drbg_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val fortNew = h("cryptolib_fortuna_new", FunctionDescriptor.of(ADDRESS))
+    val fortAdd = h("cryptolib_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG))
+    val fortGen = h("cryptolib_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG))
+    val fortReseed = h("cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS))
+    val fortCount = h("cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
+    val fortFree = h("cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS))
 
     fun cstr(s: String): MemorySegment = arena.allocateFrom(s)
     fun bytes(b: ByteArray): MemorySegment {
@@ -162,6 +179,68 @@ fun main(args: Array<String>) {
         val noteStr = if (note == MemorySegment.NULL) "" else note.reinterpret(Long.MAX_VALUE).getString(0)
         if (note != MemorySegment.NULL) n.strFree.invoke(note)
         check(payload && noteStr.isNotEmpty(), "detect unkeyed payload + honesty note")
+    }
+
+    // 6. ImageFactorSeal (C2)
+    run {
+        val img = dir.resolve("ref.ppm"); val cover = dir.resolve("ifs_cover.ppm"); val out = dir.resolve("ifs_out.ppm")
+        noisePpm(img, 64, 64, 0xFEED); noisePpm(cover, 256, 256, 0xCAFE)
+        val seed = ByteArray(32) { 0x42 }
+        val msg = "image is the second factor".toByteArray()
+        check(n.okResult(n.ifSeal.invoke(n.arena, n.bytes(seed), seed.size.toLong(), n.cstr(img.toString()), n.bytes(msg), msg.size.toLong(), MemorySegment.NULL, 0L, n.cstr(cover.toString()), n.cstr(out.toString())) as MemorySegment), "image_factor_seal")
+        val got = n.consume(n.ifOpen.invoke(n.arena, n.bytes(seed), seed.size.toLong(), n.cstr(img.toString()), MemorySegment.NULL, 0L, n.cstr(out.toString())) as MemorySegment)
+        check(got.contentEquals(msg), "ImageFactorSeal round-trip")
+        val other = dir.resolve("ref2.ppm"); noisePpm(other, 64, 64, 0xBEEF)
+        val bad = n.consume(n.ifOpen.invoke(n.arena, n.bytes(seed), seed.size.toLong(), n.cstr(other.toString()), MemorySegment.NULL, 0L, n.cstr(out.toString())) as MemorySegment)
+        check(bad.isEmpty(), "ImageFactorSeal wrong-image rejected")
+    }
+
+    // 7. HpkeStegoSeal (C3)
+    run {
+        val cover = dir.resolve("hss_cover.ppm"); val out = dir.resolve("hss_out.ppm")
+        noisePpm(cover, 256, 256, 0x4321)
+        val bufSz = CRYPTO_BUFFER.byteSize()
+        val kp = n.hpkeKeygen.invoke(n.arena) as MemorySegment
+        val pk = kp.get(ADDRESS, 0).reinterpret(kp.get(JAVA_LONG, ADDRESS.byteSize())).toArray(JAVA_BYTE)
+        val sk = kp.get(ADDRESS, bufSz).reinterpret(kp.get(JAVA_LONG, bufSz + ADDRESS.byteSize())).toArray(JAVA_BYTE)
+        n.keypairFree.invoke(kp)
+        val info = "session".toByteArray(); val msg = "one session keys both".toByteArray()
+        val enc = n.consume(n.hsSeal.invoke(n.arena, n.bytes(pk), pk.size.toLong(), n.bytes(msg), msg.size.toLong(), MemorySegment.NULL, 0L, n.bytes(info), info.size.toLong(), n.cstr(cover.toString()), n.cstr(out.toString())) as MemorySegment)
+        val got = n.consume(n.hsOpen.invoke(n.arena, n.bytes(sk), sk.size.toLong(), n.bytes(enc), enc.size.toLong(), MemorySegment.NULL, 0L, n.bytes(info), info.size.toLong(), n.cstr(out.toString())) as MemorySegment)
+        check(got.contentEquals(msg), "HpkeStegoSeal round-trip")
+        val kp2 = n.hpkeKeygen.invoke(n.arena) as MemorySegment
+        val sk2 = kp2.get(ADDRESS, bufSz).reinterpret(kp2.get(JAVA_LONG, bufSz + ADDRESS.byteSize())).toArray(JAVA_BYTE)
+        n.keypairFree.invoke(kp2)
+        val bad = n.consume(n.hsOpen.invoke(n.arena, n.bytes(sk2), sk2.size.toLong(), n.bytes(enc), enc.size.toLong(), MemorySegment.NULL, 0L, n.bytes(info), info.size.toLong(), n.cstr(out.toString())) as MemorySegment)
+        check(bad.isEmpty(), "HpkeStegoSeal wrong-recipient rejected")
+    }
+
+    // 8. HMAC-DRBG handle (A3)
+    run {
+        val seed = ByteArray(32) { 0x01 }; val perso = "beacon".toByteArray()
+        val errBox = n.arena.allocate(ADDRESS)
+        val h1 = n.drbgNew.invoke(n.bytes(seed), seed.size.toLong(), MemorySegment.NULL, 0L, n.bytes(perso), perso.size.toLong(), errBox) as MemorySegment
+        val a = n.consume(n.drbgGen.invoke(n.arena, h1, 64L, MemorySegment.NULL, 0L) as MemorySegment)
+        val b = n.consume(n.drbgGen.invoke(n.arena, h1, 64L, MemorySegment.NULL, 0L) as MemorySegment)
+        check(!a.contentEquals(b), "DRBG successive blocks differ")
+        val h2 = n.drbgNew.invoke(n.bytes(seed), seed.size.toLong(), MemorySegment.NULL, 0L, n.bytes(perso), perso.size.toLong(), errBox) as MemorySegment
+        check(a.contentEquals(n.consume(n.drbgGen.invoke(n.arena, h2, 64L, MemorySegment.NULL, 0L) as MemorySegment)), "DRBG reproducible from same seed")
+        n.drbgFree.invoke(h1); n.drbgFree.invoke(h2)
+        val bad = n.drbgNew.invoke(n.bytes(byteArrayOf(1, 2, 3)), 3L, MemorySegment.NULL, 0L, MemorySegment.NULL, 0L, errBox) as MemorySegment
+        val err = errBox.get(ADDRESS, 0)
+        check(bad == MemorySegment.NULL && err != MemorySegment.NULL, "DRBG short-entropy rejected")
+        if (err != MemorySegment.NULL) n.strFree.invoke(err)
+    }
+
+    // 9. Fortuna handle (A5)
+    run {
+        val h = n.fortNew.invoke() as MemorySegment
+        check(n.consume(n.fortGen.invoke(n.arena, h, 32L) as MemorySegment).isEmpty(), "Fortuna unseeded generate rejected")
+        for (i in 0 until 40) { val d = ByteArray(16) { i.toByte() }; n.fortAdd.invoke(h, (i and 7).toByte(), n.bytes(d), d.size.toLong()) }
+        n.fortReseed.invoke(h)
+        check((n.fortCount.invoke(h) as Long) >= 1, "Fortuna reseed count advances")
+        check(n.consume(n.fortGen.invoke(n.arena, h, 64L) as MemorySegment).size == 64, "Fortuna generate after seeding")
+        n.fortFree.invoke(h)
     }
 
     println(if (failures == 0) "ALL PASS" else "$failures FAILURE(S)")

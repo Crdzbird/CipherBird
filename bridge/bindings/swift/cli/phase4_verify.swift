@@ -119,6 +119,85 @@ do {
     check(payload && !note.isEmpty, "detect unkeyed payload + honesty note")
 }
 
+// 6. ImageFactorSeal (C2)
+do {
+    let img = dir + "ref.ppm", cover = dir + "ifs_cover.ppm", out = dir + "ifs_out.ppm"
+    noisePpm(img, 64, 64, 0xFEED); noisePpm(cover, 256, 256, 0xCAFE)
+    let seed = [UInt8](repeating: 0x42, count: 32)
+    let msg = Array("image is the second factor".utf8)
+    let ok = seed.withUnsafeBufferPointer { s in msg.withUnsafeBufferPointer { m in
+        okResult(cryptolib_image_factor_seal(s.baseAddress, s.count, img, m.baseAddress, m.count, nil, 0, cover, out))
+    }}
+    check(ok, "image_factor_seal")
+    let got = seed.withUnsafeBufferPointer { cryptolib_image_factor_open($0.baseAddress, $0.count, img, nil, 0, out) }
+    check(consume(got) ?? [] == msg, "ImageFactorSeal round-trip")
+    let other = dir + "ref2.ppm"; noisePpm(other, 64, 64, 0xBEEF)
+    let bad = seed.withUnsafeBufferPointer { cryptolib_image_factor_open($0.baseAddress, $0.count, other, nil, 0, out) }
+    check(consume(bad) == nil, "ImageFactorSeal wrong-image rejected")
+}
+
+// 7. HpkeStegoSeal (C3)
+do {
+    let cover = dir + "hss_cover.ppm", out = dir + "hss_out.ppm"
+    noisePpm(cover, 256, 256, 0x4321)
+    func kpBytes(_ b: CryptoBuffer) -> [UInt8] { b.data == nil ? [] : Array(UnsafeBufferPointer(start: b.data, count: b.len)) }
+    var kp = cryptolib_hpke_keygen()
+    let pk = kpBytes(kp.public_key), sk = kpBytes(kp.secret_key)
+    cryptolib_keypair_free(&kp)
+    let info = Array("session".utf8), msg = Array("one session keys both".utf8)
+    let encR = pk.withUnsafeBufferPointer { p in msg.withUnsafeBufferPointer { m in info.withUnsafeBufferPointer { i in
+        cryptolib_hpke_stego_seal(p.baseAddress, p.count, m.baseAddress, m.count, nil, 0, i.baseAddress, i.count, cover, out)
+    }}}
+    let enc = consume(encR) ?? []
+    let got = sk.withUnsafeBufferPointer { s in enc.withUnsafeBufferPointer { e in info.withUnsafeBufferPointer { i in
+        consume(cryptolib_hpke_stego_open(s.baseAddress, s.count, e.baseAddress, e.count, nil, 0, i.baseAddress, i.count, out))
+    }}}
+    check(got ?? [] == msg, "HpkeStegoSeal round-trip")
+    var kp2 = cryptolib_hpke_keygen(); let sk2 = kpBytes(kp2.secret_key); cryptolib_keypair_free(&kp2)
+    let bad = sk2.withUnsafeBufferPointer { s in enc.withUnsafeBufferPointer { e in info.withUnsafeBufferPointer { i in
+        consume(cryptolib_hpke_stego_open(s.baseAddress, s.count, e.baseAddress, e.count, nil, 0, i.baseAddress, i.count, out))
+    }}}
+    check(bad == nil, "HpkeStegoSeal wrong-recipient rejected")
+}
+
+// 8. HMAC-DRBG handle (A3)
+do {
+    let seed = [UInt8](repeating: 0x01, count: 32), perso = Array("beacon".utf8)
+    func inst() -> CryptoDrbgHandle? {
+        var err: UnsafeMutablePointer<CChar>? = nil
+        let h = seed.withUnsafeBufferPointer { s in perso.withUnsafeBufferPointer { p in
+            cryptolib_drbg_instantiate(s.baseAddress, s.count, nil, 0, p.baseAddress, p.count, &err)
+        }}
+        if let e = err { cryptolib_str_free(e) }
+        return h
+    }
+    let h1 = inst(), h2 = inst()
+    let a = consume(cryptolib_drbg_generate(h1, 64, nil, 0)) ?? []
+    let b = consume(cryptolib_drbg_generate(h1, 64, nil, 0)) ?? []
+    check(a != b, "DRBG successive blocks differ")
+    check(a == (consume(cryptolib_drbg_generate(h2, 64, nil, 0)) ?? []), "DRBG reproducible from same seed")
+    cryptolib_drbg_free(h1); cryptolib_drbg_free(h2)
+    var err: UnsafeMutablePointer<CChar>? = nil
+    let short: [UInt8] = [1, 2, 3]
+    let bad = short.withUnsafeBufferPointer { cryptolib_drbg_instantiate($0.baseAddress, $0.count, nil, 0, nil, 0, &err) }
+    check(bad == nil && err != nil, "DRBG short-entropy rejected")
+    if let e = err { cryptolib_str_free(e) }
+}
+
+// 9. Fortuna handle (A5)
+do {
+    let h = cryptolib_fortuna_new()
+    check(consume(cryptolib_fortuna_generate(h, 32)) == nil, "Fortuna unseeded generate rejected")
+    for i in 0..<40 {
+        let d = [UInt8](repeating: UInt8(i & 0xFF), count: 16)
+        d.withUnsafeBufferPointer { cryptolib_fortuna_add_entropy(h, UInt8(i & 7), $0.baseAddress, $0.count) }
+    }
+    cryptolib_fortuna_reseed(h)
+    check(cryptolib_fortuna_reseed_count(h) >= 1, "Fortuna reseed count advances")
+    check((consume(cryptolib_fortuna_generate(h, 64)) ?? []).count == 64, "Fortuna generate after seeding")
+    cryptolib_fortuna_free(h)
+}
+
 try? FileManager.default.removeItem(atPath: dir)
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURE(S)")
 exit(failures == 0 ? 0 : 1)

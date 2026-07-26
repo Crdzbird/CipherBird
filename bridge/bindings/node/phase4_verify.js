@@ -140,6 +140,81 @@ const key = Buffer.alloc(32, 0x5a);
   if (rep.note) strFree(rep.note);
 }
 
+// 6. ImageFactorSeal (C2)
+{
+  const ifSeal = lib.func('CryptoResult cryptolib_image_factor_seal(uint8_t*, size_t, const char*, uint8_t*, size_t, uint8_t*, size_t, const char*, const char*)');
+  const ifOpen = lib.func('CryptoBufferResult cryptolib_image_factor_open(uint8_t*, size_t, const char*, uint8_t*, size_t, const char*)');
+  const img = path.join(dir, 'ref.ppm'), cover = path.join(dir, 'ifs_cover.ppm'), out = path.join(dir, 'ifs_out.ppm');
+  noisePpm(img, 64, 64, 0xFEED); noisePpm(cover, 256, 256, 0xCAFE);
+  const seed = Buffer.alloc(32, 0x42);
+  const msg = Buffer.from('image is the second factor');
+  checkResult(ifSeal(seed, seed.length, img, msg, msg.length, null, 0, cover, out));
+  const got = consume(ifOpen(seed, seed.length, img, null, 0, out));
+  check(got.equals(msg), 'ImageFactorSeal round-trip');
+  const other = path.join(dir, 'ref2.ppm'); noisePpm(other, 64, 64, 0xBEEF);
+  check(consume(ifOpen(seed, seed.length, other, null, 0, out)).length === 0, 'ImageFactorSeal wrong-image rejected');
+}
+
+// 7. HpkeStegoSeal (C3)
+{
+  const CryptoKeyPair = koffi.struct('CryptoKeyPair', { public_key: CryptoBuffer, secret_key: CryptoBuffer });
+  const hpkeKeygen = lib.func('CryptoKeyPair cryptolib_hpke_keygen()');
+  const kpFree = lib.func('void cryptolib_keypair_free(CryptoKeyPair* kp)');
+  const hsSeal = lib.func('CryptoBufferResult cryptolib_hpke_stego_seal(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const char*, const char*)');
+  const hsOpen = lib.func('CryptoBufferResult cryptolib_hpke_stego_open(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const char*)');
+  const kpBytes = (b) => Buffer.from(koffi.decode(b.data, 'uint8_t', Number(b.len)));
+  const cover = path.join(dir, 'hss_cover.ppm'), out = path.join(dir, 'hss_out.ppm');
+  noisePpm(cover, 256, 256, 0x4321);
+  const kp = hpkeKeygen();
+  const pk = kpBytes(kp.public_key), sk = kpBytes(kp.secret_key);
+  kpFree(kp);
+  const info = Buffer.from('session'), msg = Buffer.from('one session keys both');
+  const enc = consume(hsSeal(pk, pk.length, msg, msg.length, null, 0, info, info.length, cover, out));
+  const got = consume(hsOpen(sk, sk.length, enc, enc.length, null, 0, info, info.length, out));
+  check(got.equals(msg), 'HpkeStegoSeal round-trip');
+  const kp2 = hpkeKeygen(); const sk2 = kpBytes(kp2.secret_key); kpFree(kp2);
+  check(consume(hsOpen(sk2, sk2.length, enc, enc.length, null, 0, info, info.length, out)).length === 0, 'HpkeStegoSeal wrong-recipient rejected');
+}
+
+// 8. HMAC-DRBG handle (A3)
+{
+  const drbgNew = lib.func('void* cryptolib_drbg_instantiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)');
+  const drbgGen = lib.func('CryptoBufferResult cryptolib_drbg_generate(void*, size_t, uint8_t*, size_t)');
+  const drbgFree = lib.func('void cryptolib_drbg_free(void*)');
+  const seed = Buffer.alloc(32, 0x01), perso = Buffer.from('beacon');
+  const e1 = [null];
+  const h1 = drbgNew(seed, seed.length, null, 0, perso, perso.length, e1);
+  const a = consume(drbgGen(h1, 64, null, 0));
+  const b = consume(drbgGen(h1, 64, null, 0));
+  check(!a.equals(b), 'DRBG successive blocks differ');
+  const e2 = [null];
+  const h2 = drbgNew(seed, seed.length, null, 0, perso, perso.length, e2);
+  check(a.equals(consume(drbgGen(h2, 64, null, 0))), 'DRBG reproducible from same seed');
+  drbgFree(h1); drbgFree(h2);
+  const e3 = [null];
+  const bad = drbgNew(Buffer.from([1, 2, 3]), 3, null, 0, null, 0, e3);
+  // koffi decodes `_Out_ char**` to a JS string (not a pointer), so it must NOT
+  // be str_free'd here.
+  check(!bad && e3[0] !== null, 'DRBG short-entropy rejected');
+}
+
+// 9. Fortuna handle (A5)
+{
+  const fNew = lib.func('void* cryptolib_fortuna_new()');
+  const fAdd = lib.func('void cryptolib_fortuna_add_entropy(void*, uint8, uint8_t*, size_t)');
+  const fGen = lib.func('CryptoBufferResult cryptolib_fortuna_generate(void*, size_t)');
+  const fReseed = lib.func('void cryptolib_fortuna_reseed(void*)');
+  const fCount = lib.func('uint64_t cryptolib_fortuna_reseed_count(void*)');
+  const fFree = lib.func('void cryptolib_fortuna_free(void*)');
+  const h = fNew();
+  check(consume(fGen(h, 32)).length === 0, 'Fortuna unseeded generate rejected');
+  for (let i = 0; i < 40; i++) { const d = Buffer.alloc(16, i); fAdd(h, i & 7, d, d.length); }
+  fReseed(h);
+  check(Number(fCount(h)) >= 1, 'Fortuna reseed count advances');
+  check(consume(fGen(h, 64)).length === 64, 'Fortuna generate after seeding');
+  fFree(h);
+}
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
