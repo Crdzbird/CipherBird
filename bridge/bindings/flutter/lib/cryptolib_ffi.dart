@@ -619,6 +619,70 @@ typedef _StegoContentDigestDart = CryptoBufferResult Function(Pointer<Utf8> path
 typedef _StegoDetectHiddenC = CryptoHiddenDataReport Function(Pointer<Utf8> path);
 typedef _StegoDetectHiddenDart = CryptoHiddenDataReport Function(Pointer<Utf8> path);
 
+// ImageFactorSeal (C2)
+typedef _ImageFactorSealC = CryptoResult Function(
+    Pointer<Uint8> seed, Size seedLen, Pointer<Utf8> ref,
+    Pointer<Uint8> pt, Size ptLen, Pointer<Uint8> aad, Size aadLen,
+    Pointer<Utf8> cover, Pointer<Utf8> out);
+typedef _ImageFactorSealDart = CryptoResult Function(
+    Pointer<Uint8> seed, int seedLen, Pointer<Utf8> ref,
+    Pointer<Uint8> pt, int ptLen, Pointer<Uint8> aad, int aadLen,
+    Pointer<Utf8> cover, Pointer<Utf8> out);
+typedef _ImageFactorOpenC = CryptoBufferResult Function(
+    Pointer<Uint8> seed, Size seedLen, Pointer<Utf8> ref,
+    Pointer<Uint8> aad, Size aadLen, Pointer<Utf8> stego);
+typedef _ImageFactorOpenDart = CryptoBufferResult Function(
+    Pointer<Uint8> seed, int seedLen, Pointer<Utf8> ref,
+    Pointer<Uint8> aad, int aadLen, Pointer<Utf8> stego);
+
+// HpkeStegoSeal (C3)
+typedef _HpkeStegoSealC = CryptoBufferResult Function(
+    Pointer<Uint8> pk, Size pkLen, Pointer<Uint8> pt, Size ptLen,
+    Pointer<Uint8> aad, Size aadLen, Pointer<Uint8> info, Size infoLen,
+    Pointer<Utf8> cover, Pointer<Utf8> out);
+typedef _HpkeStegoSealDart = CryptoBufferResult Function(
+    Pointer<Uint8> pk, int pkLen, Pointer<Uint8> pt, int ptLen,
+    Pointer<Uint8> aad, int aadLen, Pointer<Uint8> info, int infoLen,
+    Pointer<Utf8> cover, Pointer<Utf8> out);
+typedef _HpkeStegoOpenC = CryptoBufferResult Function(
+    Pointer<Uint8> sk, Size skLen, Pointer<Uint8> enc, Size encLen,
+    Pointer<Uint8> aad, Size aadLen, Pointer<Uint8> info, Size infoLen,
+    Pointer<Utf8> stego);
+typedef _HpkeStegoOpenDart = CryptoBufferResult Function(
+    Pointer<Uint8> sk, int skLen, Pointer<Uint8> enc, int encLen,
+    Pointer<Uint8> aad, int aadLen, Pointer<Uint8> info, int infoLen,
+    Pointer<Utf8> stego);
+
+// HMAC-DRBG handle (A3)
+typedef _DrbgInstantiateC = Pointer<Void> Function(
+    Pointer<Uint8> e, Size eLen, Pointer<Uint8> n, Size nLen,
+    Pointer<Uint8> p, Size pLen, Pointer<Pointer<Utf8>> err);
+typedef _DrbgInstantiateDart = Pointer<Void> Function(
+    Pointer<Uint8> e, int eLen, Pointer<Uint8> n, int nLen,
+    Pointer<Uint8> p, int pLen, Pointer<Pointer<Utf8>> err);
+typedef _DrbgGenerateC = CryptoBufferResult Function(
+    Pointer<Void> h, Size num, Pointer<Uint8> add, Size addLen);
+typedef _DrbgGenerateDart = CryptoBufferResult Function(
+    Pointer<Void> h, int num, Pointer<Uint8> add, int addLen);
+typedef _DrbgReseedC = CryptoResult Function(
+    Pointer<Void> h, Pointer<Uint8> e, Size eLen, Pointer<Uint8> add, Size addLen);
+typedef _DrbgReseedDart = CryptoResult Function(
+    Pointer<Void> h, Pointer<Uint8> e, int eLen, Pointer<Uint8> add, int addLen);
+typedef _HandleFreeC = Void Function(Pointer<Void> h);
+typedef _HandleFreeDart = void Function(Pointer<Void> h);
+
+// Fortuna pool handle (A5)
+typedef _FortunaNewC = Pointer<Void> Function();
+typedef _FortunaNewDart = Pointer<Void> Function();
+typedef _FortunaAddC = Void Function(Pointer<Void> h, Uint8 src, Pointer<Uint8> data, Size len);
+typedef _FortunaAddDart = void Function(Pointer<Void> h, int src, Pointer<Uint8> data, int len);
+typedef _FortunaGenC = CryptoBufferResult Function(Pointer<Void> h, Size num);
+typedef _FortunaGenDart = CryptoBufferResult Function(Pointer<Void> h, int num);
+typedef _FortunaReseedC = Void Function(Pointer<Void> h);
+typedef _FortunaReseedDart = void Function(Pointer<Void> h);
+typedef _FortunaCountC = Uint64 Function(Pointer<Void> h);
+typedef _FortunaCountDart = int Function(Pointer<Void> h);
+
 // =============================================================================
 // High-level Dart types
 // =============================================================================
@@ -728,6 +792,79 @@ class StegoHiddenDataReport {
     required this.samplesAnalysed,
     required this.note,
   });
+}
+
+/// A stateful HMAC-DRBG (SP 800-90A). Obtain via [CryptoLib.drbgInstantiate];
+/// call [close] when done to free the native handle.
+class Drbg {
+  final CryptoLib _lib;
+  Pointer<Void> _h;
+  Drbg._(this._lib, this._h);
+
+  /// Generate [numBytes] (<= 65536) pseudo-random bytes, optional additional input.
+  Uint8List generate(int numBytes, [Uint8List? additional]) {
+    final add = _lib._toNative(additional ?? Uint8List(0));
+    try {
+      return _lib._checkBufResult(_lib._drbgGenerate(_h, numBytes, add, additional?.length ?? 0));
+    } finally {
+      if (add != nullptr) calloc.free(add);
+    }
+  }
+
+  /// Reseed with fresh entropy + optional additional input.
+  void reseed(Uint8List entropy, [Uint8List? additional]) {
+    final e = _lib._toNative(entropy);
+    final add = _lib._toNative(additional ?? Uint8List(0));
+    try {
+      _lib._checkResult(_lib._drbgReseed(_h, e, entropy.length, add, additional?.length ?? 0));
+    } finally {
+      if (e != nullptr) calloc.free(e);
+      if (add != nullptr) calloc.free(add);
+    }
+  }
+
+  /// Free the native handle (idempotent).
+  void close() {
+    if (_h != nullptr) {
+      _lib._drbgFree(_h);
+      _h = nullptr;
+    }
+  }
+}
+
+/// A stateful Fortuna-style entropy pool. Obtain via [CryptoLib.fortunaNew];
+/// call [close] when done.
+class Fortuna {
+  final CryptoLib _lib;
+  Pointer<Void> _h;
+  Fortuna._(this._lib, this._h);
+
+  /// Add an entropy event from logical source [sourceId].
+  void addEntropy(int sourceId, Uint8List data) {
+    final d = _lib._toNative(data);
+    try {
+      _lib._fortunaAdd(_h, sourceId, d, data.length);
+    } finally {
+      if (d != nullptr) calloc.free(d);
+    }
+  }
+
+  /// Generate [numBytes]; throws if the pool has never been seeded.
+  Uint8List generate(int numBytes) => _lib._checkBufResult(_lib._fortunaGen(_h, numBytes));
+
+  /// Force a reseed now.
+  void reseed() => _lib._fortunaReseed(_h);
+
+  /// Number of reseeds so far (0 = never seeded).
+  int reseedCount() => _lib._fortunaCount(_h);
+
+  /// Free the native handle (idempotent).
+  void close() {
+    if (_h != nullptr) {
+      _lib._fortunaFree(_h);
+      _h = nullptr;
+    }
+  }
 }
 
 // =============================================================================
@@ -855,6 +992,20 @@ class CryptoLib {
   late final _StegoInspectDart _stegoInspect;
   late final _StegoContentDigestDart _stegoContentDigest;
   late final _StegoDetectHiddenDart _stegoDetectHidden;
+  late final _ImageFactorSealDart _imageFactorSeal;
+  late final _ImageFactorOpenDart _imageFactorOpen;
+  late final _HpkeStegoSealDart _hpkeStegoSeal;
+  late final _HpkeStegoOpenDart _hpkeStegoOpen;
+  late final _DrbgInstantiateDart _drbgInstantiate;
+  late final _DrbgGenerateDart _drbgGenerate;
+  late final _DrbgReseedDart _drbgReseed;
+  late final _HandleFreeDart _drbgFree;
+  late final _FortunaNewDart _fortunaNew;
+  late final _FortunaAddDart _fortunaAdd;
+  late final _FortunaGenDart _fortunaGen;
+  late final _FortunaReseedDart _fortunaReseed;
+  late final _FortunaCountDart _fortunaCount;
+  late final _HandleFreeDart _fortunaFree;
 
   CryptoLib._(this._lib) {
     // Init & version
@@ -974,6 +1125,20 @@ class CryptoLib {
     _stegoInspect = _lib.lookupFunction<_StegoInspectC, _StegoInspectDart>('cryptolib_stego_inspect');
     _stegoContentDigest = _lib.lookupFunction<_StegoContentDigestC, _StegoContentDigestDart>('cryptolib_stego_content_digest');
     _stegoDetectHidden = _lib.lookupFunction<_StegoDetectHiddenC, _StegoDetectHiddenDart>('cryptolib_stego_detect_hidden');
+    _imageFactorSeal = _lib.lookupFunction<_ImageFactorSealC, _ImageFactorSealDart>('cryptolib_image_factor_seal');
+    _imageFactorOpen = _lib.lookupFunction<_ImageFactorOpenC, _ImageFactorOpenDart>('cryptolib_image_factor_open');
+    _hpkeStegoSeal = _lib.lookupFunction<_HpkeStegoSealC, _HpkeStegoSealDart>('cryptolib_hpke_stego_seal');
+    _hpkeStegoOpen = _lib.lookupFunction<_HpkeStegoOpenC, _HpkeStegoOpenDart>('cryptolib_hpke_stego_open');
+    _drbgInstantiate = _lib.lookupFunction<_DrbgInstantiateC, _DrbgInstantiateDart>('cryptolib_drbg_instantiate');
+    _drbgGenerate = _lib.lookupFunction<_DrbgGenerateC, _DrbgGenerateDart>('cryptolib_drbg_generate');
+    _drbgReseed = _lib.lookupFunction<_DrbgReseedC, _DrbgReseedDart>('cryptolib_drbg_reseed');
+    _drbgFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cryptolib_drbg_free');
+    _fortunaNew = _lib.lookupFunction<_FortunaNewC, _FortunaNewDart>('cryptolib_fortuna_new');
+    _fortunaAdd = _lib.lookupFunction<_FortunaAddC, _FortunaAddDart>('cryptolib_fortuna_add_entropy');
+    _fortunaGen = _lib.lookupFunction<_FortunaGenC, _FortunaGenDart>('cryptolib_fortuna_generate');
+    _fortunaReseed = _lib.lookupFunction<_FortunaReseedC, _FortunaReseedDart>('cryptolib_fortuna_reseed');
+    _fortunaCount = _lib.lookupFunction<_FortunaCountC, _FortunaCountDart>('cryptolib_fortuna_reseed_count');
+    _fortunaFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cryptolib_fortuna_free');
   }
 
   /// Load the native library. Resolution order:
@@ -982,9 +1147,8 @@ class CryptoLib {
   ///   3. the library BUNDLED with this package under native/<os>-<arch>/
   ///      (so the package is self-contained — no build tree required),
   ///   4. the current process (symbols already loaded, e.g. a Flutter plugin).
-  // Flutter plugin loading: an explicit path wins; otherwise resolve the native
-  // library the way each platform bundles it into the app (iOS statically links
-  // into the process; Android/Linux load the .so by name; macOS the .dylib).
+  // Flutter plugin loading: explicit path wins; otherwise resolve the native
+  // library the way each platform bundles it into the app.
   factory CryptoLib.load([String? path]) {
     final DynamicLibrary lib;
     if (path != null && path.isNotEmpty) {
@@ -2756,6 +2920,104 @@ class CryptoLib {
       calloc.free(cp);
     }
   }
+
+  // ── ImageFactorSeal (C2) ───────────────────────────────────────────────────
+
+  /// Seal [plaintext] (binding [aad]) under OPRF([oprfSecretSeed], the reference
+  /// image), hiding the ciphertext in [coverPath] → [outputPath]. Two factors to
+  /// open: the OPRF secret AND the exact reference image.
+  void imageFactorSeal(Uint8List oprfSecretSeed, String referenceImagePath,
+      Uint8List plaintext, Uint8List aad, String coverPath, String outputPath) {
+    final seed = _toNative(oprfSecretSeed), pt = _toNative(plaintext), aa = _toNative(aad);
+    final ri = referenceImagePath.toNativeUtf8(), cc = coverPath.toNativeUtf8(), co = outputPath.toNativeUtf8();
+    try {
+      _checkResult(_imageFactorSeal(seed, oprfSecretSeed.length, ri, pt, plaintext.length,
+          aa, aad.length, cc, co));
+    } finally {
+      if (seed != nullptr) calloc.free(seed);
+      if (pt != nullptr) calloc.free(pt);
+      if (aa != nullptr) calloc.free(aa);
+      calloc.free(ri); calloc.free(cc); calloc.free(co);
+    }
+  }
+
+  /// Recover an [imageFactorSeal] message.
+  Uint8List imageFactorOpen(Uint8List oprfSecretSeed, String referenceImagePath,
+      Uint8List aad, String stegoPath) {
+    final seed = _toNative(oprfSecretSeed), aa = _toNative(aad);
+    final ri = referenceImagePath.toNativeUtf8(), sp = stegoPath.toNativeUtf8();
+    try {
+      return _checkBufResult(_imageFactorOpen(seed, oprfSecretSeed.length, ri, aa, aad.length, sp));
+    } finally {
+      if (seed != nullptr) calloc.free(seed);
+      if (aa != nullptr) calloc.free(aa);
+      calloc.free(ri); calloc.free(sp);
+    }
+  }
+
+  // ── HpkeStegoSeal (C3) ─────────────────────────────────────────────────────
+
+  /// Seal [plaintext] to recipient public key [pkR], hiding the ciphertext in
+  /// [coverPath] → [outputPath]. Returns the PUBLIC KEM encapsulation `enc`.
+  Uint8List hpkeStegoSeal(Uint8List pkR, Uint8List plaintext, Uint8List aad,
+      Uint8List info, String coverPath, String outputPath) {
+    final pk = _toNative(pkR), pt = _toNative(plaintext), aa = _toNative(aad), inf = _toNative(info);
+    final cc = coverPath.toNativeUtf8(), co = outputPath.toNativeUtf8();
+    try {
+      return _checkBufResult(_hpkeStegoSeal(pk, pkR.length, pt, plaintext.length,
+          aa, aad.length, inf, info.length, cc, co));
+    } finally {
+      if (pk != nullptr) calloc.free(pk);
+      if (pt != nullptr) calloc.free(pt);
+      if (aa != nullptr) calloc.free(aa);
+      if (inf != nullptr) calloc.free(inf);
+      calloc.free(cc); calloc.free(co);
+    }
+  }
+
+  /// Recover an [hpkeStegoSeal] message with recipient secret [skR] and `enc`.
+  Uint8List hpkeStegoOpen(Uint8List skR, Uint8List enc, Uint8List aad,
+      Uint8List info, String stegoPath) {
+    final sk = _toNative(skR), en = _toNative(enc), aa = _toNative(aad), inf = _toNative(info);
+    final sp = stegoPath.toNativeUtf8();
+    try {
+      return _checkBufResult(_hpkeStegoOpen(sk, skR.length, en, enc.length,
+          aa, aad.length, inf, info.length, sp));
+    } finally {
+      if (sk != nullptr) calloc.free(sk);
+      if (en != nullptr) calloc.free(en);
+      if (aa != nullptr) calloc.free(aa);
+      if (inf != nullptr) calloc.free(inf);
+      calloc.free(sp);
+    }
+  }
+
+  // ── HMAC-DRBG (A3) + Fortuna (A5) handle constructors ──────────────────────
+
+  /// Instantiate an HMAC-DRBG from entropy (>= 32 bytes) + optional nonce +
+  /// personalization. Call [Drbg.close] when done.
+  Drbg drbgInstantiate(Uint8List entropy, [Uint8List? nonce, Uint8List? personalization]) {
+    final e = _toNative(entropy);
+    final n = _toNative(nonce ?? Uint8List(0));
+    final p = _toNative(personalization ?? Uint8List(0));
+    final errPtr = calloc<Pointer<Utf8>>();
+    try {
+      final h = _drbgInstantiate(e, entropy.length, n, nonce?.length ?? 0,
+          p, personalization?.length ?? 0, errPtr);
+      if (errPtr.value != nullptr) {
+        final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m);
+      }
+      return Drbg._(this, h);
+    } finally {
+      if (e != nullptr) calloc.free(e);
+      if (n != nullptr) calloc.free(n);
+      if (p != nullptr) calloc.free(p);
+      calloc.free(errPtr);
+    }
+  }
+
+  /// Create a new (unseeded) Fortuna pool. Call [Fortuna.close] when done.
+  Fortuna fortunaNew() => Fortuna._(this, _fortunaNew());
 
   // ── MolecularVault — maximum-assurance layered encryption ──────────────────
   // Cascade XChaCha20-Poly1305 ∘ AES-256-GCM-SIV under a key-committing outer

@@ -217,4 +217,53 @@ void main() {
     final rep = lib.stegoDetectHidden(stego);
     expect(rep.cryptolibPayload && rep.note.isNotEmpty, isTrue);
   });
+
+  test('ImageFactorSeal (C2) round-trip + wrong-image', () {
+    final img = ppm(0xFEED, 64, 64);
+    final cover = ppm(0xCAFE);
+    final out = '${tmp.path}/ifs.ppm';
+    final seed = Uint8List.fromList(List.filled(32, 0x42));
+    final msg = _u('image is the second factor');
+    lib.imageFactorSeal(seed, img, msg, Uint8List(0), cover, out);
+    expect(_eq(lib.imageFactorOpen(seed, img, Uint8List(0), out), msg), isTrue);
+    final other = ppm(0xBEEF, 64, 64);
+    expect(() => lib.imageFactorOpen(seed, other, Uint8List(0), out), throwsException);
+  });
+
+  test('HpkeStegoSeal (C3) round-trip + wrong-recipient', () {
+    final cover = ppm(0x4321);
+    final out = '${tmp.path}/hss.ppm';
+    final recip = lib.hpkeKeygen();
+    final info = _u('session');
+    final msg = _u('one session keys both');
+    final enc = lib.hpkeStegoSeal(recip.publicKey, msg, Uint8List(0), info, cover, out);
+    expect(_eq(lib.hpkeStegoOpen(recip.secretKey, enc, Uint8List(0), info, out), msg), isTrue);
+    final mallory = lib.hpkeKeygen();
+    expect(() => lib.hpkeStegoOpen(mallory.secretKey, enc, Uint8List(0), info, out),
+        throwsException);
+  });
+
+  test('HMAC-DRBG (A3) handle', () {
+    final seed = Uint8List.fromList(List.filled(32, 0x01));
+    final d1 = lib.drbgInstantiate(seed, null, _u('beacon'));
+    final a = d1.generate(64);
+    expect(_eq(a, d1.generate(64)), isFalse); // forward-secret: blocks differ
+    final d2 = lib.drbgInstantiate(seed, null, _u('beacon'));
+    expect(_eq(a, d2.generate(64)), isTrue); // same seed reproduces
+    d1.close();
+    d2.close();
+    expect(() => lib.drbgInstantiate(Uint8List.fromList([1, 2, 3])), throwsException);
+  });
+
+  test('Fortuna (A5) handle', () {
+    final f = lib.fortunaNew();
+    expect(() => f.generate(32), throwsException); // unseeded
+    for (var i = 0; i < 40; i++) {
+      f.addEntropy(i & 7, Uint8List.fromList(List.filled(16, i)));
+    }
+    f.reseed();
+    expect(f.reseedCount() >= 1, isTrue);
+    expect(f.generate(64).length, 64);
+    f.close();
+  });
 }

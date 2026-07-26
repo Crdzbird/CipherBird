@@ -129,6 +129,68 @@ void main(List<String> args) {
         'detect unkeyed cryptolib payload + honesty note');
   }
 
+  // 6. ImageFactorSeal (C2)
+  {
+    final img = '${dir.path}/ref.ppm', cover = '${dir.path}/ifs_cover.ppm', out = '${dir.path}/ifs_out.ppm';
+    writeNoisePpm(img, 64, 64, 0xFEED);
+    writeNoisePpm(cover, 256, 256, 0xCAFE);
+    final seed = Uint8List.fromList(List.filled(32, 0x42));
+    final msg = Uint8List.fromList('image is the second factor'.codeUnits);
+    lib.imageFactorSeal(seed, img, msg, Uint8List(0), cover, out);
+    final got = lib.imageFactorOpen(seed, img, Uint8List(0), out);
+    check(eq(got, msg.toList()), 'ImageFactorSeal round-trip');
+    final other = '${dir.path}/ref2.ppm'; writeNoisePpm(other, 64, 64, 0xBEEF);
+    var threw = false;
+    try { lib.imageFactorOpen(seed, other, Uint8List(0), out); } catch (_) { threw = true; }
+    check(threw, 'ImageFactorSeal wrong-image rejected');
+  }
+
+  // 7. HpkeStegoSeal (C3)
+  {
+    final cover = '${dir.path}/hss_cover.ppm', out = '${dir.path}/hss_out.ppm';
+    writeNoisePpm(cover, 256, 256, 0x4321);
+    final recip = lib.hpkeKeygen();
+    final info = Uint8List.fromList('session'.codeUnits);
+    final msg = Uint8List.fromList('one session keys both'.codeUnits);
+    final enc = lib.hpkeStegoSeal(recip.publicKey, msg, Uint8List(0), info, cover, out);
+    final got = lib.hpkeStegoOpen(recip.secretKey, enc, Uint8List(0), info, out);
+    check(eq(got, msg.toList()), 'HpkeStegoSeal round-trip');
+    final mallory = lib.hpkeKeygen();
+    var threw = false;
+    try { lib.hpkeStegoOpen(mallory.secretKey, enc, Uint8List(0), info, out); } catch (_) { threw = true; }
+    check(threw, 'HpkeStegoSeal wrong-recipient rejected');
+  }
+
+  // 8. HMAC-DRBG handle (A3)
+  {
+    final seed = Uint8List.fromList(List.filled(32, 0x01));
+    final d1 = lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
+    final a = d1.generate(64);
+    final b = d1.generate(64);
+    check(!eq(a, b), 'DRBG successive blocks differ');
+    final d2 = lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
+    check(eq(a, d2.generate(64)), 'DRBG reproducible from same seed');
+    d1.close(); d2.close();
+    var threw = false;
+    try { lib.drbgInstantiate(Uint8List.fromList([1, 2, 3])); } catch (_) { threw = true; }
+    check(threw, 'DRBG short-entropy rejected');
+  }
+
+  // 9. Fortuna handle (A5)
+  {
+    final f = lib.fortunaNew();
+    var threw = false;
+    try { f.generate(32); } catch (_) { threw = true; }
+    check(threw, 'Fortuna unseeded generate rejected');
+    for (var i = 0; i < 40; i++) {
+      f.addEntropy(i & 7, Uint8List.fromList(List.filled(16, i)));
+    }
+    f.reseed();
+    check(f.reseedCount() >= 1, 'Fortuna reseed count advances');
+    check(f.generate(64).length == 64, 'Fortuna generate after seeding');
+    f.close();
+  }
+
   dir.deleteSync(recursive: true);
   stdout.writeln(_failures == 0
       ? 'ALL PASS'
