@@ -21,6 +21,7 @@
  */
 
 #include "stego_types.hpp"
+#include "stego_fec.hpp"
 #include "symmetric.hpp"
 #include "stego_image.hpp"
 #include "stego_audio.hpp"
