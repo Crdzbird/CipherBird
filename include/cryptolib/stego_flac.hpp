@@ -50,7 +50,7 @@ public:
         auto& w = wav.value();
 
         std::vector<int16_t> channel = extract_channel(w.samples, w.num_channels, 0);
-        Bytes stream = make_embed_stream(payload, MediaFormat::FLAC_AUDIO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::FLAC_AUDIO, params.key);
 
         std::size_t cap = AudioSteganographer::capacity(channel.size(), params);
         if (payload.size() > cap)
@@ -84,7 +84,7 @@ public:
 
         std::size_t max_bytes = AudioSteganographer::capacity(channel.size(), params) + StegoHeader::SIZE;
         Bytes raw = extract_phase(channel, max_bytes, params);
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), params.key);
     }
 
     [[nodiscard]] static std::size_t capacity(

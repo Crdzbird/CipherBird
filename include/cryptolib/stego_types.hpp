@@ -112,13 +112,13 @@ struct StegoParams {
     // 8 bits/frame × (total_samples/512) frames = capacity in bits.
     // For 44.1 kHz mono: 10 s → ~690 bytes; 60 s → ~4 kB.
 
-    // ── Keyed embedding (Phase 1 hardening) ──────────────────────────────────
+    // ── Keyed embedding (Phase 1 hardening; whitening extended to all formats) ─
     // When non-empty, the embedded stream is whitened with a key-derived
-    // ChaCha20 keystream (no detectable 'CSTG' magic) and — where the carrier
-    // supports it (DCT image path) — the carrier slots are visited in a
-    // key-seeded permuted order. The SAME key must be supplied to extract.
-    // The payload should still be AEAD-encrypted; the key here governs
-    // concealment, not confidentiality. Empty ⇒ legacy (unkeyed) behaviour.
+    // ChaCha20 keystream (no detectable 'CSTG' magic) for EVERY carrier format,
+    // and — where the carrier supports it (the PPM/DCT image path) — the carrier
+    // slots are additionally visited in a key-seeded permuted order. The SAME key
+    // must be supplied to extract. The payload should still be AEAD-encrypted; the
+    // key here governs concealment, not confidentiality. Empty ⇒ legacy behaviour.
     std::vector<uint8_t> key;
 };
 

@@ -72,7 +72,7 @@ public:
         // We embed in the first (left) channel if stereo, deinterleaving first.
         std::vector<int16_t> channel = extract_channel(w.samples, w.num_channels, 0);
 
-        Bytes stream = make_embed_stream(payload, MediaFormat::WAV_AUDIO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::WAV_AUDIO, params.key);
 
         // Compare payload.size() against user-facing capacity (header already excluded).
         std::size_t cap = capacity(channel.size(), params);
@@ -109,7 +109,7 @@ public:
         std::size_t max_bytes = capacity(channel.size(), params) + StegoHeader::SIZE;
         Bytes raw = extract_phase(channel, max_bytes, params);
 
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), params.key);
     }
 
     /// Maximum payload bytes this audio can carry.

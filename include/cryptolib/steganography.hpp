@@ -51,12 +51,10 @@ public:
         const StegoParams&       params = {})
     {
         auto fmt = detect_format(cover_path);
-        // Keyed embedding (whitened + permuted) is implemented for the DCT image
-        // path in this version; reject a key on carriers that don't support it
-        // rather than silently ignoring it (which would leave a 'CSTG' signature).
-        if (!params.key.empty() && fmt != MediaFormat::PPM_IMAGE)
-            return Result<void>::err(
-                "StegoEngine::embed — keyed embedding currently supports .ppm carriers only");
+        // Keyed embedding: EVERY carrier whitens the embedded stream when a key is
+        // set, so no 'CSTG' signature survives (B1, all formats). The PPM/DCT image
+        // path additionally applies the key-seeded block permutation (B2); other
+        // carriers whiten only. An empty key ⇒ legacy (unkeyed) behaviour.
         switch (fmt) {
         case MediaFormat::PPM_IMAGE:
             if (!params.key.empty())
@@ -69,19 +67,23 @@ public:
         case MediaFormat::BMP_IMAGE:
             return BmpSteganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path), params.image_quant_step);
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::PNG_IMAGE:
             return PngSteganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path), params.image_quant_step);
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::GIF_IMAGE:
             return GifSteganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path), params.image_quant_step);
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::JPEG_IMAGE:
             return JpegSteganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path));
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::WAV_AUDIO:
             return AudioSteganographer::embed(
                 std::string(cover_path), payload,
@@ -93,7 +95,8 @@ public:
         case MediaFormat::MP3_AUDIO:
             return Mp3Steganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path));
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::CRVF_VIDEO:
             return VideoSteganographer::embed(
                 std::string(cover_path), payload,
@@ -101,11 +104,13 @@ public:
         case MediaFormat::AVI_VIDEO:
             return AviSteganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path));
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::MP4_VIDEO:
             return Mp4Steganographer::embed(
                 std::string(cover_path), payload,
-                std::string(output_path));
+                std::string(output_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         default:
             return Result<void>::err(
                 "StegoEngine::embed — unsupported format for '"
@@ -120,9 +125,8 @@ public:
         const StegoParams& params = {})
     {
         auto fmt = detect_format(stego_path);
-        if (!params.key.empty() && fmt != MediaFormat::PPM_IMAGE)
-            return Result<Bytes>::err(
-                "StegoEngine::extract — keyed extraction currently supports .ppm carriers only");
+        // Keyed extraction mirrors embed: un-whiten every carrier (B1) and, for
+        // PPM/DCT, invert the block permutation (B2). Empty key ⇒ legacy path.
         switch (fmt) {
         case MediaFormat::PPM_IMAGE:
             if (!params.key.empty())
@@ -132,16 +136,20 @@ public:
                 std::string(stego_path), params.image_quant_step);
         case MediaFormat::BMP_IMAGE:
             return BmpSteganographer::extract(
-                std::string(stego_path), params.image_quant_step);
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::PNG_IMAGE:
             return PngSteganographer::extract(
-                std::string(stego_path), params.image_quant_step);
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::GIF_IMAGE:
             return GifSteganographer::extract(
-                std::string(stego_path));
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::JPEG_IMAGE:
             return JpegSteganographer::extract(
-                std::string(stego_path));
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::WAV_AUDIO:
             return AudioSteganographer::extract(
                 std::string(stego_path), params);
@@ -150,16 +158,19 @@ public:
                 std::string(stego_path), params);
         case MediaFormat::MP3_AUDIO:
             return Mp3Steganographer::extract(
-                std::string(stego_path));
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::CRVF_VIDEO:
             return VideoSteganographer::extract(
                 std::string(stego_path), params);
         case MediaFormat::AVI_VIDEO:
             return AviSteganographer::extract(
-                std::string(stego_path));
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         case MediaFormat::MP4_VIDEO:
             return Mp4Steganographer::extract(
-                std::string(stego_path));
+                std::string(stego_path), params.image_quant_step,
+                std::span<const uint8_t>(params.key));
         default:
             return Result<Bytes>::err(
                 "StegoEngine::extract — unsupported format for '"

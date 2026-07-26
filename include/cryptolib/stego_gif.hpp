@@ -32,13 +32,14 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      /*Q*/ = 16)
+        int                      /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto gif = parse_gif(cover_path);
         if (gif.is_err()) return Result<void>::err(gif.error().message);
 
         auto& g = gif.value();
-        Bytes stream = make_embed_stream(payload, MediaFormat::GIF_IMAGE);
+        Bytes stream = make_embed_stream(payload, MediaFormat::GIF_IMAGE, key);
 
         std::size_t cap = capacity(g.width, g.height);
         if (payload.size() > cap)
@@ -54,7 +55,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                /*Q*/ = 16)
+        int                /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto gif = parse_gif(stego_path);
         if (gif.is_err()) return Result<Bytes>::err(gif.error().message);
@@ -62,7 +64,7 @@ public:
         auto& g = gif.value();
         std::size_t max_stream = capacity(g.width, g.height) + StegoHeader::SIZE;
         Bytes raw = extract_index_lsb(g.indices, max_stream);
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {

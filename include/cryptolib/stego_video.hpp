@@ -125,7 +125,7 @@ public:
         auto& [hdr, frames] = vid_res.value();
         const std::size_t w = hdr.width, h = hdr.height;
 
-        Bytes stream = make_embed_stream(payload, MediaFormat::CRVF_VIDEO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::CRVF_VIDEO, params.key);
 
         std::size_t cap = capacity(hdr.frame_count, w, h, params);
         if (payload.size() > cap)
@@ -150,7 +150,7 @@ public:
 
         std::size_t max_bytes = capacity(hdr.frame_count, w, h, params) + StegoHeader::SIZE;
         Bytes raw = extract_across_frames(frames, w, h, max_bytes, params.image_quant_step);
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), params.key);
     }
 
     [[nodiscard]] static std::size_t capacity(

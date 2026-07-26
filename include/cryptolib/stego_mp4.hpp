@@ -35,13 +35,14 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      /*Q*/ = 16)
+        int                      /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto data_res = read_file(cover_path);
         if (data_res.is_err()) return Result<void>::err(data_res.error().message);
 
         auto& data = data_res.value();
-        Bytes stream = make_embed_stream(payload, MediaFormat::MP4_VIDEO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::MP4_VIDEO, key);
 
         // Build a 'free' box containing our magic UUID + payload
         Bytes free_box = build_free_box(stream);
@@ -66,7 +67,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                /*Q*/ = 16)
+        int                /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto data_res = read_file(stego_path);
         if (data_res.is_err()) return Result<Bytes>::err(data_res.error().message);
@@ -77,7 +79,7 @@ public:
         auto payload = find_and_extract_free_box(data);
         if (payload.is_err()) return Result<Bytes>::err(payload.error().message);
 
-        return parse_embed_stream(std::span<const uint8_t>(payload.value()));
+        return parse_embed_stream(std::span<const uint8_t>(payload.value()), key);
     }
 
     [[nodiscard]] static std::size_t capacity() noexcept {

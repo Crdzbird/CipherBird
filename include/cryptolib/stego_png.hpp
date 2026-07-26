@@ -51,13 +51,14 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      Q = 16)
+        int                      Q = 16,
+        std::span<const uint8_t> key = {})
     {
         auto img = load_image(cover_path);
         if (img.is_err()) return Result<void>::err(img.error().message);
 
         auto& [w, h, pixels] = img.value();
-        Bytes stream = make_embed_stream(payload, MediaFormat::PNG_IMAGE);
+        Bytes stream = make_embed_stream(payload, MediaFormat::PNG_IMAGE, key);
 
         std::size_t cap = DctQimEngine::capacity(w, h);
         if (payload.size() > cap)
@@ -72,7 +73,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                Q = 16)
+        int                Q = 16,
+        std::span<const uint8_t> key = {})
     {
         auto img = load_image(stego_path);
         if (img.is_err()) return Result<Bytes>::err(img.error().message);
@@ -80,7 +82,7 @@ public:
         auto& [w, h, pixels] = img.value();
         std::size_t max_stream = DctQimEngine::capacity(w, h) + StegoHeader::SIZE;
         Bytes raw = DctQimEngine::extract_bits(pixels, w, h, max_stream, Q);
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {

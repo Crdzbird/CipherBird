@@ -29,13 +29,14 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      Q = 16)
+        int                      Q = 16,
+        std::span<const uint8_t> key = {})
     {
         auto avi = read_avi(cover_path);
         if (avi.is_err()) return Result<void>::err(avi.error().message);
 
         auto& [hdr, frames] = avi.value();
-        Bytes stream = make_embed_stream(payload, MediaFormat::AVI_VIDEO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::AVI_VIDEO, key);
 
         std::size_t cap = capacity(frames.size(), hdr.width, hdr.height);
         if (payload.size() > cap)
@@ -50,7 +51,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                Q = 16)
+        int                Q = 16,
+        std::span<const uint8_t> key = {})
     {
         auto avi = read_avi(stego_path);
         if (avi.is_err()) return Result<Bytes>::err(avi.error().message);
@@ -58,7 +60,7 @@ public:
         auto& [hdr, frames] = avi.value();
         std::size_t max_bytes = capacity(frames.size(), hdr.width, hdr.height) + StegoHeader::SIZE;
         Bytes raw = extract_across_frames(frames, hdr.width, hdr.height, max_bytes, Q);
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
     [[nodiscard]] static std::size_t capacity(

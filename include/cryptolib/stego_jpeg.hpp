@@ -44,7 +44,8 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      /*Q*/ = 16)
+        int                      /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto file_data = read_file(cover_path);
         if (file_data.is_err()) return Result<void>::err(file_data.error().message);
@@ -56,7 +57,7 @@ public:
             file_data = Result<Bytes>::ok(std::move(conv.value()));
         }
 
-        Bytes stream = make_embed_stream(payload, MediaFormat::JPEG_IMAGE);
+        Bytes stream = make_embed_stream(payload, MediaFormat::JPEG_IMAGE, key);
 
         auto result = jsteg_embed(file_data.value(), stream);
         if (result.is_err()) return Result<void>::err(result.error().message);
@@ -66,7 +67,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                /*Q*/ = 16)
+        int                /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto file_data = read_file(stego_path);
         if (file_data.is_err()) return Result<Bytes>::err(file_data.error().message);
@@ -81,7 +83,7 @@ public:
         auto raw = jsteg_extract(file_data.value());
         if (raw.is_err()) return Result<Bytes>::err(raw.error().message);
 
-        return parse_embed_stream(std::span<const uint8_t>(raw.value()));
+        return parse_embed_stream(std::span<const uint8_t>(raw.value()), key);
     }
 
     [[nodiscard]] static Result<std::size_t> capacity_from_file(const std::string& path) {

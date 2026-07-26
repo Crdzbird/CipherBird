@@ -35,13 +35,14 @@ public:
         const std::string&       cover_path,
         std::span<const uint8_t> payload,
         const std::string&       output_path,
-        int                      /*Q*/ = 16)
+        int                      /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto data_res = read_file(cover_path);
         if (data_res.is_err()) return Result<void>::err(data_res.error().message);
 
         auto& data = data_res.value();
-        Bytes stream = make_embed_stream(payload, MediaFormat::MP3_AUDIO);
+        Bytes stream = make_embed_stream(payload, MediaFormat::MP3_AUDIO, key);
 
         // Find all frame boundaries and their padding regions
         auto frames_res = find_mp3_frames(data);
@@ -72,7 +73,8 @@ public:
 
     [[nodiscard]] static Result<Bytes> extract(
         const std::string& stego_path,
-        int                /*Q*/ = 16)
+        int                /*Q*/ = 16,
+        std::span<const uint8_t> key = {})
     {
         auto data_res = read_file(stego_path);
         if (data_res.is_err()) return Result<Bytes>::err(data_res.error().message);
@@ -92,7 +94,7 @@ public:
         if (raw.empty())
             return Result<Bytes>::err("MP3: no padding data found");
 
-        return parse_embed_stream(std::span<const uint8_t>(raw));
+        return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
     [[nodiscard]] static Result<std::size_t> capacity_from_file(const std::string& path) {
