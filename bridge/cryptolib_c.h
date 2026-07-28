@@ -1163,6 +1163,36 @@ CRYPTO_API int cryptolib_bbs_proof_verify_with_pseudonym(
     const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
     const uint64_t* disclosed_indexes, size_t indexes_count);
 
+/* Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+ * pseudonyms). The blind-interface ciphersuite is applied internally. The holder
+ * commits to committed_msgs (which the signer never learns), the signer blind-
+ * signs over the commitment + its own messages, and the holder verifies with the
+ * secret_prover_blind it kept. secret_prover_blind is a 32-byte big-endian
+ * scalar. */
+
+/* Commit to committed_msgs → commitment_with_proof (return value) +
+ * secret_prover_blind (out-param, 32 bytes). */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_commit(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    CryptoBuffer* secret_prover_blind);
+
+/* Blind-sign over the commitment_with_proof + signer messages → 80-byte
+ * signature. No pseudonym / nym entropy. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/* Verify a blind signature over signer messages + committed_msgs using the
+ * secret_prover_blind. Returns 1 (VALID) / 0 (INVALID). */
+CRYPTO_API int cryptolib_bbs_verify_blind_sign(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * OPRF — Oblivious Pseudorandom Function (RFC 9497, ristretto255-SHA-512)
  *   A two-party PRF: the client blinds its input, the server evaluates under

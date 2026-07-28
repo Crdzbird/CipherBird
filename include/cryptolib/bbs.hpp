@@ -542,6 +542,10 @@ public:
         "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_PSEUDONYM_";
     static constexpr std::string_view API_ID_BLIND_PSEUDONYM =
         "BLIND_BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_PSEUDONYM_";
+    // Standalone blind-issuance interface api_id (draft-irtf-cfrg-bbs-blind-
+    // signatures-02) = ciphersuite_id || "BLIND_H2G_HM2S_".
+    static constexpr std::string_view API_ID_BLIND =
+        "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_BLIND_H2G_HM2S_";
 
     // Test-visibility hook: reproduce a suite's generators (compressed G1, 48B
     // each) for byte-exact validation against the draft's Section 12 vectors.
@@ -948,6 +952,85 @@ public:
         r.commitment_with_proof = core_commit(blind_gens, scalars, api_id, rnd);
         blst_bendian_from_scalar(r.secret_prover_blind.data(), &rnd[0]);
         return r;
+    }
+
+    // Standalone blind Commit (blind draft §4.1.1, non-pseudonym). Commits to
+    // committed_messages with real CSPRNG randomness; returns the
+    // commitment_with_proof (sent to the signer) and the secret_prover_blind the
+    // holder keeps. This is commit_with_nym with an empty nym vector.
+    [[nodiscard]] static CommitWithNymResult
+    blind_commit(const std::vector<std::span<const uint8_t>>& committed_messages, std::string_view api_id) {
+        return commit_with_nym(committed_messages, {}, api_id);
+    }
+
+    // VerifyBlindSign (blind draft §4.2.2): rebuild (generators, message_scalars)
+    // via prepare_parameters (§6) then run CoreVerify. The signer messages use the
+    // base generators [Q_1, H_1..H_L]; the secret_prover_blind (32-byte scalar)
+    // and committed_messages use the blind generators [Q_2, J_1..J_C]. A
+    // commitment is assumed present, so secret_prover_blind MUST be 32 bytes (the
+    // spec's prepare_parameters only balances generators↔scalars when it is).
+    [[nodiscard]] static bool
+    verify_blind_sign(std::span<const uint8_t> pk, std::span<const uint8_t> signature,
+                      std::span<const uint8_t> header,
+                      const std::vector<std::span<const uint8_t>>& messages,
+                      const std::vector<std::span<const uint8_t>>& committed_messages,
+                      std::span<const uint8_t> secret_prover_blind, std::string_view api_id) {
+        if (pk.size() != G2_BYTES || signature.size() != SIGNATURE_BYTES) return false;
+        if (secret_prover_blind.size() != SCALAR_BYTES) return false;
+
+        // Deserialize A and e.
+        blst_p1_affine A_aff;
+        if (blst_p1_uncompress(&A_aff, signature.data()) != BLST_SUCCESS) return false;
+        if (!blst_p1_affine_in_g1(&A_aff)) return false;
+        blst_scalar e;
+        blst_scalar_from_bendian(&e, signature.data() + G1_BYTES);
+        if (!blst_scalar_fr_check(&e)) return false;
+        static const uint8_t zero[SCALAR_BYTES] = {};
+        if (std::memcmp(signature.data() + G1_BYTES, zero, SCALAR_BYTES) == 0) return false;
+
+        blst_p2_affine W_aff;
+        if (blst_p2_uncompress(&W_aff, pk.data()) != BLST_SUCCESS) return false;
+        if (!blst_p2_affine_in_g2(&W_aff)) return false;
+
+        // prepare_parameters (§6): message_scalars = signer-scalars ++ [spb] ++
+        // committed-scalars; generators = [Q_1,H_1..H_L] ++ [Q_2,J_1..J_C].
+        const std::size_t L = messages.size();
+        const std::size_t C = committed_messages.size();
+        auto msg_scalars = messages_to_scalars(messages, api_id);
+        blst_scalar spb; blst_scalar_from_bendian(&spb, secret_prover_blind.data());
+        msg_scalars.push_back(spb);
+        for (auto& cs : messages_to_scalars(committed_messages, api_id)) msg_scalars.push_back(cs);
+
+        auto gens = create_generators(L + 1, api_id);
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(C + 1, blind_api);
+        gens.insert(gens.end(), blind_gens.begin(), blind_gens.end());
+        if (gens.size() != msg_scalars.size() + 1) return false;
+
+        blst_scalar domain = calculate_domain(pk, gens, header, api_id);
+        blst_p1 B = compute_B(gens, domain, msg_scalars);
+
+        // e(A, W + BP2·e) · e(B, -BP2) == 1_GT
+        blst_p2 BP2 = *blst_p2_generator();
+        blst_p2 eBP2, WQ, W;
+        blst_p2_mult(&eBP2, &BP2, e.b, 255);
+        blst_p2_from_affine(&W, &W_aff);
+        blst_p2_add_or_double(&WQ, &W, &eBP2);
+        blst_p2 negBP2 = BP2;
+        blst_p2_cneg(&negBP2, 1);
+
+        blst_p1_affine B_aff;
+        blst_p1_to_affine(&B_aff, &B);
+        blst_p2_affine WQ_aff, negBP2_aff;
+        blst_p2_to_affine(&WQ_aff, &WQ);
+        blst_p2_to_affine(&negBP2_aff, &negBP2);
+
+        blst_fp12 ml1, ml2, prod;
+        blst_miller_loop(&ml1, &WQ_aff, &A_aff);
+        blst_miller_loop(&ml2, &negBP2_aff, &B_aff);
+        blst_fp12_mul(&prod, &ml1, &ml2);
+        blst_final_exp(&prod, &prod);
+        return blst_fp12_is_one(&prod);
     }
 
     // nym_secrets = prover_nyms with the LAST element += signer_nym_entropy

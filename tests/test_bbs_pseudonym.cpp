@@ -287,6 +287,79 @@ TEST("bbs_pseudonym/roundtrip/gen-verify") {
     CHECK(ok);
 }
 
+// draft §9.1.4.4 — standalone blind flow (no pseudonyms): multiple signer AND
+// prover-committed messages. Byte-exact anchor for blind_sign-with-messages and
+// VerifyBlindSign. 10 signer messages (trailing empty), 5 committed (trailing
+// empty), a real secret_prover_blind.
+TEST("bbs_pseudonym/kat/blind-sign-and-verify-full") {
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto commit = unhex(
+        "a2a3e178bcc77f98a3c07f8532134021ab5847326b5b3bfc3089ca73f1bc51cf"
+        "e2c99163f4919525dd6bedc8a14ee39e30374643902017ca2e6fb8b5647c736e"
+        "82d1d3c5b05de5c3021fa6f40d9f36dd22fa06e522411aa20377088ca9a15885"
+        "d7a5044175f0168e927149ee71e2d257079e0100d6d96a7ddf5392dbc64267af"
+        "8df7b4711cb5eeccb5e8901d0580b9e837f38337cb7260cffcf4f962154fafe5"
+        "c98beaed7e4d2fc0f8e7eb1ba4eb04086f170aa4924894e2ab63054049c9ef5d"
+        "fff4f90b48ef0dcf1f50699907301073270e4782d4d7628cfbe1444cea930928"
+        "bb45004e41e0ad86a874ea03473845ce42f78ceb6f855ba8326a4d47732c5aed"
+        "3968b396a07f079b22b5bf2139e51a03");
+    auto blind = unhex("4fba5396baa36b2fde81d46a9b9ee89c425dbc5e1ffd65c20249afb4abd37589");
+
+    // 10 signer messages (last is empty).
+    auto s0 = unhex("9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02");
+    auto s1 = unhex("c344136d9ab02da4dd5908bbba913ae6f58c2cc844b802a6f811f5fb075f9b80");
+    auto s2 = unhex("7372e9daa5ed31e6cd5c825eac1b855e84476a1d94932aa348e07b73");
+    auto s3 = unhex("77fe97eb97a1ebe2e81e4e3597a3ee740a66e9ef2412472c");
+    auto s4 = unhex("496694774c5604ab1b2544eababcf0f53278ff50");
+    auto s5 = unhex("515ae153e22aae04ad16f759e07237b4");
+    auto s6 = unhex("d183ddc6e2665aa4e2f088af");
+    auto s7 = unhex("ac55fb33a75909ed");
+    auto s8 = unhex("96012096");
+    std::vector<uint8_t> s9;
+    std::vector<std::span<const uint8_t>> signer = {
+        {s0.data(), s0.size()}, {s1.data(), s1.size()}, {s2.data(), s2.size()},
+        {s3.data(), s3.size()}, {s4.data(), s4.size()}, {s5.data(), s5.size()},
+        {s6.data(), s6.size()}, {s7.data(), s7.size()}, {s8.data(), s8.size()},
+        {s9.data(), s9.size()}};
+
+    // 5 committed messages (last is empty).
+    auto c0 = unhex("5982967821da3c5983496214df36aa5e58de6fa25314af4cf4c00400779f08c3");
+    auto c1 = unhex("a75d8b634891af92282cc81a675972d1929d3149863c1fc0");
+    auto c2 = unhex("835889a40744813a892eff9deb1edaeb");
+    auto c3 = unhex("e1ca9729410dc6ba");
+    std::vector<uint8_t> c4;
+    std::vector<std::span<const uint8_t>> committed = {
+        {c0.data(), c0.size()}, {c1.data(), c1.size()}, {c2.data(), c2.size()},
+        {c3.data(), c3.size()}, {c4.data(), c4.size()}};
+
+    // blind_sign over the commitment + signer messages → the official signature.
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+                               {commit.data(), commit.size()}, {header.data(), header.size()},
+                               signer, BASE_API_ID);
+    CHECK(tohex({sig.data(), sig.size()}) ==
+        "862eb2fedd0a2b76fb978035cb33952004bdd6136e107bb343cb2c5ea566eb0c"
+        "3b0ba31b1d022ebf03d0abf050ab293c0afd9c96003331aa13f18a7a47e2e1cc"
+        "aa8feb7f3a236e92b2da38462358c48a");
+
+    // VerifyBlindSign accepts; tampering the commitment or a message rejects.
+    CHECK(Bbs::verify_blind_sign({pk.data(), pk.size()}, {sig.data(), sig.size()},
+        {header.data(), header.size()}, signer, committed, {blind.data(), blind.size()}, BASE_API_ID));
+
+    auto badblind = blind; badblind[0] ^= 1;
+    CHECK(!Bbs::verify_blind_sign({pk.data(), pk.size()}, {sig.data(), sig.size()},
+        {header.data(), header.size()}, signer, committed, {badblind.data(), badblind.size()}, BASE_API_ID));
+
+    auto badc0 = c0; badc0[0] ^= 1;
+    std::vector<std::span<const uint8_t>> badcommitted = committed;
+    badcommitted[0] = {badc0.data(), badc0.size()};
+    CHECK(!Bbs::verify_blind_sign({pk.data(), pk.size()}, {sig.data(), sig.size()},
+        {header.data(), header.size()}, signer, badcommitted, {blind.data(), blind.size()}, BASE_API_ID));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/proof-domain");
@@ -298,4 +371,5 @@ void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/commit-multi-messages");
     RUN("bbs_pseudonym/kat/blind-sign-no-messages");
     RUN("bbs_pseudonym/kat/blind-sign-with-nym");
+    RUN("bbs_pseudonym/kat/blind-sign-and-verify-full");
 }

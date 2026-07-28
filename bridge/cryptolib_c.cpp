@@ -2311,6 +2311,58 @@ CRYPTO_API int cryptolib_bbs_proof_verify_with_pseudonym(
 #endif
 } CL_FAIL_INT
 
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_commit(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    CryptoBuffer* secret_prover_blind) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::blind_commit(
+        bbs_msgs(committed_msgs, committed_lens, committed_count), crypto::Bbs::API_ID_BLIND);
+    if (secret_prover_blind)
+        *secret_prover_blind = to_cbuf(std::span<const uint8_t>(r.secret_prover_blind.data(), r.secret_prover_blind.size()));
+    return { to_cbuf(std::span<const uint8_t>(r.commitment_with_proof)), nullptr };
+#else
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;
+    if (secret_prover_blind) *secret_prover_blind = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto sig = crypto::Bbs::blind_sign(sp(sk, sk_len), sp(pk, pk_len),
+        sp(commitment_with_proof, commit_len), sp(header, header_len),
+        bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_BLIND);
+    return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;
+    (void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_bbs_verify_blind_sign(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    return crypto::Bbs::verify_blind_sign(sp(pk, pk_len), sp(signature, sig_len),
+        sp(header, header_len), bbs_msgs(msgs, msg_lens, msg_count),
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        sp(secret_prover_blind, spb_len), crypto::Bbs::API_ID_BLIND) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)committed_msgs;(void)committed_lens;(void)committed_count;
+    (void)secret_prover_blind;(void)spb_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * ECVRF — Verifiable Random Function (RFC 9381)
  * ═══════════════════════════════════════════════════════════════════════════ */
