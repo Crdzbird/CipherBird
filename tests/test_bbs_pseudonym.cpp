@@ -129,6 +129,32 @@ TEST("bbs_pseudonym/kat/blind-sign-no-messages") {
         "768116d55510251bb6a716a38340e184");
 }
 
+// pvl draft §12.1.4.1 — BlindSignWithNym, no signer/committed messages (one
+// hidden prover_nym → M=1). Signer adds J_M·signer_nym_entropy and binds
+// length_nym_vector. Uses the pseudonym-suite api_id directly.
+TEST("bbs_pseudonym/kat/blind-sign-with-nym") {
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto commit = unhex(
+        "b989fc492e2047f602504eb3e236c0acb04224c77ad0d4cbd31c887b9eb05a1f"
+        "27d7acfb266fe0ae062914bfa060984c5c2ac3247080eb71fefc7e9622ffae37"
+        "2425a699a298ba991a0bc5c6a3d9211347d0ce98d5c0550667269df1fb81f8fa"
+        "30c07d4917c7c0786411ee5c05b00b9d501d3f8e244b860b7b11140cddc9787a"
+        "3ab54ec7fd0a8950dae339f396f2641b");
+    auto entropy = unhex("3d40961fce6c09eec24a371322732932503b458d7a4cf7891bdaa765b30027c5");
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+                               {commit.data(), commit.size()}, {header.data(), header.size()},
+                               {}, Bbs::API_ID_PSEUDONYM,
+                               {entropy.data(), entropy.size()}, /*length_nym_vector=*/1);
+    CHECK(tohex({sig.data(), sig.size()}) ==
+        "aabc3014c598f3cd8fcc162950ff9aa9ac93c0877d33d1cc0b71b31964e3b109"
+        "715d5af307e580b498b0ec8c0b8f848028ba9d881be84bf405295f27f0213102"
+        "8498c50c4fa3f6bb93483bf676ef1f1c");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/pseudonym-generators");
@@ -136,4 +162,5 @@ void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/commit-no-messages");
     RUN("bbs_pseudonym/kat/commit-multi-messages");
     RUN("bbs_pseudonym/kat/blind-sign-no-messages");
+    RUN("bbs_pseudonym/kat/blind-sign-with-nym");
 }
