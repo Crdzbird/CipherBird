@@ -155,8 +155,23 @@ TEST("bbs_pseudonym/kat/blind-sign-with-nym") {
         "8498c50c4fa3f6bb93483bf676ef1f1c");
 }
 
+// pvl §12.1.5.1 — pins the pseudonym-proof unified generator layout by
+// reconstructing the domain (L=10 signer, M=5 committed, length_nym_vector=1).
+TEST("bbs_pseudonym/kat/proof-domain") {
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto dom = Bbs::pseudonym_proof_domain_for_test({pk.data(), pk.size()},
+                    {header.data(), header.size()}, /*L=*/10, /*M=*/5,
+                    /*length_nym_vector=*/1, Bbs::API_ID_PSEUDONYM);
+    CHECK(tohex({dom.data(), dom.size()}) ==
+        "18a554af90e12ae7a81bd511901abfe1cf882387033796cc47df19b244a15894");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
+    RUN("bbs_pseudonym/kat/proof-domain");
     RUN("bbs_pseudonym/kat/pseudonym-generators");
     RUN("bbs_pseudonym/kat/blind-generators");
     RUN("bbs_pseudonym/kat/commit-no-messages");

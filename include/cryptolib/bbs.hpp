@@ -634,6 +634,26 @@ public:
         return core_commit(blind_gens, scalars, api_id, rnd);
     }
 
+    // Pseudonym-proof domain (pvl §6.2/§7): generators = base_gens(L+1, api_id)
+    // ++ blind_gens(M + length_nym_vector + 1, "BLIND_"||api_id); combined_header
+    // = header || I2OSP(length_nym_vector, 8). Returns the 32-byte domain scalar
+    // (big-endian) — a clean anchor for the unified generator layout.
+    [[nodiscard]] static std::array<uint8_t, SCALAR_BYTES>
+    pseudonym_proof_domain_for_test(std::span<const uint8_t> pk, std::span<const uint8_t> header,
+            std::size_t L, std::size_t M, std::size_t length_nym_vector, std::string_view api_id) {
+        auto base_gens = create_generators(L + 1, api_id);
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(M + length_nym_vector + 1, blind_api);
+        std::vector<blst_p1> gens = base_gens;
+        for (const auto& bg : blind_gens) gens.push_back(bg);
+        std::vector<uint8_t> hdr(header.begin(), header.end());
+        put_u64(hdr, length_nym_vector);
+        blst_scalar dom = calculate_domain(pk, gens, sv(hdr), api_id);
+        std::array<uint8_t, SCALAR_BYTES> out{};
+        blst_bendian_from_scalar(out.data(), &dom);
+        return out;
+    }
+
     // Blind BBS signing (draft §4.2.1 BlindSign; the real B = P1 + Q_1·domain +
     // Σ H_i·msg_i + commitment — the prose B_calculate is shorthand). Produces the
     // 80-byte (A, e) signature. With signer_nym_entropy set, this is pvl §6.1.2
