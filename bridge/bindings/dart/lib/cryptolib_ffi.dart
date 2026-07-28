@@ -4115,6 +4115,135 @@ class CryptoLib {
     return p;
   }
 
+  // ── BBS per-verifier pseudonyms + blind issuance ───────────────────────────
+  // draft-irtf-cfrg-bbs-per-verifier-linkability-02. The pseudonym ciphersuite
+  // is applied internally. Scalar inputs (proverNyms, nymSecrets,
+  // secretProverBlind, signerNymEntropy) are 32-byte big-endian.
+
+  /// Commit to [committedMessages] plus [proverNyms] (secret scalars the issuer
+  /// must not learn). Returns (commitmentWithProof, secretProverBlind).
+  (Uint8List, Uint8List) bbsCommitWithNym(List<Uint8List> committedMessages, List<Uint8List> proverNyms) {
+    final (cm, cl) = _toNativeList(committedMessages);
+    final (pm, pl) = _toNativeList(proverNyms);
+    final spb = calloc<CryptoBuffer>();
+    try {
+      final cwp = _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<CryptoBuffer>),
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<CryptoBuffer>)>('cryptolib_bbs_commit_with_nym')(
+          cm, cl, committedMessages.length, pm, pl, proverNyms.length, spb));
+      return (cwp, _copyBuf(spb.ref)); // _copyBuf frees the inner allocation
+    } finally {
+      _freeNativeList(cm, cl, committedMessages.length);
+      _freeNativeList(pm, pl, proverNyms.length);
+      calloc.free(spb);
+    }
+  }
+
+  /// Blind-sign over the commitment + signer [messages], folding
+  /// [signerNymEntropy] into the last nym slot. Returns an 80-byte signature.
+  Uint8List bbsBlindSignWithNym(Uint8List secretKey, Uint8List publicKey, Uint8List commitmentWithProof,
+      Uint8List header, List<Uint8List> messages, Uint8List signerNymEntropy, int lengthNymVector) {
+    final sk = _toNative(secretKey), pk = _toNative(publicKey), cwp = _toNative(commitmentWithProof);
+    final h = _toNative(header), e = _toNative(signerNymEntropy);
+    final (mp, ml) = _toNativeList(messages);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size, Uint64),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int, int)>('cryptolib_bbs_blind_sign_with_nym')(
+          sk, secretKey.length, pk, publicKey.length, cwp, commitmentWithProof.length,
+          h, header.length, mp, ml, messages.length, e, signerNymEntropy.length, lengthNymVector));
+    } finally {
+      for (final x in [sk, pk, cwp, h, e]) { if (x != nullptr) calloc.free(x); }
+      _freeNativeList(mp, ml, messages.length);
+    }
+  }
+
+  /// Finalize nym_secrets = [proverNyms] with the last element +=
+  /// [signerNymEntropy]. Returns concatenated 32-byte scalars.
+  Uint8List bbsFinalizeNymSecrets(List<Uint8List> proverNyms, Uint8List signerNymEntropy) {
+    final (pm, pl) = _toNativeList(proverNyms);
+    final e = _toNative(signerNymEntropy);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size),
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int)>('cryptolib_bbs_finalize_nym_secrets')(
+          pm, pl, proverNyms.length, e, signerNymEntropy.length));
+    } finally {
+      _freeNativeList(pm, pl, proverNyms.length);
+      if (e != nullptr) calloc.free(e);
+    }
+  }
+
+  /// Derive the deterministic pseudonym (48-byte compressed G1 point) for a
+  /// context from the [nymSecrets].
+  Uint8List bbsCalculatePseudonym(Uint8List contextId, List<Uint8List> nymSecrets) {
+    final c = _toNative(contextId);
+    final (nm, nl) = _toNativeList(nymSecrets);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cryptolib_bbs_calculate_pseudonym')(
+          c, contextId.length, nm, nl, nymSecrets.length));
+    } finally {
+      if (c != nullptr) calloc.free(c);
+      _freeNativeList(nm, nl, nymSecrets.length);
+    }
+  }
+
+  /// Generate a pseudonym-bound selective-disclosure proof. Returns
+  /// (proof, pseudonym). Disclosed index lists are 0-based into the signer and
+  /// committed message vectors respectively.
+  (Uint8List, Uint8List) bbsProofGenWithPseudonym(Uint8List publicKey, Uint8List signature, Uint8List header,
+      Uint8List ph, Uint8List contextId, List<Uint8List> signerMessages, List<Uint8List> committedMessages,
+      Uint8List secretProverBlind, List<Uint8List> nymSecrets,
+      List<int> disclosedSignerIndexes, List<int> disclosedCommittedIndexes) {
+    final pk = _toNative(publicKey), s = _toNative(signature), h = _toNative(header), p = _toNative(ph);
+    final c = _toNative(contextId), spb = _toNative(secretProverBlind);
+    final (sm, sl) = _toNativeList(signerMessages);
+    final (cm, cl) = _toNativeList(committedMessages);
+    final (nm, nl) = _toNativeList(nymSecrets);
+    final si = _toU64List(disclosedSignerIndexes), ci = _toU64List(disclosedCommittedIndexes);
+    final nymOut = calloc<CryptoBuffer>();
+    try {
+      final proof = _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint64>, Size, Pointer<Uint64>, Size, Pointer<CryptoBuffer>),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int, Pointer<Uint64>, int, Pointer<CryptoBuffer>)>('cryptolib_bbs_proof_gen_with_pseudonym')(
+          pk, publicKey.length, s, signature.length, h, header.length, p, ph.length, c, contextId.length,
+          sm, sl, signerMessages.length, cm, cl, committedMessages.length, spb, secretProverBlind.length,
+          nm, nl, nymSecrets.length, si, disclosedSignerIndexes.length, ci, disclosedCommittedIndexes.length, nymOut));
+      return (proof, _copyBuf(nymOut.ref)); // _copyBuf frees the inner allocation
+    } finally {
+      for (final x in [pk, s, h, p, c, spb]) { if (x != nullptr) calloc.free(x); }
+      _freeNativeList(sm, sl, signerMessages.length);
+      _freeNativeList(cm, cl, committedMessages.length);
+      _freeNativeList(nm, nl, nymSecrets.length);
+      calloc.free(si); calloc.free(ci); calloc.free(nymOut);
+    }
+  }
+
+  /// Verify a pseudonym-bound proof. [disclosedMessages]/[disclosedIndexes] are
+  /// the COMBINED signer+committed disclosures (committed index j passed as j+L+1).
+  bool bbsProofVerifyWithPseudonym(Uint8List publicKey, Uint8List proof, Uint8List header, Uint8List ph,
+      Uint8List contextId, Uint8List pseudonym, int L, int lengthNymVector,
+      List<Uint8List> disclosedMessages, List<int> disclosedIndexes) {
+    final pk = _toNative(publicKey), pr = _toNative(proof), h = _toNative(header), p = _toNative(ph);
+    final c = _toNative(contextId), n = _toNative(pseudonym);
+    final (mp, ml) = _toNativeList(disclosedMessages);
+    final idx = _toU64List(disclosedIndexes);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Uint64, Uint64, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint64>, Size),
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int)>('cryptolib_bbs_proof_verify_with_pseudonym')(
+          pk, publicKey.length, pr, proof.length, h, header.length, p, ph.length,
+          c, contextId.length, n, pseudonym.length, L, lengthNymVector,
+          mp, ml, disclosedMessages.length, idx, disclosedIndexes.length) == 1;
+    } finally {
+      for (final x in [pk, pr, h, p, c, n]) { if (x != nullptr) calloc.free(x); }
+      _freeNativeList(mp, ml, disclosedMessages.length);
+      calloc.free(idx);
+    }
+  }
+
   // ── OPRF — Oblivious Pseudorandom Function (RFC 9497) ──────────────────────
   /// Derive an OPRF key pair from a seed (+ optional info). Throws on failure.
   KeyPairResult oprfDeriveKeyPair(Uint8List seed, {Uint8List? info}) {
