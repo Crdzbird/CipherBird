@@ -547,6 +547,31 @@ public:
     static constexpr std::string_view API_ID_BLIND =
         "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_BLIND_H2G_HM2S_";
 
+    // Canonical BLS12-381 scalar helpers (issue #5). Both return a 32-byte
+    // big-endian value strictly < r, ready to feed the pseudonym / blind-
+    // issuance API (prover_nyms, signer_nym_entropy, nym_secrets), which does not
+    // reduce its scalar inputs — a raw 32-byte value exceeds r ~55% of the time
+    // and would silently break the round-trip.
+    //
+    // hash_to_scalar_bytes is deterministic in (msg, dst): the draft's
+    // hash_to_scalar primitive (expand_message_xmd → OS2IP mod r), so the same
+    // (member_secret, dst) always yields the same nym seed. random_scalar_bytes
+    // draws fresh CSPRNG bytes. Both are canonical by construction (blst reduces
+    // the 48-byte expansion mod r).
+    [[nodiscard]] static std::array<uint8_t, SCALAR_BYTES>
+    hash_to_scalar_bytes(std::span<const uint8_t> msg, std::span<const uint8_t> dst) {
+        blst_scalar s = hash_to_scalar(msg, dst);
+        std::array<uint8_t, SCALAR_BYTES> out{};
+        blst_bendian_from_scalar(out.data(), &s);
+        return out;
+    }
+    [[nodiscard]] static std::array<uint8_t, SCALAR_BYTES> random_scalar_bytes() {
+        blst_scalar s = random_scalar();
+        std::array<uint8_t, SCALAR_BYTES> out{};
+        blst_bendian_from_scalar(out.data(), &s);
+        return out;
+    }
+
     // Test-visibility hook: reproduce a suite's generators (compressed G1, 48B
     // each) for byte-exact validation against the draft's Section 12 vectors.
     [[nodiscard]] static std::vector<std::array<uint8_t, G1_BYTES>>

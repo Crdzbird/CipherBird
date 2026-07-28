@@ -2363,6 +2363,26 @@ CRYPTO_API int cryptolib_bbs_verify_blind_sign(
 #endif
 } CL_FAIL_INT
 
+CRYPTO_API CryptoBufferResult cryptolib_bbs_hash_to_scalar(
+    const uint8_t* msg, size_t msg_len, const uint8_t* dst, size_t dst_len) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto s = crypto::Bbs::hash_to_scalar_bytes(sp(msg, msg_len), sp(dst, dst_len));
+    return { to_cbuf(std::span<const uint8_t>(s.data(), s.size())), nullptr };
+#else
+    (void)msg;(void)msg_len;(void)dst;(void)dst_len;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_random_scalar(void) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto s = crypto::Bbs::random_scalar_bytes();
+    return { to_cbuf(std::span<const uint8_t>(s.data(), s.size())), nullptr };
+#else
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * ECVRF — Verifiable Random Function (RFC 9381)
  * ═══════════════════════════════════════════════════════════════════════════ */

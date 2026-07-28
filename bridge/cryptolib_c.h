@@ -1193,6 +1193,22 @@ CRYPTO_API int cryptolib_bbs_verify_blind_sign(
     const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
     const uint8_t* secret_prover_blind, size_t spb_len);
 
+/* Canonical BLS12-381 scalar helpers for the pseudonym / blind-issuance API.
+ * Both return a 32-byte big-endian value strictly less than the scalar-field
+ * order r — feed them directly as prover_nyms / signer_nym_entropy / nym_secrets
+ * (a raw 32-byte value exceeds r ~55% of the time and silently breaks the
+ * round-trip). Same conventions as the rest of cryptolib_bbs_*: malloc'd, freed
+ * via cryptolib_buffer_free, error string on failure, require blst. */
+
+/* Deterministically map (msg, dst) to a canonical scalar in [0, r) — the BBS
+ * hash_to_scalar primitive. Suitable for a stable per-holder nym seed
+ * (nym_seed = hash_to_scalar(member_secret, dst)). */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_hash_to_scalar(
+    const uint8_t* msg, size_t msg_len, const uint8_t* dst, size_t dst_len);
+
+/* A fresh cryptographically-random canonical scalar in [0, r). */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_random_scalar(void);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * OPRF — Oblivious Pseudorandom Function (RFC 9497, ristretto255-SHA-512)
  *   A two-party PRF: the client blinds its input, the server evaluates under

@@ -360,6 +360,80 @@ TEST("bbs_pseudonym/kat/blind-sign-and-verify-full") {
         {header.data(), header.size()}, signer, badcommitted, {blind.data(), blind.size()}, BASE_API_ID));
 }
 
+// base draft §D.2.3 (BLS12-381-SHA-256) — hash_to_scalar reference vector.
+// Byte-exact anchor for the canonical-scalar helper (issue #5). dst is the hex
+// encoding of ASCII "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_H2S_".
+TEST("bbs_pseudonym/kat/hash-to-scalar") {
+    auto msg = unhex("9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02");
+    auto dst = unhex("4242535f424c53313233383147315f584d443a5348412d3235365f"
+                     "535357555f524f5f4832475f484d32535f4832535f");
+    auto s = Bbs::hash_to_scalar_bytes({msg.data(), msg.size()}, {dst.data(), dst.size()});
+    CHECK(tohex({s.data(), s.size()}) ==
+        "0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c");
+    // Deterministic in (msg, dst); a different dst yields a different scalar.
+    auto s2 = Bbs::hash_to_scalar_bytes({msg.data(), msg.size()}, {dst.data(), dst.size()});
+    CHECK(tohex({s.data(), s.size()}) == tohex({s2.data(), s2.size()}));
+    auto dst2 = dst; dst2[0] ^= 1;
+    auto s3 = Bbs::hash_to_scalar_bytes({msg.data(), msg.size()}, {dst2.data(), dst2.size()});
+    CHECK(tohex({s.data(), s.size()}) != tohex({s3.data(), s3.size()}));
+}
+
+// random_scalar_bytes: 32 bytes, distinct across calls, and usable as a nym seed
+// that round-trips through the pseudonym API (which requires a canonical < r
+// scalar — a raw 32-byte value would fail ~55% of the time).
+TEST("bbs_pseudonym/random-scalar/canonical-usable") {
+    auto a = Bbs::random_scalar_bytes();
+    auto b = Bbs::random_scalar_bytes();
+    CHECK(a.size() == 32);
+    CHECK(tohex({a.data(), a.size()}) != tohex({b.data(), b.size()}));
+
+    // Use a hashed scalar as the prover_nym seed and round-trip a proof.
+    auto seed = unhex("6d656d6265722d7365637265742d3432"); // "member-secret-42"
+    auto dst = unhex("6e796d2d73656564"); // "nym-seed"
+    auto nym = Bbs::hash_to_scalar_bytes({seed.data(), seed.size()}, {dst.data(), dst.size()});
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto ph = unhex("bed231d880675ed101ead304512e043ade9958dd0241ea70b4b3957fba941501");
+    auto ctx = unhex("bbb4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a");
+    auto entropy = unhex("3d40961fce6c09eec24a371322732932503b458d7a4cf7891bdaa765b30027c5");
+
+    std::vector<std::span<const uint8_t>> committed;      // no committed messages
+    std::vector<std::span<const uint8_t>> prover_nyms = {{nym.data(), nym.size()}};
+    auto commit = Bbs::commit_with_nym(committed, prover_nyms, Bbs::API_ID_PSEUDONYM);
+
+    std::array<uint8_t, 1> s0m{0xaa};
+    std::array<uint8_t, 2> s1m{0xbb, 0xbb};
+    std::vector<std::span<const uint8_t>> signer = {{s0m.data(), s0m.size()}, {s1m.data(), s1m.size()}};
+
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+        {commit.commitment_with_proof.data(), commit.commitment_with_proof.size()},
+        {header.data(), header.size()}, signer, Bbs::API_ID_PSEUDONYM,
+        {entropy.data(), entropy.size()}, /*length_nym_vector=*/1);
+
+    auto nym_secrets = Bbs::finalize_nym_secrets(prover_nyms, {entropy.data(), entropy.size()});
+    std::vector<std::span<const uint8_t>> ns;
+    for (auto& n : nym_secrets) ns.push_back({n.data(), n.size()});
+
+    auto gen = Bbs::proof_gen_with_pseudonym({pk.data(), pk.size()},
+        {sig.data(), sig.size()}, {header.data(), header.size()}, {ph.data(), ph.size()},
+        {ctx.data(), ctx.size()}, signer, committed,
+        {commit.secret_prover_blind.data(), commit.secret_prover_blind.size()}, ns,
+        {0, 1}, {}, Bbs::API_ID_PSEUDONYM);
+    REQUIRE(gen.is_ok());
+    auto& [proof, pseudonym] = gen.value();
+
+    std::array<uint8_t, 1> d0{0xaa};
+    std::array<uint8_t, 2> d1{0xbb, 0xbb};
+    std::vector<std::span<const uint8_t>> disclosed = {{d0.data(), d0.size()}, {d1.data(), d1.size()}};
+    CHECK(Bbs::proof_verify_with_pseudonym({pk.data(), pk.size()},
+        {proof.data(), proof.size()}, {header.data(), header.size()}, {ph.data(), ph.size()},
+        {ctx.data(), ctx.size()}, {pseudonym.data(), pseudonym.size()},
+        /*L=*/2, /*length_nym_vector=*/1, disclosed, {0, 1}, Bbs::API_ID_PSEUDONYM));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/proof-domain");
@@ -372,4 +446,6 @@ void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/blind-sign-no-messages");
     RUN("bbs_pseudonym/kat/blind-sign-with-nym");
     RUN("bbs_pseudonym/kat/blind-sign-and-verify-full");
+    RUN("bbs_pseudonym/kat/hash-to-scalar");
+    RUN("bbs_pseudonym/random-scalar/canonical-usable");
 }
