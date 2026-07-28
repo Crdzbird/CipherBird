@@ -634,6 +634,136 @@ public:
         return core_commit(blind_gens, scalars, api_id, rnd);
     }
 
+    // Map an octet string to a G1 point (RFC 9380 SSWU_RO) with an explicit DST.
+    static blst_p1 hash_to_g1(std::span<const uint8_t> msg, std::span<const uint8_t> dst) {
+        blst_p1 p;
+        blst_hash_to_g1(&p, msg.data(), msg.size(), dst.data(), dst.size(), nullptr, 0);
+        return p;
+    }
+
+    // ProofWithPseudonymChallengeCalculate (pvl §8.1): base proof challenge with
+    // (pseudonym, Ut) inserted before domain and context_id appended.
+    static blst_scalar pseudonym_proof_challenge(
+            const std::vector<std::size_t>& disclosed_indexes,
+            const std::vector<blst_scalar>& disclosed_scalars,
+            const blst_p1& Abar, const blst_p1& Bbar, const blst_p1& D,
+            const blst_p1& T1, const blst_p1& T2, const blst_p1& pseudonym, const blst_p1& Ut,
+            const blst_scalar& domain, std::span<const uint8_t> ph,
+            std::span<const uint8_t> context_id, std::string_view api_id) {
+        std::vector<uint8_t> c;
+        put_u64(c, static_cast<uint64_t>(disclosed_indexes.size()));
+        for (std::size_t k = 0; k < disclosed_indexes.size(); ++k) {
+            put_u64(c, static_cast<uint64_t>(disclosed_indexes[k]));
+            put_scalar(c, disclosed_scalars[k]);
+        }
+        put_g1(c, Abar); put_g1(c, Bbar); put_g1(c, D); put_g1(c, T1); put_g1(c, T2);
+        put_g1(c, pseudonym); put_g1(c, Ut);
+        put_scalar(c, domain);
+        put_u64(c, static_cast<uint64_t>(ph.size()));       put(c, ph);
+        put_u64(c, static_cast<uint64_t>(context_id.size())); put(c, context_id);
+        return hash_to_scalar(sv(c), sv(concat(api_id, "H2S_")));
+    }
+
+    // Verify a pseudonym-bound proof (pvl §7.2 CoreProofVerifyWithNym). `disclosed_*`
+    // are the COMBINED signer+committed disclosures (committed index j passed as
+    // j + L + 1). Returns true iff the proof + pseudonym verify.
+    [[nodiscard]] static bool
+    proof_verify_with_pseudonym(std::span<const uint8_t> pk, std::span<const uint8_t> proof,
+            std::span<const uint8_t> header, std::span<const uint8_t> ph,
+            std::span<const uint8_t> context_id, std::span<const uint8_t> pseudonym_bytes,
+            std::size_t L, std::size_t length_nym_vector,
+            const std::vector<std::span<const uint8_t>>& disclosed_messages,
+            const std::vector<std::size_t>& disclosed_indexes, std::string_view api_id) {
+        if (pk.size() != G2_BYTES || pseudonym_bytes.size() != G1_BYTES) return false;
+        if (proof.size() < 3 * G1_BYTES + 4 * SCALAR_BYTES) return false;
+        std::size_t rest = proof.size() - 3 * G1_BYTES - 3 * SCALAR_BYTES;
+        if (rest % SCALAR_BYTES != 0) return false;
+        std::size_t U = rest / SCALAR_BYTES - 1;
+        const std::size_t R = disclosed_indexes.size();
+        if (disclosed_messages.size() != R) return false;
+        const std::size_t total = R + U;                    // total messages
+        if (total < L + 1 + length_nym_vector || U < length_nym_vector) return false;
+        const std::size_t M = total - L - 1 - length_nym_vector;
+
+        blst_p1_affine Abar_a, Bbar_a, D_a;
+        if (blst_p1_uncompress(&Abar_a, proof.data()) != BLST_SUCCESS) return false;
+        if (blst_p1_uncompress(&Bbar_a, proof.data() + G1_BYTES) != BLST_SUCCESS) return false;
+        if (blst_p1_uncompress(&D_a, proof.data() + 2 * G1_BYTES) != BLST_SUCCESS) return false;
+        if (!blst_p1_affine_in_g1(&Abar_a) || !blst_p1_affine_in_g1(&Bbar_a) || !blst_p1_affine_in_g1(&D_a)) return false;
+        blst_p1 Abar, Bbar, D;
+        blst_p1_from_affine(&Abar, &Abar_a); blst_p1_from_affine(&Bbar, &Bbar_a); blst_p1_from_affine(&D, &D_a);
+
+        const uint8_t* sc = proof.data() + 3 * G1_BYTES;
+        auto read_sc = [&](std::size_t i) { blst_scalar s; blst_scalar_from_bendian(&s, sc + i * SCALAR_BYTES); return s; };
+        blst_scalar e_hat = read_sc(0), r1_hat = read_sc(1), r3_hat = read_sc(2);
+        std::vector<blst_scalar> commitments;
+        for (std::size_t i = 0; i < U; ++i) commitments.push_back(read_sc(3 + i));
+        blst_scalar c = read_sc(3 + U);
+        for (const blst_scalar* s : { &e_hat, &r1_hat, &r3_hat, &c }) if (!blst_scalar_fr_check(s)) return false;
+        for (const auto& m : commitments) if (!blst_scalar_fr_check(&m)) return false;
+
+        blst_p2_affine W_aff;
+        if (blst_p2_uncompress(&W_aff, pk.data()) != BLST_SUCCESS) return false;
+        if (!blst_p2_affine_in_g2(&W_aff)) return false;
+        blst_p1_affine nym_a;
+        if (blst_p1_uncompress(&nym_a, pseudonym_bytes.data()) != BLST_SUCCESS) return false;
+        if (!blst_p1_affine_in_g1(&nym_a)) return false;
+        blst_p1 pseudonym; blst_p1_from_affine(&pseudonym, &nym_a);
+
+        // Unified generators [Q_1, H_1..H_L, Q_2, J_1..J_{M+Nnym}].
+        auto base_gens = create_generators(L + 1, api_id);
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(M + length_nym_vector + 1, blind_api);
+        std::vector<blst_p1> gens = base_gens;
+        for (const auto& bg : blind_gens) gens.push_back(bg);
+
+        auto disclosed_scalars = messages_to_scalars(disclosed_messages, api_id);
+        auto undisclosed = complement_indexes(disclosed_indexes, total);
+        if (undisclosed.size() != U) return false;
+
+        std::vector<uint8_t> hdr(header.begin(), header.end());
+        put_u64(hdr, length_nym_vector);
+        blst_scalar domain = calculate_domain(pk, gens, sv(hdr), api_id);
+
+        blst_p1 T1 = p1_add(p1_add(p1_mult(Bbar, c), p1_mult(Abar, e_hat)), p1_mult(D, r1_hat));
+        blst_p1 Bv = p1_add(p1_base(), p1_mult(gens[0], domain));
+        for (std::size_t k = 0; k < R; ++k)
+            Bv = p1_add(Bv, p1_mult(gens[disclosed_indexes[k] + 1], disclosed_scalars[k]));
+        blst_p1 T2 = p1_add(p1_mult(Bv, c), p1_mult(D, r3_hat));
+        for (std::size_t k = 0; k < U; ++k)
+            T2 = p1_add(T2, p1_mult(gens[undisclosed[k] + 1], commitments[k]));
+
+        // Pseudonym sigma: Uv = OP·poly(nym_secret_commitments) − pseudonym·c.
+        blst_p1 OP = hash_to_g1(context_id, sv(std::vector<uint8_t>(api_id.begin(), api_id.end())));
+        blst_scalar z = hash_to_scalar(context_id, concat(api_id, "VECT_NYM_SECRETS"));
+        const std::size_t base = U - length_nym_vector;     // nym_secret_commitments = last Nnym
+        blst_scalar poly = commitments[base], zn = z;
+        for (std::size_t i = 1; i < length_nym_vector; ++i) {
+            poly = sc_add(poly, sc_mul(commitments[base + i], zn));
+            zn = sc_mul(zn, z);
+        }
+        blst_p1 Uv = p1_sub(p1_mult(OP, poly), p1_mult(pseudonym, c));
+
+        blst_scalar c_prime = pseudonym_proof_challenge(disclosed_indexes, disclosed_scalars,
+            Abar, Bbar, D, T1, T2, pseudonym, Uv, domain, ph, context_id, api_id);
+        uint8_t cb[SCALAR_BYTES], cpb[SCALAR_BYTES];
+        blst_bendian_from_scalar(cb, &c); blst_bendian_from_scalar(cpb, &c_prime);
+        if (sodium_memcmp(cb, cpb, SCALAR_BYTES) != 0) return false;
+
+        blst_p2 BP2 = *blst_p2_generator(), negBP2 = BP2;
+        blst_p2_cneg(&negBP2, 1);
+        blst_p2 W; blst_p2_from_affine(&W, &W_aff);
+        blst_p1_affine Bbar_aff; blst_p1_to_affine(&Bbar_aff, &Bbar);
+        blst_p2_affine W_a2, negBP2_a;
+        blst_p2_to_affine(&W_a2, &W); blst_p2_to_affine(&negBP2_a, &negBP2);
+        blst_fp12 ml1, ml2, prod;
+        blst_miller_loop(&ml1, &W_a2, &Abar_a);
+        blst_miller_loop(&ml2, &negBP2_a, &Bbar_aff);
+        blst_fp12_mul(&prod, &ml1, &ml2);
+        blst_final_exp(&prod, &prod);
+        return blst_fp12_is_one(&prod);
+    }
+
     // Pseudonym-proof domain (pvl §6.2/§7): generators = base_gens(L+1, api_id)
     // ++ blind_gens(M + length_nym_vector + 1, "BLIND_"||api_id); combined_header
     // = header || I2OSP(length_nym_vector, 8). Returns the 32-byte domain scalar

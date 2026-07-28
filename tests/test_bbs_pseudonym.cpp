@@ -169,9 +169,73 @@ TEST("bbs_pseudonym/kat/proof-domain") {
         "18a554af90e12ae7a81bd511901abfe1cf882387033796cc47df19b244a15894");
 }
 
+// pvl §12.1.5.1 — verify the OFFICIAL pseudonym-bound proof returns VALID
+// (all committed + signer messages revealed; only the nym hidden). This is the
+// byte-exact anchor for the whole verify path; a wrong-context proof must fail.
+TEST("bbs_pseudonym/kat/proof-verify") {
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto ph = unhex("bed231d880675ed101ead304512e043ade9958dd0241ea70b4b3957fba941501");
+    auto ctx = unhex("bbb4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a");
+    auto nym = unhex("b04bd002c85e31d2735ee2e6b36aea85147cbf197934f99ae26a7da73b98ebc3"
+                     "4561848426aded0967e07fb333f79487");
+    auto proof = unhex(
+        "8b461b6d894ca153a2e1c05ac10c1bf21778b4ba08e9ca80949525afd86d533b"
+        "f4b4f53ae3f7db67b9dcf55b5c4d3816b80b033b140c3bab14da11a54bb7afeb"
+        "32c357cf6a1b73f100cbf1cb4e1c3fa1376a57d3be7e2f0395ec59b9e2c39c6b"
+        "a744a214e5cec73752d3aa6ca1461cc38b4f69397282e8c9552b8f2add6e878f"
+        "4edb8370003e141bacca3c3131bdbe016a02395e38459b716da68c90eedf33e1"
+        "3d01684d271148dc05c11f934a11986c40664e63c3eddd2a7f84edac4b092dfa"
+        "6eb0bc58b8ae5c44b7b4392b288e700f59c56be0674865eb7e89069c2f39fd0a"
+        "2a61379d615db25d33473774ff72033304a8a62dbf5515d4475808a5f9fae605"
+        "2f5031d741535af95294195a97e9f87336fa53bf566b1e88bc8987b6850b0f06"
+        "fc7423d92910970ac6cf33a8a53d1fad10343839f7ad6c221366c10e96eb6794"
+        "9f2bcfc83614232ee7a5f9f564fe2499");
+    std::vector<std::vector<uint8_t>> msgs = {
+        unhex("9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02"),
+        unhex("c344136d9ab02da4dd5908bbba913ae6f58c2cc844b802a6f811f5fb075f9b80"),
+        unhex("7372e9daa5ed31e6cd5c825eac1b855e84476a1d94932aa348e07b73"),
+        unhex("77fe97eb97a1ebe2e81e4e3597a3ee740a66e9ef2412472c"),
+        unhex("496694774c5604ab1b2544eababcf0f53278ff50"),
+        unhex("515ae153e22aae04ad16f759e07237b4"),
+        unhex("d183ddc6e2665aa4e2f088af"),
+        unhex("ac55fb33a75909ed"),
+        unhex("96012096"),
+        {}, // signer message 9 (empty)
+        unhex("5982967821da3c5983496214df36aa5e58de6fa25314af4cf4c00400779f08c3"),
+        unhex("a75d8b634891af92282cc81a675972d1929d3149863c1fc0"),
+        unhex("835889a40744813a892eff9deb1edaeb"),
+        unhex("e1ca9729410dc6ba"),
+        {}, // committed message 4 (empty)
+    };
+    std::vector<std::span<const uint8_t>> dm;
+    for (auto& m : msgs) dm.push_back({m.data(), m.size()});
+    // Combined disclosed indexes: signer 0..9, committed j -> j+L+1 = 11..15.
+    std::vector<std::size_t> di = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15};
+
+    bool ok = Bbs::proof_verify_with_pseudonym(
+        {pk.data(), pk.size()}, {proof.data(), proof.size()},
+        {header.data(), header.size()}, {ph.data(), ph.size()},
+        {ctx.data(), ctx.size()}, {nym.data(), nym.size()},
+        /*L=*/10, /*length_nym_vector=*/1, dm, di, Bbs::API_ID_PSEUDONYM);
+    CHECK(ok);
+
+    // Wrong context_id → must fail.
+    auto badctx = unhex("aaaa4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a");
+    bool bad = Bbs::proof_verify_with_pseudonym(
+        {pk.data(), pk.size()}, {proof.data(), proof.size()},
+        {header.data(), header.size()}, {ph.data(), ph.size()},
+        {badctx.data(), badctx.size()}, {nym.data(), nym.size()},
+        10, 1, dm, di, Bbs::API_ID_PSEUDONYM);
+    CHECK(!bad);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/proof-domain");
+    RUN("bbs_pseudonym/kat/proof-verify");
     RUN("bbs_pseudonym/kat/pseudonym-generators");
     RUN("bbs_pseudonym/kat/blind-generators");
     RUN("bbs_pseudonym/kat/commit-no-messages");
