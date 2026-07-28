@@ -1102,6 +1102,67 @@ CRYPTO_API int cryptolib_bbs_proof_verify(
     const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
     const uint64_t* disclosed_indexes, size_t indexes_count);
 
+/* ── BBS per-verifier pseudonyms + blind issuance ───────────────────────────
+ * draft-irtf-cfrg-bbs-per-verifier-linkability-02 (coupled with blind issuance).
+ * Pseudonym-suite api_id is applied internally. Scalars (prover_nyms,
+ * nym_secrets, secret_prover_blind, signer_nym_entropy) are 32-byte big-endian.
+ * All require blst; without it the buffer fns return an error and verify → 0. */
+
+/** Holder: commit to committed_messages + prover_nyms (scalars the issuer must
+ *  not learn). Returns commitment_with_proof; secret_prover_blind (32 B) via the
+ *  out-param — the holder keeps it to finalize/prove later. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_commit_with_nym(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    CryptoBuffer* secret_prover_blind);
+
+/** Issuer: blind-sign over the commitment + own messages, adding
+ *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_sign_with_nym(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len, uint64_t length_nym_vector);
+
+/** Holder: nym_secrets = prover_nyms with the last element += signer_nym_entropy.
+ *  Returns the concatenated 32-byte scalars. */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_finalize_nym_secrets(
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len);
+
+/** Deterministic pseudonym for a context from the nym_secrets. Returns a
+ *  compressed G1 point (48 B). */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_calculate_pseudonym(
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count);
+
+/** Holder: generate a pseudonym-bound selective-disclosure proof. Returns the
+ *  proof; the pseudonym (48 B) via the out-param. disclosed_*_indexes select the
+ *  revealed signer / committed messages (each list 0-based into its own vector). */
+CRYPTO_API CryptoBufferResult cryptolib_bbs_proof_gen_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* signer_msgs, const size_t* signer_lens, size_t signer_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count,
+    const uint64_t* disclosed_signer_indexes, size_t disclosed_signer_count,
+    const uint64_t* disclosed_committed_indexes, size_t disclosed_committed_count,
+    CryptoBuffer* pseudonym_out);
+
+/** Verifier: check a pseudonym-bound proof. `disclosed_msgs`/`disclosed_indexes`
+ *  are the COMBINED signer+committed disclosures (committed index j passed as
+ *  j + L + 1). Returns 1 valid, 0 invalid. */
+CRYPTO_API int cryptolib_bbs_proof_verify_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len, const uint8_t* pseudonym, size_t nym_len,
+    uint64_t L, uint64_t length_nym_vector,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * OPRF — Oblivious Pseudorandom Function (RFC 9497, ristretto255-SHA-512)
  *   A two-party PRF: the client blinds its input, the server evaluates under

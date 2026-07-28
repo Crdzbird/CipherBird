@@ -95,3 +95,107 @@ func BbsProofVerify(pk, proof, header, ph []byte, disclosedMessages [][]byte, di
 		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
 		mp, ml, C.size_t(len(disclosedMessages)), ip, C.size_t(len(disclosedIndexes))) == 1
 }
+
+// ── Per-verifier pseudonyms + blind issuance (draft-irtf-cfrg-bbs-per-verifier-
+// linkability-02). The pseudonym ciphersuite is applied internally. Scalar
+// inputs (proverNyms, nymSecrets, secretProverBlind, signerNymEntropy) are
+// 32-byte big-endian. ──────────────────────────────────────────────────────
+
+// BbsCommitWithNym commits to committedMsgs plus proverNyms (secret scalars the
+// issuer must not learn). Returns (commitmentWithProof, secretProverBlind).
+func BbsCommitWithNym(committedMsgs, proverNyms [][]byte) ([]byte, []byte, error) {
+	cm, cl, freeC := cByteSlices(committedMsgs)
+	defer freeC()
+	pm, pl, freeP := cByteSlices(proverNyms)
+	defer freeP()
+	var spb C.CryptoBuffer
+	cwp, err := checkBufResult(C.cryptolib_bbs_commit_with_nym(
+		cm, cl, C.size_t(len(committedMsgs)), pm, pl, C.size_t(len(proverNyms)), &spb))
+	if err != nil {
+		C.cryptolib_buffer_free(&spb)
+		return nil, nil, err
+	}
+	// goBytes frees spb internally — do not free it again.
+	return cwp, goBytes(spb), nil
+}
+
+// BbsBlindSignWithNym signs over the commitment + signer messages, folding
+// signerNymEntropy into the last nym slot. Returns an 80-byte signature.
+func BbsBlindSignWithNym(sk, pk, commitmentWithProof, header []byte, messages [][]byte,
+	signerNymEntropy []byte, lengthNymVector uint64) ([]byte, error) {
+	mp, ml, free := cByteSlices(messages)
+	defer free()
+	return checkBufResult(C.cryptolib_bbs_blind_sign_with_nym(
+		u8(sk), C.size_t(len(sk)), u8(pk), C.size_t(len(pk)),
+		u8(commitmentWithProof), C.size_t(len(commitmentWithProof)),
+		u8(header), C.size_t(len(header)),
+		mp, ml, C.size_t(len(messages)),
+		u8(signerNymEntropy), C.size_t(len(signerNymEntropy)), C.uint64_t(lengthNymVector)))
+}
+
+// BbsFinalizeNymSecrets returns the nym_secrets (proverNyms with the last
+// element += signerNymEntropy) as concatenated 32-byte scalars.
+func BbsFinalizeNymSecrets(proverNyms [][]byte, signerNymEntropy []byte) ([]byte, error) {
+	pm, pl, free := cByteSlices(proverNyms)
+	defer free()
+	return checkBufResult(C.cryptolib_bbs_finalize_nym_secrets(
+		pm, pl, C.size_t(len(proverNyms)), u8(signerNymEntropy), C.size_t(len(signerNymEntropy))))
+}
+
+// BbsCalculatePseudonym derives the deterministic pseudonym (48-byte compressed
+// G1 point) for a context from the nymSecrets.
+func BbsCalculatePseudonym(contextID []byte, nymSecrets [][]byte) ([]byte, error) {
+	nm, nl, free := cByteSlices(nymSecrets)
+	defer free()
+	return checkBufResult(C.cryptolib_bbs_calculate_pseudonym(
+		u8(contextID), C.size_t(len(contextID)), nm, nl, C.size_t(len(nymSecrets))))
+}
+
+// BbsProofGenWithPseudonym generates a pseudonym-bound selective-disclosure
+// proof. Returns (proof, pseudonym). The disclosed index lists are 0-based into
+// the signer and committed message vectors respectively.
+func BbsProofGenWithPseudonym(pk, signature, header, ph, contextID []byte,
+	signerMsgs, committedMsgs [][]byte, secretProverBlind []byte, nymSecrets [][]byte,
+	disclosedSignerIndexes, disclosedCommittedIndexes []uint64) ([]byte, []byte, error) {
+	sm, sl, freeS := cByteSlices(signerMsgs)
+	defer freeS()
+	cm, cl, freeC := cByteSlices(committedMsgs)
+	defer freeC()
+	nm, nl, freeN := cByteSlices(nymSecrets)
+	defer freeN()
+	si, keepS := idxSlice(disclosedSignerIndexes)
+	ci, keepC := idxSlice(disclosedCommittedIndexes)
+	_, _ = keepS, keepC
+	var nymOut C.CryptoBuffer
+	proof, err := checkBufResult(C.cryptolib_bbs_proof_gen_with_pseudonym(
+		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)),
+		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
+		u8(contextID), C.size_t(len(contextID)),
+		sm, sl, C.size_t(len(signerMsgs)), cm, cl, C.size_t(len(committedMsgs)),
+		u8(secretProverBlind), C.size_t(len(secretProverBlind)),
+		nm, nl, C.size_t(len(nymSecrets)),
+		si, C.size_t(len(disclosedSignerIndexes)), ci, C.size_t(len(disclosedCommittedIndexes)), &nymOut))
+	if err != nil {
+		C.cryptolib_buffer_free(&nymOut)
+		return nil, nil, err
+	}
+	// goBytes frees nymOut internally — do not free it again.
+	return proof, goBytes(nymOut), nil
+}
+
+// BbsProofVerifyWithPseudonym verifies a pseudonym-bound proof. disclosedMessages
+// and disclosedIndexes are the COMBINED signer+committed disclosures (committed
+// index j passed as j+L+1).
+func BbsProofVerifyWithPseudonym(pk, proof, header, ph, contextID, pseudonym []byte,
+	L, lengthNymVector uint64, disclosedMessages [][]byte, disclosedIndexes []uint64) bool {
+	mp, ml, free := cByteSlices(disclosedMessages)
+	defer free()
+	ip, keep := idxSlice(disclosedIndexes)
+	_ = keep
+	return C.cryptolib_bbs_proof_verify_with_pseudonym(
+		u8(pk), C.size_t(len(pk)), u8(proof), C.size_t(len(proof)),
+		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
+		u8(contextID), C.size_t(len(contextID)), u8(pseudonym), C.size_t(len(pseudonym)),
+		C.uint64_t(L), C.uint64_t(lengthNymVector),
+		mp, ml, C.size_t(len(disclosedMessages)), ip, C.size_t(len(disclosedIndexes))) == 1
+}

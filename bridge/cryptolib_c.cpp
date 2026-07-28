@@ -2189,6 +2189,128 @@ CRYPTO_API int cryptolib_bbs_proof_verify(
 #endif
 } CL_FAIL_INT
 
+// ── BBS pseudonyms + blind issuance ──────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cryptolib_bbs_commit_with_nym(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    CryptoBuffer* secret_prover_blind) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::commit_with_nym(
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        bbs_msgs(prover_nyms, nym_lens, nym_count), crypto::Bbs::API_ID_PSEUDONYM);
+    if (secret_prover_blind)
+        *secret_prover_blind = to_cbuf(std::span<const uint8_t>(r.secret_prover_blind.data(), r.secret_prover_blind.size()));
+    return { to_cbuf(std::span<const uint8_t>(r.commitment_with_proof)), nullptr };
+#else
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;(void)prover_nyms;(void)nym_lens;(void)nym_count;
+    if (secret_prover_blind) *secret_prover_blind = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_blind_sign_with_nym(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len, uint64_t length_nym_vector) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto sig = crypto::Bbs::blind_sign(sp(sk, sk_len), sp(pk, pk_len),
+        sp(commitment_with_proof, commit_len), sp(header, header_len),
+        bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_PSEUDONYM,
+        sp(signer_nym_entropy, entropy_len), length_nym_vector);
+    return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;(void)header;(void)header_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)signer_nym_entropy;(void)entropy_len;(void)length_nym_vector;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_finalize_nym_secrets(
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto secrets = crypto::Bbs::finalize_nym_secrets(
+        bbs_msgs(prover_nyms, nym_lens, nym_count), sp(signer_nym_entropy, entropy_len));
+    std::vector<uint8_t> flat;
+    for (const auto& s : secrets) flat.insert(flat.end(), s.begin(), s.end());
+    return { to_cbuf(std::span<const uint8_t>(flat)), nullptr };
+#else
+    (void)prover_nyms;(void)nym_lens;(void)nym_count;(void)signer_nym_entropy;(void)entropy_len;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_calculate_pseudonym(
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto p = crypto::Bbs::calculate_pseudonym(sp(context_id, ctx_len),
+        bbs_msgs(nym_secrets, nym_lens, nym_count), crypto::Bbs::API_ID_PSEUDONYM);
+    return { to_cbuf(std::span<const uint8_t>(p.data(), p.size())), nullptr };
+#else
+    (void)context_id;(void)ctx_len;(void)nym_secrets;(void)nym_lens;(void)nym_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_bbs_proof_gen_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* signer_msgs, const size_t* signer_lens, size_t signer_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count,
+    const uint64_t* disclosed_signer_indexes, size_t disclosed_signer_count,
+    const uint64_t* disclosed_committed_indexes, size_t disclosed_committed_count,
+    CryptoBuffer* pseudonym_out) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    auto r = crypto::Bbs::proof_gen_with_pseudonym(sp(pk, pk_len), sp(signature, sig_len),
+        sp(header, header_len), sp(ph, ph_len), sp(context_id, ctx_len),
+        bbs_msgs(signer_msgs, signer_lens, signer_count),
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        sp(secret_prover_blind, spb_len), bbs_msgs(nym_secrets, nym_lens, nym_count),
+        bbs_indexes(disclosed_signer_indexes, disclosed_signer_count),
+        bbs_indexes(disclosed_committed_indexes, disclosed_committed_count),
+        crypto::Bbs::API_ID_PSEUDONYM);
+    if (r.is_err()) { if (pseudonym_out) *pseudonym_out = { nullptr, 0 }; return err_buf(r.error().message); }
+    auto& [proof, pseudonym] = r.value();
+    if (pseudonym_out) *pseudonym_out = to_cbuf(std::span<const uint8_t>(pseudonym.data(), pseudonym.size()));
+    return ok_buf(proof);
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)context_id;(void)ctx_len;(void)signer_msgs;(void)signer_lens;(void)signer_count;
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;(void)secret_prover_blind;(void)spb_len;
+    (void)nym_secrets;(void)nym_lens;(void)nym_count;(void)disclosed_signer_indexes;(void)disclosed_signer_count;
+    (void)disclosed_committed_indexes;(void)disclosed_committed_count;
+    if (pseudonym_out) *pseudonym_out = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_bbs_proof_verify_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len, const uint8_t* pseudonym, size_t nym_len,
+    uint64_t L, uint64_t length_nym_vector,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count) try {
+#ifdef CRYPTOLIB_HAS_BLS
+    return crypto::Bbs::proof_verify_with_pseudonym(sp(pk, pk_len), sp(proof, proof_len),
+        sp(header, header_len), sp(ph, ph_len), sp(context_id, ctx_len), sp(pseudonym, nym_len),
+        static_cast<std::size_t>(L), static_cast<std::size_t>(length_nym_vector),
+        bbs_msgs(disclosed_msgs, disclosed_lens, disclosed_count),
+        bbs_indexes(disclosed_indexes, indexes_count), crypto::Bbs::API_ID_PSEUDONYM) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)proof;(void)proof_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)context_id;(void)ctx_len;(void)pseudonym;(void)nym_len;(void)L;(void)length_nym_vector;
+    (void)disclosed_msgs;(void)disclosed_lens;(void)disclosed_count;(void)disclosed_indexes;(void)indexes_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * ECVRF — Verifiable Random Function (RFC 9381)
  * ═══════════════════════════════════════════════════════════════════════════ */

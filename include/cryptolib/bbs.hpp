@@ -933,6 +933,23 @@ public:
         return r;
     }
 
+    // Production CommitWithNym (real randomness). Same as the test helper but the
+    // (secret_prover_blind, s~, m~_i) scalars come from the OS CSPRNG.
+    [[nodiscard]] static CommitWithNymResult
+    commit_with_nym(const std::vector<std::span<const uint8_t>>& committed_messages,
+                    const std::vector<std::span<const uint8_t>>& prover_nyms, std::string_view api_id) {
+        auto scalars = messages_to_scalars(committed_messages, api_id);
+        for (auto& pn : prover_nyms) { blst_scalar s; blst_scalar_from_bendian(&s, pn.data()); scalars.push_back(s); }
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(scalars.size() + 1, blind_api);
+        std::vector<blst_scalar> rnd;
+        for (std::size_t i = 0; i < scalars.size() + 2; ++i) rnd.push_back(random_scalar());
+        CommitWithNymResult r;
+        r.commitment_with_proof = core_commit(blind_gens, scalars, api_id, rnd);
+        blst_bendian_from_scalar(r.secret_prover_blind.data(), &rnd[0]);
+        return r;
+    }
+
     // nym_secrets = prover_nyms with the LAST element += signer_nym_entropy
     // (pvl §6.1.3 VerifyFinalizeWithNym). Returns each as 32 big-endian bytes.
     [[nodiscard]] static std::vector<std::array<uint8_t, SCALAR_BYTES>>
