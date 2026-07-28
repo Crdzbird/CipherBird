@@ -199,3 +199,47 @@ func BbsProofVerifyWithPseudonym(pk, proof, header, ph, contextID, pseudonym []b
 		C.uint64_t(L), C.uint64_t(lengthNymVector),
 		mp, ml, C.size_t(len(disclosedMessages)), ip, C.size_t(len(disclosedIndexes))) == 1
 }
+
+// ── Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+// pseudonyms). The blind-interface ciphersuite is applied internally.
+// secretProverBlind is a 32-byte big-endian scalar. ─────────────────────────
+
+// BbsBlindCommit commits to committedMsgs (which the signer never learns).
+// Returns (commitmentWithProof, secretProverBlind).
+func BbsBlindCommit(committedMsgs [][]byte) ([]byte, []byte, error) {
+	cm, cl, free := cByteSlices(committedMsgs)
+	defer free()
+	var spb C.CryptoBuffer
+	cwp, err := checkBufResult(C.cryptolib_bbs_blind_commit(cm, cl, C.size_t(len(committedMsgs)), &spb))
+	if err != nil {
+		C.cryptolib_buffer_free(&spb)
+		return nil, nil, err
+	}
+	// goBytes frees spb internally — do not free it again.
+	return cwp, goBytes(spb), nil
+}
+
+// BbsBlindSign blind-signs over the commitment + signer messages → 80-byte sig.
+func BbsBlindSign(sk, pk, commitmentWithProof, header []byte, messages [][]byte) ([]byte, error) {
+	mp, ml, free := cByteSlices(messages)
+	defer free()
+	return checkBufResult(C.cryptolib_bbs_blind_sign(
+		u8(sk), C.size_t(len(sk)), u8(pk), C.size_t(len(pk)),
+		u8(commitmentWithProof), C.size_t(len(commitmentWithProof)),
+		u8(header), C.size_t(len(header)),
+		mp, ml, C.size_t(len(messages))))
+}
+
+// BbsVerifyBlindSign verifies a blind signature over signerMsgs + committedMsgs
+// using the secretProverBlind kept from BbsBlindCommit.
+func BbsVerifyBlindSign(pk, signature, header []byte, signerMsgs, committedMsgs [][]byte, secretProverBlind []byte) bool {
+	sm, sl, freeS := cByteSlices(signerMsgs)
+	defer freeS()
+	cm, cl, freeC := cByteSlices(committedMsgs)
+	defer freeC()
+	return C.cryptolib_bbs_verify_blind_sign(
+		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)),
+		u8(header), C.size_t(len(header)),
+		sm, sl, C.size_t(len(signerMsgs)), cm, cl, C.size_t(len(committedMsgs)),
+		u8(secretProverBlind), C.size_t(len(secretProverBlind))) == 1
+}

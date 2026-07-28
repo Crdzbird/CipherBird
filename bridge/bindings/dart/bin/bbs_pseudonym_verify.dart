@@ -78,6 +78,19 @@ void main(List<String> args) {
       pk, proof, header, ph, badctx, pseudonym, 2, 1, dm, [0, 1, 3, 4]);
   check(!bad, 'wrong-context proof rejected');
 
+  // ── Standalone blind issuance (no pseudonyms) ──────────────────────────────
+  final signer2 = [Uint8List.fromList('age>=18'.codeUnits), Uint8List.fromList('region=EU'.codeUnits)];
+  final committed2 = [Uint8List.fromList('ssn=123'.codeUnits), Uint8List.fromList('dob=1990'.codeUnits)];
+  final skpk = lib.bbsSkToPk(sk);
+  final (cwp2, blind2) = lib.bbsBlindCommit(committed2);
+  check(cwp2.isNotEmpty && blind2.length == 32, 'blind_commit');
+  final sig2 = lib.bbsBlindSign(sk, skpk, cwp2, header, signer2);
+  check(sig2.length == 80, 'blind_sign (80-byte sig)');
+  check(lib.bbsVerifyBlindSign(skpk, sig2, header, signer2, committed2, blind2), 'verify_blind_sign = VALID');
+  final badBlind = Uint8List.fromList(blind2);
+  badBlind[0] ^= 1;
+  check(!lib.bbsVerifyBlindSign(skpk, sig2, header, signer2, committed2, badBlind), 'wrong blind rejected');
+
   stdout.writeln(_failures == 0 ? '\nALL PASS' : '\n$_failures FAILURE(S)');
   exit(_failures == 0 ? 0 : 1);
 }

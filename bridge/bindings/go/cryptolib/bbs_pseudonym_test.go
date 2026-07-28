@@ -56,3 +56,36 @@ func TestBbsPseudonymRoundTrip(t *testing.T) {
 		t.Fatal("wrong-context proof should not verify")
 	}
 }
+
+// Standalone blind issuance (no pseudonyms): commit → blind_sign → verify.
+func TestBbsBlindIssuanceRoundTrip(t *testing.T) {
+	sk := mustHex(t, "60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc")
+	pk, err := BbsSkToPk(sk)
+	if err != nil {
+		t.Fatalf("sk_to_pk: %v", err)
+	}
+	header := mustHex(t, "11223344556677889900aabbccddeeff")
+	signer := [][]byte{[]byte("age>=18"), []byte("region=EU")}
+	committed := [][]byte{[]byte("ssn=123-45-6789"), []byte("dob=1990-01-01")}
+
+	cwp, blind, err := BbsBlindCommit(committed)
+	if err != nil || len(blind) != 32 {
+		t.Fatalf("blind_commit: %v len=%d", err, len(blind))
+	}
+	sig, err := BbsBlindSign(sk, pk, cwp, header, signer)
+	if err != nil || len(sig) != 80 {
+		t.Fatalf("blind_sign: %v len=%d", err, len(sig))
+	}
+	if !BbsVerifyBlindSign(pk, sig, header, signer, committed, blind) {
+		t.Fatal("verify_blind_sign should accept")
+	}
+	// Wrong blind and wrong committed message both fail.
+	badBlind := append([]byte(nil), blind...)
+	badBlind[0] ^= 1
+	if BbsVerifyBlindSign(pk, sig, header, signer, committed, badBlind) {
+		t.Fatal("wrong secret_prover_blind should fail")
+	}
+	if BbsVerifyBlindSign(pk, sig, header, signer, [][]byte{[]byte("ssn=000"), []byte("dob=1990-01-01")}, blind) {
+		t.Fatal("wrong committed message should fail")
+	}
+}

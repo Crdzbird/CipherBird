@@ -69,4 +69,22 @@ void main() {
         lib.bbsProofVerifyWithPseudonym(pk, proof, header, ph, badctx, pseudonym, 2, 1, dm, [0, 1, 3, 4]),
         isFalse);
   });
+
+  test('standalone blind issuance: commit → blind_sign → verify', () {
+    final skpk = lib.bbsSkToPk(sk);
+    final signer2 = [Uint8List.fromList('age>=18'.codeUnits), Uint8List.fromList('region=EU'.codeUnits)];
+    final committed2 = [Uint8List.fromList('ssn=123'.codeUnits), Uint8List.fromList('dob=1990'.codeUnits)];
+
+    final (cwp, blind) = lib.bbsBlindCommit(committed2);
+    expect(cwp, isNotEmpty);
+    expect(blind.length, 32);
+
+    final sig = lib.bbsBlindSign(sk, skpk, cwp, header, signer2);
+    expect(sig.length, 80);
+    expect(lib.bbsVerifyBlindSign(skpk, sig, header, signer2, committed2, blind), isTrue);
+
+    final badBlind = Uint8List.fromList(blind);
+    badBlind[0] ^= 1;
+    expect(lib.bbsVerifyBlindSign(skpk, sig, header, signer2, committed2, badBlind), isFalse);
+  });
 }

@@ -234,4 +234,62 @@ extension CryptoLibBbs on CryptoLib {
       calloc.free(idx);
     }
   }
+
+  // ── Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+  // pseudonyms). The blind-interface ciphersuite is applied internally.
+  // secretProverBlind is a 32-byte big-endian scalar.
+
+  /// Commit to [committedMessages] (which the signer never learns). Returns
+  /// (commitmentWithProof, secretProverBlind).
+  (Uint8List, Uint8List) bbsBlindCommit(List<Uint8List> committedMessages) {
+    final (cm, cl) = _toNativeList(committedMessages);
+    final spb = calloc<CryptoBuffer>();
+    try {
+      final cwp = _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<CryptoBuffer>),
+          CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<CryptoBuffer>)>('cryptolib_bbs_blind_commit')(
+          cm, cl, committedMessages.length, spb));
+      return (cwp, _copyBuf(spb.ref)); // _copyBuf frees the inner allocation
+    } finally {
+      _freeNativeList(cm, cl, committedMessages.length);
+      calloc.free(spb);
+    }
+  }
+
+  /// Blind-sign over the commitment + signer [messages] → 80-byte signature.
+  Uint8List bbsBlindSign(Uint8List secretKey, Uint8List publicKey, Uint8List commitmentWithProof,
+      Uint8List header, List<Uint8List> messages) {
+    final sk = _toNative(secretKey), pk = _toNative(publicKey), cwp = _toNative(commitmentWithProof), h = _toNative(header);
+    final (mp, ml) = _toNativeList(messages);
+    try {
+      return _checkBufResult(_lib.lookupFunction<
+          CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cryptolib_bbs_blind_sign')(
+          sk, secretKey.length, pk, publicKey.length, cwp, commitmentWithProof.length,
+          h, header.length, mp, ml, messages.length));
+    } finally {
+      for (final x in [sk, pk, cwp, h]) { if (x != nullptr) calloc.free(x); }
+      _freeNativeList(mp, ml, messages.length);
+    }
+  }
+
+  /// Verify a blind signature over [messages] + [committedMessages] using the
+  /// [secretProverBlind] kept from [bbsBlindCommit].
+  bool bbsVerifyBlindSign(Uint8List publicKey, Uint8List signature, Uint8List header,
+      List<Uint8List> messages, List<Uint8List> committedMessages, Uint8List secretProverBlind) {
+    final pk = _toNative(publicKey), s = _toNative(signature), h = _toNative(header), spb = _toNative(secretProverBlind);
+    final (mp, ml) = _toNativeList(messages);
+    final (cm, cl) = _toNativeList(committedMessages);
+    try {
+      return _lib.lookupFunction<
+          Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size),
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int)>('cryptolib_bbs_verify_blind_sign')(
+          pk, publicKey.length, s, signature.length, h, header.length,
+          mp, ml, messages.length, cm, cl, committedMessages.length, spb, secretProverBlind.length) == 1;
+    } finally {
+      for (final x in [pk, s, h, spb]) { if (x != nullptr) calloc.free(x); }
+      _freeNativeList(mp, ml, messages.length);
+      _freeNativeList(cm, cl, committedMessages.length);
+    }
+  }
 }
