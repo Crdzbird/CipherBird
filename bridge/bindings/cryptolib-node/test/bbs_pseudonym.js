@@ -53,6 +53,16 @@ ck('wrong-context proof rejected', !Bbs.proofVerifyWithPseudonym(pk, proof, head
   ck('verifyBlindSign = VALID', Bbs.verifyBlindSign(skpk, sig2, header, signer2, committed2, secretProverBlind));
   const badBlind = Buffer.from(secretProverBlind); badBlind[0] ^= 1;
   ck('wrong blind rejected', !Bbs.verifyBlindSign(skpk, sig2, header, signer2, committed2, badBlind));
+}
+
+// ── Canonical scalar helpers (issue #5) ──────────────────────────────────────
+{
+  const htsMsg = hx('9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02');
+  const htsDst = hx('4242535f424c53313233383147315f584d443a5348412d3235365f535357555f524f5f4832475f484d32535f4832535f');
+  const scalar = Bbs.hashToScalar(htsMsg, htsDst);
+  ck('hashToScalar KAT (§D.2.3)', scalar.toString('hex') === '0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c');
+  const r1 = Bbs.randomScalar(), r2 = Bbs.randomScalar();
+  ck('randomScalar distinct 32-byte', r1.length === 32 && !r1.equals(r2));
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }

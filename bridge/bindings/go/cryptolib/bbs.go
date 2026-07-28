@@ -243,3 +243,20 @@ func BbsVerifyBlindSign(pk, signature, header []byte, signerMsgs, committedMsgs 
 		sm, sl, C.size_t(len(signerMsgs)), cm, cl, C.size_t(len(committedMsgs)),
 		u8(secretProverBlind), C.size_t(len(secretProverBlind))) == 1
 }
+
+// ── Canonical scalar helpers (issue #5). Both return a 32-byte big-endian value
+// strictly < r, ready to feed the pseudonym / blind-issuance API. ────────────
+
+// BbsHashToScalar deterministically maps (msg, dst) to a canonical scalar in
+// [0, r) — the BBS hash_to_scalar primitive. Use for a stable per-holder nym
+// seed: nymSeed = BbsHashToScalar(memberSecret, dst).
+func BbsHashToScalar(msg, dst []byte) ([]byte, error) {
+	return checkBufResult(C.cryptolib_bbs_hash_to_scalar(
+		u8(msg), C.size_t(len(msg)), u8(dst), C.size_t(len(dst))))
+}
+
+// BbsRandomScalar returns a fresh cryptographically-random canonical scalar in
+// [0, r) as 32 big-endian bytes.
+func BbsRandomScalar() ([]byte, error) {
+	return checkBufResult(C.cryptolib_bbs_random_scalar())
+}

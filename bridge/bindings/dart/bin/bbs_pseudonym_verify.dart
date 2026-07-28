@@ -91,6 +91,14 @@ void main(List<String> args) {
   badBlind[0] ^= 1;
   check(!lib.bbsVerifyBlindSign(skpk, sig2, header, signer2, committed2, badBlind), 'wrong blind rejected');
 
+  // ── Canonical scalar helpers (issue #5) ────────────────────────────────────
+  final htsMsg = hx('9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02');
+  final htsDst = hx('4242535f424c53313233383147315f584d443a5348412d3235365f535357555f524f5f4832475f484d32535f4832535f');
+  final scalar = lib.bbsHashToScalar(htsMsg, htsDst);
+  check(eq(scalar, hx('0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c')), 'hash_to_scalar KAT (§D.2.3)');
+  final r1 = lib.bbsRandomScalar(), r2 = lib.bbsRandomScalar();
+  check(r1.length == 32 && !eq(r1, r2), 'random_scalar distinct 32-byte');
+
   stdout.writeln(_failures == 0 ? '\nALL PASS' : '\n$_failures FAILURE(S)');
   exit(_failures == 0 ? 0 : 1);
 }

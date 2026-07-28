@@ -317,6 +317,8 @@ function ensureLoaded() {
   bbsBlindCommit: f('CryptoBufferResult cryptolib_bbs_blind_commit(const uint8_t**, size_t*, size_t, _Out_ CryptoBuffer*)'),
   bbsBlindSign: f('CryptoBufferResult cryptolib_bbs_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsVerifyBlindSign: f('int cryptolib_bbs_verify_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
+  bbsHashToScalar: f('CryptoBufferResult cryptolib_bbs_hash_to_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
+  bbsRandomScalar: f('CryptoBufferResult cryptolib_bbs_random_scalar()'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -808,6 +810,17 @@ const Bbs = {
       u8(header), u8(header).length, m, m.map((x) => x.length), m.length,
       cm, cm.map((x) => x.length), cm.length, u8(secretProverBlind), u8(secretProverBlind).length) === 1;
   },
+
+  // ── Canonical scalar helpers (issue #5). Both return a 32-byte big-endian
+  // value strictly < r, ready to feed the pseudonym / blind-issuance API.
+
+  /** Deterministically map (msg, dst) → canonical scalar in [0, r). Use for a
+   *  stable per-holder nym seed: nymSeed = hashToScalar(memberSecret, dst). */
+  hashToScalar(msg, dst) {
+    return consume(fn.bbsHashToScalar(u8(msg), u8(msg).length, u8(dst), u8(dst).length));
+  },
+  /** A fresh cryptographically-random canonical scalar in [0, r) (32 bytes BE). */
+  randomScalar() { return consume(fn.bbsRandomScalar()); },
 };
 
 // ═══ OPRF — Oblivious Pseudorandom Function (RFC 9497) ═════════════════════════

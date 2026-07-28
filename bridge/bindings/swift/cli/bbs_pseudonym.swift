@@ -170,6 +170,22 @@ enum BbsNym {
             }
         }
     }
+
+    // ── Canonical scalar helpers (issue #5). Both return a 32-byte big-endian
+    // value strictly < r, ready to feed the pseudonym / blind-issuance API. ────
+
+    /// Deterministically map (msg, dst) → canonical scalar in [0, r). Use for a
+    /// stable per-holder nym seed: nymSeed = hashToScalar(memberSecret, dst).
+    static func hashToScalar(msg: [UInt8], dst: [UInt8]) throws -> [UInt8] {
+        try withPtrs([msg, dst]) { p in
+            try nymConsume(cryptolib_bbs_hash_to_scalar(p[0].0, p[0].1, p[1].0, p[1].1))
+        }
+    }
+
+    /// A fresh cryptographically-random canonical scalar in [0, r) (32 bytes BE).
+    static func randomScalar() throws -> [UInt8] {
+        try nymConsume(cryptolib_bbs_random_scalar())
+    }
 }
 
 // ── smoke (compiled/run by `make swift-bbs-pseudonym`) ───────────────────────
@@ -238,6 +254,15 @@ do {
     ck("wrong blind rejected",
        !BbsNym.verifyBlindSign(pk: pk, signature: sig2, header: header, messages: signer2,
            committed: committed2, secretProverBlind: badBlind))
+
+    // ── Canonical scalar helpers (issue #5) ──────────────────────────────────
+    let htsMsg = nymHexToBytes("9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02")
+    let htsDst = nymHexToBytes("4242535f424c53313233383147315f584d443a5348412d3235365f535357555f524f5f4832475f484d32535f4832535f")
+    let scalar = try BbsNym.hashToScalar(msg: htsMsg, dst: htsDst)
+    ck("hashToScalar KAT (§D.2.3)",
+       scalar == nymHexToBytes("0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c"))
+    let rs1 = try BbsNym.randomScalar(), rs2 = try BbsNym.randomScalar()
+    ck("randomScalar distinct 32-byte", rs1.count == 32 && rs1 != rs2)
 } catch { fail += 1; print("  ✗ threw: \(error)") }
 
 print("\n\(pass) passed, \(fail) failed — BBS pseudonyms \(fail == 0 ? "OK" : "FAILED")")

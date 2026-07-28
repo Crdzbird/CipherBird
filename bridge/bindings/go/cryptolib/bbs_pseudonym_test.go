@@ -2,6 +2,7 @@ package cryptolib
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 )
 
@@ -87,5 +88,63 @@ func TestBbsBlindIssuanceRoundTrip(t *testing.T) {
 	}
 	if BbsVerifyBlindSign(pk, sig, header, signer, [][]byte{[]byte("ssn=000"), []byte("dob=1990-01-01")}, blind) {
 		t.Fatal("wrong committed message should fail")
+	}
+}
+
+// Canonical-scalar helpers (issue #5): hash_to_scalar byte-exact vs base draft
+// §D.2.3, deterministic; random_scalar distinct + usable as a nym seed.
+func TestBbsCanonicalScalar(t *testing.T) {
+	msg := mustHex(t, "9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02")
+	dst := mustHex(t, "4242535f424c53313233383147315f584d443a5348412d3235365f535357555f524f5f4832475f484d32535f4832535f")
+	s, err := BbsHashToScalar(msg, dst)
+	if err != nil {
+		t.Fatalf("hash_to_scalar: %v", err)
+	}
+	if got := hex.EncodeToString(s); got != "0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c" {
+		t.Fatalf("hash_to_scalar KAT mismatch: %s", got)
+	}
+	s2, _ := BbsHashToScalar(msg, dst)
+	if !bytes.Equal(s, s2) {
+		t.Fatal("hash_to_scalar not deterministic")
+	}
+
+	r1, err := BbsRandomScalar()
+	if err != nil || len(r1) != 32 {
+		t.Fatalf("random_scalar: %v len=%d", err, len(r1))
+	}
+	r2, _ := BbsRandomScalar()
+	if bytes.Equal(r1, r2) {
+		t.Fatal("random_scalar returned identical values")
+	}
+
+	// A hashed scalar is a usable canonical nym seed: full pseudonym round-trip.
+	pk := mustHex(t, "a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f2851bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c")
+	skm := mustHex(t, "60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc")
+	header := mustHex(t, "11223344556677889900aabbccddeeff")
+	ph := mustHex(t, "bed231d880675ed101ead304512e043ade9958dd0241ea70b4b3957fba941501")
+	ctx := mustHex(t, "bbb4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a")
+	entropy := mustHex(t, "3d40961fce6c09eec24a371322732932503b458d7a4cf7891bdaa765b30027c5")
+	nym, _ := BbsHashToScalar([]byte("member-secret-42"), []byte("nym-seed"))
+
+	signer := [][]byte{{0xaa}, {0xbb, 0xbb}}
+	var committed [][]byte
+	nyms := [][]byte{nym}
+	cwp, blind, err := BbsCommitWithNym(committed, nyms)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	sig, err := BbsBlindSignWithNym(skm, pk, cwp, header, signer, entropy, 1)
+	if err != nil {
+		t.Fatalf("blind_sign: %v", err)
+	}
+	nymSecrets, _ := BbsFinalizeNymSecrets(nyms, entropy)
+	ns := [][]byte{nymSecrets}
+	proof, pseudonym, err := BbsProofGenWithPseudonym(pk, sig, header, ph, ctx, signer, committed, blind, ns, []uint64{0, 1}, nil)
+	if err != nil {
+		t.Fatalf("proof_gen: %v", err)
+	}
+	dm := [][]byte{{0xaa}, {0xbb, 0xbb}}
+	if !BbsProofVerifyWithPseudonym(pk, proof, header, ph, ctx, pseudonym, 2, 1, dm, []uint64{0, 1}) {
+		t.Fatal("hashed-scalar nym seed did not round-trip")
 	}
 }
