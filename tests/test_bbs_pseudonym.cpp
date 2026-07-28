@@ -108,10 +108,32 @@ TEST("bbs_pseudonym/kat/commit-multi-messages") {
         "3968b396a07f079b22b5bf2139e51a03");
 }
 
+// draft §9.1.4.1 — blind signature, no signer/committed messages.
+TEST("bbs_pseudonym/kat/blind-sign-no-messages") {
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto commit = unhex(
+        "849d3cc626720202cbc1610fc01ab41ce32099af602def0c579f37dd18b485ef"
+        "60719275a036bdd8120e7e938c8e1a3d4d0322587441ccc5caf186001b45dd09"
+        "ee159713c3e3ea0f411f94a5d6665546562d09c093b687a129e464a57e18cdbf"
+        "5306bcabf3e7cc95f5ba98cdd9bf3768");
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+                               {commit.data(), commit.size()}, {header.data(), header.size()},
+                               {}, BASE_API_ID);
+    CHECK(tohex({sig.data(), sig.size()}) ==
+        "ab54c35fb2af5c75d6368bc5772547e126d60a92205d011bb9ee5d1149432e91"
+        "611fd376fe5b79d6ed7c2ba00a19b7434744945fd77bf02cd4628a6e5deeae50"
+        "768116d55510251bb6a716a38340e184");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/pseudonym-generators");
     RUN("bbs_pseudonym/kat/blind-generators");
     RUN("bbs_pseudonym/kat/commit-no-messages");
     RUN("bbs_pseudonym/kat/commit-multi-messages");
+    RUN("bbs_pseudonym/kat/blind-sign-no-messages");
 }

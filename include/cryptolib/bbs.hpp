@@ -634,6 +634,61 @@ public:
         return core_commit(blind_gens, scalars, api_id, rnd);
     }
 
+    // Blind BBS signing (draft §4.2.1 BlindSign; the real B = P1 + Q_1·domain +
+    // Σ H_i·msg_i + commitment — the prose B_calculate is shorthand). Produces the
+    // 80-byte (A, e) signature. With signer_nym_entropy set, this is pvl §6.1.2
+    // BlindSignWithNym: B += J_M·entropy and header ||= I2OSP(length_nym_vector,8).
+    [[nodiscard]] static std::vector<uint8_t>
+    blind_sign(std::span<const uint8_t> sk, std::span<const uint8_t> pk,
+               std::span<const uint8_t> commitment_with_proof, std::span<const uint8_t> header,
+               const std::vector<std::span<const uint8_t>>& messages, std::string_view api_id,
+               std::span<const uint8_t> signer_nym_entropy = {}, uint64_t length_nym_vector = 0) {
+        const std::size_t L = messages.size();
+        const bool have_C = commitment_with_proof.size() >= G1_BYTES;
+        const std::size_t M = commitment_with_proof.size() >= (G1_BYTES + 2 * SCALAR_BYTES)
+            ? (commitment_with_proof.size() - G1_BYTES - 2 * SCALAR_BYTES) / SCALAR_BYTES : 0;
+
+        auto base_gens = create_generators(L + 1, api_id);          // [Q_1, H_1..H_L]
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(M + 1, blind_api);       // [Q_2, J_1..J_M]
+
+        // Domain generator list = base_gens ++ blind_gens = [Q_1, H_1..H_L, Q_2,
+        // J_1..J_M]. (The draft prose lists only (H..,J..) but the vectors include
+        // Q_2 — validated byte-exact against §9.1.4.)
+        std::vector<blst_p1> dom_gens = base_gens;
+        for (const auto& bg : blind_gens) dom_gens.push_back(bg);
+
+        // combined_header = header || I2OSP(length_nym_vector, 8) in nym mode.
+        std::vector<uint8_t> hdr(header.begin(), header.end());
+        if (!signer_nym_entropy.empty()) put_u64(hdr, length_nym_vector);
+        blst_scalar domain = calculate_domain(pk, dom_gens, sv(hdr), api_id);
+
+        auto msg_scalars = messages_to_scalars(messages, api_id);
+        blst_p1 B = compute_B(base_gens, domain, msg_scalars);       // P1 + Q_1·domain + Σ H_i·msg
+        if (have_C) {
+            blst_p1_affine ca; blst_p1_uncompress(&ca, commitment_with_proof.data());
+            blst_p1 C; blst_p1_from_affine(&C, &ca);
+            B = p1_add(B, C);
+        }
+        if (!signer_nym_entropy.empty()) {
+            blst_scalar ent; blst_scalar_from_bendian(&ent, signer_nym_entropy.data());
+            B = p1_add(B, p1_mult(blind_gens.back(), ent));
+        }
+        // e = hash_to_scalar(SK || B, api_id||"H2S_"); A = B·(1/(SK+e)).
+        // NB: domain is NOT in the e-input (the draft's serialize((SK,B,domain))
+        // is misleading) — it is already bound via B = P1 + Q_1·domain + ...
+        // Validated byte-exact against §9.1.4.
+        std::vector<uint8_t> e_in(sk.begin(), sk.begin() + SCALAR_BYTES);
+        put_g1(e_in, B);
+        blst_scalar e = hash_to_scalar(sv(e_in), sv(concat(api_id, "H2S_")));
+        blst_scalar sk_s; blst_scalar_from_bendian(&sk_s, sk.data());
+        blst_p1 A = p1_mult(B, sc_inv(sc_add(sk_s, e)));
+        std::vector<uint8_t> sig;
+        put_g1(sig, A);
+        put_scalar(sig, e);
+        return sig;
+    }
+
 private:
 
     static std::vector<blst_scalar> messages_to_scalars(const std::vector<std::span<const uint8_t>>& messages) {
@@ -648,15 +703,20 @@ private:
     // dom_input = PK || dom_octs || I2OSP(len(header),8) || header
     static blst_scalar calculate_domain(std::span<const uint8_t> pk, const std::vector<blst_p1>& gens,
                                         std::span<const uint8_t> header) {
+        return calculate_domain(pk, gens, header, API_ID);
+    }
+    // api_id-parameterised (blind/pseudonym suites); gens = [Q_1, H_1..H_L, (J_1..J_M)].
+    static blst_scalar calculate_domain(std::span<const uint8_t> pk, const std::vector<blst_p1>& gens,
+                                        std::span<const uint8_t> header, std::string_view api_id) {
         const std::size_t L = gens.size() - 1;
         std::vector<uint8_t> dom;
         put(dom, pk);
         put_u64(dom, static_cast<uint64_t>(L));
-        for (const auto& g : gens) put_g1(dom, g); // Q_1, H_1..H_L
-        put(dom, API_ID);
+        for (const auto& g : gens) put_g1(dom, g);
+        put(dom, api_id);
         put_u64(dom, static_cast<uint64_t>(header.size()));
         put(dom, header);
-        return hash_to_scalar(sv(dom), concat(API_ID, "H2S_"));
+        return hash_to_scalar(sv(dom), sv(concat(api_id, "H2S_")));
     }
 
     static void put_g1(std::vector<uint8_t>& v, const blst_p1& p) {
