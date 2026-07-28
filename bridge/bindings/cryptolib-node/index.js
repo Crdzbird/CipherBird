@@ -306,6 +306,13 @@ function ensureLoaded() {
   bbsVerify: f('int cryptolib_bbs_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsProofGen: f('CryptoBufferResult cryptolib_bbs_proof_gen(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
   bbsProofVerify: f('int cryptolib_bbs_proof_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
+  // BBS per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02).
+  bbsCommitWithNym: f('CryptoBufferResult cryptolib_bbs_commit_with_nym(const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, _Out_ CryptoBuffer*)'),
+  bbsBlindSignWithNym: f('CryptoBufferResult cryptolib_bbs_blind_sign_with_nym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t, uint64_t)'),
+  bbsFinalizeNymSecrets: f('CryptoBufferResult cryptolib_bbs_finalize_nym_secrets(const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
+  bbsCalculatePseudonym: f('CryptoBufferResult cryptolib_bbs_calculate_pseudonym(uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
+  bbsProofGenWithPseudonym: f('CryptoBufferResult cryptolib_bbs_proof_gen_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t, uint64_t*, size_t, _Out_ CryptoBuffer*)'),
+  bbsProofVerifyWithPseudonym: f('int cryptolib_bbs_proof_verify_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint64_t, uint64_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -713,6 +720,63 @@ const Bbs = {
     return fn.bbsProofVerify(u8(publicKey), u8(publicKey).length, u8(proof), u8(proof).length,
       u8(header), u8(header).length, u8(ph), u8(ph).length, m, m.map((x) => x.length), m.length,
       disclosedIndexes, disclosedIndexes.length) === 1;
+  },
+
+  // ── Per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02).
+  // The pseudonym ciphersuite is applied internally. Scalar inputs (proverNyms,
+  // nymSecrets, secretProverBlind, signerNymEntropy) are 32-byte big-endian.
+
+  /** Commit committedMessages + proverNyms → { commitmentWithProof, secretProverBlind }. */
+  commitWithNym(committedMessages, proverNyms) {
+    const cm = committedMessages.map(u8); const pm = proverNyms.map(u8);
+    const outBlind = {};
+    const cwp = consume(fn.bbsCommitWithNym(cm, cm.map((x) => x.length), cm.length,
+      pm, pm.map((x) => x.length), pm.length, outBlind));
+    const secretProverBlind = b(outBlind); fn.bufFree(outBlind);
+    return { commitmentWithProof: cwp, secretProverBlind };
+  },
+  /** Blind-sign over the commitment + signer messages → 80-byte signature. */
+  blindSignWithNym(secretKey, publicKey, commitmentWithProof, header, messages, signerNymEntropy, lengthNymVector) {
+    const m = messages.map(u8);
+    return consume(fn.bbsBlindSignWithNym(u8(secretKey), u8(secretKey).length, u8(publicKey), u8(publicKey).length,
+      u8(commitmentWithProof), u8(commitmentWithProof).length, u8(header), u8(header).length,
+      m, m.map((x) => x.length), m.length, u8(signerNymEntropy), u8(signerNymEntropy).length, lengthNymVector));
+  },
+  /** nym_secrets = proverNyms with the last element += signerNymEntropy (concatenated 32-byte scalars). */
+  finalizeNymSecrets(proverNyms, signerNymEntropy) {
+    const pm = proverNyms.map(u8);
+    return consume(fn.bbsFinalizeNymSecrets(pm, pm.map((x) => x.length), pm.length,
+      u8(signerNymEntropy), u8(signerNymEntropy).length));
+  },
+  /** Deterministic pseudonym (48-byte compressed G1 point) for a context. */
+  calculatePseudonym(contextId, nymSecrets) {
+    const nm = nymSecrets.map(u8);
+    return consume(fn.bbsCalculatePseudonym(u8(contextId), u8(contextId).length, nm, nm.map((x) => x.length), nm.length));
+  },
+  /** Pseudonym-bound selective-disclosure proof → { proof, pseudonym }. */
+  proofGenWithPseudonym(publicKey, signature, header, ph, contextId, signerMessages, committedMessages,
+    secretProverBlind, nymSecrets, disclosedSignerIndexes, disclosedCommittedIndexes) {
+    const sm = signerMessages.map(u8); const cm = committedMessages.map(u8); const nm = nymSecrets.map(u8);
+    const outNym = {};
+    const proof = consume(fn.bbsProofGenWithPseudonym(u8(publicKey), u8(publicKey).length,
+      u8(signature), u8(signature).length, u8(header), u8(header).length, u8(ph), u8(ph).length,
+      u8(contextId), u8(contextId).length, sm, sm.map((x) => x.length), sm.length,
+      cm, cm.map((x) => x.length), cm.length, u8(secretProverBlind), u8(secretProverBlind).length,
+      nm, nm.map((x) => x.length), nm.length,
+      disclosedSignerIndexes, disclosedSignerIndexes.length,
+      disclosedCommittedIndexes, disclosedCommittedIndexes.length, outNym));
+    const pseudonym = b(outNym); fn.bufFree(outNym);
+    return { proof, pseudonym };
+  },
+  /** Verify a pseudonym-bound proof. disclosedMessages/disclosedIndexes are the
+   *  COMBINED signer+committed disclosures (committed index j passed as j+L+1). */
+  proofVerifyWithPseudonym(publicKey, proof, header, ph, contextId, pseudonym, L, lengthNymVector,
+    disclosedMessages, disclosedIndexes) {
+    const m = disclosedMessages.map(u8);
+    return fn.bbsProofVerifyWithPseudonym(u8(publicKey), u8(publicKey).length, u8(proof), u8(proof).length,
+      u8(header), u8(header).length, u8(ph), u8(ph).length, u8(contextId), u8(contextId).length,
+      u8(pseudonym), u8(pseudonym).length, L, lengthNymVector,
+      m, m.map((x) => x.length), m.length, disclosedIndexes, disclosedIndexes.length) === 1;
   },
 };
 
