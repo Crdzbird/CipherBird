@@ -191,6 +191,15 @@ swift-bbs: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_bbs | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: swift-bbs-pseudonym
+swift-bbs-pseudonym: lib
+	$(call hdr,Swift BBS pseudonyms + blind issuance)
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/bbs_pseudonym.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_bbs_pseudonym && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_bbs_pseudonym | tail -12; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: swift-opaque
 swift-opaque: lib
 	$(call hdr,Swift OPAQUE aPAKE)
