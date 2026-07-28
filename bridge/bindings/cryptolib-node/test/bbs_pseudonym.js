@@ -41,5 +41,18 @@ ck('proofVerifyWithPseudonym = VALID', Bbs.proofVerifyWithPseudonym(pk, proof, h
 const badctx = hx('aab4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a');
 ck('wrong-context proof rejected', !Bbs.proofVerifyWithPseudonym(pk, proof, header, ph, badctx, pseudonym, 2, 1, dm, [0, 1, 3, 4]));
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail === 0 ? 0 : 1);
+// ── Standalone blind issuance (no pseudonyms) ────────────────────────────────
+{
+  const skpk = c.Bbs.skToPk(sk);
+  const signer2 = [Buffer.from('age>=18'), Buffer.from('region=EU')];
+  const committed2 = [Buffer.from('ssn=123'), Buffer.from('dob=1990')];
+  const { commitmentWithProof, secretProverBlind } = Bbs.blindCommit(committed2);
+  ck('blindCommit (blind == 32 B)', commitmentWithProof.length > 0 && secretProverBlind.length === 32);
+  const sig2 = Bbs.blindSign(sk, skpk, commitmentWithProof, header, signer2);
+  ck('blindSign (80-byte sig)', sig2.length === 80);
+  ck('verifyBlindSign = VALID', Bbs.verifyBlindSign(skpk, sig2, header, signer2, committed2, secretProverBlind));
+  const badBlind = Buffer.from(secretProverBlind); badBlind[0] ^= 1;
+  ck('wrong blind rejected', !Bbs.verifyBlindSign(skpk, sig2, header, signer2, committed2, badBlind));
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+}

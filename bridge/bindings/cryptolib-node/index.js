@@ -313,6 +313,10 @@ function ensureLoaded() {
   bbsCalculatePseudonym: f('CryptoBufferResult cryptolib_bbs_calculate_pseudonym(uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsProofGenWithPseudonym: f('CryptoBufferResult cryptolib_bbs_proof_gen_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t, uint64_t*, size_t, _Out_ CryptoBuffer*)'),
   bbsProofVerifyWithPseudonym: f('int cryptolib_bbs_proof_verify_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint64_t, uint64_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
+  // Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no pseudonyms).
+  bbsBlindCommit: f('CryptoBufferResult cryptolib_bbs_blind_commit(const uint8_t**, size_t*, size_t, _Out_ CryptoBuffer*)'),
+  bbsBlindSign: f('CryptoBufferResult cryptolib_bbs_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
+  bbsVerifyBlindSign: f('int cryptolib_bbs_verify_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
   };
@@ -777,6 +781,32 @@ const Bbs = {
       u8(header), u8(header).length, u8(ph), u8(ph).length, u8(contextId), u8(contextId).length,
       u8(pseudonym), u8(pseudonym).length, L, lengthNymVector,
       m, m.map((x) => x.length), m.length, disclosedIndexes, disclosedIndexes.length) === 1;
+  },
+
+  // ── Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+  // pseudonyms). secretProverBlind is a 32-byte big-endian scalar.
+
+  /** Commit committedMessages → { commitmentWithProof, secretProverBlind }. */
+  blindCommit(committedMessages) {
+    const cm = committedMessages.map(u8);
+    const outBlind = {};
+    const cwp = consume(fn.bbsBlindCommit(cm, cm.map((x) => x.length), cm.length, outBlind));
+    const secretProverBlind = b(outBlind); fn.bufFree(outBlind);
+    return { commitmentWithProof: cwp, secretProverBlind };
+  },
+  /** Blind-sign over the commitment + signer messages → 80-byte signature. */
+  blindSign(secretKey, publicKey, commitmentWithProof, header, messages) {
+    const m = messages.map(u8);
+    return consume(fn.bbsBlindSign(u8(secretKey), u8(secretKey).length, u8(publicKey), u8(publicKey).length,
+      u8(commitmentWithProof), u8(commitmentWithProof).length, u8(header), u8(header).length,
+      m, m.map((x) => x.length), m.length));
+  },
+  /** Verify a blind signature over messages + committedMessages using secretProverBlind. */
+  verifyBlindSign(publicKey, signature, header, messages, committedMessages, secretProverBlind) {
+    const m = messages.map(u8); const cm = committedMessages.map(u8);
+    return fn.bbsVerifyBlindSign(u8(publicKey), u8(publicKey).length, u8(signature), u8(signature).length,
+      u8(header), u8(header).length, m, m.map((x) => x.length), m.length,
+      cm, cm.map((x) => x.length), cm.length, u8(secretProverBlind), u8(secretProverBlind).length) === 1;
   },
 };
 

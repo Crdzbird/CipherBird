@@ -132,6 +132,44 @@ enum BbsNym {
             }
         }
     }
+
+    // ── Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+    // pseudonyms). secretProverBlind is a 32-byte big-endian scalar. ──────────
+
+    /// Commit to committedMessages (the signer never learns them) →
+    /// (commitmentWithProof, secretProverBlind).
+    static func blindCommit(committed: [[UInt8]]) throws -> (commitmentWithProof: [UInt8], secretProverBlind: [UInt8]) {
+        try withMsgArrays(committed) { cm, cl, cn in
+            var blind = CryptoBuffer()
+            let r = cryptolib_bbs_blind_commit(cm, cl, cn, &blind)
+            let cwp = try nymConsume(r)
+            return (cwp, nymTake(blind))
+        }
+    }
+
+    /// Blind-sign over the commitment + signer messages → 80-byte signature.
+    static func blindSign(sk: [UInt8], pk: [UInt8], commitmentWithProof: [UInt8], header: [UInt8],
+                          messages: [[UInt8]]) throws -> [UInt8] {
+        try withMsgArrays(messages) { mp, ml, n in
+            try withPtrs([sk, pk, commitmentWithProof, header]) { p in
+                try nymConsume(cryptolib_bbs_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1,
+                    p[2].0, p[2].1, p[3].0, p[3].1, mp, ml, n))
+            }
+        }
+    }
+
+    /// Verify a blind signature over messages + committedMessages using secretProverBlind.
+    static func verifyBlindSign(pk: [UInt8], signature: [UInt8], header: [UInt8],
+                               messages: [[UInt8]], committed: [[UInt8]], secretProverBlind: [UInt8]) -> Bool {
+        withMsgArrays(messages) { mp, ml, mn in
+            withMsgArrays(committed) { cm, cl, cn in
+                withPtrs([pk, signature, header, secretProverBlind]) { p in
+                    cryptolib_bbs_verify_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+                        mp, ml, mn, cm, cl, cn, p[3].0, p[3].1) == 1
+                }
+            }
+        }
+    }
 }
 
 // ── smoke (compiled/run by `make swift-bbs-pseudonym`) ───────────────────────
@@ -185,6 +223,21 @@ do {
     ck("wrong-context proof rejected",
        !BbsNym.proofVerifyWithPseudonym(pk: pk, proof: proof, header: header, ph: ph, contextId: badctx,
            pseudonym: pseudonym, L: 2, lengthNymVector: 1, disclosedMessages: dm, disclosedIndexes: [0, 1, 3, 4]))
+
+    // ── Standalone blind issuance (no pseudonyms) ────────────────────────────
+    let signer2: [[UInt8]] = [Array("age>=18".utf8), Array("region=EU".utf8)]
+    let committed2: [[UInt8]] = [Array("ssn=123".utf8), Array("dob=1990".utf8)]
+    let (cwp2, blind2) = try BbsNym.blindCommit(committed: committed2)
+    ck("blindCommit (blind == 32 B)", !cwp2.isEmpty && blind2.count == 32)
+    let sig2 = try BbsNym.blindSign(sk: sk, pk: pk, commitmentWithProof: cwp2, header: header, messages: signer2)
+    ck("blindSign (80-byte sig)", sig2.count == 80)
+    ck("verifyBlindSign = VALID",
+       BbsNym.verifyBlindSign(pk: pk, signature: sig2, header: header, messages: signer2,
+           committed: committed2, secretProverBlind: blind2))
+    var badBlind = blind2; badBlind[0] ^= 1
+    ck("wrong blind rejected",
+       !BbsNym.verifyBlindSign(pk: pk, signature: sig2, header: header, messages: signer2,
+           committed: committed2, secretProverBlind: badBlind))
 } catch { fail += 1; print("  ✗ threw: \(error)") }
 
 print("\n\(pass) passed, \(fail) failed — BBS pseudonyms \(fail == 0 ? "OK" : "FAILED")")
