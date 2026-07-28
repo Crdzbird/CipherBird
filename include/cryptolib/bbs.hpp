@@ -509,10 +509,15 @@ private:
     }
 
     // ── generators / message mapping ──────────────────────────────────────────
-    static std::vector<blst_p1> create_generators(std::size_t count) {
-        auto seed_dst  = concat(API_ID, "SIG_GENERATOR_SEED_");
-        auto gen_dst   = concat(API_ID, "SIG_GENERATOR_DST_");
-        auto gen_seed  = concat(API_ID, "MESSAGE_GENERATOR_SEED");
+    // create_generators is api_id-parameterised: the base BBS suite uses API_ID,
+    // while the pseudonym / blind extensions (draft-irtf-cfrg-bbs-per-verifier-
+    // linkability) use "..._PSEUDONYM_" and "BLIND_..._PSEUDONYM_" api_ids, which
+    // regenerate an independent generator set. The seed/DST strings all fold in
+    // api_id, so the sequences are suite-specific by construction.
+    static std::vector<blst_p1> create_generators(std::size_t count, std::string_view api_id) {
+        auto seed_dst  = concat(api_id, "SIG_GENERATOR_SEED_");
+        auto gen_dst   = concat(api_id, "SIG_GENERATOR_DST_");
+        auto gen_seed  = concat(api_id, "MESSAGE_GENERATOR_SEED");
 
         std::vector<blst_p1> gens;
         gens.reserve(count);
@@ -527,6 +532,33 @@ private:
         }
         return gens;
     }
+    static std::vector<blst_p1> create_generators(std::size_t count) {
+        return create_generators(count, API_ID);
+    }
+
+public:
+    // Pseudonym-suite api_ids (draft-irtf-cfrg-bbs-per-verifier-linkability-02).
+    static constexpr std::string_view API_ID_PSEUDONYM =
+        "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_PSEUDONYM_";
+    static constexpr std::string_view API_ID_BLIND_PSEUDONYM =
+        "BLIND_BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_PSEUDONYM_";
+
+    // Test-visibility hook: reproduce a suite's generators (compressed G1, 48B
+    // each) for byte-exact validation against the draft's Section 12 vectors.
+    [[nodiscard]] static std::vector<std::array<uint8_t, G1_BYTES>>
+    generators_for_test(std::size_t count, std::string_view api_id) {
+        auto gens = create_generators(count, api_id);
+        std::vector<std::array<uint8_t, G1_BYTES>> out;
+        out.reserve(gens.size());
+        for (const auto& g : gens) {
+            std::array<uint8_t, G1_BYTES> c{};
+            blst_p1_compress(c.data(), &g);
+            out.push_back(c);
+        }
+        return out;
+    }
+
+private:
 
     static std::vector<blst_scalar> messages_to_scalars(const std::vector<std::span<const uint8_t>>& messages) {
         auto map_dst = concat(API_ID, "MAP_MSG_TO_SCALAR_AS_HASH_");

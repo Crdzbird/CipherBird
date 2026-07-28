@@ -58,6 +58,7 @@ void run_tests_session();
 void run_tests_frost();
 void run_tests_ecvrf();
 void run_tests_bbs();
+void run_tests_bbs_pseudonym();
 void run_tests_oprf();
 void run_tests_opaque();
 void run_tests_hpke();
@@ -118,6 +119,7 @@ int main() {
     run_suite("frost",          run_tests_frost);
     run_suite("ecvrf",          run_tests_ecvrf);
     run_suite("bbs",            run_tests_bbs);
+    run_suite("bbs_pseudonym",  run_tests_bbs_pseudonym);
     run_suite("oprf",           run_tests_oprf);
     run_suite("opaque",         run_tests_opaque);
     run_suite("hpke",           run_tests_hpke);
