@@ -32,6 +32,7 @@ in another.
 | **Sealed messaging** | One-call authenticated PQ messaging, recipient-bound, streaming | **Flagship** (sntrup761 hybrid + hybrid sig) · **Fortress** (triple KEM + triple sig) — see below |
 | **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) — vector-validated byte-exact vs `noise-c` |
 | **BLS12-381** | Sign / verify / **aggregate** | via blst (aggregate + aggregate-verify) |
+| **BBS anonymous credentials** | Multi-message signatures with **zero-knowledge selective disclosure**, **per-verifier pseudonyms**, and **blind issuance** | BBS (BLS12-381-SHA-256, CFRG drafts) — sign/verify · ZK proof over a chosen subset · unlinkable-yet-per-context pseudonyms · issuer-blind committed attributes — see below |
 | **EVM / Bitcoin** | Blockchain interop primitives | Keccak-256 (original padding), RIPEMD-160, secp256k1 ECDSA (keygen / pubkey / sign / verify / **ecrecover**, RFC6979 + low-S) via libsecp256k1 |
 | **High-level** | Vault (KDF → integrity → AEAD → signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
 | **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy — framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
@@ -75,6 +76,37 @@ routing. Try it: `make sealed` (Node/Go/Dart/Swift).
 Composition only — no new cryptography. Library-native wire format (not a
 standard); static-recipient KEM, so not forward-secret against recipient-key
 compromise (layer a ratchet for live FS).
+
+### BBS — anonymous credentials & selective disclosure
+
+A faithful, byte-exact implementation of the CFRG BBS drafts over BLS12-381-SHA-256
+(via blst), for privacy-preserving credentials — a holder proves a signed
+attribute set while revealing only what a verifier needs.
+
+| Capability | What it enables | Standard |
+|---|---|---|
+| **Sign / verify** | One signature over a vector of messages (attributes) | `draft-irtf-cfrg-bbs-signatures` |
+| **Selective disclosure** | A zero-knowledge proof that reveals a chosen subset of attributes while proving a valid signature covers *all* of them — the core of W3C Verifiable Credentials | same |
+| **Per-verifier pseudonyms** | A holder is **unlinkable across verifiers** yet presents a **stable pseudonym per context** — a verifier recognises the same holder on return visits without any cross-verifier tracking | `draft-irtf-cfrg-bbs-per-verifier-linkability-02` |
+| **Blind issuance** | The holder commits to private attributes the **issuer never sees**; the issuer blind-signs over the commitment plus its own attributes | `draft-irtf-cfrg-bbs-blind-signatures-02` |
+| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` → a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets — both guaranteed `< r` so they never silently break a proof | base draft §D.2.3 vector |
+
+Validated **byte-exact against the drafts' official test vectors** (generators,
+commitment, blind-sign, proof, and `hash_to_scalar`); the pseudonym prover-secret
+paths, where the vectors withhold the secret, are round-trip validated against the
+byte-exact verifier. Exposed in every BBS-carrying binding — **Go, Dart, Flutter,
+Node, Swift**. Composition/standards implementation only — no new cryptography.
+
+```
+Issuer                                   Holder                          Verifier
+  │                                         │                                │
+  │        commitment (blinds secret attrs) │                                │
+  │◀────────────────────────────────────────                                │
+  │  blind-sign(commitment + issuer attrs)  │                                │
+  ────────────────────────────────────────▶│  proof: reveal subset + nym    │
+  │                                         ────────────────────────────────▶│
+  │                                         │        verify(proof, pseudonym) │
+```
 
 ---
 
