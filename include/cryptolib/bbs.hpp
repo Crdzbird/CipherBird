@@ -558,6 +558,82 @@ public:
         return out;
     }
 
+    // ── Blind BBS: commitment (draft-irtf-cfrg-bbs-blind-signatures-02) ─────────
+    // Deterministic mocked random scalars (draft test generator):
+    //   v = expand_message_xmd(seed, dst, EXPAND_LEN*count);
+    //   r_i = OS2IP(v[EXPAND_LEN*i : +EXPAND_LEN]) mod r
+    static std::vector<blst_scalar>
+    mocked_random_scalars(std::size_t count, std::string_view seed, std::string_view dst) {
+        std::vector<uint8_t> seed_b(seed.begin(), seed.end());
+        std::vector<uint8_t> dst_b(dst.begin(), dst.end());
+        auto v = expand_message_xmd(sv(seed_b), sv(dst_b), EXPAND_LEN * count);
+        std::vector<blst_scalar> out(count);
+        for (std::size_t i = 0; i < count; ++i)
+            blst_scalar_from_be_bytes(&out[i], v.data() + i * EXPAND_LEN, EXPAND_LEN);
+        return out;
+    }
+
+    // calculate_blind_challenge (§5.3): c_octs = I2OSP(M,8) || (blind_gens) || C || Cbar.
+    static blst_scalar calculate_blind_challenge(const blst_p1& C, const blst_p1& Cbar,
+            const std::vector<blst_p1>& blind_gens, std::string_view api_id) {
+        std::vector<uint8_t> c;
+        put_u64(c, static_cast<uint64_t>(blind_gens.size() - 1)); // M
+        for (const auto& g : blind_gens) put_g1(c, g);
+        put_g1(c, C); put_g1(c, Cbar);
+        return hash_to_scalar(sv(c), sv(concat(api_id, "H2S_")));
+    }
+
+    // CoreCommit (§4.3.1). blind_gens = [Q_2, J_1..J_M];
+    // rnd = (secret_prover_blind, s~, m~_1..m~_M) (count M+2).
+    // Returns commitment_with_proof = compress(C) || s^ || m^_1..m^_M || challenge.
+    static std::vector<uint8_t>
+    core_commit(const std::vector<blst_p1>& blind_gens,
+                const std::vector<blst_scalar>& committed,
+                std::string_view api_id, const std::vector<blst_scalar>& rnd) {
+        const std::size_t M = committed.size();
+        const blst_scalar& spb = rnd[0];
+        const blst_scalar& s_t = rnd[1];
+        blst_p1 C = p1_mult(blind_gens[0], spb);
+        for (std::size_t i = 0; i < M; ++i) C = p1_add(C, p1_mult(blind_gens[i + 1], committed[i]));
+        blst_p1 Cbar = p1_mult(blind_gens[0], s_t);
+        for (std::size_t i = 0; i < M; ++i) Cbar = p1_add(Cbar, p1_mult(blind_gens[i + 1], rnd[2 + i]));
+        blst_scalar ch = calculate_blind_challenge(C, Cbar, blind_gens, api_id);
+        blst_scalar s_hat = sc_add(s_t, sc_mul(spb, ch));
+        std::vector<uint8_t> out;
+        put_g1(out, C);
+        put_scalar(out, s_hat);
+        for (std::size_t i = 0; i < M; ++i)
+            put_scalar(out, sc_add(rnd[2 + i], sc_mul(committed[i], ch)));
+        put_scalar(out, ch);
+        return out;
+    }
+
+    // api_id-parameterised message→scalar mapping (the base overload uses API_ID).
+    static std::vector<blst_scalar>
+    messages_to_scalars(const std::vector<std::span<const uint8_t>>& messages, std::string_view api_id) {
+        auto map_dst = concat(api_id, "MAP_MSG_TO_SCALAR_AS_HASH_");
+        std::vector<blst_scalar> out;
+        out.reserve(messages.size());
+        for (const auto& m : messages) out.push_back(hash_to_scalar(m, sv(map_dst)));
+        return out;
+    }
+
+    // Deterministic Commit for KAT validation (draft §9.1.3 / §12.1.3):
+    // committed_messages → scalars (api_id map), blind generators under
+    // "BLIND_"||api_id, CoreCommit with mocked random scalars.
+    [[nodiscard]] static std::vector<uint8_t>
+    commit_deterministic_for_test(const std::vector<std::span<const uint8_t>>& committed_messages,
+            std::string_view api_id, std::string_view mock_seed, std::string_view mock_dst,
+            std::string_view map_api_id = {}) {
+        auto scalars = messages_to_scalars(committed_messages,
+                                           map_api_id.empty() ? api_id : map_api_id);
+        std::string blind_api = "BLIND_";
+        blind_api += api_id;
+        auto blind_gens = create_generators(scalars.size() + 1, blind_api);
+        auto rnd = mocked_random_scalars(scalars.size() + 2, mock_seed, mock_dst);
+        return core_commit(blind_gens, scalars, api_id, rnd);
+    }
+
 private:
 
     static std::vector<blst_scalar> messages_to_scalars(const std::vector<std::span<const uint8_t>>& messages) {

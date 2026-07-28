@@ -54,8 +54,64 @@ TEST("bbs_pseudonym/kat/blind-generators") {
     CHECK(tohex(g[6]) == BLIND_J5);
 }
 
+namespace {
+std::vector<uint8_t> unhex(std::string_view h) {
+    auto nib = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return 0;
+    };
+    std::vector<uint8_t> o;
+    for (std::size_t i = 0; i + 1 < h.size(); i += 2) o.push_back((nib(h[i]) << 4) | nib(h[i + 1]));
+    return o;
+}
+// draft-irtf-cfrg-bbs-blind-signatures-02 §9. The blind Commit uses the blind
+// INTERFACE api_id = ciphersuite_id || "BLIND_H2G_HM2S_" (generators then prepend
+// another "BLIND_"); the mock-scalar dst uses the base ciphersuite.
+constexpr std::string_view BASE_API_ID = "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_BLIND_H2G_HM2S_";
+constexpr std::string_view COMMIT_MOCK_SEED = "3.141592653589793238462643383279";
+constexpr std::string_view COMMIT_MOCK_DST =
+    "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_COMMIT_MOCK_RANDOM_SCALARS_DST_";
+} // namespace
+
+// draft §9.1.3.1 — CoreCommit with no committed messages.
+TEST("bbs_pseudonym/kat/commit-no-messages") {
+    auto out = Bbs::commit_deterministic_for_test({}, BASE_API_ID, COMMIT_MOCK_SEED, COMMIT_MOCK_DST);
+    CHECK(tohex({out.data(), out.size()}) ==
+        "849d3cc626720202cbc1610fc01ab41ce32099af602def0c579f37dd18b485ef"
+        "60719275a036bdd8120e7e938c8e1a3d4d0322587441ccc5caf186001b45dd09"
+        "ee159713c3e3ea0f411f94a5d6665546562d09c093b687a129e464a57e18cdbf"
+        "5306bcabf3e7cc95f5ba98cdd9bf3768");
+}
+
+// draft §9.1.3.2 — CoreCommit with 4 committed messages.
+TEST("bbs_pseudonym/kat/commit-multi-messages") {
+    auto m0 = unhex("5982967821da3c5983496214df36aa5e58de6fa25314af4cf4c00400779f08c3");
+    auto m1 = unhex("a75d8b634891af92282cc81a675972d1929d3149863c1fc0");
+    auto m2 = unhex("835889a40744813a892eff9deb1edaeb");
+    auto m3 = unhex("e1ca9729410dc6ba");
+    std::vector<uint8_t> m4; // the fixture's trailing empty committed message
+    std::vector<std::span<const uint8_t>> msgs = {
+        {m0.data(), m0.size()}, {m1.data(), m1.size()}, {m2.data(), m2.size()},
+        {m3.data(), m3.size()}, {m4.data(), m4.size()}};
+    auto out = Bbs::commit_deterministic_for_test(msgs, BASE_API_ID, COMMIT_MOCK_SEED, COMMIT_MOCK_DST);
+    CHECK(tohex({out.data(), out.size()}) ==
+        "a2a3e178bcc77f98a3c07f8532134021ab5847326b5b3bfc3089ca73f1bc51cf"
+        "e2c99163f4919525dd6bedc8a14ee39e30374643902017ca2e6fb8b5647c736e"
+        "82d1d3c5b05de5c3021fa6f40d9f36dd22fa06e522411aa20377088ca9a15885"
+        "d7a5044175f0168e927149ee71e2d257079e0100d6d96a7ddf5392dbc64267af"
+        "8df7b4711cb5eeccb5e8901d0580b9e837f38337cb7260cffcf4f962154fafe5"
+        "c98beaed7e4d2fc0f8e7eb1ba4eb04086f170aa4924894e2ab63054049c9ef5d"
+        "fff4f90b48ef0dcf1f50699907301073270e4782d4d7628cfbe1444cea930928"
+        "bb45004e41e0ad86a874ea03473845ce42f78ceb6f855ba8326a4d47732c5aed"
+        "3968b396a07f079b22b5bf2139e51a03");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/pseudonym-generators");
     RUN("bbs_pseudonym/kat/blind-generators");
+    RUN("bbs_pseudonym/kat/commit-no-messages");
+    RUN("bbs_pseudonym/kat/commit-multi-messages");
 }
