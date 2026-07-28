@@ -232,10 +232,66 @@ TEST("bbs_pseudonym/kat/proof-verify") {
     CHECK(!bad);
 }
 
+// Full prover-flow round-trip: commit(prover_nym) -> blind-sign -> finalize ->
+// CalculatePseudonym -> ProofGenWithPseudonym -> ProofVerifyWithPseudonym = VALID.
+// (Byte-exact gen is impossible since the vectors hide prover_nym; the verifier
+// being proven correct against the official proof makes this a reliable oracle.)
+TEST("bbs_pseudonym/roundtrip/gen-verify") {
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto ph  = unhex("bed231d880675ed101ead304512e043ade9958dd0241ea70b4b3957fba941501");
+    auto ctx = unhex("bbb4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a");
+    auto entropy = unhex("3d40961fce6c09eec24a371322732932503b458d7a4cf7891bdaa765b30027c5");
+    auto prover_nym = unhex("1234000000000000000000000000000000000000000000000000000000000000");
+    constexpr std::string_view MOCK_DST =
+        "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_COMMIT_MOCK_RANDOM_SCALARS_DST_";
+    const auto API = Bbs::API_ID_PSEUDONYM;
+
+    auto sm0 = unhex("aa"), sm1 = unhex("bbbb");
+    auto cm0 = unhex("cccccc"), cm1 = unhex("dd");
+    std::vector<std::span<const uint8_t>> signer = {{sm0.data(), sm0.size()}, {sm1.data(), sm1.size()}};
+    std::vector<std::span<const uint8_t>> committed = {{cm0.data(), cm0.size()}, {cm1.data(), cm1.size()}};
+    std::vector<std::span<const uint8_t>> nyms = {{prover_nym.data(), prover_nym.size()}};
+
+    auto commit = Bbs::commit_with_nym_for_test(committed, nyms, API, "3.141592653589793238462643383279", MOCK_DST);
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+                               {commit.commitment_with_proof.data(), commit.commitment_with_proof.size()},
+                               {header.data(), header.size()}, signer, API,
+                               {entropy.data(), entropy.size()}, /*length_nym_vector=*/1);
+    auto nym_secrets_a = Bbs::finalize_nym_secrets(nyms, {entropy.data(), entropy.size()});
+    std::vector<std::span<const uint8_t>> nym_secrets = {{nym_secrets_a[0].data(), nym_secrets_a[0].size()}};
+
+    auto gen = Bbs::proof_gen_with_pseudonym(
+        {pk.data(), pk.size()}, {sig.data(), sig.size()}, {header.data(), header.size()},
+        {ph.data(), ph.size()}, {ctx.data(), ctx.size()}, signer, committed,
+        {commit.secret_prover_blind.data(), commit.secret_prover_blind.size()}, nym_secrets,
+        /*disclosed_signer=*/{0, 1}, /*disclosed_committed=*/{0, 1}, API);
+    REQUIRE(gen.is_ok());
+    auto& [proof, pseudonym] = gen.value();
+
+    // The generated pseudonym equals CalculatePseudonym(ctx, nym_secrets).
+    auto p2 = Bbs::calculate_pseudonym({ctx.data(), ctx.size()}, nym_secrets, API);
+    CHECK(tohex({pseudonym.data(), pseudonym.size()}) == tohex({p2.data(), p2.size()}));
+
+    // Verify: all signer + committed disclosed; combined indexes [0,1, 3,4].
+    std::vector<std::span<const uint8_t>> dm = {
+        {sm0.data(), sm0.size()}, {sm1.data(), sm1.size()}, {cm0.data(), cm0.size()}, {cm1.data(), cm1.size()}};
+    std::vector<std::size_t> di = {0, 1, 3, 4};
+    bool ok = Bbs::proof_verify_with_pseudonym(
+        {pk.data(), pk.size()}, {proof.span().data(), proof.span().size()},
+        {header.data(), header.size()}, {ph.data(), ph.size()}, {ctx.data(), ctx.size()},
+        {pseudonym.data(), pseudonym.size()}, /*L=*/2, /*length_nym_vector=*/1, dm, di, API);
+    CHECK(ok);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/proof-domain");
     RUN("bbs_pseudonym/kat/proof-verify");
+    RUN("bbs_pseudonym/roundtrip/gen-verify");
     RUN("bbs_pseudonym/kat/pseudonym-generators");
     RUN("bbs_pseudonym/kat/blind-generators");
     RUN("bbs_pseudonym/kat/commit-no-messages");

@@ -634,6 +634,133 @@ public:
         return core_commit(blind_gens, scalars, api_id, rnd);
     }
 
+    // CalculatePseudonym (pvl §4): pseudonym = OP · Σ nym_secrets[i]·z^i, where
+    // OP = hash_to_curve_g1(context_id, api_id), z = hash_to_scalar(context_id,
+    // api_id||"VECT_NYM_SECRETS"). Returns the compressed pseudonym (48 B).
+    [[nodiscard]] static std::array<uint8_t, G1_BYTES>
+    calculate_pseudonym(std::span<const uint8_t> context_id,
+                        const std::vector<std::span<const uint8_t>>& nym_secrets,
+                        std::string_view api_id) {
+        blst_p1 OP = hash_to_g1(context_id, sv(std::vector<uint8_t>(api_id.begin(), api_id.end())));
+        blst_scalar z = hash_to_scalar(context_id, concat(api_id, "VECT_NYM_SECRETS"));
+        blst_scalar poly; blst_scalar_from_bendian(&poly, nym_secrets[0].data());
+        blst_scalar zn = z;
+        for (std::size_t i = 1; i < nym_secrets.size(); ++i) {
+            blst_scalar ns; blst_scalar_from_bendian(&ns, nym_secrets[i].data());
+            poly = sc_add(poly, sc_mul(ns, zn));
+            zn = sc_mul(zn, z);
+        }
+        blst_p1 P = p1_mult(OP, poly);
+        std::array<uint8_t, G1_BYTES> out{};
+        blst_p1_compress(out.data(), &P);
+        return out;
+    }
+
+    // ProofGenWithPseudonym (pvl §6.2/§7.1). Assembles the split message/generator
+    // vectors, generates the base BBS proof + the pseudonym sigma Ut, and binds
+    // both under the extended challenge. Returns (proof, pseudonym). random_scalars
+    // empty ⇒ fresh randomness (round-trip use).
+    [[nodiscard]] static Result<std::pair<SecureBuffer, std::array<uint8_t, G1_BYTES>>>
+    proof_gen_with_pseudonym(std::span<const uint8_t> pk, std::span<const uint8_t> signature,
+            std::span<const uint8_t> header, std::span<const uint8_t> ph,
+            std::span<const uint8_t> context_id,
+            const std::vector<std::span<const uint8_t>>& signer_messages,
+            const std::vector<std::span<const uint8_t>>& committed_messages,
+            std::span<const uint8_t> secret_prover_blind,
+            const std::vector<std::span<const uint8_t>>& nym_secrets,
+            const std::vector<std::size_t>& disclosed_signer_indexes,
+            const std::vector<std::size_t>& disclosed_committed_indexes,
+            std::string_view api_id, std::vector<blst_scalar> random_scalars = {}) {
+        using Ret = std::pair<SecureBuffer, std::array<uint8_t, G1_BYTES>>;
+        if (pk.size() != G2_BYTES || signature.size() != SIGNATURE_BYTES)
+            return Result<Ret>::err("BBS: bad key/signature length");
+        const std::size_t L = signer_messages.size();
+        const std::size_t Mc = committed_messages.size();
+        const std::size_t Nnym = nym_secrets.size();
+        const std::size_t total = L + 1 + Mc + Nnym;
+
+        // Full message scalar vector: signer ++ secret_prover_blind ++ committed ++ nym.
+        std::vector<blst_scalar> msg_scalars = messages_to_scalars(signer_messages, api_id);
+        blst_scalar spb; blst_scalar_from_bendian(&spb, secret_prover_blind.data());
+        msg_scalars.push_back(spb);
+        for (auto& cs : messages_to_scalars(committed_messages, api_id)) msg_scalars.push_back(cs);
+        for (auto& ns : nym_secrets) { blst_scalar s; blst_scalar_from_bendian(&s, ns.data()); msg_scalars.push_back(s); }
+
+        // Unified generators.
+        auto base_gens = create_generators(L + 1, api_id);
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(Mc + Nnym + 1, blind_api);
+        std::vector<blst_p1> gens = base_gens;
+        for (const auto& bg : blind_gens) gens.push_back(bg);
+
+        // Combined disclosed indexes: signer as-is; committed j -> j+L+1.
+        std::vector<std::size_t> disclosed = disclosed_signer_indexes;
+        for (auto j : disclosed_committed_indexes) disclosed.push_back(j + L + 1);
+        std::sort(disclosed.begin(), disclosed.end());
+        const std::size_t R = disclosed.size();
+        const std::size_t U = total - R;
+        auto undisclosed = complement_indexes(disclosed, total);
+
+        if (random_scalars.empty())
+            for (std::size_t i = 0; i < 5 + U; ++i) random_scalars.push_back(random_scalar());
+        if (random_scalars.size() != 5 + U) return Result<Ret>::err("BBS: expected 5+U random scalars");
+
+        blst_p1_affine A_aff; blst_p1_uncompress(&A_aff, signature.data());
+        blst_p1 A; blst_p1_from_affine(&A, &A_aff);
+        blst_scalar e; blst_scalar_from_bendian(&e, signature.data() + G1_BYTES);
+        const blst_scalar& r1 = random_scalars[0]; const blst_scalar& r2 = random_scalars[1];
+        const blst_scalar& e_t = random_scalars[2]; const blst_scalar& r1_t = random_scalars[3];
+        const blst_scalar& r3_t = random_scalars[4];
+
+        std::vector<uint8_t> hdr(header.begin(), header.end());
+        put_u64(hdr, Nnym);
+        blst_scalar domain = calculate_domain(pk, gens, sv(hdr), api_id);
+        blst_p1 B = compute_B(base_gens, domain, messages_to_scalars(signer_messages, api_id));
+        // Add the committed + nym contributions (indexes L+1..total-1 use blind gens).
+        for (std::size_t idx = L; idx < total; ++idx) B = p1_add(B, p1_mult(gens[idx + 1], msg_scalars[idx]));
+
+        blst_p1 D = p1_mult(B, r2);
+        blst_p1 Abar = p1_mult(A, sc_mul(r1, r2));
+        blst_p1 Bbar = p1_sub(p1_mult(D, r1), p1_mult(Abar, e));
+        blst_p1 T1 = p1_add(p1_mult(Abar, e_t), p1_mult(D, r1_t));
+        blst_p1 T2 = p1_mult(D, r3_t);
+        for (std::size_t k = 0; k < U; ++k)
+            T2 = p1_add(T2, p1_mult(gens[undisclosed[k] + 1], random_scalars[5 + k]));
+
+        // Pseudonym Ut = OP · poly(random_scalars at the nym positions).
+        blst_p1 OP = hash_to_g1(context_id, sv(std::vector<uint8_t>(api_id.begin(), api_id.end())));
+        blst_scalar z = hash_to_scalar(context_id, concat(api_id, "VECT_NYM_SECRETS"));
+        const std::size_t nb = U - Nnym;                    // nym positions = last Nnym undisclosed
+        blst_scalar poly = random_scalars[5 + nb], zn = z;
+        for (std::size_t i = 1; i < Nnym; ++i) { poly = sc_add(poly, sc_mul(random_scalars[5 + nb + i], zn)); zn = sc_mul(zn, z); }
+        blst_p1 Ut = p1_mult(OP, poly);
+        auto pseudonym = calculate_pseudonym(context_id, nym_secrets, api_id);
+        blst_p1_affine ny_a; blst_p1_uncompress(&ny_a, pseudonym.data());
+        blst_p1 nym_pt; blst_p1_from_affine(&nym_pt, &ny_a);
+
+        std::vector<blst_scalar> disclosed_scalars;
+        for (auto i : disclosed) disclosed_scalars.push_back(msg_scalars[i]);
+        blst_scalar c = pseudonym_proof_challenge(disclosed, disclosed_scalars, Abar, Bbar, D, T1, T2,
+                                                  nym_pt, Ut, domain, ph, context_id, api_id);
+
+        blst_scalar r3 = sc_inv(r2);
+        blst_scalar e_hat = sc_add(e_t, sc_mul(e, c));
+        blst_scalar r1_hat = sc_sub(r1_t, sc_mul(r1, c));
+        blst_scalar r3_hat = sc_sub(r3_t, sc_mul(r3, c));
+
+        SecureBuffer proof(3 * G1_BYTES + (3 + U + 1) * SCALAR_BYTES);
+        std::size_t off = 0;
+        blst_p1_compress(proof.data() + off, &Abar); off += G1_BYTES;
+        blst_p1_compress(proof.data() + off, &Bbar); off += G1_BYTES;
+        blst_p1_compress(proof.data() + off, &D);    off += G1_BYTES;
+        auto write_sc = [&](const blst_scalar& s) { blst_bendian_from_scalar(proof.data() + off, &s); off += SCALAR_BYTES; };
+        write_sc(e_hat); write_sc(r1_hat); write_sc(r3_hat);
+        for (std::size_t k = 0; k < U; ++k)
+            write_sc(sc_add(random_scalars[5 + k], sc_mul(msg_scalars[undisclosed[k]], c)));
+        write_sc(c);
+        return Result<Ret>::ok(std::make_pair(std::move(proof), pseudonym));
+    }
+
     // Map an octet string to a G1 point (RFC 9380 SSWU_RO) with an explicit DST.
     static blst_p1 hash_to_g1(std::span<const uint8_t> msg, std::span<const uint8_t> dst) {
         blst_p1 p;
@@ -781,6 +908,44 @@ public:
         blst_scalar dom = calculate_domain(pk, gens, sv(hdr), api_id);
         std::array<uint8_t, SCALAR_BYTES> out{};
         blst_bendian_from_scalar(out.data(), &dom);
+        return out;
+    }
+
+    // CommitWithNym (pvl §6.1.1) for round-trip tests: commit to committed_messages
+    // plus prover_nyms (raw scalars), returning the commitment_with_proof and the
+    // secret_prover_blind (32-byte scalar) the holder keeps.
+    struct CommitWithNymResult {
+        std::vector<uint8_t> commitment_with_proof;
+        std::array<uint8_t, SCALAR_BYTES> secret_prover_blind{};
+    };
+    [[nodiscard]] static CommitWithNymResult
+    commit_with_nym_for_test(const std::vector<std::span<const uint8_t>>& committed_messages,
+            const std::vector<std::span<const uint8_t>>& prover_nyms, std::string_view api_id,
+            std::string_view mock_seed, std::string_view mock_dst) {
+        auto scalars = messages_to_scalars(committed_messages, api_id);
+        for (auto& pn : prover_nyms) { blst_scalar s; blst_scalar_from_bendian(&s, pn.data()); scalars.push_back(s); }
+        std::string blind_api = "BLIND_"; blind_api += api_id;
+        auto blind_gens = create_generators(scalars.size() + 1, blind_api);
+        auto rnd = mocked_random_scalars(scalars.size() + 2, mock_seed, mock_dst);
+        CommitWithNymResult r;
+        r.commitment_with_proof = core_commit(blind_gens, scalars, api_id, rnd);
+        blst_bendian_from_scalar(r.secret_prover_blind.data(), &rnd[0]);
+        return r;
+    }
+
+    // nym_secrets = prover_nyms with the LAST element += signer_nym_entropy
+    // (pvl §6.1.3 VerifyFinalizeWithNym). Returns each as 32 big-endian bytes.
+    [[nodiscard]] static std::vector<std::array<uint8_t, SCALAR_BYTES>>
+    finalize_nym_secrets(const std::vector<std::span<const uint8_t>>& prover_nyms,
+                         std::span<const uint8_t> signer_nym_entropy) {
+        std::vector<std::array<uint8_t, SCALAR_BYTES>> out;
+        blst_scalar ent; blst_scalar_from_bendian(&ent, signer_nym_entropy.data());
+        for (std::size_t i = 0; i < prover_nyms.size(); ++i) {
+            blst_scalar s; blst_scalar_from_bendian(&s, prover_nyms[i].data());
+            if (i + 1 == prover_nyms.size()) s = sc_add(s, ent);
+            std::array<uint8_t, SCALAR_BYTES> b{}; blst_bendian_from_scalar(b.data(), &s);
+            out.push_back(b);
+        }
         return out;
     }
 
