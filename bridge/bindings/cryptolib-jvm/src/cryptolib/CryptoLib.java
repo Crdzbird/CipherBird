@@ -19,9 +19,17 @@ public final class CryptoLib implements AutoCloseable {
     static final GroupLayout RES = MemoryLayout.structLayout(BUF.withName("buf"), ADDRESS.withName("error"));
     static final GroupLayout KP  = MemoryLayout.structLayout(BUF.withName("pub"), BUF.withName("sec"));
     static final GroupLayout KEM = MemoryLayout.structLayout(BUF.withName("ct"), BUF.withName("ss"));
+    /** CryptoResult { int ok; char* error; } — the int needs explicit padding before the pointer. */
+    static final GroupLayout CRES = MemoryLayout.structLayout(
+            JAVA_INT.withName("ok"), MemoryLayout.paddingLayout(4), ADDRESS.withName("error"));
     static final long B = BUF.byteSize();
 
     private final MethodHandle init, version, random, sha256, hyKg, hyEn, hyDe, bufFree, kpFree, kemFree, strFree;
+    // Primitives the composable Recipe pipeline is built from.
+    private final MethodHandle argon2idDerive, hkdfDerive,
+            xEnc, xDec, aesEnc, aesDec, cmtEnc, cmtDec, molSeal, molOpen,
+            edKg, edKgSeed, edSign, edVerify, hySigKg, hySigSign, hySigVerify,
+            entFromFileDet, entSymKey, entFree, stegoEmbed, stegoExtract, fecEnc, fecDec;
 
     public CryptoLib() {
         lib = SymbolLookup.libraryLookup(NativeLoader.extract(), arena);
@@ -36,7 +44,188 @@ public final class CryptoLib implements AutoCloseable {
         kpFree  = h("cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
         kemFree = h("cryptolib_kem_encaps_free", FunctionDescriptor.ofVoid(ADDRESS));
         strFree = h("cryptolib_str_free", FunctionDescriptor.ofVoid(ADDRESS));
+
+        argon2idDerive = h("cryptolib_argon2id_derive",
+                FunctionDescriptor.of(RES, ADDRESS, ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG));
+        hkdfDerive = h("cryptolib_hkdf_derive",
+                FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
+        FunctionDescriptor aead = FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG);
+        xEnc = h("cryptolib_xchacha20_encrypt", aead);
+        xDec = h("cryptolib_xchacha20_decrypt", aead);
+        aesEnc = h("cryptolib_aes256gcm_encrypt", aead);
+        aesDec = h("cryptolib_aes256gcm_decrypt", aead);
+        cmtEnc = h("cryptolib_committing_encrypt", aead);
+        cmtDec = h("cryptolib_committing_decrypt", aead);
+        molSeal = h("cryptolib_molecular_seal_with_key", aead);
+        molOpen = h("cryptolib_molecular_open_with_key", aead);
+        edKg = h("cryptolib_ed25519_keygen", FunctionDescriptor.of(KP));
+        edKgSeed = h("cryptolib_ed25519_keygen_from_seed", FunctionDescriptor.of(KP, ADDRESS, JAVA_LONG));
+        edSign = h("cryptolib_ed25519_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        edVerify = h("cryptolib_ed25519_verify",
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hySigKg = h("cryptolib_hybrid_sig_keygen", FunctionDescriptor.of(KP));
+        hySigSign = h("cryptolib_hybrid_sig_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hySigVerify = h("cryptolib_hybrid_sig_verify",
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        entFromFileDet = h("cryptolib_entropy_from_file_deterministic", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        entSymKey = h("cryptolib_entropy_symmetric_key", FunctionDescriptor.of(RES, ADDRESS));
+        entFree = h("cryptolib_entropy_free", FunctionDescriptor.ofVoid(ADDRESS));
+        stegoEmbed = h("cryptolib_stego_embed", FunctionDescriptor.of(CRES, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        stegoExtract = h("cryptolib_stego_extract", FunctionDescriptor.of(RES, ADDRESS));
+        fecEnc = h("cryptolib_fec_encode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT));
+        fecDec = h("cryptolib_fec_decode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG));
     }
+
+    // ── Primitives used by Recipe ─────────────────────────────────────────────
+
+    /** Stretch a passphrase into a key with Argon2id. */
+    public byte[] argon2idDerive(String password, byte[] salt, int keyLen, long ops, long memoryBytes) {
+        try {
+            return consume((MemorySegment) argon2idDerive.invoke(arena, arena.allocateFrom(password),
+                    seg(salt), (long) salt.length, (long) keyLen, ops, memoryBytes));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** One-shot HKDF: extract + expand to {@code outLen} bytes. */
+    public byte[] hkdfDerive(byte[] ikm, byte[] salt, byte[] info, int outLen) {
+        try {
+            return consume((MemorySegment) hkdfDerive.invoke(arena, seg(ikm), (long) ikm.length,
+                    seg(salt), (long) salt.length, seg(info), (long) info.length, (long) outLen));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    private byte[] aead(MethodHandle mh, byte[] data, byte[] key, byte[] aad) {
+        try {
+            return consume((MemorySegment) mh.invoke(arena, seg(data), (long) data.length,
+                    seg(key), (long) key.length, seg(aad), (long) aad.length));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    public byte[] xchacha20Encrypt(byte[] pt, byte[] key, byte[] aad) { return aead(xEnc, pt, key, aad); }
+    public byte[] xchacha20Decrypt(byte[] ct, byte[] key, byte[] aad) { return aead(xDec, ct, key, aad); }
+    public byte[] aes256gcmEncrypt(byte[] pt, byte[] key, byte[] aad) { return aead(aesEnc, pt, key, aad); }
+    public byte[] aes256gcmDecrypt(byte[] ct, byte[] key, byte[] aad) { return aead(aesDec, ct, key, aad); }
+    public byte[] committingEncrypt(byte[] pt, byte[] key, byte[] aad) { return aead(cmtEnc, pt, key, aad); }
+    public byte[] committingDecrypt(byte[] ct, byte[] key, byte[] aad) { return aead(cmtDec, ct, key, aad); }
+    public byte[] molecularSealWithKey(byte[] pt, byte[] key, byte[] aad) { return aead(molSeal, pt, key, aad); }
+    public byte[] molecularOpenWithKey(byte[] ct, byte[] key, byte[] aad) { return aead(molOpen, ct, key, aad); }
+
+    private KeyPair keypair(MemorySegment kp) {
+        try {
+            byte[] pub = readBuf(kp, 0), sec = readBuf(kp, B);
+            kpFree.invoke(kp);
+            return new KeyPair(pub, sec);
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Ed25519 keypair from the OS CSPRNG. */
+    public KeyPair ed25519Keygen() {
+        try { return keypair((MemorySegment) edKg.invoke(arena)); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Ed25519 keypair derived deterministically from a 32-byte seed. */
+    public KeyPair ed25519KeygenFromSeed(byte[] seed) {
+        try { return keypair((MemorySegment) edKgSeed.invoke(arena, seg(seed), (long) seed.length)); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    public byte[] ed25519Sign(byte[] msg, byte[] secretKey) {
+        try {
+            return consume((MemorySegment) edSign.invoke(arena, seg(msg), (long) msg.length,
+                    seg(secretKey), (long) secretKey.length));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    public boolean ed25519Verify(byte[] msg, byte[] sig, byte[] publicKey) {
+        try {
+            return (int) edVerify.invoke(seg(msg), (long) msg.length, seg(sig), (long) sig.length,
+                    seg(publicKey), (long) publicKey.length) == 1;
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Ed25519 + ML-DSA-65 keypair: a forgery needs breaking both families. */
+    public KeyPair hybridSigKeygen() {
+        try { return keypair((MemorySegment) hySigKg.invoke(arena)); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    public byte[] hybridSigSign(byte[] msg, byte[] secretKey) {
+        try {
+            return consume((MemorySegment) hySigSign.invoke(arena, seg(msg), (long) msg.length,
+                    seg(secretKey), (long) secretKey.length));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    public boolean hybridSigVerify(byte[] msg, byte[] sig, byte[] publicKey) {
+        try {
+            return (int) hySigVerify.invoke(seg(msg), (long) msg.length, seg(sig), (long) sig.length,
+                    seg(publicKey), (long) publicKey.length) == 1;
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /**
+     * Derive a 32-byte key deterministically from a media file — "the file is the
+     * key". Reproducible on any machine; nothing is stored.
+     *
+     * <p>Uses the deterministic entropy path deliberately: {@code key_from_file}
+     * mixes in fresh system entropy and so could never reopen its own envelope.
+     */
+    public byte[] keyFromFileDeterministic(String path) {
+        try {
+            MemorySegment err = arena.allocate(ADDRESS);
+            MemorySegment h = (MemorySegment) entFromFileDet.invoke(arena.allocateFrom(path), err);
+            MemorySegment e = err.get(ADDRESS, 0);
+            if (e.address() != 0) {
+                String msg = e.reinterpret(Long.MAX_VALUE).getString(0);
+                strFree.invoke(e);
+                throw new RuntimeException(msg);
+            }
+            if (h.address() == 0) throw new RuntimeException("cryptolib: entropy handle allocation failed");
+            try { return consume((MemorySegment) entSymKey.invoke(arena, h)); }
+            finally { entFree.invoke(h); }
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Hide {@code payload} inside a media carrier. */
+    public void stegoEmbed(String coverPath, byte[] payload, String outputPath) {
+        try {
+            MemorySegment r = (MemorySegment) stegoEmbed.invoke(arena, arena.allocateFrom(coverPath),
+                    seg(payload), (long) payload.length, arena.allocateFrom(outputPath));
+            if (r.get(JAVA_INT, 0) != 1) {
+                MemorySegment e = r.get(ADDRESS, CRES.byteOffset(MemoryLayout.PathElement.groupElement("error")));
+                String msg = e.address() != 0 ? e.reinterpret(Long.MAX_VALUE).getString(0) : "stego embed failed";
+                if (e.address() != 0) strFree.invoke(e);
+                throw new RuntimeException(msg);
+            }
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Recover a payload hidden by {@link #stegoEmbed}. */
+    public byte[] stegoExtract(String stegoPath) {
+        try { return consume((MemorySegment) stegoExtract.invoke(arena, arena.allocateFrom(stegoPath))); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Forward-error-correct {@code data} under a scheme id (see {@link FecScheme}). */
+    public byte[] fecEncode(byte[] data, int scheme) {
+        try { return consume((MemorySegment) fecEnc.invoke(arena, seg(data), (long) data.length, scheme)); }
+        catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Reverse {@link #fecEncode}, recovering {@code originalLength} bytes. */
+    public byte[] fecDecode(byte[] data, int scheme, int originalLength) {
+        try {
+            return consume((MemorySegment) fecDec.invoke(arena, seg(data), (long) data.length,
+                    scheme, (long) originalLength));
+        } catch (Throwable t) { throw new RuntimeException(t); }
+    }
+
+    /** Start a {@link Recipe} at the given profile's settings. */
+    public Recipe recipe(SecurityProfile profile) { return new Recipe(this, profile); }
+
+    /** A {@link Recipe} using the strongest option at every choice. */
+    public Recipe maximumSecurity() { return new Recipe(this, SecurityProfile.MAXIMUM); }
 
     private MethodHandle h(String name, FunctionDescriptor fd) {
         return linker.downcallHandle(lib.find(name).orElseThrow(() ->

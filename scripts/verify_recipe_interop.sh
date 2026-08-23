@@ -16,6 +16,11 @@ seal() { # $1 = language, $2 = dir
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop seal "$2") ;;
     node)  (cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js seal "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security seal "$2" ;;
+    java)  (cd bridge/bindings/cryptolib-jvm && java --enable-native-access=ALL-UNNAMED -cp out cryptolib.RecipeVerify seal "$2") ;;
+    python) (cd bridge/bindings/cryptolib-python && CRYPTOLIB_DYLIB="$DY" python3 tests/test_recipe.py seal "$2") ;;
+    ruby)  (cd bridge/bindings/cryptolib-ruby && CRYPTOLIB_DYLIB="$DY" ruby -Ilib test/recipe.rb seal "$2") ;;
+    rust)  (cd bridge/bindings/cryptolib-rust && DYLD_LIBRARY_PATH="$ROOT/build/release" cargo run --quiet --example recipe seal "$2") ;;
+    dotnet) (cd bridge/bindings/cryptolib-dotnet && dotnet run --no-build -v q -- seal "$2") ;;
   esac
 }
 open_() {
@@ -24,10 +29,15 @@ open_() {
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop open "$2") ;;
     node)  (cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js open "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security open "$2" ;;
+    java)  (cd bridge/bindings/cryptolib-jvm && java --enable-native-access=ALL-UNNAMED -cp out cryptolib.RecipeVerify open "$2") ;;
+    python) (cd bridge/bindings/cryptolib-python && CRYPTOLIB_DYLIB="$DY" python3 tests/test_recipe.py open "$2") ;;
+    ruby)  (cd bridge/bindings/cryptolib-ruby && CRYPTOLIB_DYLIB="$DY" ruby -Ilib test/recipe.rb open "$2") ;;
+    rust)  (cd bridge/bindings/cryptolib-rust && DYLD_LIBRARY_PATH="$ROOT/build/release" cargo run --quiet --example recipe open "$2") ;;
+    dotnet) (cd bridge/bindings/cryptolib-dotnet && dotnet run --no-build -v q -- open "$2") ;;
   esac
 }
 
-LANGS=(dart go node swift)
+LANGS=(dart go node swift java python ruby rust dotnet)
 echo "═══ CryptoRecipe cross-language interop ═══"
 for s in "${LANGS[@]}"; do
   dir="$WORK/$s"; mkdir -p "$dir"

@@ -207,12 +207,58 @@ node-security: lib
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3; \
 	else echo "node not found — skipping"; fi
 
+.PHONY: java-security
+java-security: lib
+	$(call hdr,Java security profiles + recipes)
+	@if command -v javac >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-jvm && javac -d out src/cryptolib/*.java && \
+		mkdir -p out/native && cp -R native/* out/native/ 2>/dev/null; \
+		java --enable-native-access=ALL-UNNAMED -cp out cryptolib.RecipeVerify | tail -3; \
+	else echo "javac not found — skipping"; fi
+
+.PHONY: kotlin-security
+kotlin-security: java-security
+	$(call hdr,Kotlin security profiles + recipes)
+	@if command -v kotlinc >/dev/null 2>&1; then \
+		cd bridge/bindings/kotlin && kotlinc RecipeDemo.kt -cp ../cryptolib-jvm/out -include-runtime -d recipe.jar 2>/dev/null && \
+		java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cryptolib-jvm/out RecipeDemoKt | tail -3; \
+	else echo "kotlinc not found — skipping"; fi
+
+.PHONY: python-security
+python-security: lib
+	$(call hdr,Python security profiles + recipes)
+	@if command -v python3 >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-python && CRYPTOLIB_DYLIB=$(DYLIB) python3 tests/test_recipe.py | tail -3; \
+	else echo "python3 not found — skipping"; fi
+
+.PHONY: ruby-security
+ruby-security: lib
+	$(call hdr,Ruby security profiles + recipes)
+	@if command -v ruby >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-ruby && CRYPTOLIB_DYLIB=$(DYLIB) ruby -Ilib test/recipe.rb | tail -3; \
+	else echo "ruby not found — skipping"; fi
+
+.PHONY: rust-security
+rust-security: lib
+	$(call hdr,Rust security profiles + recipes)
+	@if command -v cargo >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-rust && DYLD_LIBRARY_PATH=$(LIBDIR) cargo run --quiet --example recipe | tail -3; \
+	else echo "cargo not found — skipping"; fi
+
+.PHONY: dotnet-security
+dotnet-security: lib
+	$(call hdr,.NET security profiles + recipes)
+	@if command -v dotnet >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-dotnet && dotnet run -v q | tail -3; \
+	else echo "dotnet not found — skipping"; fi
+
 # Every binding seals a fixed set of recipe configurations; every OTHER binding
-# must open them. This is what makes the envelope a library format rather than
-# four look-alike implementations.
+# must open them. This is what makes the envelope one library format rather than
+# nine look-alike implementations.
 .PHONY: recipe-interop
-recipe-interop: lib swift-security
+recipe-interop: lib swift-security java-security
 	$(call hdr,CryptoRecipe cross-language interop)
+	@cd bridge/bindings/cryptolib-dotnet && dotnet build -v q --nologo >/dev/null 2>&1 || true
 	@bash scripts/verify_recipe_interop.sh
 
 .PHONY: swift-security
