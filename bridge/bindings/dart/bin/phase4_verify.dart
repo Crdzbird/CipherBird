@@ -102,11 +102,11 @@ void main(List<String> args) {
   // 4. FEC single-flip correction for all three schemes.
   {
     final data = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF]);
-    for (final scheme in [1, 2, 3]) {
+    for (final scheme in [FecScheme.repetition3, FecScheme.repetition5, FecScheme.hamming74]) {
       final enc = lib.fecEncode(data, scheme);
       enc[0] ^= 0x40; // one bit flip in the first block
       final dec = lib.fecDecode(enc, scheme, data.length);
-      check(eq(dec, data), 'FEC scheme $scheme corrects a single flip');
+      check(eq(dec, data), 'FEC ${scheme.name} corrects a single flip');
     }
   }
 

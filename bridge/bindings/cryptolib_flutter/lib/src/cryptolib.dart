@@ -26,6 +26,7 @@ part 'ffi/typedefs.dart';
 part 'models.dart';
 part 'enums.dart';
 part 'facade.dart';
+part 'security.dart';
 // Small encoding helpers.
 part 'utils.dart';
 // High-level API, grouped by domain (extensions on CryptoLib).

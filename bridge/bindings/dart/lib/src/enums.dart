@@ -1,4 +1,4 @@
-part of 'cryptolib.dart';
+part of '../cryptolib_ffi.dart';
 
 // ── Algorithm selectors ──────────────────────────────────────────────────────
 // Every parameter that used to be a bare `int` (a wire value copied out of a C

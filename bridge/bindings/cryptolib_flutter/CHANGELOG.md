@@ -18,7 +18,10 @@ API for navigating the surface.
   `HpkeKdf`, `HpkeAead` and `HpkeMode` were classes of `static const int`; they
   are now real enums, so the constants keep their names but change type.
 * `SealedInfo.suite` is a `SealedTier` rather than an `int` (`1`/`2`). Compare
-  against `SealedTier.flagship` / `SealedTier.fortress`.
+  against `SealedTier.flagship` / `SealedTier.fortress`. `SealedTier` now
+  carries an explicit wire value instead of relying on declaration order.
+* Argon2id cost is a `KdfPreset` rather than `0`/`1`, on `vaultCreate`,
+  `vaultFromEntropy` and `keyringAddPassphraseSlot`.
 
 ### Added — features that had no Dart binding
 
@@ -38,6 +41,40 @@ because the buffer helpers already free those allocations).
 * **Composed carriers** — `physicalSeal`/`physicalOpen`,
   `imageFactorSeal`/`imageFactorOpen`, `hpkeStegoSeal`/`hpkeStegoOpen`.
 * **Forward error correction** — `fecEncode`/`fecDecode` with `FecScheme`.
+
+### Added — maximal security and composition
+
+* **`SecurityProfile`** (`balanced` / `high` / `maximum`) sets every algorithm
+  parameter together — ML-KEM/ML-DSA/SLH-DSA parameter sets, sealed tier, HPKE
+  suite, Argon2id cost and the AEAD cascade. `maximum` takes the strongest
+  option at every choice, so a maximal KEM can no longer be paired with an
+  interactive-cost KDF by accident.
+
+* **`CryptoRecipe`** composes the library's protections instead of exposing them
+  one call at a time:
+
+  ```dart
+  final recipe = lib.maximumSecurity()
+      .withPassphrase('correct horse battery staple')
+      .signedBy(id.secretKey, algorithm: SignatureAlgorithm.hybrid)
+      .verifiedBy(id.publicKey)
+      .withFec(FecScheme.repetition3);
+
+  final envelope = recipe.seal(secret);
+  recipe.sealIntoCarrier(secret, coverPath: cover, outputPath: out);
+  ```
+
+  Key sources: a passphrase (Argon2id), a raw 32-byte key, or a media file
+  (reproducible). Layers: XChaCha20-Poly1305, AES-256-GCM, key-committing AEAD,
+  or a whole MolecularVault as one layer. Then optional signing, forward error
+  correction, and concealment in a carrier.
+
+  Composition only — every step is an existing vetted operation. What the recipe
+  adds is the plumbing that is easy to get wrong by hand: each layer gets its
+  own HKDF-separated key, the recipe descriptor is authenticated as AAD by every
+  layer, the order is fixed rather than caller-selectable, and everything fails
+  closed. `describe()` prints the configuration for review. The envelope is a
+  library-native format, not a standard.
 
 ### Added — organisation
 

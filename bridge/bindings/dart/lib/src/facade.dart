@@ -1,4 +1,4 @@
-part of 'cryptolib.dart';
+part of '../cryptolib_ffi.dart';
 
 // ── Grouped API ──────────────────────────────────────────────────────────────
 // The full surface is ~250 operations. Reaching them all from one flat object
@@ -19,22 +19,6 @@ extension type HashApi(CryptoLib _l) {
 
   /// SHA-512 hash.
   Uint8List sha512(Uint8List msg) => _l.sha512(msg);
-
-  /// HMAC-SHA512.
-  Uint8List hmacSha512(Uint8List msg, Uint8List key) => _l.hmacSha512(msg, key);
-
-  /// HMAC-SHA512 verify. Returns true if valid.
-  bool hmacSha512Verify(Uint8List msg, Uint8List mac, Uint8List key) => _l.hmacSha512Verify(msg, mac, key);
-
-  /// Hash a password to PHC string format.
-  Uint8List argon2idHashStr(String password, {int ops = 2, int mem = 67108864}) => _l.argon2idHashStr(password, ops: ops, mem: mem);
-
-  /// Verify password against PHC string. Returns true if correct.
-  bool argon2idVerifyStr(String password, String phcStr) => _l.argon2idVerifyStr(password, phcStr);
-
-  /// Derive a key from password + salt.
-  Uint8List argon2idDerive(String password, Uint8List salt,
-      {int keyLen = 32, int ops = 2, int mem = 67108864}) => _l.argon2idDerive(password, salt, keyLen: keyLen, ops: ops, mem: mem);
 
   /// BLAKE3 hash. [outLen] is the extendable output length in bytes
   /// (defaults to 32). Pass a larger value to use BLAKE3 as an XOF.
@@ -67,6 +51,22 @@ extension type HashApi(CryptoLib _l) {
   Uint8List hkdfDerive(Uint8List ikm,
       {Uint8List? salt, Uint8List? info, int outLen = 32}) => _l.hkdfDerive(ikm, salt: salt, info: info, outLen: outLen);
 
+  /// HMAC-SHA512.
+  Uint8List hmacSha512(Uint8List msg, Uint8List key) => _l.hmacSha512(msg, key);
+
+  /// HMAC-SHA512 verify. Returns true if valid.
+  bool hmacSha512Verify(Uint8List msg, Uint8List mac, Uint8List key) => _l.hmacSha512Verify(msg, mac, key);
+
+  /// Hash a password to PHC string format.
+  Uint8List argon2idHashStr(String password, {int ops = 2, int mem = 67108864}) => _l.argon2idHashStr(password, ops: ops, mem: mem);
+
+  /// Verify password against PHC string. Returns true if correct.
+  bool argon2idVerifyStr(String password, String phcStr) => _l.argon2idVerifyStr(password, phcStr);
+
+  /// Derive a key from password + salt.
+  Uint8List argon2idDerive(String password, Uint8List salt,
+      {int keyLen = 32, int ops = 2, int mem = 67108864}) => _l.argon2idDerive(password, salt, keyLen: keyLen, ops: ops, mem: mem);
+
 }
 
 /// Authenticated symmetric encryption, incl. committing and streaming modes.
@@ -89,13 +89,6 @@ extension type AeadApi(CryptoLib _l) {
   /// Check if AES-256-GCM is available on this CPU.
   bool aes256gcmAvailable() => _l.aes256gcmAvailable();
 
-  /// Streaming encrypt: encrypt chunks of data with ordering.
-  /// Returns (header, encryptedChunks).
-  (Uint8List header, List<Uint8List> chunks) streamEncrypt(Uint8List key, List<Uint8List> plaintextChunks) => _l.streamEncrypt(key, plaintextChunks);
-
-  /// Streaming decrypt: decrypt chunks of data.
-  List<Uint8List> streamDecrypt(Uint8List key, Uint8List header, List<Uint8List> ciphertextChunks) => _l.streamDecrypt(key, header, ciphertextChunks);
-
   /// Committing AEAD encrypt. Unlike a plain AEAD, the ciphertext binds the
   /// exact key, so it cannot be opened under a second key (no invisible
   /// salamander / partitioning-oracle attack). [key] is 32 bytes.
@@ -104,6 +97,13 @@ extension type AeadApi(CryptoLib _l) {
   /// Committing AEAD decrypt. Throws if the key/AAD don't match or the
   /// commitment check fails. [key] is 32 bytes.
   Uint8List committingDecrypt(Uint8List ciphertext, Uint8List key, [Uint8List? aad]) => _l.committingDecrypt(ciphertext, key, aad);
+
+  /// Streaming encrypt: encrypt chunks of data with ordering.
+  /// Returns (header, encryptedChunks).
+  (Uint8List header, List<Uint8List> chunks) streamEncrypt(Uint8List key, List<Uint8List> plaintextChunks) => _l.streamEncrypt(key, plaintextChunks);
+
+  /// Streaming decrypt: decrypt chunks of data.
+  List<Uint8List> streamDecrypt(Uint8List key, Uint8List header, List<Uint8List> ciphertextChunks) => _l.streamDecrypt(key, header, ciphertextChunks);
 
 }
 
@@ -148,13 +148,13 @@ extension type AsymApi(CryptoLib _l) {
 extension type BlsApi(CryptoLib _l) {
   KeyPairResult keygen() => _l.blsKeygen();
 
-  Uint8List sign(Uint8List msg, Uint8List secretKey) => _l.blsSign(msg, secretKey);
-
-  bool verify(Uint8List msg, Uint8List sig, Uint8List publicKey) => _l.blsVerify(msg, sig, publicKey);
-
   /// Deterministic BLS keygen from input key material. [ikm] must be >= 32
   /// bytes (per IRTF draft-irtf-cfrg-bls-signature KeyGen). Same IKM → same key.
   KeyPairResult keygenFromIkm(Uint8List ikm) => _l.blsKeygenFromIkm(ikm);
+
+  Uint8List sign(Uint8List msg, Uint8List secretKey) => _l.blsSign(msg, secretKey);
+
+  bool verify(Uint8List msg, Uint8List sig, Uint8List publicKey) => _l.blsVerify(msg, sig, publicKey);
 
   /// Aggregate N BLS signatures (each a 96-byte compressed G2 point) into a
   /// single 96-byte signature. Throws if [sigs] is empty.
@@ -208,19 +208,16 @@ extension type VaultApi(CryptoLib _l) {
   /// Asymmetric vault open: recipient decrypts and verifies.
   Uint8List asymVaultOpen(Packet pkt, AsymBundleResult recipient, Uint8List senderSignPub, String aad) => _l.asymVaultOpen(pkt, recipient, senderSignPub, aad);
 
-  /// Seal [plaintext] under a [passphrase]. [ops]/[mem] are the Argon2id work
+  /// Seal [plaintext] under a [passphrase]. [ops]/[mem] are Argon2id work
   /// factors; pass 0 for either to use the library's SENSITIVE preset. Raise
-  /// [mem] toward 1 << 30 (1 GiB) to make password guessing far costlier. The
-  /// returned envelope is self-describing (carries the salt and parameters).
+  /// [mem] toward 1<<30 (1 GiB) to make password guessing far costlier.
   Uint8List molecularSeal(Uint8List plaintext, String passphrase,
       {Uint8List? aad, int ops = 0, int mem = 0}) => _l.molecularSeal(plaintext, passphrase, aad: aad, ops: ops, mem: mem);
 
-  /// Open a passphrase-sealed envelope. A wrong passphrase, wrong [aad], or any
-  /// tampering throws (fails closed) rather than returning garbage.
+  /// Open a passphrase-sealed envelope. Wrong passphrase/AAD or tampering throws.
   Uint8List molecularOpen(Uint8List envelope, String passphrase, {Uint8List? aad}) => _l.molecularOpen(envelope, passphrase, aad: aad);
 
-  /// Seal under a 32-byte full-entropy [masterKey] (e.g. a hybrid-KEM shared
-  /// secret). No Argon2id is applied — the key is assumed to be full-entropy.
+  /// Seal under a 32-byte full-entropy master key (e.g. from the hybrid KEM).
   Uint8List molecularSealWithKey(Uint8List plaintext, Uint8List masterKey,
       {Uint8List? aad}) => _l.molecularSealWithKey(plaintext, masterKey, aad: aad);
 
@@ -238,11 +235,15 @@ extension type KeyringApi(CryptoLib _l) {
   /// Wrap the master key under a >=32-byte hardware factor key.
   bool addDeviceSlot(Pointer<Void> kr, Uint8List factor) => _l.keyringAddDeviceSlot(kr, factor);
 
-  /// Wrap the master key under an Argon2id passphrase.
+  /// Wrap the master key under an Argon2id passphrase. kdf: 0=interactive, 1=sensitive.
   bool addPassphraseSlot(Pointer<Void> kr, String passphrase, KdfPreset kdf) => _l.keyringAddPassphraseSlot(kr, passphrase, kdf);
 
   /// Number of slots.
   int slotCount(Pointer<Void> kr) => _l.keyringSlotCount(kr);
+
+  /// Remove (revoke) the slot at [index]. Returns true on success, false if the
+  /// index is out of range.
+  bool removeSlot(Pointer<Void> kr, int index) => _l.keyringRemoveSlot(kr, index);
 
   /// Serialise the envelope blob (no plaintext key).
   Uint8List serialise(Pointer<Void> kr) => _l.keyringSerialise(kr);
@@ -258,10 +259,6 @@ extension type KeyringApi(CryptoLib _l) {
 
   /// Free a keyring handle.
   void free(Pointer<Void> kr) => _l.keyringFree(kr);
-
-  /// Remove (revoke) the slot at [index]. Returns true on success, false if the
-  /// index is out of range.
-  bool removeSlot(Pointer<Void> kr, int index) => _l.keyringRemoveSlot(kr, index);
 
 }
 
@@ -312,12 +309,9 @@ extension type EntropyApi(CryptoLib _l) {
   /// One-liner: decrypt a packet using a file as the key.
   Uint8List openFromFile(String path, Packet pkt, String aad) => _l.openFromFile(path, pkt, aad);
 
-  /// Assess the entropy health of [path], reading at most [maxBytes].
-  ///
-  /// Run this before using a media file as a key source; a low
-  /// [HealthReport.minEntropyPerByte] or a failed test means the file is a poor
-  /// source regardless of how large it is.
-  HealthReport assessFileHealth(String path, {int maxBytes = 1 << 20}) => _l.assessFileHealth(path, maxBytes: maxBytes);
+  /// Assess a media file against the SP 800-90B health tests. [maxBytes] caps the
+  /// sample size (0 = default 1 MiB). Use before trusting a file as a key source.
+  HealthReport assessFileHealth(String path, [int maxBytes = 0]) => _l.assessFileHealth(path, maxBytes);
 
 }
 
@@ -332,124 +326,73 @@ extension type StegoApi(CryptoLib _l) {
   /// Get the steganographic capacity of a cover file (in bytes).
   int capacity(String coverPath) => _l.stegoCapacity(coverPath);
 
-  /// Embed [payload] into [coverPath] → [outputPath], permuting placement under
-  /// [key]. Without the key an extractor cannot locate the bits.
-  ///
-  /// This hides *where* the data is; it does not encrypt it. Use
-  /// [embedEncrypted] when the payload itself must stay confidential.
+  /// Embed with key-derived whitening (and, for .ppm, block permutation) so no
+  /// 'CSTG' signature survives. The same key must be used to [stegoExtractKeyed].
   void embedKeyed(String coverPath, Uint8List payload, String outputPath, Uint8List key) => _l.stegoEmbedKeyed(coverPath, payload, outputPath, key);
 
-  /// Extract a [embedKeyed] payload. Throws on the wrong key.
+  /// Extract a keyed-embedded payload. A wrong key fails fast.
   Uint8List extractKeyed(String stegoPath, Uint8List key) => _l.stegoExtractKeyed(stegoPath, key);
 
-  /// Authenticated-encrypt [plaintext] under [masterKey], then hide the
-  /// ciphertext in [coverPath] → [outputPath].
-  ///
-  /// This is the one to reach for by default: confidentiality rests on the key,
-  /// with the carrier adding concealment on top.
+  /// AEAD-seal [plaintext] under a key derived from [masterKey], then hide the
+  /// ciphertext (always-encrypt: no cleartext in the carrier). .ppm carrier.
   void embedEncrypted(String coverPath, Uint8List plaintext, String outputPath, Uint8List masterKey) => _l.stegoEmbedEncrypted(coverPath, plaintext, outputPath, masterKey);
 
-  /// Extract and decrypt a [embedEncrypted] payload. Fails closed on a
-  /// wrong key or a tampered carrier.
+  /// Extract and AEAD-open a carrier written by [stegoEmbedEncrypted]. Wrong key
+  /// or tampering throws.
   Uint8List extractDecrypt(String stegoPath, Uint8List masterKey) => _l.stegoExtractDecrypt(stegoPath, masterKey);
 
-  /// Inspect a media file's structural validity and true format.
+  /// Inspect a media file's structural validity and whether its content matches
+  /// its extension.
   StegoFileInspection inspect(String path) => _l.stegoInspect(path);
 
-  /// Probe [path] for hidden data.
-  ///
-  /// A positive [StegoHiddenDataReport.cryptolibPayload] is conclusive; the
-  /// statistical fields are heuristics that can suggest embedding but can never
-  /// establish its absence.
-  StegoHiddenDataReport detectHidden(String path) => _l.stegoDetectHidden(path);
-
-  /// Digest of a carrier's *decoded content* rather than its file bytes.
-  ///
-  /// Stable across re-encodings that preserve the samples/pixels, so it
-  /// identifies the underlying media even when the container changes.
+  /// 32-byte BLAKE2b of the whole file. Store it and recompute later to detect
+  /// ANY change (reference-based tamper detection).
   Uint8List contentDigest(String path) => _l.stegoContentDigest(path);
+
+  /// Heuristic hidden-data probe. See [StegoHiddenDataReport.note] for the
+  /// limits — this is an indicator, not proof.
+  StegoHiddenDataReport detectHidden(String path) => _l.stegoDetectHidden(path);
 
 }
 
 /// Carriers that combine encryption with concealment, plus FEC.
 extension type ComposedApi(CryptoLib _l) {
-  /// FEC-encode [data] under [scheme]. Apply before embedding when the carrier
-  /// may be degraded in transit.
+  /// Two-factor "the photo is the key" seal: [keyMediaPath] is conditioned into
+  /// AEAD + stego keys; [plaintext] (binding [aad]) is sealed and hidden in a
+  /// SEPARATE [coverPath], written to [outputPath]. Both files are required to open.
+  void physicalSeal(String keyMediaPath, Uint8List plaintext, Uint8List aad,
+      String coverPath, String outputPath) => _l.physicalSeal(keyMediaPath, plaintext, aad, coverPath, outputPath);
+
+  /// Recover a [physicalSeal] message: reconstruct keys from [keyMediaPath],
+  /// extract from [stegoPath], and AEAD-open under [aad].
+  Uint8List physicalOpen(String keyMediaPath, Uint8List aad, String stegoPath) => _l.physicalOpen(keyMediaPath, aad, stegoPath);
+
+  /// Forward error correction encode. scheme: 0=None, 1=Repetition-3,
+  /// 2=Repetition-5, 3=Hamming(7,4). Trades capacity for bit-error recovery.
   Uint8List fecEncode(Uint8List data, FecScheme scheme) => _l.fecEncode(data, scheme);
 
-  /// FEC-decode [data], recovering [originalLength] bytes. [scheme] and
-  /// [originalLength] must match what [fecEncode] was given.
-  Uint8List fecDecode(Uint8List data, FecScheme scheme, int originalLength) => _l.fecDecode(data, scheme, originalLength);
+  /// Forward error correction decode: recover [originalLen] bytes from [data],
+  /// correcting within the scheme's capability. Throws if [data] is too short.
+  Uint8List fecDecode(Uint8List data, FecScheme scheme, int originalLen) => _l.fecDecode(data, scheme, originalLen);
 
-  /// Seal [plaintext] under a key derived from [keyMediaPath], hiding the
-  /// result inside [coverPath] and writing it to [outputPath].
-  ///
-  /// Opening needs BOTH files: the key media (which never leaves your hands)
-  /// and the carrier. The key file is conditioned deterministically, so the
-  /// same file always yields the same key and nothing needs to be stored.
-  void physicalSeal({
-    required String keyMediaPath,
-    required Uint8List plaintext,
-    required String coverPath,
-    required String outputPath,
-    Uint8List? aad,
-  }) => _l.physicalSeal(keyMediaPath: keyMediaPath, plaintext: plaintext, coverPath: coverPath, outputPath: outputPath, aad: aad);
+  /// Seal [plaintext] (binding [aad]) under OPRF([oprfSecretSeed], the reference
+  /// image), hiding the ciphertext in [coverPath] → [outputPath]. Two factors to
+  /// open: the OPRF secret AND the exact reference image.
+  void imageFactorSeal(Uint8List oprfSecretSeed, String referenceImagePath,
+      Uint8List plaintext, Uint8List aad, String coverPath, String outputPath) => _l.imageFactorSeal(oprfSecretSeed, referenceImagePath, plaintext, aad, coverPath, outputPath);
 
-  /// Recover a [physicalSeal]ed message. Requires the same key media file and
-  /// the same [aad].
-  Uint8List physicalOpen({
-    required String keyMediaPath,
-    required String stegoPath,
-    Uint8List? aad,
-  }) => _l.physicalOpen(keyMediaPath: keyMediaPath, stegoPath: stegoPath, aad: aad);
+  /// Recover an [imageFactorSeal] message.
+  Uint8List imageFactorOpen(Uint8List oprfSecretSeed, String referenceImagePath,
+      Uint8List aad, String stegoPath) => _l.imageFactorOpen(oprfSecretSeed, referenceImagePath, aad, stegoPath);
 
-  /// Seal [plaintext] behind two factors: the OPRF secret [oprfSecretSeed]
-  /// (something you know) and the exact [referenceImagePath] (something you
-  /// have). The ciphertext is hidden in [coverPath] → [outputPath].
-  ///
-  /// Both factors are required to open; neither alone reveals anything.
-  void imageFactorSeal({
-    required Uint8List oprfSecretSeed,
-    required String referenceImagePath,
-    required Uint8List plaintext,
-    required String coverPath,
-    required String outputPath,
-    Uint8List? aad,
-  }) => _l.imageFactorSeal(oprfSecretSeed: oprfSecretSeed, referenceImagePath: referenceImagePath, plaintext: plaintext, coverPath: coverPath, outputPath: outputPath, aad: aad);
+  /// Seal [plaintext] to recipient public key [pkR], hiding the ciphertext in
+  /// [coverPath] → [outputPath]. Returns the PUBLIC KEM encapsulation `enc`.
+  Uint8List hpkeStegoSeal(Uint8List pkR, Uint8List plaintext, Uint8List aad,
+      Uint8List info, String coverPath, String outputPath) => _l.hpkeStegoSeal(pkR, plaintext, aad, info, coverPath, outputPath);
 
-  /// Recover an [imageFactorSeal]ed message. Needs the same secret seed, the
-  /// same reference image, and the same [aad].
-  Uint8List imageFactorOpen({
-    required Uint8List oprfSecretSeed,
-    required String referenceImagePath,
-    required String stegoPath,
-    Uint8List? aad,
-  }) => _l.imageFactorOpen(oprfSecretSeed: oprfSecretSeed, referenceImagePath: referenceImagePath, stegoPath: stegoPath, aad: aad);
-
-  /// Seal [plaintext] to the recipient's HPKE public key [recipientPublic] and
-  /// hide it in [coverPath] → [outputPath].
-  ///
-  /// Returns the public KEM encapsulation (`enc`) — transmit it alongside the
-  /// carrier, since the recipient needs it to open. Get keys from
-  /// `hpkeKeygen()` / `hpkeDeriveKeyPair()`.
-  Uint8List hpkeStegoSeal({
-    required Uint8List recipientPublic,
-    required Uint8List plaintext,
-    required String coverPath,
-    required String outputPath,
-    Uint8List? aad,
-    Uint8List? info,
-  }) => _l.hpkeStegoSeal(recipientPublic: recipientPublic, plaintext: plaintext, coverPath: coverPath, outputPath: outputPath, aad: aad, info: info);
-
-  /// Open an [hpkeStegoSeal]ed carrier with the recipient secret key and the
-  /// `enc` value returned by the sealer. [aad] and [info] must match.
-  Uint8List hpkeStegoOpen({
-    required Uint8List recipientSecret,
-    required Uint8List enc,
-    required String stegoPath,
-    Uint8List? aad,
-    Uint8List? info,
-  }) => _l.hpkeStegoOpen(recipientSecret: recipientSecret, enc: enc, stegoPath: stegoPath, aad: aad, info: info);
+  /// Recover an [hpkeStegoSeal] message with recipient secret [skR] and `enc`.
+  Uint8List hpkeStegoOpen(Uint8List skR, Uint8List enc, Uint8List aad,
+      Uint8List info, String stegoPath) => _l.hpkeStegoOpen(skR, enc, aad, info, stegoPath);
 
 }
 
@@ -491,18 +434,18 @@ extension type SuiteApi(CryptoLib _l) {
   Uint8List sealPq(Uint8List plaintext, Uint8List recipientKemPublic,
           {Uint8List? aad}) => _l.suiteSealPq(plaintext, recipientKemPublic, aad: aad);
 
-  /// Like [sealPq] but with the X25519+sntrup761 hybrid KEM (a different
-  /// lattice family). [openPq] auto-detects the KEM from the envelope.
+  /// Like [suiteSealPq] but with the X25519+sntrup761 hybrid KEM (a different
+  /// lattice family). [suiteOpenPq] auto-detects the KEM from the envelope.
   Uint8List sealPqSntrup(Uint8List plaintext, Uint8List recipientKemPublic,
           {Uint8List? aad}) => _l.suiteSealPqSntrup(plaintext, recipientKemPublic, aad: aad);
 
-  /// Open a [sealPq]/[sealPqSntrup] envelope with the recipient's
+  /// Open a [suiteSealPq]/[suiteSealPqSntrup] envelope with the recipient's
   /// hybrid-KEM secret key (KEM chosen from the envelope's suite id).
   Uint8List openPq(Uint8List envelope, Uint8List recipientKemSecret,
           {Uint8List? aad}) => _l.suiteOpenPq(envelope, recipientKemSecret, aad: aad);
 
   /// Flagship: post-quantum confidentiality (hybrid KEM) + post-quantum
-  /// authenticity (Ed25519+ML-DSA-65). [openSignedPq] returns plaintext
+  /// authenticity (Ed25519+ML-DSA-65). [suiteOpenSignedPq] returns plaintext
   /// only if the signature verifies.
   Uint8List sealSignedPq(Uint8List plaintext, Uint8List recipientKemPublic,
           Uint8List signerSigSecret, {Uint8List? aad}) => _l.suiteSealSignedPq(plaintext, recipientKemPublic, signerSigSecret, aad: aad);
@@ -541,7 +484,7 @@ extension type SuiteApi(CryptoLib _l) {
   /// Threshold (k-of-n): seal under a fresh master, split it into [n] Shamir
   /// shares of which any [k] reconstruct it. Returns the envelope and the [n]
   /// individual share records; distribute the shares, keep the envelope
-  /// anywhere. Open with [openThreshold] using any `k` of the shares.
+  /// anywhere. Open with [suiteOpenThreshold] using any `k` of the shares.
   (Uint8List envelope, List<Uint8List> shares) sealThreshold(Uint8List plaintext, int n, int k, {Uint8List? aad}) => _l.suiteSealThreshold(plaintext, n, k, aad: aad);
 
   /// Reconstruct the master from any k of the shares and open the envelope.
@@ -553,7 +496,7 @@ extension type SuiteApi(CryptoLib _l) {
 /// Flagship / Fortress sealed messaging.
 extension type SealedApi(CryptoLib _l) {
   /// Generate a party's recipient (KEM) + sender (signature) keypairs.
-  Identity newIdentity(SealedTier tier) => _l.newIdentity(tier);
+  Identity identity(SealedTier tier) => _l.newIdentity(tier);
 
   /// Read an envelope's public header without any key. Null if unrecognizable.
   SealedInfo? inspect(Uint8List envelope) => _l.sealedInspect(envelope);
@@ -728,7 +671,7 @@ extension type BbsApi(CryptoLib _l) {
       Uint8List header, List<Uint8List> messages) => _l.bbsBlindSign(secretKey, publicKey, commitmentWithProof, header, messages);
 
   /// Verify a blind signature over [messages] + [committedMessages] using the
-  /// [secretProverBlind] kept from [blindCommit].
+  /// [secretProverBlind] kept from [bbsBlindCommit].
   bool verifyBlindSign(Uint8List publicKey, Uint8List signature, Uint8List header,
       List<Uint8List> messages, List<Uint8List> committedMessages, Uint8List secretProverBlind) => _l.bbsVerifyBlindSign(publicKey, signature, header, messages, committedMessages, secretProverBlind);
 
@@ -797,22 +740,15 @@ extension type OpaqueApi(CryptoLib _l) {
 
 /// Random bytes and explicitly-seeded generators.
 extension type RngApi(CryptoLib _l) {
-  /// [count] cryptographically-secure random bytes straight from the OS CSPRNG.
-  ///
-  /// This is the right default for key generation. Reach for [drbg] or
-  /// [fortuna] only when you need reproducibility or your own entropy sources.
-  Uint8List bytes(int count) => _l.randomBytes(count);
+  /// Generate n cryptographically secure random bytes.
+  Uint8List bytes(int n) => _l.randomBytes(n);
 
-  /// Instantiate an HMAC-DRBG from a caller-supplied seed.
-  ///
-  /// [entropy] should carry at least 32 bytes of real entropy. [nonce] and
-  /// [personalization] provide domain separation so two DRBGs seeded from the
-  /// same entropy still produce different streams.
-  Drbg drbg(Uint8List entropy, {Uint8List? nonce, Uint8List? personalization}) => _l.drbg(entropy, nonce: nonce, personalization: personalization);
+  /// Instantiate an HMAC-DRBG from entropy (>= 32 bytes) + optional nonce +
+  /// personalization. Call [Drbg.close] when done.
+  Drbg drbg(Uint8List entropy, [Uint8List? nonce, Uint8List? personalization]) => _l.drbgInstantiate(entropy, nonce, personalization);
 
-  /// Create a new, unseeded Fortuna pool. Feed it via [Fortuna.addEntropy]
-  /// before generating.
-  Fortuna fortuna() => _l.fortuna();
+  /// Create a new (unseeded) Fortuna pool. Call [Fortuna.close] when done.
+  Fortuna fortuna() => _l.fortunaNew();
 
 }
 

@@ -15,6 +15,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
+part 'src/enums.dart';
+part 'src/facade.dart';
+part 'src/security.dart';
+
 // =============================================================================
 // C struct bindings
 // =============================================================================
@@ -778,7 +782,8 @@ class AsymBundleResult {
 /// A media carrier's structural-validity report.
 class StegoFileInspection {
   final bool parses;
-  final int format; // MediaFormat from content, 0xFF = unknown
+  /// Format detected from the file's content (not its extension).
+  final MediaFormat format;
   final bool extMatches;
   final int width;
   final int height;
@@ -1933,10 +1938,10 @@ class CryptoLib {
   // ── Vault ─────────────────────────────────────────────────────────────────
 
   /// Create a vault from a 32-byte master key.
-  Pointer<Void> vaultCreate(Uint8List masterKey, {int kdfPreset = 0}) {
+  Pointer<Void> vaultCreate(Uint8List masterKey, {KdfPreset kdfPreset = KdfPreset.interactive}) {
     final pk = _toNative(masterKey);
     try {
-      final h = _vaultCreate(pk, masterKey.length, kdfPreset);
+      final h = _vaultCreate(pk, masterKey.length, kdfPreset.value);
       if (h == nullptr) throw Exception('cryptolib: vault create failed');
       return h;
     } finally {
@@ -1945,8 +1950,8 @@ class CryptoLib {
   }
 
   /// Create a vault from an entropy handle.
-  Pointer<Void> vaultFromEntropy(Pointer<Void> entropy, {int kdf = 0}) {
-    final h = _vaultFromEntropy(entropy, kdf);
+  Pointer<Void> vaultFromEntropy(Pointer<Void> entropy, {KdfPreset kdf = KdfPreset.interactive}) {
+    final h = _vaultFromEntropy(entropy, kdf.value);
     if (h == nullptr) throw Exception('cryptolib: vault from entropy failed');
     return h;
   }
@@ -2057,12 +2062,12 @@ class CryptoLib {
   }
 
   /// Wrap the master key under an Argon2id passphrase. kdf: 0=interactive, 1=sensitive.
-  bool keyringAddPassphraseSlot(Pointer<Void> kr, String passphrase, int kdf) {
+  bool keyringAddPassphraseSlot(Pointer<Void> kr, String passphrase, KdfPreset kdf) {
     final cpw = passphrase.toNativeUtf8();
     try {
       return _lib.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32),
               int Function(Pointer<Void>, Pointer<Utf8>, int)>(
-          'cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf) == 1;
+          'cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf.value) == 1;
     } finally {
       malloc.free(cpw);
     }
@@ -2136,31 +2141,31 @@ class CryptoLib {
 
   // ── Post-Quantum (ML-KEM / ML-DSA / SLH-DSA) ──────────────────────────────
 
-  KeyPairResult mlKemKeygen(int level) => _extractKeyPair(
+  KeyPairResult mlKemKeygen(MlKemLevel level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_kem_keygen')(level));
+          'cryptolib_ml_kem_keygen')(level.value));
 
   /// Returns (ciphertext, sharedSecret).
-  (Uint8List, Uint8List) mlKemEncapsulate(Uint8List publicKey, int level) {
+  (Uint8List, Uint8List) mlKemEncapsulate(Uint8List publicKey, MlKemLevel level) {
     final pp = _toNative(publicKey);
     final errPtr = calloc<Pointer<Utf8>>();
     try {
       final r = _lib.lookupFunction<
           CryptoKemEncapsResult Function(Pointer<Uint8>, Size, Int32, Pointer<Pointer<Utf8>>),
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level, errPtr);
+          'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level.value, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
   }
 
-  Uint8List mlKemDecapsulate(Uint8List ciphertext, Uint8List secretKey, int level) {
+  Uint8List mlKemDecapsulate(Uint8List ciphertext, Uint8List secretKey, MlKemLevel level) {
     final cp = _toNative(ciphertext), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level));
+          'cryptolib_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level.value));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2258,51 +2263,51 @@ class CryptoLib {
     }
   }
 
-  KeyPairResult mlDsaKeygen(int level) => _extractKeyPair(
+  KeyPairResult mlDsaKeygen(MlDsaLevel level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_dsa_keygen')(level));
+          'cryptolib_ml_dsa_keygen')(level.value));
 
-  Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, int level) {
+  Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, MlDsaLevel level) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level));
+          'cryptolib_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level.value));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
-  bool mlDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, int level) {
+  bool mlDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, MlDsaLevel level) {
     final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level) == 1;
+          'cryptolib_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level.value) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
-  KeyPairResult slhDsaKeygen(int level, int hash) => _extractKeyPair(
+  KeyPairResult slhDsaKeygen(SlhDsaLevel level, SlhDsaHash hash) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32, Int32), CryptoKeyPair Function(int, int)>(
-          'cryptolib_slh_dsa_keygen')(level, hash));
+          'cryptolib_slh_dsa_keygen')(level.value, hash.value));
 
-  Uint8List slhDsaSign(Uint8List msg, Uint8List secretKey, int level, int hash) {
+  Uint8List slhDsaSign(Uint8List msg, Uint8List secretKey, SlhDsaLevel level, SlhDsaHash hash) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level, hash));
+          'cryptolib_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level.value, hash.value));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
-  bool slhDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, int level, int hash) {
+  bool slhDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, SlhDsaLevel level, SlhDsaHash hash) {
     final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level, hash) == 1;
+          'cryptolib_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level.value, hash.value) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
@@ -2898,10 +2903,10 @@ class CryptoLib {
 
   /// Forward error correction encode. scheme: 0=None, 1=Repetition-3,
   /// 2=Repetition-5, 3=Hamming(7,4). Trades capacity for bit-error recovery.
-  Uint8List fecEncode(Uint8List data, int scheme) {
+  Uint8List fecEncode(Uint8List data, FecScheme scheme) {
     final dp = _toNative(data);
     try {
-      return _checkBufResult(_fecEncode(dp, data.length, scheme));
+      return _checkBufResult(_fecEncode(dp, data.length, scheme.value));
     } finally {
       if (dp != nullptr) calloc.free(dp);
     }
@@ -2909,10 +2914,10 @@ class CryptoLib {
 
   /// Forward error correction decode: recover [originalLen] bytes from [data],
   /// correcting within the scheme's capability. Throws if [data] is too short.
-  Uint8List fecDecode(Uint8List data, int scheme, int originalLen) {
+  Uint8List fecDecode(Uint8List data, FecScheme scheme, int originalLen) {
     final dp = _toNative(data);
     try {
-      return _checkBufResult(_fecDecode(dp, data.length, scheme, originalLen));
+      return _checkBufResult(_fecDecode(dp, data.length, scheme.value, originalLen));
     } finally {
       if (dp != nullptr) calloc.free(dp);
     }
@@ -2934,7 +2939,7 @@ class CryptoLib {
       if (r.detail != nullptr) _strFree(r.detail);
       return StegoFileInspection(
         parses: r.parses != 0,
-        format: r.format,
+        format: MediaFormat.fromValue(r.format),
         extMatches: r.extMatches != 0,
         width: r.width,
         height: r.height,
@@ -3875,7 +3880,7 @@ class CryptoLib {
   }
 
   /// Sender key schedule (any mode). Returns the KEM encapsulation + context.
-  HpkeSender hpkeSetupS(int kdf, int aead, int mode, Uint8List recipientPublic, Uint8List info,
+  HpkeSender hpkeSetupS(HpkeKdf kdf, HpkeAead aead, HpkeMode mode, Uint8List recipientPublic, Uint8List info,
       {Uint8List? psk, Uint8List? pskId, Uint8List? senderSecret}) {
     final ppk = _toNative(recipientPublic), pinfo = _toNative(info);
     final ppsk = psk != null ? _toNative(psk) : nullptr;
@@ -3889,7 +3894,7 @@ class CryptoLib {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_s')(
-          kdf, aead, mode, ppk, recipientPublic.length, pinfo, info.length,
+          kdf.value, aead.value, mode.value, ppk, recipientPublic.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, psks, senderSecret?.length ?? 0, encOut, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: hpke setup_s failed');
@@ -3902,7 +3907,7 @@ class CryptoLib {
   }
 
   /// Receiver key schedule (any mode). Returns the established context.
-  HpkeContext hpkeSetupR(int kdf, int aead, int mode, Uint8List enc, Uint8List recipientSecret, Uint8List info,
+  HpkeContext hpkeSetupR(HpkeKdf kdf, HpkeAead aead, HpkeMode mode, Uint8List enc, Uint8List recipientSecret, Uint8List info,
       {Uint8List? psk, Uint8List? pskId, Uint8List? senderPublic}) {
     final pe = _toNative(enc), psk_ = _toNative(recipientSecret), pinfo = _toNative(info);
     final ppsk = psk != null ? _toNative(psk) : nullptr;
@@ -3915,7 +3920,7 @@ class CryptoLib {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_r')(
-          kdf, aead, mode, pe, enc.length, psk_, recipientSecret.length, pinfo, info.length,
+          kdf.value, aead.value, mode.value, pe, enc.length, psk_, recipientSecret.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, pks, senderPublic?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: hpke setup_r failed');
@@ -3927,16 +3932,16 @@ class CryptoLib {
   }
 
   /// Single-shot base-mode encryption → (enc, ciphertext).
-  (Uint8List, Uint8List) hpkeSealBase(int kdf, int aead, Uint8List recipientPublic, Uint8List info,
+  (Uint8List, Uint8List) hpkeSealBase(HpkeKdf kdf, HpkeAead aead, Uint8List recipientPublic, Uint8List info,
       Uint8List plaintext, {Uint8List? aad}) {
-    final s = hpkeSetupS(kdf, aead, 0, recipientPublic, info);
+    final s = hpkeSetupS(kdf, aead, HpkeMode.base, recipientPublic, info);
     try { return (s.enc, s.context.seal(plaintext, aad: aad)); } finally { s.context.close(); }
   }
 
   /// Single-shot base-mode decryption.
-  Uint8List hpkeOpenBase(int kdf, int aead, Uint8List enc, Uint8List recipientSecret, Uint8List info,
+  Uint8List hpkeOpenBase(HpkeKdf kdf, HpkeAead aead, Uint8List enc, Uint8List recipientSecret, Uint8List info,
       Uint8List ciphertext, {Uint8List? aad}) {
-    final r = hpkeSetupR(kdf, aead, 0, enc, recipientSecret, info);
+    final r = hpkeSetupR(kdf, aead, HpkeMode.base, enc, recipientSecret, info);
     try { return r.open(ciphertext, aad: aad); } finally { r.close(); }
   }
 
@@ -4602,14 +4607,6 @@ class OpaqueKe3 {
 }
 
 /// HPKE (RFC 9180) ciphersuite selectors.
-class HpkeKdf { static const int sha256 = 1; static const int sha512 = 3; }
-class HpkeAead {
-  static const int aes128Gcm = 1;
-  static const int aes256Gcm = 2;
-  static const int chaCha20Poly1305 = 3;
-  static const int exportOnly = 0xFFFF;
-}
-class HpkeMode { static const int base = 0; static const int psk = 1; static const int auth = 2; static const int authPsk = 3; }
 
 /// An established one-directional HPKE context. Stateful; close() when done.
 class HpkeContext {
@@ -4683,7 +4680,25 @@ class FrostNonces {
 }
 
 /// Assurance tier for Flagship/Fortress sealed messaging (index 0 / 1).
-enum SealedTier { flagship, fortress }
+enum SealedTier {
+  /// X25519 + sntrup761 KEM, Ed25519 + ML-DSA-65 signature.
+  flagship(0, 1),
+
+  /// Adds ML-KEM-768 to the KEM and SLH-DSA to the signature.
+  fortress(1, 2);
+
+  const SealedTier(this.value, this.suiteId);
+
+  /// Wire value passed to the C ABI (0 / 1).
+  final int value;
+
+  /// Suite identifier as reported inside a sealed envelope (1 / 2).
+  final int suiteId;
+
+  /// Map an envelope's reported suite id back to a tier.
+  static SealedTier fromSuiteId(int id) =>
+      SealedTier.values.firstWhere((t) => t.suiteId == id, orElse: () => SealedTier.flagship);
+}
 
 /// Public metadata carried by a sealed envelope (no secrets).
 class SealedInfo {

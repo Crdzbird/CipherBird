@@ -138,7 +138,7 @@ void main(List<String> args) {
   final factor = lib.randomBytes(32); // stands in for a hardware factor key
   final kr = lib.keyringCreate();
   lib.keyringAddDeviceSlot(kr, factor);
-  lib.keyringAddPassphraseSlot(kr, 'cross-device pass', 0);
+  lib.keyringAddPassphraseSlot(kr, 'cross-device pass', KdfPreset.interactive);
   final blob = lib.keyringSerialise(kr);
   final kr2 = lib.keyringDeserialise(blob);
   final mDev = lib.keyringUnlockWithDevice(kr2, factor);

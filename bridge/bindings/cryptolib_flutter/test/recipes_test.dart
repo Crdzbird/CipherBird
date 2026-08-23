@@ -82,7 +82,7 @@ void main() {
     final deviceKey = lib.randomBytes(32);
     final kr = lib.keyringCreate();
     lib.keyringAddDeviceSlot(kr, deviceKey);
-    lib.keyringAddPassphraseSlot(kr, 'cross-device pass', 0);
+    lib.keyringAddPassphraseSlot(kr, 'cross-device pass', KdfPreset.interactive);
     final blob = lib.keyringSerialise(kr);
     final kr2 = lib.keyringDeserialise(blob);
     try {

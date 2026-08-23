@@ -65,19 +65,19 @@ void main(List<String> args) {
   ck('AsymmetricVault round-trip', eq(lib.asymVaultOpen(apkt, bob, alice.signPublic, 'ctx'), msg));
 
   print('\nPOST-QUANTUM');
-  final kem = lib.mlKemKeygen(1);
-  final (kemCt, ssEnc) = lib.mlKemEncapsulate(kem.publicKey, 1);
-  ck('ML-KEM-768 encaps/decaps', eq(ssEnc, lib.mlKemDecapsulate(kemCt, kem.secretKey, 1)));
+  final kem = lib.mlKemKeygen(MlKemLevel.level768);
+  final (kemCt, ssEnc) = lib.mlKemEncapsulate(kem.publicKey, MlKemLevel.level768);
+  ck('ML-KEM-768 encaps/decaps', eq(ssEnc, lib.mlKemDecapsulate(kemCt, kem.secretKey, MlKemLevel.level768)));
   final hkem = lib.hybridKemKeygen();
   final (hCt, hSsEnc) = lib.hybridKemEncapsulate(hkem.publicKey);
   ck('Hybrid X25519+ML-KEM-768 encaps/decaps',
       eq(hSsEnc, lib.hybridKemDecapsulate(hCt, hkem.secretKey)) && hSsEnc.length == 32);
-  final dsa = lib.mlDsaKeygen(1);
-  final dsig = lib.mlDsaSign(abc, dsa.secretKey, 1);
-  ck('ML-DSA-65 sign/verify', lib.mlDsaVerify(abc, dsig, dsa.publicKey, 1));
-  final slh = lib.slhDsaKeygen(1, 0);
-  final ssig = lib.slhDsaSign(abc, slh.secretKey, 1, 0);
-  ck('SLH-DSA-128f sign/verify', lib.slhDsaVerify(abc, ssig, slh.publicKey, 1, 0));
+  final dsa = lib.mlDsaKeygen(MlDsaLevel.level65);
+  final dsig = lib.mlDsaSign(abc, dsa.secretKey, MlDsaLevel.level65);
+  ck('ML-DSA-65 sign/verify', lib.mlDsaVerify(abc, dsig, dsa.publicKey, MlDsaLevel.level65));
+  final slh = lib.slhDsaKeygen(SlhDsaLevel.fast128, SlhDsaHash.sha2);
+  final ssig = lib.slhDsaSign(abc, slh.secretKey, SlhDsaLevel.fast128, SlhDsaHash.sha2);
+  ck('SLH-DSA-128f sign/verify', lib.slhDsaVerify(abc, ssig, slh.publicKey, SlhDsaLevel.fast128, SlhDsaHash.sha2));
 
   print('\nBLS12-381');
   final bls = lib.blsKeygen();
@@ -88,7 +88,7 @@ void main(List<String> args) {
   final factor = lib.randomBytes(32);
   final kr = lib.keyringCreate();
   lib.keyringAddDeviceSlot(kr, factor);
-  lib.keyringAddPassphraseSlot(kr, 'cross-device pass', 0);
+  lib.keyringAddPassphraseSlot(kr, 'cross-device pass', KdfPreset.interactive);
   final blob = lib.keyringSerialise(kr);
   final kr2 = lib.keyringDeserialise(blob);
   ck('Keyring device==passphrase master (${lib.keyringSlotCount(kr)} slots)',

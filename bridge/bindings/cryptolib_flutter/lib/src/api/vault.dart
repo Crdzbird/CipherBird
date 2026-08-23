@@ -5,10 +5,10 @@ extension CryptoLibVault on CryptoLib {
   // ── Vault ─────────────────────────────────────────────────────────────────
 
   /// Create a vault from a 32-byte master key.
-  Pointer<Void> vaultCreate(Uint8List masterKey, {int kdfPreset = 0}) {
+  Pointer<Void> vaultCreate(Uint8List masterKey, {KdfPreset kdfPreset = KdfPreset.interactive}) {
     final pk = _toNative(masterKey);
     try {
-      final h = _vaultCreate(pk, masterKey.length, kdfPreset);
+      final h = _vaultCreate(pk, masterKey.length, kdfPreset.value);
       if (h == nullptr) throw Exception('cryptolib: vault create failed');
       return h;
     } finally {
@@ -17,8 +17,8 @@ extension CryptoLibVault on CryptoLib {
   }
 
   /// Create a vault from an entropy handle.
-  Pointer<Void> vaultFromEntropy(Pointer<Void> entropy, {int kdf = 0}) {
-    final h = _vaultFromEntropy(entropy, kdf);
+  Pointer<Void> vaultFromEntropy(Pointer<Void> entropy, {KdfPreset kdf = KdfPreset.interactive}) {
+    final h = _vaultFromEntropy(entropy, kdf.value);
     if (h == nullptr) throw Exception('cryptolib: vault from entropy failed');
     return h;
   }

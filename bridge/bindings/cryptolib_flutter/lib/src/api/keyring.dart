@@ -22,13 +22,13 @@ extension CryptoLibKeyring on CryptoLib {
     }
   }
 
-  /// Wrap the master key under an Argon2id passphrase. kdf: 0=interactive, 1=sensitive.
-  bool keyringAddPassphraseSlot(Pointer<Void> kr, String passphrase, int kdf) {
+  /// Wrap the master key under an Argon2id passphrase.
+  bool keyringAddPassphraseSlot(Pointer<Void> kr, String passphrase, KdfPreset kdf) {
     final cpw = passphrase.toNativeUtf8();
     try {
       return _lib.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32),
               int Function(Pointer<Void>, Pointer<Utf8>, int)>(
-          'cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf) == 1;
+          'cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf.value) == 1;
     } finally {
       malloc.free(cpw);
     }

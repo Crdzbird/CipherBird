@@ -1,10 +1,10 @@
 name: cryptolib_dart
-description: Standalone dart:ffi console demo and bindings for CryptoLib.
-version: 0.1.0
+description: Standalone dart:ffi bindings for CryptoLib — full C ABI surface, type-safe algorithm selectors, a grouped API and composable security recipes.
+version: 0.2.0
 publish_to: none
 
 environment:
-  sdk: ^3.0.0
+  sdk: ^3.3.0   # extension types (zero-cost grouped API)
 
 dependencies:
   ffi: ^2.1.0
