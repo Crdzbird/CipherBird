@@ -24,6 +24,8 @@ part 'ffi/structs.dart';
 part 'ffi/typedefs.dart';
 // Public result/value types.
 part 'models.dart';
+part 'enums.dart';
+part 'facade.dart';
 // Small encoding helpers.
 part 'utils.dart';
 // High-level API, grouped by domain (extensions on CryptoLib).
@@ -49,6 +51,8 @@ part 'api/ecvrf.dart';
 part 'api/bbs.dart';
 part 'api/oprf.dart';
 part 'api/opaque.dart';
+part 'api/rng.dart';
+part 'api/composed.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

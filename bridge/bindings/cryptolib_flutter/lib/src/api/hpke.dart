@@ -5,15 +5,6 @@ part of '../cryptolib.dart';
 // DHKEM(X25519, HKDF-SHA256); an envelope sealed here opens in any conformant
 // HPKE implementation.
 
-/// HPKE (RFC 9180) ciphersuite selectors.
-class HpkeKdf { static const int sha256 = 1; static const int sha512 = 3; }
-class HpkeAead {
-  static const int aes128Gcm = 1;
-  static const int aes256Gcm = 2;
-  static const int chaCha20Poly1305 = 3;
-  static const int exportOnly = 0xFFFF;
-}
-class HpkeMode { static const int base = 0; static const int psk = 1; static const int auth = 2; static const int authPsk = 3; }
 
 /// An established one-directional HPKE context. Stateful; close() when done.
 class HpkeContext {
@@ -57,7 +48,7 @@ extension CryptoLibHpke on CryptoLib {
   }
 
   /// Sender key schedule (any mode). Returns the KEM encapsulation + context.
-  HpkeSender hpkeSetupS(int kdf, int aead, int mode, Uint8List recipientPublic, Uint8List info,
+  HpkeSender hpkeSetupS(HpkeKdf kdf, HpkeAead aead, HpkeMode mode, Uint8List recipientPublic, Uint8List info,
       {Uint8List? psk, Uint8List? pskId, Uint8List? senderSecret}) {
     final ppk = _toNative(recipientPublic), pinfo = _toNative(info);
     final ppsk = psk != null ? _toNative(psk) : nullptr;
@@ -71,7 +62,7 @@ extension CryptoLibHpke on CryptoLib {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_s')(
-          kdf, aead, mode, ppk, recipientPublic.length, pinfo, info.length,
+          kdf.value, aead.value, mode.value, ppk, recipientPublic.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, psks, senderSecret?.length ?? 0, encOut, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: hpke setup_s failed');
@@ -84,7 +75,7 @@ extension CryptoLibHpke on CryptoLib {
   }
 
   /// Receiver key schedule (any mode). Returns the established context.
-  HpkeContext hpkeSetupR(int kdf, int aead, int mode, Uint8List enc, Uint8List recipientSecret, Uint8List info,
+  HpkeContext hpkeSetupR(HpkeKdf kdf, HpkeAead aead, HpkeMode mode, Uint8List enc, Uint8List recipientSecret, Uint8List info,
       {Uint8List? psk, Uint8List? pskId, Uint8List? senderPublic}) {
     final pe = _toNative(enc), psk_ = _toNative(recipientSecret), pinfo = _toNative(info);
     final ppsk = psk != null ? _toNative(psk) : nullptr;
@@ -97,7 +88,7 @@ extension CryptoLibHpke on CryptoLib {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_r')(
-          kdf, aead, mode, pe, enc.length, psk_, recipientSecret.length, pinfo, info.length,
+          kdf.value, aead.value, mode.value, pe, enc.length, psk_, recipientSecret.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, pks, senderPublic?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: hpke setup_r failed');
@@ -109,16 +100,16 @@ extension CryptoLibHpke on CryptoLib {
   }
 
   /// Single-shot base-mode encryption → (enc, ciphertext).
-  (Uint8List, Uint8List) hpkeSealBase(int kdf, int aead, Uint8List recipientPublic, Uint8List info,
+  (Uint8List, Uint8List) hpkeSealBase(HpkeKdf kdf, HpkeAead aead, Uint8List recipientPublic, Uint8List info,
       Uint8List plaintext, {Uint8List? aad}) {
-    final s = hpkeSetupS(kdf, aead, 0, recipientPublic, info);
+    final s = hpkeSetupS(kdf, aead, HpkeMode.base, recipientPublic, info);
     try { return (s.enc, s.context.seal(plaintext, aad: aad)); } finally { s.context.close(); }
   }
 
   /// Single-shot base-mode decryption.
-  Uint8List hpkeOpenBase(int kdf, int aead, Uint8List enc, Uint8List recipientSecret, Uint8List info,
+  Uint8List hpkeOpenBase(HpkeKdf kdf, HpkeAead aead, Uint8List enc, Uint8List recipientSecret, Uint8List info,
       Uint8List ciphertext, {Uint8List? aad}) {
-    final r = hpkeSetupR(kdf, aead, 0, enc, recipientSecret, info);
+    final r = hpkeSetupR(kdf, aead, HpkeMode.base, enc, recipientSecret, info);
     try { return r.open(ciphertext, aad: aad); } finally { r.close(); }
   }
 

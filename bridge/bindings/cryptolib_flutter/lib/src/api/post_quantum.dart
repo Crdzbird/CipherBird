@@ -4,31 +4,31 @@ part of '../cryptolib.dart';
 extension CryptoLibPostQuantum on CryptoLib {
   // ── Post-Quantum (ML-KEM / ML-DSA / SLH-DSA) ──────────────────────────────
 
-  KeyPairResult mlKemKeygen(int level) => _extractKeyPair(
+  KeyPairResult mlKemKeygen(MlKemLevel level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_kem_keygen')(level));
+          'cryptolib_ml_kem_keygen')(level.value));
 
   /// Returns (ciphertext, sharedSecret).
-  (Uint8List, Uint8List) mlKemEncapsulate(Uint8List publicKey, int level) {
+  (Uint8List, Uint8List) mlKemEncapsulate(Uint8List publicKey, MlKemLevel level) {
     final pp = _toNative(publicKey);
     final errPtr = calloc<Pointer<Utf8>>();
     try {
       final r = _lib.lookupFunction<
           CryptoKemEncapsResult Function(Pointer<Uint8>, Size, Int32, Pointer<Pointer<Utf8>>),
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level, errPtr);
+          'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level.value, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       return (_copyBuf(r.ciphertext), _copyBuf(r.sharedSecret));
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
   }
 
-  Uint8List mlKemDecapsulate(Uint8List ciphertext, Uint8List secretKey, int level) {
+  Uint8List mlKemDecapsulate(Uint8List ciphertext, Uint8List secretKey, MlKemLevel level) {
     final cp = _toNative(ciphertext), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level));
+          'cryptolib_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level.value));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -93,51 +93,51 @@ extension CryptoLibPostQuantum on CryptoLib {
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
-  KeyPairResult mlDsaKeygen(int level) => _extractKeyPair(
+  KeyPairResult mlDsaKeygen(MlDsaLevel level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_dsa_keygen')(level));
+          'cryptolib_ml_dsa_keygen')(level.value));
 
-  Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, int level) {
+  Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, MlDsaLevel level) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level));
+          'cryptolib_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level.value));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
-  bool mlDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, int level) {
+  bool mlDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, MlDsaLevel level) {
     final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level) == 1;
+          'cryptolib_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level.value) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
-  KeyPairResult slhDsaKeygen(int level, int hash) => _extractKeyPair(
+  KeyPairResult slhDsaKeygen(SlhDsaLevel level, SlhDsaHash hash) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32, Int32), CryptoKeyPair Function(int, int)>(
-          'cryptolib_slh_dsa_keygen')(level, hash));
+          'cryptolib_slh_dsa_keygen')(level.value, hash.value));
 
-  Uint8List slhDsaSign(Uint8List msg, Uint8List secretKey, int level, int hash) {
+  Uint8List slhDsaSign(Uint8List msg, Uint8List secretKey, SlhDsaLevel level, SlhDsaHash hash) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level, hash));
+          'cryptolib_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level.value, hash.value));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
-  bool slhDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, int level, int hash) {
+  bool slhDsaVerify(Uint8List msg, Uint8List sig, Uint8List publicKey, SlhDsaLevel level, SlhDsaHash hash) {
     final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level, hash) == 1;
+          'cryptolib_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level.value, hash.value) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 

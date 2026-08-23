@@ -195,3 +195,69 @@ extension CryptoLibEntropy on CryptoLib {
   }
 
 }
+
+/// SP 800-90B style health assessment of a file's raw entropy.
+///
+/// Use it to sanity-check a candidate entropy source *before* trusting it — a
+/// photo of a blank wall will score far worse than one of a lava lamp. Passing
+/// these checks is necessary, not sufficient: they catch obviously-degenerate
+/// sources, not subtle bias.
+class HealthReport {
+  const HealthReport({
+    required this.minEntropyPerByte,
+    required this.longestRun,
+    required this.maxWindowCount,
+    required this.rctPassed,
+    required this.aptPassed,
+  });
+
+  /// Most-Common-Value lower bound on min-entropy, in bits per byte (0..8).
+  /// Higher is better; 8.0 is the theoretical maximum.
+  final double minEntropyPerByte;
+
+  /// Longest run of identical samples observed.
+  final int longestRun;
+
+  /// Largest count seen in the adaptive-proportion window.
+  final int maxWindowCount;
+
+  /// Repetition Count Test passed (SP 800-90B §4.4.1).
+  final bool rctPassed;
+
+  /// Adaptive Proportion Test passed (SP 800-90B §4.4.2).
+  final bool aptPassed;
+
+  /// Both statistical health tests passed. Still only a floor, not a warranty.
+  bool get healthy => rctPassed && aptPassed;
+}
+
+/// Entropy-source quality assessment.
+extension CryptoLibEntropyHealth on CryptoLib {
+  /// Assess the entropy health of [path], reading at most [maxBytes].
+  ///
+  /// Run this before using a media file as a key source; a low
+  /// [HealthReport.minEntropyPerByte] or a failed test means the file is a poor
+  /// source regardless of how large it is.
+  HealthReport assessFileHealth(String path, {int maxBytes = 1 << 20}) {
+    final p = path.toNativeUtf8();
+    try {
+      final r = _lib.lookupFunction<
+          CryptoHealthReport Function(Pointer<Utf8>, Size),
+          CryptoHealthReport Function(Pointer<Utf8>, int)>('cryptolib_entropy_assess_file_health')(p, maxBytes);
+      if (r.error != nullptr) {
+        final msg = r.error.toDartString();
+        _strFree(r.error);
+        throw Exception(msg);
+      }
+      return HealthReport(
+        minEntropyPerByte: r.minEntropyPerByte,
+        longestRun: r.longestRun,
+        maxWindowCount: r.maxWindowCount,
+        rctPassed: r.rctPassed == 1,
+        aptPassed: r.aptPassed == 1,
+      );
+    } finally {
+      calloc.free(p);
+    }
+  }
+}

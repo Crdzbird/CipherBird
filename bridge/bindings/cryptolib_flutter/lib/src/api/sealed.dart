@@ -5,13 +5,37 @@ part of '../cryptolib.dart';
 // a key-committing cascade, recipient-bound, auth-first). A self-contained,
 // drop-in messaging layer. tier 0 = Flagship, 1 = Fortress.
 
-/// Assurance tier for Flagship/Fortress sealed messaging (index 0 / 1).
-enum SealedTier { flagship, fortress }
+/// Assurance tier for Flagship/Fortress sealed messaging.
+///
+/// [flagship] is the default: hybrid-PQ confidential and authentic.
+/// [fortress] adds a third independent family to each leg, so no single
+/// cryptanalytic break compromises the envelope.
+enum SealedTier {
+  /// X25519 + sntrup761 KEM, Ed25519 + ML-DSA-65 signature.
+  flagship(0, 1),
+
+  /// Adds ML-KEM-768 to the KEM and SLH-DSA to the signature.
+  fortress(1, 2);
+
+  const SealedTier(this.value, this.suiteId);
+
+  /// Wire value passed to the C ABI (0 / 1).
+  final int value;
+
+  /// Suite identifier as reported inside a sealed envelope (1 / 2).
+  final int suiteId;
+
+  /// Map an envelope's reported suite id back to a tier.
+  static SealedTier fromSuiteId(int id) =>
+      SealedTier.values.firstWhere((t) => t.suiteId == id, orElse: () => SealedTier.flagship);
+}
 
 /// Public metadata carried by a sealed envelope (no secrets).
 class SealedInfo {
   final int version;
-  final int suite; // 1 = Flagship, 2 = Fortress
+
+  /// Assurance tier this envelope was sealed with.
+  final SealedTier suite;
   final bool streaming;
   final Uint8List fingerprint; // BLAKE2b-128 of the recipient public key
   final int kemCiphertextLen;
@@ -66,9 +90,9 @@ extension CryptoLibSealed on CryptoLib {
   /// Generate a party's recipient (KEM) + sender (signature) keypairs.
   Identity newIdentity(SealedTier tier) {
     final r = _extractKeyPair(_lib.lookupFunction<CryptoKeyPair Function(Int32),
-        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_recipient')(tier.index));
+        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_recipient')(tier.value));
     final s = _extractKeyPair(_lib.lookupFunction<CryptoKeyPair Function(Int32),
-        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_sender')(tier.index));
+        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_sender')(tier.value));
     return Identity(this, tier, r.publicKey, r.secretKey, s.publicKey, s.secretKey);
   }
 
@@ -82,7 +106,7 @@ extension CryptoLibSealed on CryptoLib {
       final fp = Uint8List(16);
       for (var i = 0; i < 16; i++) { fp[i] = info.fingerprint[i]; }
       return SealedInfo(
-          version: info.version, suite: info.suite, streaming: info.streaming == 1,
+          version: info.version, suite: SealedTier.fromSuiteId(info.suite), streaming: info.streaming == 1,
           fingerprint: fp, kemCiphertextLen: info.kemCiphertextLen);
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -111,7 +135,7 @@ extension CryptoLibSealed on CryptoLib {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_sealed_seal')(
-          tier.index, pp, pt.length, pr, recipientPublic.length, ps, senderSecret.length,
+          tier.value, pp, pt.length, pr, recipientPublic.length, ps, senderSecret.length,
           pa, aad?.length ?? 0, pu, purpose?.length ?? 0));
     } finally {
       if (pp != nullptr) calloc.free(pp);
@@ -132,7 +156,7 @@ extension CryptoLibSealed on CryptoLib {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_sealed_open')(
-          tier.index, pe, envelope.length, prs, recipientSecret.length, prp, recipientPublic.length,
+          tier.value, pe, envelope.length, prs, recipientSecret.length, prp, recipientPublic.length,
           psp, senderPublic.length, pa, aad?.length ?? 0, pu, purpose?.length ?? 0));
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -153,7 +177,7 @@ extension CryptoLibSealed on CryptoLib {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_sealed_sealer_begin')(
-          tier.index, pr, recipientPublic.length, ps, senderSecret.length, pu, purpose?.length ?? 0, errPtr);
+          tier.value, pr, recipientPublic.length, ps, senderSecret.length, pu, purpose?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: stream sealer begin failed');
       return SealedStreamSealer(this, h);
@@ -202,7 +226,7 @@ extension CryptoLibSealed on CryptoLib {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_sealed_opener_begin')(
-          tier.index, pp, preamble.length, prs, recipientSecret.length, prp, recipientPublic.length,
+          tier.value, pp, preamble.length, prs, recipientSecret.length, prp, recipientPublic.length,
           psp, senderPublic.length, pu, purpose?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cryptolib: stream opener begin failed');

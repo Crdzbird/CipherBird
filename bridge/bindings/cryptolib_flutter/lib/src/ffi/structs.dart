@@ -129,3 +129,67 @@ final class CryptoSealedInfo extends Struct {
   @Size()
   external int kemCiphertextLen;
 }
+
+/// Structural validity + detected format of a media file (`cryptolib_stego_inspect`).
+final class CryptoFileInspection extends Struct {
+  @Int32()
+  external int parses;
+
+  @Uint8()
+  external int format;
+
+  @Int32()
+  external int extMatches;
+
+  @Uint64()
+  external int width;
+
+  @Uint64()
+  external int height;
+
+  @Uint64()
+  external int fileSize;
+
+  external Pointer<Utf8> detail;
+  external Pointer<Utf8> error;
+}
+
+/// Heuristic hidden-data probe (`cryptolib_stego_detect_hidden`). Statistical
+/// indicators only — never proof of absence.
+final class CryptoHiddenDataReport extends Struct {
+  @Int32()
+  external int cryptolibPayload;
+
+  @Double()
+  external double lsbChiSquare;
+
+  @Double()
+  external double lsbEmbeddingLikelihood;
+
+  @Uint64()
+  external int samplesAnalysed;
+
+  external Pointer<Utf8> note;
+  external Pointer<Utf8> error;
+}
+
+/// SP 800-90B style health assessment of a file's entropy
+/// (`cryptolib_entropy_assess_file_health`).
+final class CryptoHealthReport extends Struct {
+  @Double()
+  external double minEntropyPerByte;
+
+  @Uint64()
+  external int longestRun;
+
+  @Uint64()
+  external int maxWindowCount;
+
+  @Int32()
+  external int rctPassed;
+
+  @Int32()
+  external int aptPassed;
+
+  external Pointer<Utf8> error;
+}

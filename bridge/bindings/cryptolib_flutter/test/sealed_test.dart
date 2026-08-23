@@ -14,7 +14,7 @@ void main() {
       final mal = lib.newIdentity(tier);
       expect(() => alice.open(env, mal.senderPublic, aad: aad, purpose: purpose), throwsException);
       final info = lib.sealedInspect(env)!;
-      expect(info.suite, tier == SealedTier.fortress ? 2 : 1);
+      expect(info.suite, tier);
       expect(lib.sealedAddressedTo(env, alice.recipientPublic), true);
       expect(lib.sealedAddressedTo(env, mal.recipientPublic), false);
       final se = bob.newStreamSealer(alice.recipientPublic, purpose: purpose);
