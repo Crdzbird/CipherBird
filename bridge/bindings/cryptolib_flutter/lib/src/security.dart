@@ -131,21 +131,28 @@ enum SecurityProfile {
 /// One authenticated-encryption layer in a [CryptoRecipe] cascade.
 enum ProtectionLayer {
   /// XChaCha20-Poly1305. Large nonce, no timing-sensitive tables.
-  xchacha20Poly1305(1),
+  xchacha20Poly1305(1, 'xchacha20Poly1305'),
 
   /// AES-256-GCM. A different cipher family from ChaCha.
-  aes256Gcm(2),
+  aes256Gcm(2, 'aes256Gcm'),
 
   /// Key-committing AEAD (UtC). Binds the ciphertext to exactly one key.
-  committing(3),
+  committing(3, 'committing'),
 
   /// A full MolecularVault (cascade + committing) nested as one layer.
-  molecular(4);
+  molecular(4, 'molecular');
 
-  const ProtectionLayer(this.id);
+  const ProtectionLayer(this.id, this.wireName);
 
   /// Identifier recorded in the envelope header.
   final int id;
+
+  /// Name used in this layer's HKDF info string.
+  ///
+  /// Pinned explicitly rather than taken from [name]: it is part of the wire
+  /// format, so renaming the enum value must not silently change how keys are
+  /// derived — envelopes are opened by other language bindings too.
+  final String wireName;
 
   static ProtectionLayer _fromId(int id) =>
       ProtectionLayer.values.firstWhere((l) => l.id == id,
@@ -448,7 +455,7 @@ class CryptoRecipe {
       _lib.hkdfDerive(
         root,
         salt: salt,
-        info: Uint8List.fromList('cryptolib/recipe/v1/layer$index/${layer.name}'.codeUnits),
+        info: Uint8List.fromList('cryptolib/recipe/v1/layer$index/${layer.wireName}'.codeUnits),
       );
 
   Uint8List _applyLayer(ProtectionLayer layer, int index, Uint8List root, Uint8List salt,

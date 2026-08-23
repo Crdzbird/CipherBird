@@ -45,6 +45,9 @@ function ensureLoaded() {
   koffi.struct('CryptoDerivedKeys', { symmetric_key: CryptoBuffer, vault_master_key: CryptoBuffer, signing_seed: CryptoBuffer, box_seed: CryptoBuffer, stream_key: CryptoBuffer, raw_entropy: CryptoBuffer });
   koffi.struct('CryptoEntropyInfo', { path: 'void *', file_size: 'uint64_t', chunks_read: 'uint64_t', entropy_bits: 'double' });
   koffi.struct('CryptoResult', { ok: 'int', error: 'void *' });
+  koffi.struct('CryptoFileInspection', { parses: 'int', format: 'uint8', ext_matches: 'int', width: 'uint64_t', height: 'uint64_t', file_size: 'uint64_t', detail: 'void *', error: 'void *' });
+  koffi.struct('CryptoHiddenDataReport', { cryptolib_payload: 'int', lsb_chi_square: 'double', lsb_embedding_likelihood: 'double', samples_analysed: 'uint64_t', note: 'void *', error: 'void *' });
+  koffi.struct('CryptoHealthReport', { min_entropy_per_byte: 'double', longest_run: 'uint64_t', max_window_count: 'uint64_t', rct_passed: 'int', apt_passed: 'int', error: 'void *' });
   koffi.struct('CryptoSealedInfo', { ok: 'uint8', version: 'uint8', suite: 'uint8', streaming: 'uint8', fingerprint: koffi.array('uint8', 16), kem_ciphertext_len: 'size_t' });
   koffi.struct('CryptoFrostKeyGen', { group_public_key: CryptoBuffer, secret_shares: CryptoBuffer, public_shares: CryptoBuffer, count: 'size_t', error: 'void *' });
   koffi.struct('CryptoFrostCommit', { hiding_nonce: CryptoBuffer, binding_nonce: CryptoBuffer, hiding_commit: CryptoBuffer, binding_commit: CryptoBuffer, error: 'void *' });
@@ -318,6 +321,33 @@ function ensureLoaded() {
   bbsBlindSign: f('CryptoBufferResult cryptolib_bbs_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsVerifyBlindSign: f('int cryptolib_bbs_verify_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
   bbsHashToScalar: f('CryptoBufferResult cryptolib_bbs_hash_to_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
+  // Stateful RNGs, advanced steganography, composed carriers and FEC.
+  drbgInstantiate: f('void *cryptolib_drbg_instantiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  drbgGenerate: f('CryptoBufferResult cryptolib_drbg_generate(void*, size_t, uint8_t*, size_t)'),
+  drbgReseed: f('CryptoResult cryptolib_drbg_reseed(void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  drbgFree: f('void cryptolib_drbg_free(void*)'),
+  fortunaNew: f('void *cryptolib_fortuna_new()'),
+  fortunaAdd: f('void cryptolib_fortuna_add_entropy(void*, uint8_t, uint8_t*, size_t)'),
+  fortunaGen: f('CryptoBufferResult cryptolib_fortuna_generate(void*, size_t)'),
+  fortunaReseed: f('void cryptolib_fortuna_reseed(void*)'),
+  fortunaCount: f('uint64_t cryptolib_fortuna_reseed_count(void*)'),
+  fortunaFree: f('void cryptolib_fortuna_free(void*)'),
+  stegoEmbedKeyed: f('CryptoResult cryptolib_stego_embed_keyed(const char*, uint8_t*, size_t, const char*, uint8_t*, size_t)'),
+  stegoExtractKeyed: f('CryptoBufferResult cryptolib_stego_extract_keyed(const char*, uint8_t*, size_t)'),
+  stegoEmbedEncrypted: f('CryptoResult cryptolib_stego_embed_encrypted(const char*, uint8_t*, size_t, const char*, uint8_t*, size_t)'),
+  stegoExtractDecrypt: f('CryptoBufferResult cryptolib_stego_extract_decrypt(const char*, uint8_t*, size_t)'),
+  stegoInspect: f('CryptoFileInspection cryptolib_stego_inspect(const char*)'),
+  stegoDetectHidden: f('CryptoHiddenDataReport cryptolib_stego_detect_hidden(const char*)'),
+  stegoContentDigest: f('CryptoBufferResult cryptolib_stego_content_digest(const char*)'),
+  assessFileHealth: f('CryptoHealthReport cryptolib_entropy_assess_file_health(const char*, size_t)'),
+  fecEncode: f('CryptoBufferResult cryptolib_fec_encode(uint8_t*, size_t, int)'),
+  fecDecode: f('CryptoBufferResult cryptolib_fec_decode(uint8_t*, size_t, int, size_t)'),
+  physicalSeal: f('CryptoResult cryptolib_physical_seal(const char*, uint8_t*, size_t, uint8_t*, size_t, const char*, const char*)'),
+  physicalOpen: f('CryptoBufferResult cryptolib_physical_open(const char*, uint8_t*, size_t, const char*)'),
+  imageFactorSeal: f('CryptoResult cryptolib_image_factor_seal(uint8_t*, size_t, const char*, uint8_t*, size_t, uint8_t*, size_t, const char*, const char*)'),
+  imageFactorOpen: f('CryptoBufferResult cryptolib_image_factor_open(uint8_t*, size_t, const char*, uint8_t*, size_t, const char*)'),
+  hpkeStegoSeal: f('CryptoBufferResult cryptolib_hpke_stego_seal(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const char*, const char*)'),
+  hpkeStegoOpen: f('CryptoBufferResult cryptolib_hpke_stego_open(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const char*)'),
   bbsRandomScalar: f('CryptoBufferResult cryptolib_bbs_random_scalar()'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
@@ -924,8 +954,443 @@ function sealedAddressedTo(envelope, recipientPublic) {
   return fn.sealedAddr(u8(envelope), u8(envelope).length, u8(recipientPublic), u8(recipientPublic).length) === 1;
 }
 
+
+// ═══ Stateful RNGs, advanced steganography, composed carriers, FEC ════════════
+
+/** HMAC-DRBG (NIST SP 800-90A). Deterministic for a given seed. close() when done. */
+class Drbg {
+  constructor(handle) { this._h = handle; }
+  /** Generate `n` (<= 65536) bytes, optionally mixing in `additional` for this call. */
+  generate(n, additional = null) { return consume(fn.drbgGenerate(this._h, n, optr(additional), olen(additional))); }
+  /** Reseed with fresh entropy plus optional additional input. */
+  reseed(entropy, additional = null) {
+    const r = fn.drbgReseed(this._h, u8(entropy), u8(entropy).length, optr(additional), olen(additional));
+    if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char', -1) : 'drbg reseed failed'; if (r.error) fn.strFree(r.error); throw new Error(m); }
+  }
+  /** Release the native handle. Idempotent. */
+  close() { if (this._h) { fn.drbgFree(this._h); this._h = null; } }
+}
+
+/** Fortuna-style entropy pool: accumulates events and heals after compromise. */
+class Fortuna {
+  constructor(handle) { this._h = handle; }
+  /** Add an entropy event from logical source `sourceId` (0..255). Distinct sources must use distinct ids. */
+  addEntropy(sourceId, data) { fn.fortunaAdd(this._h, sourceId, u8(data), u8(data).length); }
+  /** Generate `n` bytes. Throws until the pool has reseeded at least once. */
+  generate(n) { return consume(fn.fortunaGen(this._h, n)); }
+  /** Force a reseed now. */
+  reseed() { fn.fortunaReseed(this._h); }
+  /** Reseed count; 0 means never seeded. */
+  reseedCount() { return Number(fn.fortunaCount(this._h)); }
+  /** Release the native handle. Idempotent. */
+  close() { if (this._h) { fn.fortunaFree(this._h); this._h = null; } }
+}
+
+const Rng = {
+  /** Cryptographically-secure bytes straight from the OS CSPRNG — the right default. */
+  bytes: (n) => consume(fn.random(n)),
+  /** Instantiate an HMAC-DRBG from a caller-supplied seed. */
+  drbg(entropy, { nonce = null, personalization = null } = {}) {
+    const e = [null];
+    const h = fn.drbgInstantiate(u8(entropy), u8(entropy).length, optr(nonce), olen(nonce),
+                                 optr(personalization), olen(personalization), e);
+    outErr(e);
+    if (!h) throw new Error('cryptolib: drbg instantiate failed');
+    return new Drbg(h);
+  },
+  /** Create a new, unseeded Fortuna pool. */
+  fortuna() {
+    const h = fn.fortunaNew();
+    if (!h) throw new Error('cryptolib: fortuna alloc failed');
+    return new Fortuna(h);
+  },
+};
+
+/** Media formats reported by StegoAdvanced.inspect(). */
+const MediaFormat = {
+  0: 'ppmImage', 1: 'wavAudio', 2: 'crvfVideo', 3: 'bmpImage', 4: 'pngImage', 5: 'flacAudio',
+  6: 'aviVideo', 7: 'gifImage', 8: 'jpegImage', 9: 'mp3Audio', 10: 'mp4Video', 255: 'unknown',
+};
+
+function checkOk(r, what) {
+  if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char', -1) : what; if (r.error) fn.strFree(r.error); throw new Error(m); }
+}
+function takeStr(ptr) { if (!ptr) return ''; const v = koffi.decode(ptr, 'char', -1); fn.strFree(ptr); return v; }
+function throwIfErr(r) { if (r.error) { const m = koffi.decode(r.error, 'char', -1); fn.strFree(r.error); throw new Error(m); } }
+
+const StegoAdvanced = {
+  /** Embed under a key: placement is permuted, so without the key the bits cannot be located. */
+  embedKeyed(coverPath, payload, outputPath, key) {
+    checkOk(fn.stegoEmbedKeyed(coverPath, u8(payload), u8(payload).length, outputPath, u8(key), u8(key).length), 'stego embed_keyed failed');
+  },
+  /** Extract a keyed payload. Throws on the wrong key. */
+  extractKeyed: (stegoPath, key) => consume(fn.stegoExtractKeyed(stegoPath, u8(key), u8(key).length)),
+  /** AEAD-encrypt then hide — the one to reach for by default. */
+  embedEncrypted(coverPath, plaintext, outputPath, masterKey) {
+    checkOk(fn.stegoEmbedEncrypted(coverPath, u8(plaintext), u8(plaintext).length, outputPath, u8(masterKey), u8(masterKey).length), 'stego embed_encrypted failed');
+  },
+  /** Extract and decrypt. Fails closed on a wrong key or tampered carrier. */
+  extractDecrypt: (stegoPath, masterKey) => consume(fn.stegoExtractDecrypt(stegoPath, u8(masterKey), u8(masterKey).length)),
+  /** Structural validity and true format (not the extension). */
+  inspect(path) {
+    const r = fn.stegoInspect(path);
+    throwIfErr(r);
+    return { parses: r.parses === 1, format: MediaFormat[r.format] ?? 'unknown', extensionMatches: r.ext_matches === 1,
+             width: Number(r.width), height: Number(r.height), fileSize: Number(r.file_size), detail: takeStr(r.detail) };
+  },
+  /** Heuristic hidden-data probe. cryptolibPayload true is conclusive; the statistics never prove absence. */
+  detectHidden(path) {
+    const r = fn.stegoDetectHidden(path);
+    throwIfErr(r);
+    return { cryptolibPayload: r.cryptolib_payload === 1, lsbChiSquare: r.lsb_chi_square,
+             lsbEmbeddingLikelihood: r.lsb_embedding_likelihood, samplesAnalysed: Number(r.samples_analysed), note: takeStr(r.note) };
+  },
+  /** Digest of decoded content rather than file bytes — stable across re-encoding. */
+  contentDigest: (path) => consume(fn.stegoContentDigest(path)),
+};
+
+/** SP 800-90B style health assessment of a file's entropy. */
+function assessFileHealth(path, maxBytes = 1 << 20) {
+  const r = fn.assessFileHealth(path, maxBytes);
+  throwIfErr(r);
+  return { minEntropyPerByte: r.min_entropy_per_byte, longestRun: Number(r.longest_run),
+           maxWindowCount: Number(r.max_window_count), rctPassed: r.rct_passed === 1, aptPassed: r.apt_passed === 1,
+           get healthy() { return this.rctPassed && this.aptPassed; } };
+}
+
+/** Forward error correction schemes. */
+const FecScheme = { none: 0, repetition3: 1, repetition5: 2, hamming74: 3 };
+
+const Composed = {
+  /** FEC-encode before embedding when the carrier may be degraded in transit. */
+  fecEncode: (data, scheme) => consume(fn.fecEncode(u8(data), u8(data).length, scheme)),
+  /** FEC-decode, recovering `originalLength` bytes. */
+  fecDecode: (data, scheme, originalLength) => consume(fn.fecDecode(u8(data), u8(data).length, scheme, originalLength)),
+  /** Seal under a key derived from a key-media file, hidden in a separate cover. Both files are needed to open. */
+  physicalSeal({ keyMediaPath, plaintext, coverPath, outputPath, aad = null }) {
+    checkOk(fn.physicalSeal(keyMediaPath, u8(plaintext), u8(plaintext).length, optr(aad), olen(aad), coverPath, outputPath), 'physical seal failed');
+  },
+  /** Recover a physicalSeal message. */
+  physicalOpen: ({ keyMediaPath, stegoPath, aad = null }) => consume(fn.physicalOpen(keyMediaPath, optr(aad), olen(aad), stegoPath)),
+  /** Two factors: the OPRF secret (know) AND the exact reference image (have). */
+  imageFactorSeal({ oprfSecretSeed, referenceImagePath, plaintext, coverPath, outputPath, aad = null }) {
+    checkOk(fn.imageFactorSeal(u8(oprfSecretSeed), u8(oprfSecretSeed).length, referenceImagePath,
+            u8(plaintext), u8(plaintext).length, optr(aad), olen(aad), coverPath, outputPath), 'image factor seal failed');
+  },
+  /** Recover an imageFactorSeal message. */
+  imageFactorOpen: ({ oprfSecretSeed, referenceImagePath, stegoPath, aad = null }) =>
+    consume(fn.imageFactorOpen(u8(oprfSecretSeed), u8(oprfSecretSeed).length, referenceImagePath, optr(aad), olen(aad), stegoPath)),
+  /** Seal to an HPKE public key and hide it. Returns `enc` — transmit it alongside the carrier. */
+  hpkeStegoSeal: ({ recipientPublic, plaintext, coverPath, outputPath, aad = null, info = null }) =>
+    consume(fn.hpkeStegoSeal(u8(recipientPublic), u8(recipientPublic).length, u8(plaintext), u8(plaintext).length,
+            optr(aad), olen(aad), optr(info), olen(info), coverPath, outputPath)),
+  /** Open an hpkeStegoSeal carrier with the recipient secret and the `enc` value. */
+  hpkeStegoOpen: ({ recipientSecret, enc, stegoPath, aad = null, info = null }) =>
+    consume(fn.hpkeStegoOpen(u8(recipientSecret), u8(recipientSecret).length, u8(enc), u8(enc).length,
+            optr(aad), olen(aad), optr(info), olen(info), stegoPath)),
+};
+
+
+// ═══ Security profiles and composable recipes ═════════════════════════════════
+//
+// SecurityProfile sets every algorithm parameter consistently, so "use the
+// strongest thing available" is one word rather than a dozen constants.
+//
+// Recipe stacks the library's protections in combination: derive a key, cascade
+// several AEADs, sign, add error correction, hide the result in a carrier.
+//
+// Composition only — every step is an existing, vetted operation. What the
+// recipe adds is the plumbing that is easy to get wrong by hand: every layer is
+// keyed by HKDF under a distinct info string so no key is reused, the header
+// describing the recipe is authenticated as AAD by every layer, the order
+// (sign → encrypt → correct → conceal) is fixed, and everything fails closed.
+//
+// The envelope is a library-native format, and is identical across every
+// CryptoLib binding: an envelope sealed here opens in Dart, Go or Swift.
+
+/** One AEAD layer in a Recipe cascade. */
+const ProtectionLayer = { xchacha20Poly1305: 1, aes256Gcm: 2, committing: 3, molecular: 4 };
+
+// Pinned wire names: part of the format (they feed each layer's HKDF info
+// string), so they must never drift from the other bindings.
+const LAYER_WIRE_NAME = { 1: 'xchacha20Poly1305', 2: 'aes256Gcm', 3: 'committing', 4: 'molecular' };
+
+/** Origin authentication for a Recipe. */
+const SignatureAlgorithm = { none: 0, ed25519: 1, hybrid: 2 };
+
+const KEY_SOURCE = { raw: 0, passphrase: 1, keyFile: 2 };
+const KEY_SOURCE_NAME = { 0: 'raw', 1: 'passphrase', 2: 'keyFile' };
+
+/** Coherent algorithm parameter sets, from ordinary to maximal. */
+const SecurityProfile = {
+  balanced: 'balanced',
+  high: 'high',
+  maximum: 'maximum',
+  /** Every parameter for a profile, moving together so they cannot be mismatched. */
+  params(profile) {
+    switch (profile) {
+      case 'maximum': return {
+        mlKemLevel: 2, mlDsaLevel: 2, slhDsaLevel: 4, slhDsaHash: 1,
+        sealedTier: SealedTier.Fortress, kdfPreset: 1, argon2Ops: 4, argon2Memory: 512 * 1024 * 1024,
+        cascade: [ProtectionLayer.xchacha20Poly1305, ProtectionLayer.aes256Gcm, ProtectionLayer.committing],
+      };
+      case 'high': return {
+        mlKemLevel: 1, mlDsaLevel: 1, slhDsaLevel: 3, slhDsaHash: 0,
+        sealedTier: SealedTier.Flagship, kdfPreset: 1, argon2Ops: 3, argon2Memory: 256 * 1024 * 1024,
+        cascade: [ProtectionLayer.xchacha20Poly1305, ProtectionLayer.aes256Gcm],
+      };
+      default: return {
+        mlKemLevel: 1, mlDsaLevel: 1, slhDsaLevel: 1, slhDsaHash: 0,
+        sealedTier: SealedTier.Flagship, kdfPreset: 0, argon2Ops: 2, argon2Memory: 64 * 1024 * 1024,
+        cascade: [ProtectionLayer.xchacha20Poly1305],
+      };
+    }
+  },
+};
+
+const RECIPE_MAGIC = Buffer.from('CLRC');
+const FEC_MAGIC = Buffer.from('CLFC');
+const RECIPE_VERSION = 1;
+const RECIPE_SALT_LEN = 16;
+
+/**
+ * A composable protection pipeline. Describe what you want once, then seal and
+ * open with the same recipe; the envelope carries its own descriptor.
+ *
+ *   const r = cryptolib.recipe('maximum')
+ *       .withPassphrase('correct horse battery staple')
+ *       .signedBy(id.secretKey, cryptolib.SignatureAlgorithm.hybrid)
+ *       .verifiedBy(id.publicKey);
+ *   const env = r.seal(secret);
+ */
+class Recipe {
+  constructor(api, profile = SecurityProfile.balanced) {
+    this._api = api;
+    this.profile = profile;
+    const p = SecurityProfile.params(profile);
+    this._layers = [...p.cascade];
+    this._argonOps = p.argon2Ops;
+    this._argonMem = p.argon2Memory;
+    this._source = KEY_SOURCE.raw;
+    this._rawKey = null; this._passphrase = null; this._keyFilePath = null;
+    this._signAlgo = SignatureAlgorithm.none; this._signSecret = null; this._signPublic = null;
+    this._fec = FecScheme.none;
+  }
+
+  /** Derive the root key from a passphrase with Argon2id. */
+  withPassphrase(passphrase) { this._source = KEY_SOURCE.passphrase; this._passphrase = passphrase; return this; }
+
+  /** Use a 32-byte full-entropy key directly (KEM secret, keyring unlock, token). */
+  withKey(key) {
+    const k = u8(key);
+    if (k.length !== 32) throw new Error(`cryptolib: root key must be exactly 32 bytes, got ${k.length}`);
+    this._source = KEY_SOURCE.raw; this._rawKey = Buffer.from(k); return this;
+  }
+
+  /**
+   * Derive the root key deterministically from a media file — "the file is the key".
+   * Uses the reproducible entropy path; keyFromFile mixes in fresh system entropy
+   * and so could never reopen its own envelope.
+   */
+  withKeyFile(path) { this._source = KEY_SOURCE.keyFile; this._keyFilePath = path; return this; }
+
+  /** Replace the cascade with exactly these layers, innermost first. */
+  withLayers(layers) {
+    if (!layers || layers.length === 0) throw new Error('cryptolib: a recipe needs at least one layer');
+    this._layers = [...layers]; return this;
+  }
+
+  /** Append one more layer on the outside of the cascade. */
+  addLayer(layer) { this._layers.push(layer); return this; }
+
+  /** Override the Argon2id cost. Only meaningful with withPassphrase. */
+  argon2Cost({ ops, memoryBytes } = {}) {
+    if (ops !== undefined) this._argonOps = ops;
+    if (memoryBytes !== undefined) this._argonMem = memoryBytes;
+    return this;
+  }
+
+  /** Sign the plaintext before encryption, so the signature stays confidential. */
+  signedBy(secretKey, algorithm = SignatureAlgorithm.ed25519) {
+    if (algorithm === SignatureAlgorithm.none) throw new Error('cryptolib: signedBy needs a real algorithm');
+    this._signAlgo = algorithm; this._signSecret = Buffer.from(u8(secretKey)); return this;
+  }
+
+  /** The public key open() must verify against. Required whenever the envelope is signed. */
+  verifiedBy(publicKey) { this._signPublic = Buffer.from(u8(publicKey)); return this; }
+
+  /** Apply forward error correction to the finished envelope. */
+  withFec(scheme) { this._fec = scheme; return this; }
+
+  /** Human-readable summary — useful in logs and review. */
+  describe() {
+    const layers = this._layers.map((l) => LAYER_WIRE_NAME[l]).join(' → ');
+    const sig = Object.keys(SignatureAlgorithm).find((k) => SignatureAlgorithm[k] === this._signAlgo);
+    let out = `Recipe(${this.profile})\n  key      : ${KEY_SOURCE_NAME[this._source]}\n`
+            + `  layers   : ${layers}\n  signature: ${sig}\n  fec      : ${this._fec}\n`;
+    if (this._source === KEY_SOURCE.passphrase) {
+      out += `  argon2id : ops=${this._argonOps}, mem=${Math.floor(this._argonMem / (1024 * 1024))}MiB\n`;
+    }
+    return out;
+  }
+
+  /** Protect `plaintext` and return the envelope. */
+  seal(plaintext) {
+    const salt = this._api.randomBytes(RECIPE_SALT_LEN);
+    const header = this._buildHeader(salt);
+    const root = this._rootKey(salt, this._argonOps, this._argonMem);
+
+    let body = u8(plaintext);
+    if (this._signAlgo !== SignatureAlgorithm.none) {
+      if (!this._signSecret) throw new Error('cryptolib: signing requested without a secret key');
+      const sig = this._signAlgo === SignatureAlgorithm.ed25519
+        ? this._api.ed25519Sign(body, this._signSecret)
+        : this._api.hybridSigSign(body, this._signSecret);
+      body = prefixLengthed(sig, body);
+    }
+    this._layers.forEach((layer, i) => { body = this._applyLayer(layer, i, root, salt, header, body, true); });
+
+    const envelope = Buffer.concat([header, body]);
+    return this._fec === FecScheme.none ? envelope : this._wrapFec(envelope);
+  }
+
+  /** Recover the plaintext. Throws on a wrong key, an altered byte, or a bad signature. */
+  open(envelope) {
+    const inner = this._unwrapFec(u8(envelope));
+    const h = this._parseHeader(inner);
+    const root = this._rootKey(h.salt, h.ops, h.memory);
+
+    let body = inner.subarray(h.header.length);
+    for (let i = h.layers.length - 1; i >= 0; i--) {
+      body = this._applyLayer(h.layers[i], i, root, h.salt, h.header, body, false);
+    }
+    if (h.signAlgo === SignatureAlgorithm.none) return body;
+
+    const [sig, plaintext] = splitLengthed(body);
+    if (!this._signPublic) {
+      throw new Error('cryptolib: envelope is signed but no public key was supplied — '
+                    + 'call verifiedBy() so the signature is actually checked');
+    }
+    const ok = h.signAlgo === SignatureAlgorithm.ed25519
+      ? this._api.ed25519Verify(plaintext, sig, this._signPublic)
+      : this._api.hybridSigVerify(plaintext, sig, this._signPublic);
+    if (!ok) throw new Error('cryptolib: signature verification failed');
+    return plaintext;
+  }
+
+  /** Seal and hide the envelope inside a carrier. Defence-in-depth, not the boundary. */
+  sealIntoCarrier(plaintext, { coverPath, outputPath }) {
+    this._api.stegoEmbed(coverPath, this.seal(plaintext), outputPath);
+  }
+
+  /** Extract and open an envelope written by sealIntoCarrier. */
+  openFromCarrier(stegoPath) { return this.open(this._api.stegoExtract(stegoPath)); }
+
+  // ── internals ──────────────────────────────────────────────────────────────
+
+  _rootKey(salt, ops, mem) {
+    switch (this._source) {
+      case KEY_SOURCE.passphrase:
+        if (this._passphrase == null) throw new Error('cryptolib: no passphrase set');
+        return this._api.argon2idDerive(this._passphrase, salt, 32, ops, mem);
+      case KEY_SOURCE.keyFile: {
+        const h = this._api.entropyFromFileDeterministic(this._keyFilePath);
+        try { return this._api.entropySymmetricKey(h); } finally { this._api.entropyFree(h); }
+      }
+      default:
+        if (!this._rawKey) throw new Error('cryptolib: no key set — call withKey/withPassphrase/withKeyFile');
+        return this._rawKey;
+    }
+  }
+
+  _layerKey(root, salt, index, layer) {
+    const info = Buffer.from(`cryptolib/recipe/v1/layer${index}/${LAYER_WIRE_NAME[layer]}`);
+    return this._api.hkdfDerive(root, { salt, info, outLen: 32 });
+  }
+
+  _applyLayer(layer, index, root, salt, header, data, seal) {
+    const key = this._layerKey(root, salt, index, layer);
+    const a = this._api;
+    switch (layer) {
+      case ProtectionLayer.xchacha20Poly1305: return seal ? a.xchacha20Encrypt(data, key, header) : a.xchacha20Decrypt(data, key, header);
+      case ProtectionLayer.aes256Gcm:         return seal ? a.aes256gcmEncrypt(data, key, header) : a.aes256gcmDecrypt(data, key, header);
+      case ProtectionLayer.committing:        return seal ? a.committingEncrypt(data, key, header) : a.committingDecrypt(data, key, header);
+      case ProtectionLayer.molecular:         return seal ? a.molecularSealWithKey(data, key, header) : a.molecularOpenWithKey(data, key, header);
+      default: throw new Error(`cryptolib: unknown protection layer ${layer}`);
+    }
+  }
+
+  _buildHeader(salt) {
+    const head = Buffer.from([...RECIPE_MAGIC, RECIPE_VERSION, this._source, this._signAlgo, this._layers.length, ...this._layers]);
+    const costs = Buffer.alloc(8);
+    costs.writeUInt32BE(this._argonOps, 0);
+    costs.writeUInt32BE(this._argonMem, 4);
+    return Buffer.concat([head, u8(salt), costs]);
+  }
+
+  _parseHeader(env) {
+    if (env.length < 8 + RECIPE_SALT_LEN + 8) throw new Error('cryptolib: envelope too short');
+    if (!env.subarray(0, 4).equals(RECIPE_MAGIC)) throw new Error('cryptolib: not a CryptoRecipe envelope');
+    if (env[4] !== RECIPE_VERSION) throw new Error(`cryptolib: unsupported envelope version ${env[4]}`);
+    const source = env[5];
+    if (source !== this._source) {
+      throw new Error(`cryptolib: envelope was sealed with the ${KEY_SOURCE_NAME[source]} key source, `
+                    + `but this recipe is configured for ${KEY_SOURCE_NAME[this._source]}`);
+    }
+    const signAlgo = env[6];
+    const layerCount = env[7];
+    const headerLen = 8 + layerCount + RECIPE_SALT_LEN + 8;
+    if (env.length < headerLen) throw new Error('cryptolib: truncated envelope header');
+    const layers = [];
+    for (let i = 0; i < layerCount; i++) {
+      const id = env[8 + i];
+      if (!LAYER_WIRE_NAME[id]) throw new Error(`cryptolib: unknown protection layer id ${id}`);
+      layers.push(id);
+    }
+    const salt = Buffer.from(env.subarray(8 + layerCount, 8 + layerCount + RECIPE_SALT_LEN));
+    const costs = env.subarray(8 + layerCount + RECIPE_SALT_LEN, headerLen);
+    return { header: Buffer.from(env.subarray(0, headerLen)), layers, salt, signAlgo,
+             ops: costs.readUInt32BE(0), memory: costs.readUInt32BE(4) };
+  }
+
+  _wrapFec(envelope) {
+    const encoded = this._api.Composed.fecEncode(envelope, this._fec);
+    const head = Buffer.alloc(9);
+    FEC_MAGIC.copy(head, 0);
+    head[4] = this._fec;
+    head.writeUInt32BE(envelope.length, 5);
+    return Buffer.concat([head, encoded]);
+  }
+
+  _unwrapFec(data) {
+    if (data.length < 9 || !data.subarray(0, 4).equals(FEC_MAGIC)) return data;
+    const scheme = data[4];
+    const originalLen = data.readUInt32BE(5);
+    return this._api.Composed.fecDecode(data.subarray(9), scheme, originalLen);
+  }
+}
+
+function prefixLengthed(prefix, rest) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(u8(prefix).length, 0);
+  return Buffer.concat([len, u8(prefix), u8(rest)]);
+}
+
+function splitLengthed(data) {
+  if (data.length < 4) throw new Error('cryptolib: malformed signed payload');
+  const n = data.readUInt32BE(0);
+  if (data.length < 4 + n) throw new Error('cryptolib: malformed signed payload');
+  return [Buffer.from(data.subarray(4, 4 + n)), Buffer.from(data.subarray(4 + n))];
+}
+
 module.exports = {
   SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
+  Rng, Drbg, Fortuna, StegoAdvanced, Composed, FecScheme, MediaFormat, assessFileHealth,
+  SecurityProfile, ProtectionLayer, SignatureAlgorithm, Recipe,
+  /** Start a Recipe at the given profile's settings. */
+  recipe(profile = SecurityProfile.balanced) { return new Recipe(module.exports, profile); },
+  /** A Recipe using the strongest option at every choice. */
+  maximumSecurity() { return new Recipe(module.exports, SecurityProfile.maximum); },
   preload,
   _warm,
   init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
@@ -945,6 +1410,8 @@ module.exports = {
   xchacha20Encrypt: (pt, key, aad = null) => consume(fn.xEnc(u8(pt), u8(pt).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   xchacha20Decrypt: (ct, key, aad = null) => consume(fn.xDec(u8(ct), u8(ct).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   aes256gcmAvailable: () => fn.aesAvail() === 1,
+  aes256gcmEncrypt: (pt, key, aad = null) => consume(fn.aesEnc(u8(pt), u8(pt).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  aes256gcmDecrypt: (ct, key, aad = null) => consume(fn.aesDec(u8(ct), u8(ct).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
 
   ed25519Keygen: () => kp(fn.edKeygen()),
   ed25519Sign: (m, sk) => consume(fn.edSign(u8(m), u8(m).length, u8(sk), u8(sk).length)),
@@ -1003,6 +1470,10 @@ module.exports = {
   blake3DeriveKey: (ctx, ikm, len = 32) => consume(fn.blake3Derive(ctx, u8(ikm), u8(ikm).length, len)),
   hmacSha512: (m, key) => consume(fn.hmac512(u8(m), u8(m).length, u8(key), u8(key).length)),
   hmacSha512Verify: (m, mac, key) => fn.hmac512v(u8(m), u8(m).length, u8(mac), u8(mac).length, u8(key), u8(key).length) === 1,
+  /** One-shot HKDF: extract + expand to `outLen` bytes. */
+  hkdfDerive: (ikm, { salt = null, info = null, outLen = 32 } = {}) =>
+    consume(fn.hkdf(u8(ikm), u8(ikm).length, salt ? u8(salt) : null, salt ? u8(salt).length : 0,
+                    info ? u8(info) : null, info ? u8(info).length : 0, outLen)),
   hkdfExtract: (ikm, salt = null) => consume(fn.hkdfExtract(salt ? u8(salt) : null, salt ? u8(salt).length : 0, u8(ikm), u8(ikm).length)),
   hkdfExpand: (prk, info = null, len = 32) => consume(fn.hkdfExpand(u8(prk), u8(prk).length, info ? u8(info) : null, info ? u8(info).length : 0, len)),
   argon2idDerive: (pw, salt, keyLen = 32, ops = 2, mem = 67108864) => consume(fn.argonDerive(pw, u8(salt), u8(salt).length, keyLen, ops, mem)),

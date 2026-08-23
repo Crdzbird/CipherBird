@@ -200,6 +200,30 @@ swift-bbs-pseudonym: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_bbs_pseudonym | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
+.PHONY: node-security
+node-security: lib
+	$(call hdr,Node security profiles + recipes)
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3; \
+	else echo "node not found — skipping"; fi
+
+# Every binding seals a fixed set of recipe configurations; every OTHER binding
+# must open them. This is what makes the envelope a library format rather than
+# four look-alike implementations.
+.PHONY: recipe-interop
+recipe-interop: lib swift-security
+	$(call hdr,CryptoRecipe cross-language interop)
+	@bash scripts/verify_recipe_interop.sh
+
+.PHONY: swift-security
+swift-security: lib
+	$(call hdr,Swift security profiles + recipes)
+	@if command -v swiftc >/dev/null 2>&1; then \
+		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/security.swift \
+			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_security && \
+		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_security | tail -20; \
+	else echo "swiftc not found — skipping"; fi
+
 .PHONY: swift-opaque
 swift-opaque: lib
 	$(call hdr,Swift OPAQUE aPAKE)
