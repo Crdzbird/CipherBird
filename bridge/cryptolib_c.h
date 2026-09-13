@@ -66,6 +66,8 @@ typedef void* CryptoStreamDecHandle;
 typedef void* CryptoKeyringHandle;
 typedef void* CryptoDrbgHandle;     /**< HMAC-DRBG (SP 800-90A) accumulator */
 typedef void* CryptoFortunaHandle;  /**< Fortuna-style entropy pool */
+typedef void* CryptoBlake3Handle;   /**< Incremental BLAKE3 hasher */
+typedef void* CryptoNoiseHandle;    /**< Noise XX handshake / transport state */
 
 /** Key pair (two buffers). */
 typedef struct {
@@ -672,6 +674,118 @@ CRYPTO_API CryptoBufferResult cryptolib_blake3_keyed(const uint8_t* msg, size_t 
 CRYPTO_API CryptoBufferResult cryptolib_blake3_derive_key(const char* context,
                                                            const uint8_t* ikm, size_t ikm_len,
                                                            size_t out_len);
+
+/** Create an incremental BLAKE3 hasher. Pass key=NULL (key_len ignored) for
+ *  plain hashing, or a 32-byte key for keyed (MAC) mode. Returns NULL when
+ *  BLAKE3 is not enabled or the key length is wrong. Not thread-safe — one
+ *  handle per thread. Free with cryptolib_blake3_hasher_free(). */
+CRYPTO_API CryptoBlake3Handle cryptolib_blake3_hasher_create(const uint8_t* key,
+                                                              size_t key_len);
+
+/** Feed bytes into the hasher. Returns 1 on success; 0 on a NULL handle or
+ *  after finalize. */
+CRYPTO_API int cryptolib_blake3_hasher_update(CryptoBlake3Handle h,
+                                               const uint8_t* data, size_t len);
+
+/** Produce the digest. out_len=0 defaults to 32 bytes (extendable output).
+ *  The handle accepts no further updates but must still be freed. Calling
+ *  finalize twice is an error. */
+CRYPTO_API CryptoBufferResult cryptolib_blake3_hasher_finalize(
+    CryptoBlake3Handle h, size_t out_len);
+
+/** Free an incremental hasher. Safe on NULL. */
+CRYPTO_API void cryptolib_blake3_hasher_free(CryptoBlake3Handle h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Noise XX — Noise_XX_25519_ChaChaPoly_SHA256 secure channel
+ *
+ * Handshake: the initiator writes message 0, the responder message 1, the
+ * initiator message 2 (each write_message on one side pairs with a
+ * read_message on the other). Once cryptolib_noise_handshake_finished()
+ * returns 1, call cryptolib_noise_split() and use encrypt/decrypt. Records
+ * are ordered per direction (sequential nonces) — deliver them in order.
+ * Handles are NOT thread-safe.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Create a Noise XX state. initiator: 1 = initiator, 0 = responder.
+ *  static_* is the local X25519 keypair (32-byte public, 32-byte secret;
+ *  see cryptolib_x25519_keygen). prologue may be NULL/0 — both sides must
+ *  use identical bytes. Returns NULL on bad key lengths. Free with
+ *  cryptolib_noise_free(). */
+CRYPTO_API CryptoNoiseHandle cryptolib_noise_create(
+    int initiator,
+    const uint8_t* static_public, size_t static_public_len,
+    const uint8_t* static_secret, size_t static_secret_len,
+    const uint8_t* prologue, size_t prologue_len);
+
+/** Produce the next handshake message (this side's turn), embedding an
+ *  optional payload. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_write_message(
+    CryptoNoiseHandle h, const uint8_t* payload, size_t payload_len);
+
+/** Consume the peer's handshake message; returns its embedded payload. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_read_message(
+    CryptoNoiseHandle h, const uint8_t* message, size_t message_len);
+
+/** 1 once all three handshake messages are processed. */
+CRYPTO_API int cryptolib_noise_handshake_finished(CryptoNoiseHandle h);
+
+/** The 32-byte handshake hash (channel binding). Valid any time; both
+ *  sides agree on it after the handshake completes. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_handshake_hash(CryptoNoiseHandle h);
+
+/** The peer's static X25519 public key learned during the handshake
+ *  (32 bytes). Pin/verify it to prevent MITM. Errors before it is known. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_remote_static(CryptoNoiseHandle h);
+
+/** Derive the transport cipher states (Noise Split). Returns 1 on success,
+ *  0 if the handshake is not finished or split was already called. */
+CRYPTO_API int cryptolib_noise_split(CryptoNoiseHandle h);
+
+/** Encrypt one transport record (after split). Output = ciphertext|tag. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_encrypt(
+    CryptoNoiseHandle h, const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Decrypt one transport record (after split). */
+CRYPTO_API CryptoBufferResult cryptolib_noise_decrypt(
+    CryptoNoiseHandle h, const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Decrypt the transport record that was sent at `nonce_counter`, without
+ *  advancing the session's own counter.
+ *
+ *  Records are sealed under (key, counter), so once a receiver knows a
+ *  record's counter it can open that record on its own. This exists so a
+ *  receiver can open several records at once: `cryptolib_noise_decrypt`
+ *  is serial only because it owns the counter.
+ *
+ *  Re-entrant — safe to call concurrently on ONE handle, because it does
+ *  not mutate the session.
+ *
+ *  CALLER'S DUTY, and the library cannot check any of it:
+ *   - Assign each record the counter its sender used, counting from 0 in
+ *     arrival order for that direction.
+ *   - Open each counter at most once and reassemble plaintexts in order.
+ *     Statelessly, a replayed record is indistinguishable from a fresh
+ *     one; ordering and single-use are the caller's to enforce.
+ *   - Do NOT mix this with `cryptolib_noise_encrypt`/`_decrypt` on the
+ *     same handle concurrently: those mutate the session, and a
+ *     concurrent mutation alongside this is a data race.
+ *
+ *  There is deliberately no explicit-nonce ENCRYPT counterpart. Sealing
+ *  twice under one (key, counter) leaks the XOR of both plaintexts and
+ *  the Poly1305 one-time key, which yields forgery; nonce choice stays
+ *  inside the library where it cannot repeat. Opening carries no such
+ *  risk — the tag binds the counter, so a record only authenticates
+ *  under the counter its sender actually used. */
+CRYPTO_API CryptoBufferResult cryptolib_noise_decrypt_at(
+    CryptoNoiseHandle h, uint64_t nonce_counter,
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Free a Noise state. Safe on NULL. */
+CRYPTO_API void cryptolib_noise_free(CryptoNoiseHandle h);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * HMAC-SHA256 & HKDF-SHA256

@@ -11,6 +11,9 @@ part of '../cryptolib_ffi.dart';
 
 /// Hashes, MACs, password hashing and HKDF.
 extension type HashApi(CryptoLib _l) {
+  /// Incremental BLAKE3; pass a 32-byte [key] for keyed (MAC) mode.
+  Blake3Hasher blake3Hasher({Uint8List? key}) => _l.blake3Hasher(key: key);
+
   /// BLAKE2b-512 hash. key may be empty for unkeyed.
   Uint8List blake2b(Uint8List msg, [Uint8List? key]) => _l.blake2b(msg, key);
 
@@ -837,6 +840,15 @@ extension type PqApi(CryptoLib _l) {
 
 }
 
+/// Noise XX secure channel (Noise_XX_25519_ChaChaPoly_SHA256).
+extension type NoiseApi(CryptoLib _l) {
+  /// Create a Noise XX state from this side's X25519 keypair. Both sides must
+  /// use the same [prologue].
+  NoiseXX create({required bool initiator, required Uint8List staticPublic,
+      required Uint8List staticSecret, Uint8List? prologue}) =>
+      _l.noise(initiator: initiator, staticPublic: staticPublic, staticSecret: staticSecret, prologue: prologue);
+}
+
 /// Domain-grouped entry points into the full CryptoLib surface.
 extension CryptoLibNamespaces on CryptoLib {
   /// Hashes, MACs, password hashing and HKDF.
@@ -901,4 +913,7 @@ extension CryptoLibNamespaces on CryptoLib {
 
   /// Post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA and hybrids).
   PqApi get pq => PqApi(this);
+
+  /// Noise XX secure channel.
+  NoiseApi get channel => NoiseApi(this);
 }

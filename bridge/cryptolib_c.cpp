@@ -1344,6 +1344,194 @@ CRYPTO_API CryptoBufferResult cryptolib_blake3_derive_key(const char* context,
 #endif
 } CL_FAIL_BUFRES
 
+#ifdef CRYPTOLIB_HAS_BLAKE3
+namespace { struct Blake3StreamImpl { crypto::hash::Blake3::Stream stream; }; }
+#endif
+
+CRYPTO_API CryptoBlake3Handle cryptolib_blake3_hasher_create(const uint8_t* key,
+                                                              size_t key_len) try {
+#ifdef CRYPTOLIB_HAS_BLAKE3
+    if (key == nullptr)
+        return static_cast<CryptoBlake3Handle>(new Blake3StreamImpl{});
+    if (key_len != 32) return nullptr;
+    return static_cast<CryptoBlake3Handle>(
+        new Blake3StreamImpl{crypto::hash::Blake3::Stream(sp(key, key_len))});
+#else
+    (void)key; (void)key_len;
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API int cryptolib_blake3_hasher_update(CryptoBlake3Handle h,
+                                               const uint8_t* data, size_t len) try {
+#ifdef CRYPTOLIB_HAS_BLAKE3
+    if (!h) return 0;
+    static_cast<Blake3StreamImpl*>(h)->stream.update(sp(data, len));
+    return 1;
+#else
+    (void)h; (void)data; (void)len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_blake3_hasher_finalize(
+    CryptoBlake3Handle h, size_t out_len) try {
+#ifdef CRYPTOLIB_HAS_BLAKE3
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<Blake3StreamImpl*>(h);
+    return ok_buf(impl->stream.finalize(out_len == 0 ? 32 : out_len));
+#else
+    (void)h; (void)out_len;
+    return err_buf("BLAKE3 not enabled (build with -DCRYPTOLIB_BLAKE3=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_blake3_hasher_free(CryptoBlake3Handle h) {
+#ifdef CRYPTOLIB_HAS_BLAKE3
+    delete static_cast<Blake3StreamImpl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Noise XX
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+namespace {
+struct NoiseImpl {
+    std::optional<crypto::NoiseXX>          hs;
+    std::optional<crypto::NoiseXX::Session> session;
+};
+} // anonymous namespace
+
+CRYPTO_API CryptoNoiseHandle cryptolib_noise_create(
+    int initiator,
+    const uint8_t* static_public, size_t static_public_len,
+    const uint8_t* static_secret, size_t static_secret_len,
+    const uint8_t* prologue, size_t prologue_len) try
+{
+    if (!static_public || static_public_len != 32 ||
+        !static_secret || static_secret_len != 32)
+        return nullptr;
+    crypto::asymmetric::EncryptionKeyPair kp;
+    kp.public_key = crypto::SecureBuffer(static_public, static_public_len);
+    kp.secret_key = crypto::SecureBuffer(static_secret, static_secret_len);
+    auto* impl = new NoiseImpl{};
+    impl->hs.emplace(initiator != 0
+        ? crypto::NoiseXX::initiator(kp, sp(prologue, prologue_len))
+        : crypto::NoiseXX::responder(kp, sp(prologue, prologue_len)));
+    return static_cast<CryptoNoiseHandle>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_write_message(
+    CryptoNoiseHandle h, const uint8_t* payload, size_t payload_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto r = impl->hs->write_message(sp(payload, payload_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_read_message(
+    CryptoNoiseHandle h, const uint8_t* message, size_t message_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto r = impl->hs->read_message(sp(message, message_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_noise_handshake_finished(CryptoNoiseHandle h) try {
+    if (!h) return 0;
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return 1;  // split already happened, so it finished
+    return impl->hs->handshake_finished() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_handshake_hash(
+    CryptoNoiseHandle h) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto span = impl->hs->handshake_hash();
+    return ok_buf(crypto::SecureBuffer(span.data(), span.size()));
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_remote_static(
+    CryptoNoiseHandle h) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    const auto& rs = impl->hs->remote_static();
+    if (rs.size() != 32) return err_buf("Noise: remote static not yet known");
+    return ok_buf(rs);
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_noise_split(CryptoNoiseHandle h) try {
+    if (!h) return 0;
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs || impl->session) return 0;
+    auto r = impl->hs->into_session();
+    if (r.is_err()) return 0;
+    // Preserve the handshake state for hash queries but keep the session
+    // authoritative for records; hs is retained (hash/remote_static stay
+    // readable), further handshake calls are rejected by finished checks.
+    impl->session.emplace(std::move(r.value()));
+    return 1;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_encrypt(
+    CryptoNoiseHandle h, const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->send.encrypt(sp(plaintext, pt_len), sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_noise_decrypt(
+    CryptoNoiseHandle h, const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->recv.decrypt(sp(ciphertext, ct_len), sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+// ABI-SAFE: CL_FAIL_BUFRES keeps any C++ exception from crossing the boundary.
+// Re-entrant: reads the recv key, mutates nothing — see the header for the
+// ordering and single-use duties this hands to the caller.
+CRYPTO_API CryptoBufferResult cryptolib_noise_decrypt_at(
+    CryptoNoiseHandle h, uint64_t nonce_counter,
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->recv.decrypt_at(nonce_counter, sp(ciphertext, ct_len),
+                                            sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_noise_free(CryptoNoiseHandle h) {
+    delete static_cast<NoiseImpl*>(h);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * HMAC-SHA256 & HKDF-SHA256
  * ═══════════════════════════════════════════════════════════════════════════ */

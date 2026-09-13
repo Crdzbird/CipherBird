@@ -78,6 +78,54 @@ public:
             out.resize(static_cast<std::size_t>(olen));
             return Result<SecureBuffer>::ok(std::move(out));
         }
+
+        /// Decrypt the record that was sent at counter `at`, without
+        /// touching this state.
+        ///
+        /// Transport records are sealed under (k, counter), so any record
+        /// can be opened independently once its counter is known. That is
+        /// what lets a receiver decrypt several records at once instead of
+        /// walking them one at a time — the sequential `decrypt` above is
+        /// a serial bottleneck purely because it owns `n`.
+        ///
+        /// CONST-TIME: the AEAD tag check is libsodium's, which is
+        /// constant-time; nothing here branches on plaintext.
+        ///
+        /// Deliberately `const`: not advancing `n` is the property that
+        /// makes this re-entrant, so several threads may call it on one
+        /// state concurrently. The compiler enforces it rather than a
+        /// comment. CALLER'S DUTY: a counter must be opened at most once
+        /// and the plaintexts reassembled in order — this cannot tell a
+        /// replayed record from a fresh one, because statelessly it is
+        /// the same record.
+        ///
+        /// There is deliberately NO explicit-nonce `encrypt` counterpart.
+        /// Sealing twice under one (k, n) leaks the XOR of both plaintexts
+        /// AND the Poly1305 one-time key, which yields forgery — so nonce
+        /// choice stays with `n` above, where it cannot repeat. Opening
+        /// carries no such risk: the tag binds the counter, so a record
+        /// only authenticates under the one its sender used.
+        [[nodiscard]] Result<SecureBuffer> decrypt_at(uint64_t at,
+                                                      std::span<const uint8_t> ct,
+                                                      std::span<const uint8_t> ad = {}) const {
+            if (k.size() != 32) return Result<SecureBuffer>::err("Noise: transport not keyed");
+            // Noise reserves the maximum counter; a sender must rekey
+            // before reaching it, so a record claiming it is malformed.
+            // VERIFY: Noise spec rev 34 §5.1 reserves n = 2^64-1.
+            if (at == UINT64_MAX) return Result<SecureBuffer>::err("Noise: reserved nonce");
+            if (ct.size() < TAGLEN) return Result<SecureBuffer>::err("Noise: transport ciphertext too short");
+            SecureBuffer out(ct.size() - TAGLEN);
+            unsigned long long olen = 0;
+            std::array<uint8_t, 12> nonce = make_nonce(at);
+            // AUTH-FIRST: libsodium writes no plaintext unless the tag verifies.
+            if (crypto_aead_chacha20poly1305_ietf_decrypt(
+                    out.data(), &olen, nullptr, ct.data(), ct.size(),
+                    ad.empty() ? nullptr : ad.data(), ad.size(),
+                    nonce.data(), k.data()) != 0)
+                return Result<SecureBuffer>::err("Noise: transport authentication failed");
+            out.resize(static_cast<std::size_t>(olen));
+            return Result<SecureBuffer>::ok(std::move(out));
+        }
     };
 
     struct Session { CipherState send, recv; };

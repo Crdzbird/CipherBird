@@ -321,6 +321,22 @@ function ensureLoaded() {
   bbsBlindSign: f('CryptoBufferResult cryptolib_bbs_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsVerifyBlindSign: f('int cryptolib_bbs_verify_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
   bbsHashToScalar: f('CryptoBufferResult cryptolib_bbs_hash_to_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
+  // Incremental BLAKE3 + Noise XX.
+  b3Create: f('void *cryptolib_blake3_hasher_create(uint8_t*, size_t)'),
+  b3Update: f('int cryptolib_blake3_hasher_update(void*, uint8_t*, size_t)'),
+  b3Finalize: f('CryptoBufferResult cryptolib_blake3_hasher_finalize(void*, size_t)'),
+  b3Free: f('void cryptolib_blake3_hasher_free(void*)'),
+  noiseCreate: f('void *cryptolib_noise_create(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  noiseWrite: f('CryptoBufferResult cryptolib_noise_write_message(void*, uint8_t*, size_t)'),
+  noiseRead: f('CryptoBufferResult cryptolib_noise_read_message(void*, uint8_t*, size_t)'),
+  noiseFinished: f('int cryptolib_noise_handshake_finished(void*)'),
+  noiseHash: f('CryptoBufferResult cryptolib_noise_handshake_hash(void*)'),
+  noiseRemote: f('CryptoBufferResult cryptolib_noise_remote_static(void*)'),
+  noiseSplit: f('int cryptolib_noise_split(void*)'),
+  noiseEnc: f('CryptoBufferResult cryptolib_noise_encrypt(void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  noiseDec: f('CryptoBufferResult cryptolib_noise_decrypt(void*, uint8_t*, size_t, uint8_t*, size_t)'),
+  noiseDecAt: f('CryptoBufferResult cryptolib_noise_decrypt_at(void*, uint64_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  noiseFree: f('void cryptolib_noise_free(void*)'),
   // Stateful RNGs, advanced steganography, composed carriers and FEC.
   drbgInstantiate: f('void *cryptolib_drbg_instantiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
   drbgGenerate: f('CryptoBufferResult cryptolib_drbg_generate(void*, size_t, uint8_t*, size_t)'),
@@ -1383,9 +1399,81 @@ function splitLengthed(data) {
   return [Buffer.from(data.subarray(4, 4 + n)), Buffer.from(data.subarray(4 + n))];
 }
 
+
+// ═══ Incremental BLAKE3 + Noise XX secure channel ════════════════════════════
+
+/** Incremental BLAKE3. Digest equals blake3() over the concatenation. Not thread-safe. close() when done. */
+class Blake3Hasher {
+  constructor(handle) { this._h = handle; }
+  /** Feed bytes. Throws after finalize(). */
+  update(data) {
+    if (fn.b3Update(this._h, u8(data), u8(data).length) !== 1) throw new Error('cryptolib: blake3 update failed (closed or finalized?)');
+  }
+  /** Produce the digest; outLen 0 = 32 bytes, larger uses extendable output. No further updates afterwards. */
+  finalize(outLen = 0) { return consume(fn.b3Finalize(this._h, outLen)); }
+  /** Release the native handle. Idempotent. */
+  close() { if (this._h) { fn.b3Free(this._h); this._h = null; } }
+}
+
+/**
+ * Noise_XX_25519_ChaChaPoly_SHA256 — mutual static-key authentication + forward secrecy.
+ *
+ * Handshake: initiator writeMessage, responder readMessage+writeMessage, initiator
+ * readMessage+writeMessage, responder readMessage; then both split(). Handles are
+ * NOT thread-safe (decryptAt is re-entrant, see there). close() when done.
+ */
+class Noise {
+  constructor(handle) { this._h = handle; }
+  /** Next handshake message on this side's turn, embedding an optional payload. */
+  writeMessage(payload = null) { return consume(fn.noiseWrite(this._h, optr(payload), olen(payload))); }
+  /** Consume the peer's handshake message; returns its embedded payload. */
+  readMessage(message) { return consume(fn.noiseRead(this._h, u8(message), u8(message).length)); }
+  /** True once all three handshake messages are processed. */
+  handshakeFinished() { return fn.noiseFinished(this._h) === 1; }
+  /** 32-byte channel-binding value both sides agree on after the handshake. */
+  handshakeHash() { return consume(fn.noiseHash(this._h)); }
+  /** The peer's static X25519 public key learned in the handshake — pin it to stop MITM. */
+  remoteStatic() { return consume(fn.noiseRemote(this._h)); }
+  /** Derive the transport states (Noise Split). Throws if unfinished or already split. */
+  split() { if (fn.noiseSplit(this._h) !== 1) throw new Error('cryptolib: noise split failed (handshake unfinished or already split)'); }
+  /** Seal one transport record (after split). */
+  encrypt(plaintext, ad = null) { return consume(fn.noiseEnc(this._h, u8(plaintext), u8(plaintext).length, optr(ad), olen(ad))); }
+  /** Open the next record in sequence (after split). */
+  decrypt(ciphertext, ad = null) { return consume(fn.noiseDec(this._h, u8(ciphertext), u8(ciphertext).length, optr(ad), olen(ad))); }
+  /**
+   * Open the record sent at `nonceCounter` WITHOUT advancing the session counter, so
+   * several records can be opened at once. Caller's duty: use each sender counter
+   * (from 0 per direction) at most once and reassemble in order — statelessly a
+   * replay looks like a fresh record. Do not mix with encrypt/decrypt concurrently.
+   * There is deliberately no explicit-nonce encrypt (nonce reuse leaks the key).
+   */
+  decryptAt(nonceCounter, ciphertext, ad = null) {
+    return consume(fn.noiseDecAt(this._h, BigInt(nonceCounter), u8(ciphertext), u8(ciphertext).length, optr(ad), olen(ad)));
+  }
+  /** Release the native handle. Idempotent. */
+  close() { if (this._h) { fn.noiseFree(this._h); this._h = null; } }
+}
+
+/** Incremental BLAKE3; pass a 32-byte key for keyed (MAC) mode. */
+function blake3Hasher(key = null) {
+  if (key !== null && u8(key).length !== 32) throw new Error('cryptolib: BLAKE3 key must be exactly 32 bytes');
+  const h = fn.b3Create(optr(key), olen(key));
+  if (!h) throw new Error('cryptolib: blake3 hasher create failed (BLAKE3 not enabled?)');
+  return new Blake3Hasher(h);
+}
+
+/** Create a Noise XX state from this side's X25519 keypair (see x25519Keygen). Both sides must use the same prologue. */
+function noise(initiator, staticPublic, staticSecret, prologue = null) {
+  if (u8(staticPublic).length !== 32 || u8(staticSecret).length !== 32) throw new Error('cryptolib: Noise static keys must be 32 bytes each');
+  const h = fn.noiseCreate(initiator ? 1 : 0, u8(staticPublic), 32, u8(staticSecret), 32, optr(prologue), olen(prologue));
+  if (!h) throw new Error('cryptolib: noise create failed');
+  return new Noise(h);
+}
+
 module.exports = {
   SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
   Rng, Drbg, Fortuna, StegoAdvanced, Composed, FecScheme, MediaFormat, assessFileHealth,
+  Blake3Hasher, blake3Hasher, Noise, noise,
   SecurityProfile, ProtectionLayer, SignatureAlgorithm, Recipe,
   /** Start a Recipe at the given profile's settings. */
   recipe(profile = SecurityProfile.balanced) { return new Recipe(module.exports, profile); },

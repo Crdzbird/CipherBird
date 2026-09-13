@@ -59,6 +59,87 @@ TEST("noise/xx-handshake-and-transport") {
     CHECK(sr.value().recv.decrypt(b.value().span()).value().to_string() == "msg-3");
 }
 
+TEST("noise/decrypt-at-matches-sequential-decrypt") {
+    // Differential against the path the KAT vector already validates: if
+    // opening by explicit counter ever disagrees with walking the records
+    // in order, one of them is wrong.
+    auto iks = X25519::generate_keypair();
+    auto rks = X25519::generate_keypair();
+    auto ini = NoiseXX::initiator(iks);
+    auto res = NoiseXX::responder(rks);
+    REQUIRE(do_handshake(ini, res));
+    auto si = ini.into_session();
+    auto sr = res.into_session();
+    REQUIRE(si.is_ok()); REQUIRE(sr.is_ok());
+
+    std::vector<crypto::SecureBuffer> records;
+    const std::vector<std::string> texts = {"r0", "record one", "r2", "r3"};
+    for (const auto& t : texts) {
+        auto c = si.value().send.encrypt(sv(t));
+        REQUIRE(c.is_ok());
+        records.push_back(std::move(c.value()));
+    }
+
+    // Out of order on purpose: that is the whole point of the API.
+    for (std::size_t i = records.size(); i-- > 0;) {
+        auto p = sr.value().recv.decrypt_at(i, records[i].span());
+        REQUIRE(p.is_ok());
+        CHECK(p.value().to_string() == texts[i]);
+    }
+
+    // The session counter is untouched, so the sequential path still
+    // opens record 0 — this is what makes the call re-entrant.
+    auto seq = sr.value().recv.decrypt(records[0].span());
+    REQUIRE(seq.is_ok());
+    CHECK(seq.value().to_string() == texts[0]);
+}
+
+TEST("noise/decrypt-at-rejects-the-wrong-counter") {
+    // The tag binds the counter, so a record only opens under the counter
+    // its sender used. That is what stops a caller silently accepting
+    // reordered records as if they were in sequence.
+    auto iks = X25519::generate_keypair();
+    auto rks = X25519::generate_keypair();
+    auto ini = NoiseXX::initiator(iks);
+    auto res = NoiseXX::responder(rks);
+    REQUIRE(do_handshake(ini, res));
+    auto si = ini.into_session();
+    auto sr = res.into_session();
+    REQUIRE(si.is_ok()); REQUIRE(sr.is_ok());
+
+    auto c0 = si.value().send.encrypt(sv("zero"));
+    REQUIRE(c0.is_ok());
+    CHECK(sr.value().recv.decrypt_at(1, c0.value().span()).is_err());
+    CHECK(sr.value().recv.decrypt_at(0, c0.value().span()).is_ok());
+
+    // Associated data is bound too.
+    auto c1 = si.value().send.encrypt(sv("with-ad"), sv("context"));
+    REQUIRE(c1.is_ok());
+    CHECK(sr.value().recv.decrypt_at(1, c1.value().span(), sv("other")).is_err());
+    CHECK(sr.value().recv.decrypt_at(1, c1.value().span(), sv("context")).is_ok());
+
+    // A flipped ciphertext byte fails the tag rather than yielding bytes.
+    auto c2 = si.value().send.encrypt(sv("tamper"));
+    REQUIRE(c2.is_ok());
+    std::vector<uint8_t> bad(c2.value().span().begin(), c2.value().span().end());
+    bad[0] ^= 0x01;
+    CHECK(sr.value().recv.decrypt_at(2, std::span<const uint8_t>{bad}).is_err());
+
+    // The reserved maximum counter is refused outright.
+    CHECK(sr.value().recv.decrypt_at(UINT64_MAX, c0.value().span()).is_err());
+    // Too short to hold a tag.
+    std::vector<uint8_t> stub(4, 0);
+    CHECK(sr.value().recv.decrypt_at(0, std::span<const uint8_t>{stub}).is_err());
+}
+
+TEST("noise/decrypt-at-refuses-an-unkeyed-state") {
+    // Defence in depth: a state that never split has no key, and calling
+    // libsodium with an empty key buffer would be undefined.
+    NoiseXX::CipherState fresh;
+    std::vector<uint8_t> anything(32, 0);
+    CHECK(fresh.decrypt_at(0, std::span<const uint8_t>{anything}).is_err());
+}
+
 TEST("noise/mutual-static-authentication") {
     auto iks = X25519::generate_keypair();
     auto rks = X25519::generate_keypair();
@@ -131,6 +212,9 @@ TEST("noise/out-of-turn-rejected") {
 
 void run_tests_noise() {
     RUN("noise/xx-handshake-and-transport");
+    RUN("noise/decrypt-at-matches-sequential-decrypt");
+    RUN("noise/decrypt-at-rejects-the-wrong-counter");
+    RUN("noise/decrypt-at-refuses-an-unkeyed-state");
     RUN("noise/mutual-static-authentication");
     RUN("noise/handshake-payloads-delivered");
     RUN("noise/tampered-handshake-rejected");

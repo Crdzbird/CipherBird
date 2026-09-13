@@ -54,6 +54,7 @@ part 'api/oprf.dart';
 part 'api/opaque.dart';
 part 'api/rng.dart';
 part 'api/composed.dart';
+part 'api/noise.dart';
 
 class CryptoLib {
   final DynamicLibrary _lib;

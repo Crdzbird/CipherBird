@@ -207,6 +207,21 @@ node-security: lib
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3; \
 	else echo "node not found — skipping"; fi
 
+.PHONY: node-noise
+node-noise: lib
+	$(call hdr,Node incremental BLAKE3 + Noise XX)
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/noise.js | tail -3; \
+	else echo "node not found — skipping"; fi
+
+.PHONY: dart-noise
+dart-noise: lib
+	$(call hdr,Dart incremental BLAKE3 + Noise XX)
+	@if command -v dart >/dev/null 2>&1; then \
+		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		dart run bin/noise_verify.dart $(DYLIB) | tail -3; \
+	else echo "dart not found — skipping"; fi
+
 .PHONY: java-security
 java-security: lib
 	$(call hdr,Java security profiles + recipes)
