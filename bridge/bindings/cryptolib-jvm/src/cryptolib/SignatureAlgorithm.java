@@ -1,6 +1,10 @@
 package cryptolib;
 
-/** Origin-authentication algorithm for a {@link Recipe}. */
+/**
+ * Built-in scheme selector for the {@link Recipe#signedBy} shorthand. For a
+ * custom algorithm implement {@link SignatureScheme} and use
+ * {@link Recipe#signedWith} / {@link Recipe#verifiedWith}.
+ */
 public enum SignatureAlgorithm {
     /** No signature. The AEAD still guarantees integrity, but not who sent it. */
     NONE(0),

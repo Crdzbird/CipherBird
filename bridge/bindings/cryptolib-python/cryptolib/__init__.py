@@ -357,8 +357,9 @@ def fec_decode(data: bytes, scheme: int, original_length: int) -> bytes:
 
 
 from ._security import (  # noqa: E402
-    FecScheme, ProtectionLayer, Recipe, SecurityProfile, SignatureAlgorithm,
-    maximum_security, recipe,
+    CascadeLayer, Ed25519Signature, FecScheme, HybridSignature, KeyFileSource, KeySource,
+    PassphraseKeySource, ProtectionLayer, RawKeySource, Recipe, SecurityProfile, SignatureAlgorithm,
+    SignatureScheme, maximum_security, recipe,
 )
 
 __all__ = [
@@ -375,6 +376,7 @@ __all__ = [
     "key_from_file_deterministic", "stego_embed", "stego_extract",
     "fec_encode", "fec_decode",
     # Composition
-    "SecurityProfile", "ProtectionLayer", "SignatureAlgorithm", "FecScheme",
-    "Recipe", "recipe", "maximum_security",
+    "SecurityProfile", "ProtectionLayer", "CascadeLayer", "KeySource", "RawKeySource",
+    "PassphraseKeySource", "KeyFileSource", "SignatureScheme", "Ed25519Signature", "HybridSignature",
+    "SignatureAlgorithm", "FecScheme", "Recipe", "recipe", "maximum_security",
 ]

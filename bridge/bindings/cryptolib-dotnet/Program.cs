@@ -87,7 +87,7 @@ Ck("maximum picks the strongest options",
    Mx.MlKemLevel() == 2 && Mx.MlDsaLevel() == 2 && Mx.SlhDsaHash() == 1
    && Mx.SealedTier() == 1 && Mx.KdfPreset() == 1);
 Ck("maximum cascade ends key-committing",
-   Mx.Cascade().Length == 3 && Mx.Cascade()[^1] == ProtectionLayer.Committing);
+   Mx.Cascade().Length == 3 && Mx.Cascade()[^1].Id == 3);
 Ck("profiles are ordered", SecurityProfile.Balanced.Argon2Memory() < Mx.Argon2Memory());
 
 var key = CryptoLib.RandomBytes(32);
@@ -152,6 +152,123 @@ Ck("foreign bytes rejected", Throws(() => r.Open("not an envelope at all"u8.ToAr
 Ck("short key refused", Throws(() => CryptoLib.NewRecipe().WithKey(new byte[31])));
 Ck("empty layer list refused", Throws(() => CryptoLib.NewRecipe().WithLayers(Array.Empty<ProtectionLayer>())));
 
+// Extension points
+Ck("built-in ids pinned",
+   ProtectionLayer.XChaCha20Poly1305.Id == 1 && ProtectionLayer.Aes256Gcm.Id == 2
+   && ProtectionLayer.Committing.Id == 3 && ProtectionLayer.Molecular.Id == 4
+   && new PassphraseKeySource("x").Id == 1 && new Ed25519Signature().Id == 1 && new HybridSignature().Id == 2);
+
+ProtectionLayer.Register(new MyLayer());
+var cenv = CryptoLib.NewRecipe().WithKey(key).WithLayers(new[] { new MyLayer() }).Seal(secret);
+Ck("custom layer round-trips via the registry", CryptoLib.NewRecipe().WithKey(key).Open(cenv).AsSpan().SequenceEqual(secret));
+
+ProtectionLayer.Register(new BeltAndBraces());
+var br = CryptoLib.NewRecipe().WithKey(key).WithLayers(new[] { new BeltAndBraces() });
+var benv = br.Seal(secret);
+Ck("cascade subclass mixes three ciphers as one layer", CryptoLib.NewRecipe().WithKey(key).Open(benv).AsSpan().SequenceEqual(secret));
+var bbad = (byte[])benv.Clone(); bbad[^1] ^= 1;
+Ck("cascade fails closed on tamper", Throws(() => br.Open(bbad)));
+
+var nested = new CascadeLayer(202, "nested", new ProtectionLayer[] { new BeltAndBraces(), ProtectionLayer.Committing });
+ProtectionLayer.Register(nested);
+var nenv = CryptoLib.NewRecipe().WithKey(key).WithLayers(new[] { ProtectionLayer.XChaCha20Poly1305, nested }).Seal(secret);
+Ck("cascades nest, mixed with built-ins", CryptoLib.NewRecipe().WithKey(key).Open(nenv).AsSpan().SequenceEqual(secret));
+
+Ck("reserved layer id refused at register", Throws(() => ProtectionLayer.Register(new Impostor())));
+Ck("reserved layer id refused at AddLayer", Throws(() => CryptoLib.NewRecipe().WithKey(key).AddLayer(new Impostor())));
+Ck("reserved scheme id refused", Throws(() => CryptoLib.NewRecipe().WithKey(key).SignedWith(new FakeEd25519())));
+ProtectionLayer.Register(new MyLayer());
+Ck("re-registering an id under another WireName refused",
+   Throws(() => ProtectionLayer.Register(new CascadeLayer(200, "other", new[] { ProtectionLayer.XChaCha20Poly1305 }))));
+
+var e1 = CryptoLib.NewRecipe().WithKey(key).WithLayers(new[] { new MyLayer() }).Seal(secret);
+var e2 = CryptoLib.NewRecipe().WithKey(key)
+    .WithLayers(new[] { new CascadeLayer(203, "renamed", new[] { ProtectionLayer.XChaCha20Poly1305 }) }).Seal(secret);
+Ck("WireName feeds the key derivation", e1.Length == e2.Length && !e1.AsSpan().SequenceEqual(e2));
+
+var token = CryptoLib.RandomBytes(32);
+var tenv2 = CryptoLib.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(token)).Seal(secret);
+Ck("custom key source round-trips",
+   CryptoLib.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(token)).Open(tenv2).AsSpan().SequenceEqual(secret));
+Ck("wrong token rejected",
+   Throws(() => CryptoLib.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(CryptoLib.RandomBytes(32))).Open(tenv2)));
+Ck("header pins the source id", Throws(() => CryptoLib.NewRecipe(SecurityProfile.High).WithKey(key).Open(tenv2)));
+Ck("narrowing key source refused", Throws(() => CryptoLib.NewRecipe().WithKeySource(new WeakSource()).Seal(secret)));
+
+var (sPub, sSec) = CryptoLib.Ed25519Keygen();
+var senv3 = CryptoLib.NewRecipe().WithKey(key).SignedWith(new PrefixedEd25519(sk: sSec)).Seal(secret);
+Ck("custom signature scheme round-trips",
+   CryptoLib.NewRecipe().WithKey(key).VerifiedWith(new PrefixedEd25519(pk: sPub)).Open(senv3).AsSpan().SequenceEqual(secret));
+Ck("key-only verifier cannot serve a custom scheme", Throws(() => CryptoLib.NewRecipe().WithKey(key).VerifiedBy(sPub).Open(senv3)));
+Ck("unverified custom-signed envelope refused", Throws(() => CryptoLib.NewRecipe().WithKey(key).Open(senv3)));
+Ck("verifier with the wrong scheme id refused",
+   Throws(() => CryptoLib.NewRecipe().WithKey(key).VerifiedWith(new Ed25519Signature(publicKey: sPub)).Open(senv3)));
+
+var hr = CryptoLib.NewRecipe().WithKey(key).SignedBy(hSec, SignatureAlgorithm.Hybrid).VerifiedBy(hPub);
+Ck("built-in shorthand with key-only verifier", hr.Open(hr.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var d = CryptoLib.NewRecipe().WithKeySource(new TokenSource(token)).WithLayers(new[] { new BeltAndBraces() }).Describe();
+Ck("describe names custom parts", d.Contains("token") && d.Contains("belt-and-braces"));
+
 tmp.Delete(true);
 Console.WriteLine($"\ncryptolib .NET: {(fail == 0 ? "OK" : "FAILED")} ({pass} passed, {fail} failed)");
 Environment.Exit(fail == 0 ? 0 : 1);
+
+// ── custom parts used by the extension-point checks ─────────────────────────
+
+sealed class MyLayer : ProtectionLayer
+{
+    public override int Id => 200;
+    public override string WireName => "my-xchacha";
+    public override byte[] Seal(byte[] key, byte[] aad, byte[] pt) => CryptoLib.XChaCha20Encrypt(pt, key, aad);
+    public override byte[] Open(byte[] key, byte[] aad, byte[] ct) => CryptoLib.XChaCha20Decrypt(ct, key, aad);
+}
+
+sealed class BeltAndBraces : CascadeLayer
+{
+    public BeltAndBraces() : base(201, "belt-and-braces",
+        new ProtectionLayer[] { ProtectionLayer.XChaCha20Poly1305, ProtectionLayer.Aes256Gcm, new MyLayer() }) { }
+}
+
+sealed class Impostor : ProtectionLayer
+{
+    public override int Id => 3;
+    public override string WireName => "committing";
+    public override byte[] Seal(byte[] key, byte[] aad, byte[] pt) => pt;
+    public override byte[] Open(byte[] key, byte[] aad, byte[] ct) => ct;
+}
+
+sealed class TokenSource : KeySource
+{
+    private readonly byte[] _token;
+    public TokenSource(byte[] token) => _token = token;
+    public override int Id => 210;
+    public override string Label => "token";
+    public override byte[] DeriveRoot(byte[] salt, ulong ops, ulong mem) => _token;
+}
+
+sealed class WeakSource : KeySource
+{
+    public override int Id => 211;
+    public override string Label => "weak";
+    public override byte[] DeriveRoot(byte[] salt, ulong ops, ulong mem) => new byte[16];
+}
+
+sealed class PrefixedEd25519 : SignatureScheme
+{
+    private readonly byte[]? _sk, _pk;
+    public PrefixedEd25519(byte[]? sk = null, byte[]? pk = null) { _sk = sk; _pk = pk; }
+    public override int Id => 220;
+    public override string Label => "prefixed-ed25519";
+    private static byte[] Tag(byte[] m) { var t = new byte[7 + m.Length]; "custom:"u8.CopyTo(t); m.CopyTo(t, 7); return t; }
+    public override byte[] Sign(byte[] m) => CryptoLib.Ed25519Sign(Tag(m), _sk!);
+    public override bool Verify(byte[] m, byte[] sig) => CryptoLib.Ed25519Verify(Tag(m), sig, _pk!);
+}
+
+sealed class FakeEd25519 : SignatureScheme
+{
+    public override int Id => 1;
+    public override string Label => "fake";
+    public override byte[] Sign(byte[] m) => new byte[64];
+    public override bool Verify(byte[] m, byte[] sig) => true;
+}

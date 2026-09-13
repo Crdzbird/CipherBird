@@ -191,6 +191,53 @@ Source: [`example/recipes.cpp`](example/recipes.cpp) ·
 The same envelopes open across languages — a value sealed by the Go recipe opens
 in the Swift recipe and vice-versa, because every binding wraps the same core.
 
+### Security profiles & composable recipes (all ten bindings)
+
+Every binding also ships a **`SecurityProfile`** (`balanced` / `high` /
+`maximum` — every algorithm parameter moves together) and a **`Recipe`**: a
+composable pipeline *key source → AEAD cascade → optional signature → optional
+FEC → optional stego carrier*. The envelope is one byte-identical wire format
+in Dart, Go, Node, Swift, Java/Kotlin, Python, Ruby, Rust and .NET
+(`make recipe-interop` proves 72 seal→open pairs).
+
+```dart
+final r = CryptoRecipe.maximumSecurity(lib)
+    .withPassphrase('correct horse battery staple')
+    .signedBy(id.secretKey, algorithm: SignatureAlgorithm.hybrid)
+    .verifiedBy(id.publicKey);
+final back = r.open(r.seal(secret));
+```
+
+**Every part is replaceable.** Three extension points exist in every binding,
+with the library's own implementations built on the same bases, so a custom
+part is a first-class citizen:
+
+| Extension point | Built-ins | Plug in your own |
+|---|---|---|
+| `ProtectionLayer` — one AEAD layer in the cascade | XChaCha20-Poly1305 · AES-256-GCM · key-committing · MolecularVault | subclass, then `ProtectionLayer.register()`; to **mix several ciphers as one layer**, extend `CascadeLayer` |
+| `KeySource` — where the 32-byte root key comes from | raw key · passphrase (Argon2id) · media file | a hardware token, a KMS, a keyring unlock — `withKeySource()` |
+| `SignatureScheme` — how the plaintext is signed | Ed25519 · Ed25519+ML-DSA-65 hybrid | another algorithm — `signedWith()` / `verifiedWith()` |
+
+```dart
+class BeltAndBraces extends CascadeLayer {          // three ciphers, ONE layer
+  const BeltAndBraces() : super(id: 201, wireName: 'belt-and-braces',
+      layers: [ProtectionLayer.xchacha20Poly1305, ProtectionLayer.aes256Gcm, MyLayer()]);
+}
+ProtectionLayer.register(const BeltAndBraces());
+final env = CryptoRecipe(lib).withKey(key).withLayers([const BeltAndBraces()]).seal(secret);
+```
+
+What the recipe keeps for itself, whatever you plug in: a layer never chooses
+its key (fresh 32-byte HKDF sub-key per layer per envelope, bound to the salt
+and the layer's wire name); no layer can opt out of the authenticated header;
+the order sign → encrypt → correct → conceal is fixed; a key source must return
+exactly 32 bytes; ids 0–127 are reserved and enforced, so a custom part can
+never shadow a built-in. A custom part opens only where the same id + wire name
++ algorithm is registered — and because the wire name feeds the key derivation,
+a mismatched implementation fails the AEAD tag rather than yielding garbage.
+
+Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,dart}-security`.
+
 ---
 
 ## Production posture

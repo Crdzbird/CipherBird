@@ -14,6 +14,60 @@ PLAINTEXT  = 'cross-language recipe envelope'.b
 $pass = 0
 $fail = 0
 
+# ── custom parts used by the extension-point checks ─────────────────────────
+
+class MyLayer < CryptoLib::ProtectionLayer
+  def id = 200
+  def wire_name = 'my-xchacha'
+  def seal(key, aad, pt) = CryptoLib.xchacha20_encrypt(pt, key, aad)
+  def open(key, aad, ct) = CryptoLib.xchacha20_decrypt(ct, key, aad)
+end
+
+class BeltAndBraces < CryptoLib::CascadeLayer
+  def initialize
+    super(201, 'belt-and-braces',
+          [CryptoLib::ProtectionLayer::XCHACHA20_POLY1305, CryptoLib::ProtectionLayer::AES256_GCM, MyLayer.new])
+  end
+end
+
+class Impostor < CryptoLib::ProtectionLayer
+  def id = 3
+  def wire_name = 'committing'
+  def seal(_key, _aad, pt) = pt
+  def open(_key, _aad, ct) = ct
+end
+
+class TokenSource < CryptoLib::KeySource
+  def initialize(token) = @token = token
+  def id = 210
+  def label = 'token'
+  def derive_root(_salt, _ops, _mem) = @token
+end
+
+class WeakSource < CryptoLib::KeySource
+  def id = 211
+  def label = 'weak'
+  def derive_root(_salt, _ops, _mem) = "\x00".b * 16
+end
+
+class PrefixedEd25519 < CryptoLib::SignatureScheme
+  def initialize(sk: nil, pk: nil)
+    @sk = sk
+    @pk = pk
+  end
+  def id = 220
+  def label = 'prefixed-ed25519'
+  def sign(m) = CryptoLib.ed25519_sign('custom:'.b + m, @sk)
+  def verify(m, sig) = CryptoLib.ed25519_verify('custom:'.b + m, sig, @pk)
+end
+
+class FakeEd25519 < CryptoLib::SignatureScheme
+  def id = 1
+  def label = 'fake'
+  def sign(_m) = "\x00".b * 64
+  def verify(_m, _sig) = true
+end
+
 def ck(label, ok)
   puts(ok ? "  ok   #{label}" : " FAIL  #{label}")
   ok ? $pass += 1 : $fail += 1
@@ -143,6 +197,69 @@ Dir.mktmpdir('cl_sec_rb_') do |tmp|
   ck('foreign bytes rejected', throws? { r.open('not an envelope at all'.b) })
   ck('short key refused', throws? { CryptoLib.recipe.with_key("\x00".b * 31) })
   ck('empty layer list refused', throws? { CryptoLib.recipe.with_layers([]) })
+
+  # Extension points
+  pl = CryptoLib::ProtectionLayer
+  ck('built-in ids pinned',
+     [pl::XCHACHA20_POLY1305, pl::AES256_GCM, pl::COMMITTING, pl::MOLECULAR].map(&:id) == [1, 2, 3, 4] &&
+     CryptoLib::PassphraseKeySource.new('x').id == 1 && CryptoLib::Ed25519Signature.new.id == 1 &&
+     CryptoLib::HybridSignature.new.id == 2)
+
+  pl.register(MyLayer.new)
+  cenv = CryptoLib.recipe.with_key(key).with_layers([MyLayer.new]).seal(secret)
+  ck('custom layer round-trips via the registry', CryptoLib.recipe.with_key(key).open(cenv) == secret)
+
+  pl.register(BeltAndBraces.new)
+  br = CryptoLib.recipe.with_key(key).with_layers([BeltAndBraces.new])
+  benv = br.seal(secret)
+  ck('cascade subclass mixes three ciphers as one layer', CryptoLib.recipe.with_key(key).open(benv) == secret)
+  bbad = benv.dup
+  bbad.setbyte(bbad.bytesize - 1, bbad.getbyte(bbad.bytesize - 1) ^ 1)
+  ck('cascade fails closed on tamper', throws? { br.open(bbad) })
+
+  nested = CryptoLib::CascadeLayer.new(202, 'nested', [BeltAndBraces.new, pl::COMMITTING])
+  pl.register(nested)
+  nenv = CryptoLib.recipe.with_key(key).with_layers([pl::XCHACHA20_POLY1305, nested]).seal(secret)
+  ck('cascades nest, mixed with built-ins', CryptoLib.recipe.with_key(key).open(nenv) == secret)
+
+  ck('reserved layer id refused at register', throws? { pl.register(Impostor.new) })
+  ck('reserved layer id refused at add_layer', throws? { CryptoLib.recipe.with_key(key).add_layer(Impostor.new) })
+  ck('reserved scheme id refused', throws? { CryptoLib.recipe.with_key(key).signed_with(FakeEd25519.new) })
+  pl.register(MyLayer.new)
+  ck('re-registering an id under another wire_name refused',
+     throws? { pl.register(CryptoLib::CascadeLayer.new(200, 'other', [pl::XCHACHA20_POLY1305])) })
+
+  e1 = CryptoLib.recipe.with_key(key).with_layers([MyLayer.new]).seal(secret)
+  e2 = CryptoLib.recipe.with_key(key)
+                .with_layers([CryptoLib::CascadeLayer.new(203, 'renamed', [pl::XCHACHA20_POLY1305])]).seal(secret)
+  ck('wire_name feeds the key derivation', e1.bytesize == e2.bytesize && e1 != e2)
+
+  token = CryptoLib.random_bytes(32)
+  tenv2 = CryptoLib.recipe(CryptoLib::SecurityProfile::HIGH).with_key_source(TokenSource.new(token)).seal(secret)
+  ck('custom key source round-trips',
+     CryptoLib.recipe(CryptoLib::SecurityProfile::HIGH).with_key_source(TokenSource.new(token)).open(tenv2) == secret)
+  ck('wrong token rejected', throws? do
+    CryptoLib.recipe(CryptoLib::SecurityProfile::HIGH).with_key_source(TokenSource.new(CryptoLib.random_bytes(32))).open(tenv2)
+  end)
+  ck('header pins the source id', throws? { CryptoLib.recipe(CryptoLib::SecurityProfile::HIGH).with_key(key).open(tenv2) })
+  ck('narrowing key source refused', throws? { CryptoLib.recipe.with_key_source(WeakSource.new).seal(secret) })
+
+  spk, ssk = CryptoLib.ed25519_keygen
+  senv3 = CryptoLib.recipe.with_key(key).signed_with(PrefixedEd25519.new(sk: ssk)).seal(secret)
+  ck('custom signature scheme round-trips',
+     CryptoLib.recipe.with_key(key).verified_with(PrefixedEd25519.new(pk: spk)).open(senv3) == secret)
+  ck('key-only verifier cannot serve a custom scheme',
+     throws? { CryptoLib.recipe.with_key(key).verified_by(spk).open(senv3) })
+  ck('unverified custom-signed envelope refused', throws? { CryptoLib.recipe.with_key(key).open(senv3) })
+  ck('verifier with the wrong scheme id refused', throws? do
+    CryptoLib.recipe.with_key(key).verified_with(CryptoLib::Ed25519Signature.new(public_key: spk)).open(senv3)
+  end)
+
+  hr = CryptoLib.recipe.with_key(key).signed_by(hsk, CryptoLib::SignatureAlgorithm::HYBRID).verified_by(hpk)
+  ck('built-in shorthand with key-only verifier', hr.open(hr.seal(secret)) == secret)
+
+  d = CryptoLib.recipe.with_key_source(TokenSource.new(token)).with_layers([BeltAndBraces.new]).describe
+  ck('describe names custom parts', d.include?('token') && d.include?('belt-and-braces'))
 end
 
 puts "\n#{$pass} passed, #{$fail} failed — recipes #{$fail.zero? ? 'OK' : 'FAILED'}"

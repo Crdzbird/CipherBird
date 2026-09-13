@@ -24,10 +24,10 @@ binding: an envelope sealed here opens in Dart, Go, Node, Swift or Java.
 
 from __future__ import annotations
 
+import abc as _abc
 import enum as _enum
-import os as _os
 import struct as _struct
-from typing import Sequence
+from typing import Callable, Sequence
 
 from . import (
     aes256gcm_decrypt as _aes_dec,
@@ -58,35 +58,278 @@ _VERSION = 1
 _SALT_LEN = 16
 
 
-class ProtectionLayer(_enum.Enum):
-    """One authenticated-encryption layer in a :class:`Recipe` cascade."""
+# ── Extension points ─────────────────────────────────────────────────────────
+#
+# Three abstract base classes can be subclassed and plugged into a Recipe:
+#   ProtectionLayer  — one authenticated-encryption layer in the cascade.
+#   KeySource        — where the 32-byte root key comes from.
+#   SignatureScheme  — how the plaintext is signed and verified.
+# The library's own implementations subclass the same bases, so a custom one is
+# a first-class citizen. To compose several ciphers into ONE layer, subclass
+# CascadeLayer.
+#
+# What the recipe keeps for itself, whatever you plug in: a layer never chooses
+# its key (it receives a fresh 32-byte key per layer per envelope, HKDF-derived
+# under salt + wire_name); a layer cannot opt out of the AAD; the order is fixed
+# (sign -> encrypt -> correct -> conceal); a KeySource must return exactly 32
+# bytes; ids 0–127 are reserved — custom parts must use 128–255, enforced so a
+# custom part can never shadow a built-in.
+#
+# Cross-language: built-in ids open in every CryptoLib binding. A custom part
+# opens only where the same id + wire_name + algorithm is registered — and since
+# wire_name feeds the key derivation, a mismatched implementation fails the AEAD
+# tag rather than yielding garbage.
 
-    #: XChaCha20-Poly1305. Large nonce, no timing-sensitive tables.
-    XCHACHA20_POLY1305 = (1, "xchacha20Poly1305")
-    #: AES-256-GCM. A different cipher family from ChaCha.
-    AES256_GCM = (2, "aes256Gcm")
-    #: Key-committing AEAD (UtC). Binds the ciphertext to exactly one key.
-    COMMITTING = (3, "committing")
-    #: A full MolecularVault (cascade + committing) nested as one layer.
-    MOLECULAR = (4, "molecular")
+_CUSTOM_ID_MIN, _CUSTOM_ID_MAX = 128, 255
 
-    def __init__(self, layer_id: int, wire_name: str) -> None:
-        self.id = layer_id
-        #: Name used in this layer's HKDF info string. Pinned explicitly rather
-        #: than derived from the member name: it is part of the wire format, so
-        #: renaming must not change how keys are derived.
-        self.wire_name = wire_name
+
+class _Builtin:
+    """Module-private marker: only this module's parts carry it, so a subclass
+    cannot claim a reserved id by pretending to be built in."""
+
+
+def _require_valid_id(part: object, part_id: int, what: str) -> None:
+    if isinstance(part, _Builtin):
+        return
+    if not isinstance(part_id, int) or not _CUSTOM_ID_MIN <= part_id <= _CUSTOM_ID_MAX:
+        raise ValueError(f"cryptolib: custom {what} ids must be in {_CUSTOM_ID_MIN}..{_CUSTOM_ID_MAX} "
+                         f"(0–127 are reserved), got {part_id}")
+
+
+class ProtectionLayer(_abc.ABC):
+    """
+    One authenticated-encryption layer in a :class:`Recipe` cascade.
+
+    Subclass it to add your own layer, then :meth:`register` it (on the opening
+    side too — the envelope stores only the id). Contract: :meth:`seal` must be
+    authenticated encryption that binds ``aad``, and :meth:`open` must raise on
+    any modification. The key is fresh per layer per envelope — never reuse it.
+
+        >>> class MyLayer(ProtectionLayer):
+        ...     id = 200
+        ...     wire_name = "my-xchacha"
+        ...     def seal(self, key, aad, plaintext): return cryptolib.xchacha20_encrypt(plaintext, key, aad)
+        ...     def open(self, key, aad, ciphertext): return cryptolib.xchacha20_decrypt(ciphertext, key, aad)
+        >>> ProtectionLayer.register(MyLayer())
+    """
+
+    #: Recorded in the envelope header. Built-ins use 1–4; custom 128–255.
+    id: int
+    #: Feeds this layer's HKDF info string. Part of the wire format.
+    wire_name: str
+
+    # Built-in singletons, assigned below the class body.
+    XCHACHA20_POLY1305: "ProtectionLayer"
+    AES256_GCM: "ProtectionLayer"
+    COMMITTING: "ProtectionLayer"
+    MOLECULAR: "ProtectionLayer"
+
+    @_abc.abstractmethod
+    def seal(self, key: bytes, aad: bytes, plaintext: bytes) -> bytes: ...
+
+    @_abc.abstractmethod
+    def open(self, key: bytes, aad: bytes, ciphertext: bytes) -> bytes: ...
+
+    _registry: dict[int, "ProtectionLayer"] = {}
+
+    @classmethod
+    def register(cls, layer: "ProtectionLayer") -> None:
+        """Make a custom layer resolvable by id when opening. Re-registering an id
+        under a different wire name is refused."""
+        _require_valid_id(layer, layer.id, "layer")
+        existing = ProtectionLayer._registry.get(layer.id)
+        if existing is not None and existing.wire_name != layer.wire_name:
+            raise ValueError(f"cryptolib: layer id {layer.id} is already registered as '{existing.wire_name}'")
+        ProtectionLayer._registry[layer.id] = layer
 
     @classmethod
     def from_id(cls, layer_id: int) -> "ProtectionLayer":
-        for layer in cls:
-            if layer.id == layer_id:
-                return layer
-        raise ValueError(f"cryptolib: unknown protection layer id {layer_id}")
+        try:
+            return ProtectionLayer._registry[layer_id]
+        except KeyError:
+            raise ValueError(f"cryptolib: unknown protection layer id {layer_id} — "
+                             "ProtectionLayer.register() it before opening") from None
+
+    def __repr__(self) -> str:
+        return f"<ProtectionLayer {self.wire_name} id={self.id}>"
+
+
+class _BuiltinLayer(ProtectionLayer, _Builtin):
+    def __init__(self, layer_id: int, wire_name: str,
+                 enc: Callable[[bytes, bytes, bytes], bytes], dec: Callable[[bytes, bytes, bytes], bytes]) -> None:
+        self.id, self.wire_name, self._enc, self._dec = layer_id, wire_name, enc, dec
+
+    def seal(self, key: bytes, aad: bytes, plaintext: bytes) -> bytes:
+        return self._enc(plaintext, key, aad)
+
+    def open(self, key: bytes, aad: bytes, ciphertext: bytes) -> bytes:
+        return self._dec(ciphertext, key, aad)
+
+
+#: XChaCha20-Poly1305. Large nonce, no timing-sensitive tables.
+ProtectionLayer.XCHACHA20_POLY1305 = _BuiltinLayer(1, "xchacha20Poly1305", _x_enc, _x_dec)
+#: AES-256-GCM. A different cipher family from ChaCha.
+ProtectionLayer.AES256_GCM = _BuiltinLayer(2, "aes256Gcm", _aes_enc, _aes_dec)
+#: Key-committing AEAD (UtC). Binds the ciphertext to exactly one key.
+ProtectionLayer.COMMITTING = _BuiltinLayer(3, "committing", _cmt_enc, _cmt_dec)
+#: A full MolecularVault (cascade + committing) nested as one layer.
+ProtectionLayer.MOLECULAR = _BuiltinLayer(4, "molecular", _mol_seal, _mol_open)
+ProtectionLayer._registry.update({
+    1: ProtectionLayer.XCHACHA20_POLY1305, 2: ProtectionLayer.AES256_GCM,
+    3: ProtectionLayer.COMMITTING, 4: ProtectionLayer.MOLECULAR,
+})
+
+
+class CascadeLayer(ProtectionLayer):
+    """
+    A layer that is itself a mixture of layers — the way to compose several
+    encryptions into one custom type. Subclass it, or instantiate it directly:
+
+        >>> class BeltAndBraces(CascadeLayer):
+        ...     def __init__(self):
+        ...         super().__init__(201, "belt-and-braces",
+        ...                          [ProtectionLayer.XCHACHA20_POLY1305, MyLayer()])
+
+    Each inner layer receives its own sub-key, HKDF-derived from this layer's
+    key under the inner index and wire name, so nesting never collapses two
+    ciphers onto one key. The AAD is bound by every inner layer. Cascades nest.
+    """
+
+    def __init__(self, layer_id: int, wire_name: str, layers: Sequence[ProtectionLayer]) -> None:
+        if not layers:
+            raise ValueError(f"cryptolib: CascadeLayer '{wire_name}' has no layers")
+        self.id, self.wire_name, self.layers = layer_id, wire_name, list(layers)
+
+    def _sub_key(self, key: bytes, i: int) -> bytes:
+        return _hkdf(key, b"", f"{self.wire_name}/{i}/{self.layers[i].wire_name}".encode(), 32)
+
+    def seal(self, key: bytes, aad: bytes, plaintext: bytes) -> bytes:
+        body = plaintext
+        for i, layer in enumerate(self.layers):
+            body = layer.seal(self._sub_key(key, i), aad, body)
+        return body
+
+    def open(self, key: bytes, aad: bytes, ciphertext: bytes) -> bytes:
+        body = ciphertext
+        for i in range(len(self.layers) - 1, -1, -1):
+            body = self.layers[i].open(self._sub_key(key, i), aad, body)
+        return body
+
+
+class KeySource(_abc.ABC):
+    """
+    Where a :class:`Recipe`'s 32-byte root key comes from.
+
+    Subclass it for a hardware token, a KMS, a keyring unlock — anything that
+    can produce the same 32 bytes again when opening. The recipe refuses any
+    other length.
+    """
+
+    #: Recorded in the envelope header. Built-ins use 0–2; custom 128–255.
+    id: int
+    #: Human-readable name, used by :meth:`Recipe.describe`.
+    label: str
+
+    @_abc.abstractmethod
+    def derive_root(self, salt: bytes, argon2_ops: int, argon2_memory: int) -> bytes:
+        """``salt`` is fresh per envelope; ops/memory are the recipe's Argon2id cost."""
+
+
+class RawKeySource(KeySource, _Builtin):
+    """A 32-byte full-entropy key used as-is (KEM secret, keyring unlock, token)."""
+    id, label = 0, "raw"
+
+    def __init__(self, key: bytes) -> None:
+        if len(key) != 32:
+            raise ValueError(f"cryptolib: root key must be exactly 32 bytes, got {len(key)}")
+        self._key = bytes(key)
+
+    def derive_root(self, salt: bytes, argon2_ops: int, argon2_memory: int) -> bytes:
+        return self._key
+
+
+class PassphraseKeySource(KeySource, _Builtin):
+    """A passphrase stretched with Argon2id at the recipe's cost."""
+    id, label = 1, "passphrase"
+
+    def __init__(self, passphrase: str) -> None:
+        self._passphrase = passphrase
+
+    def derive_root(self, salt: bytes, argon2_ops: int, argon2_memory: int) -> bytes:
+        return _argon2id(self._passphrase, salt, 32, argon2_ops, argon2_memory)
+
+
+class KeyFileSource(KeySource, _Builtin):
+    """The key derived deterministically from a media file — "the file is the key".
+    Uses the reproducible entropy path; ``key_from_file`` mixes in fresh system
+    entropy and so could never reopen its own envelope."""
+    id, label = 2, "keyFile"
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+
+    def derive_root(self, salt: bytes, argon2_ops: int, argon2_memory: int) -> bytes:
+        return _key_from_file(self._path)
+
+
+class SignatureScheme(_abc.ABC):
+    """
+    How a :class:`Recipe` signs and verifies the plaintext.
+
+    Subclass it for another algorithm; a scheme holding only a public key should
+    raise from :meth:`sign`. The signature is applied before encryption, so it
+    stays confidential. Custom schemes are verified only through
+    :meth:`Recipe.verified_with`.
+    """
+
+    #: Recorded in the envelope header. Built-ins use 1–2; custom 128–255.
+    id: int
+    #: Human-readable name, used by :meth:`Recipe.describe`.
+    label: str
+
+    @_abc.abstractmethod
+    def sign(self, message: bytes) -> bytes: ...
+
+    @_abc.abstractmethod
+    def verify(self, message: bytes, signature: bytes) -> bool: ...
+
+
+class Ed25519Signature(SignatureScheme, _Builtin):
+    """Ed25519. Pass ``secret_key`` to sign, ``public_key`` to verify, or both."""
+    id, label = 1, "ed25519"
+
+    def __init__(self, secret_key: bytes | None = None, public_key: bytes | None = None) -> None:
+        self._sk = None if secret_key is None else bytes(secret_key)
+        self._pk = None if public_key is None else bytes(public_key)
+
+    def sign(self, message: bytes) -> bytes:
+        if self._sk is None:
+            raise RuntimeError("cryptolib: Ed25519Signature has no secret key")
+        return _ed_sign(message, self._sk)
+
+    def verify(self, message: bytes, signature: bytes) -> bool:
+        return self._pk is not None and _ed_verify(message, signature, self._pk)
+
+
+class HybridSignature(SignatureScheme, _Builtin):
+    """Ed25519 + ML-DSA-65. A forgery needs breaking both families."""
+    id, label = 2, "hybrid"
+
+    def __init__(self, secret_key: bytes | None = None, public_key: bytes | None = None) -> None:
+        self._sk = None if secret_key is None else bytes(secret_key)
+        self._pk = None if public_key is None else bytes(public_key)
+
+    def sign(self, message: bytes) -> bytes:
+        if self._sk is None:
+            raise RuntimeError("cryptolib: HybridSignature has no secret key")
+        return _hy_sign(message, self._sk)
+
+    def verify(self, message: bytes, signature: bytes) -> bool:
+        return self._pk is not None and _hy_verify(message, signature, self._pk)
 
 
 class SignatureAlgorithm(_enum.IntEnum):
-    """Origin-authentication algorithm for a :class:`Recipe`."""
+    """Built-in scheme selector for the :meth:`Recipe.signed_by` shorthand."""
 
     #: No signature. The AEAD still guarantees integrity, but not who sent it.
     NONE = 0
@@ -103,16 +346,6 @@ class FecScheme(_enum.IntEnum):
     REPETITION3 = 1
     REPETITION5 = 2
     HAMMING74 = 3
-
-
-class _KeySource(_enum.IntEnum):
-    RAW = 0
-    PASSPHRASE = 1
-    KEY_FILE = 2
-
-    @property
-    def label(self) -> str:
-        return {0: "raw", 1: "passphrase", 2: "keyFile"}[int(self)]
 
 
 class SecurityProfile(_enum.Enum):
@@ -207,29 +440,35 @@ class Recipe:
         >>> r = cryptolib.maximum_security().with_passphrase("correct horse battery staple")
         >>> back = r.open(r.seal(b"secret"))
 
+    Every part is replaceable with your own subclass — see
+    :class:`ProtectionLayer`, :class:`KeySource` and :class:`SignatureScheme`.
     Builder methods return ``self`` so calls chain. Not thread-safe.
     """
 
     def __init__(self, profile: SecurityProfile = SecurityProfile.BALANCED) -> None:
         self.profile = profile
         self._layers = list(profile.cascade)
-        self._source = _KeySource.RAW
-        self._raw_key: bytes | None = None
-        self._passphrase: str | None = None
-        self._key_file: str | None = None
-        self._sign_algorithm = SignatureAlgorithm.NONE
-        self._sign_secret: bytes | None = None
-        self._sign_public: bytes | None = None
+        self._source: KeySource | None = None
+        self._signer: SignatureScheme | None = None
+        self._verifier: SignatureScheme | None = None
+        self._verifier_key: bytes | None = None
         self._fec = FecScheme.NONE
         self._argon_ops = profile.argon2_ops
         self._argon_memory = profile.argon2_memory
 
     # ── Key source (exactly one) ─────────────────────────────────────────────
 
+    def with_key_source(self, source: KeySource) -> "Recipe":
+        """Use any :class:`KeySource` — a built-in or your own subclass."""
+        if not isinstance(source, KeySource):
+            raise TypeError("cryptolib: with_key_source expects a KeySource")
+        _require_valid_id(source, source.id, "key source")
+        self._source = source
+        return self
+
     def with_passphrase(self, passphrase: str) -> "Recipe":
         """Derive the root key from a passphrase with Argon2id."""
-        self._source, self._passphrase = _KeySource.PASSPHRASE, passphrase
-        return self
+        return self.with_key_source(PassphraseKeySource(passphrase))
 
     def with_key(self, key: bytes) -> "Recipe":
         """
@@ -237,30 +476,35 @@ class Recipe:
         a hardware token, anywhere. Nothing is stretched; the key must already be
         full-entropy.
         """
-        if len(key) != 32:
-            raise ValueError(f"cryptolib: root key must be exactly 32 bytes, got {len(key)}")
-        self._source, self._raw_key = _KeySource.RAW, bytes(key)
-        return self
+        return self.with_key_source(RawKeySource(key))
 
     def with_key_file(self, path: str) -> "Recipe":
         """
         Derive the root key deterministically from a media file — "the file is
         the key". The same file always yields the same key on any machine.
         """
-        self._source, self._key_file = _KeySource.KEY_FILE, path
-        return self
+        return self.with_key_source(KeyFileSource(path))
 
     # ── Layers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _check_layer(layer: ProtectionLayer) -> None:
+        if not isinstance(layer, ProtectionLayer):
+            raise TypeError("cryptolib: layers must be ProtectionLayer instances")
+        _require_valid_id(layer, layer.id, "layer")
 
     def with_layers(self, layers: Sequence[ProtectionLayer]) -> "Recipe":
         """Replace the cascade with exactly these layers, innermost first."""
         if not layers:
             raise ValueError("cryptolib: a recipe needs at least one layer")
+        for layer in layers:
+            self._check_layer(layer)
         self._layers = list(layers)
         return self
 
     def add_layer(self, layer: ProtectionLayer) -> "Recipe":
         """Append one more layer on the outside of the current cascade."""
+        self._check_layer(layer)
         self._layers.append(layer)
         return self
 
@@ -274,27 +518,47 @@ class Recipe:
 
     # ── Authenticity ─────────────────────────────────────────────────────────
 
+    def signed_with(self, scheme: SignatureScheme) -> "Recipe":
+        """Sign with any :class:`SignatureScheme` — a built-in or your own subclass."""
+        if not isinstance(scheme, SignatureScheme):
+            raise TypeError("cryptolib: signed_with expects a SignatureScheme")
+        _require_valid_id(scheme, scheme.id, "signature scheme")
+        self._signer = scheme
+        return self
+
+    def verified_with(self, scheme: SignatureScheme) -> "Recipe":
+        """Verify with any :class:`SignatureScheme`. Required for a custom scheme."""
+        if not isinstance(scheme, SignatureScheme):
+            raise TypeError("cryptolib: verified_with expects a SignatureScheme")
+        _require_valid_id(scheme, scheme.id, "signature scheme")
+        self._verifier, self._verifier_key = scheme, None
+        return self
+
     def signed_by(self, secret_key: bytes,
                   algorithm: SignatureAlgorithm = SignatureAlgorithm.ED25519) -> "Recipe":
         """
-        Sign the plaintext before it is encrypted, proving who produced it. The
-        signature travels inside the encryption, so it reveals nothing about the
-        sender to an observer.
+        Sign the plaintext before it is encrypted with a built-in scheme, proving
+        who produced it. The signature travels inside the encryption, so it
+        reveals nothing about the sender to an observer.
         """
-        if algorithm is SignatureAlgorithm.NONE:
-            raise ValueError("cryptolib: signed_by needs a real algorithm")
-        self._sign_algorithm, self._sign_secret = algorithm, bytes(secret_key)
-        return self
+        if algorithm is SignatureAlgorithm.ED25519:
+            return self.signed_with(Ed25519Signature(secret_key=secret_key))
+        if algorithm is SignatureAlgorithm.HYBRID:
+            return self.signed_with(HybridSignature(secret_key=secret_key))
+        raise ValueError("cryptolib: signed_by needs a real algorithm")
 
     def verified_by(self, public_key: bytes) -> "Recipe":
         """
         The public key :meth:`open` must verify the embedded signature against.
+        Works for either built-in scheme — the envelope records which one. A
+        custom :class:`SignatureScheme` must be supplied through
+        :meth:`verified_with`.
 
         Required whenever the envelope is signed: without it there would be a
         signature but nobody checking it, so :meth:`open` fails rather than
         silently accepting.
         """
-        self._sign_public = bytes(public_key)
+        self._verifier, self._verifier_key = None, bytes(public_key)
         return self
 
     def with_fec(self, scheme: FecScheme) -> "Recipe":
@@ -306,18 +570,15 @@ class Recipe:
 
     def seal(self, plaintext: bytes) -> bytes:
         """Protect `plaintext` and return the envelope."""
+        source = self._require_source()
         salt = _random_bytes(_SALT_LEN)
-        header = self._build_header(salt)
-        root = self._root_key(salt, self._argon_ops, self._argon_memory)
+        header = self._build_header(source, salt)
+        root = self._root_key(source, salt, self._argon_ops, self._argon_memory)
 
-        body = plaintext
-        if self._sign_algorithm is not SignatureAlgorithm.NONE:
-            if self._sign_secret is None:
-                raise RuntimeError("cryptolib: signing requested without a secret key")
-            sig = (_ed_sign(plaintext, self._sign_secret)
-                   if self._sign_algorithm is SignatureAlgorithm.ED25519
-                   else _hy_sign(plaintext, self._sign_secret))
-            body = _struct.pack(">I", len(sig)) + sig + plaintext
+        body = bytes(plaintext)
+        if self._signer is not None:
+            sig = self._signer.sign(body)
+            body = _struct.pack(">I", len(sig)) + sig + body
 
         for index, layer in enumerate(self._layers):
             body = self._apply_layer(layer, index, root, salt, header, body, seal=True)
@@ -330,15 +591,16 @@ class Recipe:
         Recover the plaintext. Raises if the key is wrong, a byte was altered, or
         a signature is present but does not verify.
         """
+        source = self._require_source()
         inner = self._unwrap_fec(bytes(envelope))
-        header, layers, salt, sign_algorithm, ops, memory = self._parse_header(inner)
-        root = self._root_key(salt, ops, memory)
+        header, layers, salt, signature_id, ops, memory = self._parse_header(inner, source)
+        root = self._root_key(source, salt, ops, memory)
 
         body = inner[len(header):]
         for index in range(len(layers) - 1, -1, -1):
             body = self._apply_layer(layers[index], index, root, salt, header, body, seal=False)
 
-        if sign_algorithm is SignatureAlgorithm.NONE:
+        if signature_id == 0:
             return body
 
         if len(body) < 4:
@@ -347,14 +609,19 @@ class Recipe:
         if len(body) < 4 + n:
             raise ValueError("cryptolib: malformed signed payload")
         sig, plaintext = body[4:4 + n], body[4 + n:]
-        if self._sign_public is None:
+        verifier = self._verifier or self._builtin_verifier(signature_id)
+        if verifier is None:
+            if self._verifier_key is not None:
+                raise RuntimeError(
+                    f"cryptolib: envelope was signed with scheme id {signature_id}, which is not a "
+                    "built-in — supply that SignatureScheme with verified_with()")
             raise RuntimeError(
-                "cryptolib: envelope is signed but no public key was supplied — "
-                "call verified_by so the signature is actually checked")
-        ok = (_ed_verify(plaintext, sig, self._sign_public)
-              if sign_algorithm is SignatureAlgorithm.ED25519
-              else _hy_verify(plaintext, sig, self._sign_public))
-        if not ok:
+                "cryptolib: envelope is signed but no verifier was supplied — "
+                "call verified_by/verified_with so the signature is actually checked")
+        if verifier.id != signature_id:
+            raise ValueError(f"cryptolib: envelope was signed with scheme id {signature_id}, "
+                             f"but the verifier is '{verifier.label}' (id {verifier.id})")
+        if not verifier.verify(plaintext, sig):
             raise ValueError("cryptolib: signature verification failed")
         return plaintext
 
@@ -378,28 +645,36 @@ class Recipe:
         """
         layers = " -> ".join(layer.wire_name for layer in self._layers)
         out = (f"Recipe({self.profile.value})\n"
-               f"  key      : {self._source.label}\n"
+               f"  key      : {self._source.label if self._source else '(unset)'}\n"
                f"  layers   : {layers}\n"
-               f"  signature: {self._sign_algorithm.name.lower()}\n"
+               f"  signature: {self._signer.label if self._signer else 'none'}\n"
                f"  fec      : {int(self._fec)}\n")
-        if self._source is _KeySource.PASSPHRASE:
+        if isinstance(self._source, PassphraseKeySource):
             out += f"  argon2id : ops={self._argon_ops}, mem={self._argon_memory // (1024 * 1024)}MiB\n"
         return out
 
     # ── Internals ────────────────────────────────────────────────────────────
 
-    def _root_key(self, salt: bytes, ops: int, memory: int) -> bytes:
-        if self._source is _KeySource.PASSPHRASE:
-            if self._passphrase is None:
-                raise RuntimeError("cryptolib: no passphrase set")
-            return _argon2id(self._passphrase, salt, 32, ops, memory)
-        if self._source is _KeySource.KEY_FILE:
-            if self._key_file is None:
-                raise RuntimeError("cryptolib: no key file set")
-            return _key_from_file(self._key_file)
-        if self._raw_key is None:
-            raise RuntimeError("cryptolib: no key set — call with_key/with_passphrase/with_key_file")
-        return self._raw_key
+    def _require_source(self) -> KeySource:
+        if self._source is None:
+            raise RuntimeError("cryptolib: no key set — call with_key/with_passphrase/with_key_file/with_key_source")
+        return self._source
+
+    def _builtin_verifier(self, signature_id: int) -> SignatureScheme | None:
+        if self._verifier_key is None:
+            return None
+        if signature_id == SignatureAlgorithm.ED25519:
+            return Ed25519Signature(public_key=self._verifier_key)
+        if signature_id == SignatureAlgorithm.HYBRID:
+            return HybridSignature(public_key=self._verifier_key)
+        return None
+
+    def _root_key(self, source: KeySource, salt: bytes, ops: int, memory: int) -> bytes:
+        root = bytes(source.derive_root(salt, ops, memory))
+        if len(root) != 32:
+            raise ValueError(f"cryptolib: key source '{source.label}' produced {len(root)} bytes; "
+                             "the root key must be exactly 32")
+        return root
 
     @staticmethod
     def _layer_key(root: bytes, salt: bytes, index: int, layer: ProtectionLayer) -> bytes:
@@ -410,34 +685,27 @@ class Recipe:
     def _apply_layer(self, layer: ProtectionLayer, index: int, root: bytes, salt: bytes,
                      header: bytes, data: bytes, *, seal: bool) -> bytes:
         key = self._layer_key(root, salt, index, layer)
-        table = {
-            ProtectionLayer.XCHACHA20_POLY1305: (_x_enc, _x_dec),
-            ProtectionLayer.AES256_GCM: (_aes_enc, _aes_dec),
-            ProtectionLayer.COMMITTING: (_cmt_enc, _cmt_dec),
-            ProtectionLayer.MOLECULAR: (_mol_seal, _mol_open),
-        }
-        fn = table[layer][0 if seal else 1]
-        return fn(data, key, header)
+        return layer.seal(key, header, data) if seal else layer.open(key, header, data)
 
-    def _build_header(self, salt: bytes) -> bytes:
-        head = bytes([_VERSION, int(self._source), int(self._sign_algorithm), len(self._layers)])
+    def _build_header(self, source: KeySource, salt: bytes) -> bytes:
+        signature_id = self._signer.id if self._signer is not None else 0
+        head = bytes([_VERSION, source.id, signature_id, len(self._layers)])
         ids = bytes(layer.id for layer in self._layers)
         return (_MAGIC + head + ids + salt
                 + _struct.pack(">II", self._argon_ops, self._argon_memory))
 
-    def _parse_header(self, env: bytes):
+    def _parse_header(self, env: bytes, source: KeySource):
         if len(env) < 8 + _SALT_LEN + 8:
             raise ValueError("cryptolib: envelope too short")
         if env[:4] != _MAGIC:
             raise ValueError("cryptolib: not a CryptoRecipe envelope")
         if env[4] != _VERSION:
             raise ValueError(f"cryptolib: unsupported envelope version {env[4]}")
-        source = _KeySource(env[5])
-        if source is not self._source:
+        if env[5] != source.id:
             raise ValueError(
-                f"cryptolib: envelope was sealed with the {source.label} key source, "
-                f"but this recipe is configured for {self._source.label}")
-        sign_algorithm = SignatureAlgorithm(env[6])
+                f"cryptolib: envelope was sealed with key source id {env[5]}, "
+                f"but this recipe is configured for '{source.label}' (id {source.id})")
+        signature_id = env[6]
         count = env[7]
         header_len = 8 + count + _SALT_LEN + 8
         if len(env) < header_len:
@@ -445,7 +713,7 @@ class Recipe:
         layers = [ProtectionLayer.from_id(env[8 + i]) for i in range(count)]
         salt = env[8 + count:8 + count + _SALT_LEN]
         ops, memory = _struct.unpack(">II", env[8 + count + _SALT_LEN:header_len])
-        return env[:header_len], layers, salt, sign_algorithm, ops, memory
+        return env[:header_len], layers, salt, signature_id, ops, memory
 
     def _wrap_fec(self, envelope: bytes) -> bytes:
         encoded = _fec_encode(envelope, int(self._fec))

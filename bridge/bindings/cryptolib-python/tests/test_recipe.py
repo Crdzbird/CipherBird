@@ -13,7 +13,10 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import cryptolib  # noqa: E402
-from cryptolib import FecScheme, ProtectionLayer, SecurityProfile, SignatureAlgorithm  # noqa: E402
+from cryptolib import (  # noqa: E402
+    CascadeLayer, Ed25519Signature, FecScheme, KeySource, ProtectionLayer, SecurityProfile,
+    SignatureAlgorithm, SignatureScheme,
+)
 
 # Fixed inputs so every language derives identical keys.
 KEY_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
@@ -22,6 +25,50 @@ PASSPHRASE = "interop passphrase"
 PLAINTEXT = b"cross-language recipe envelope"
 
 _pass = _fail = 0
+
+
+# ── custom parts used by the extension-point checks ─────────────────────────
+
+class MyLayer(ProtectionLayer):
+    id, wire_name = 200, "my-xchacha"
+    def seal(self, key, aad, pt): return cryptolib.xchacha20_encrypt(pt, key, aad)
+    def open(self, key, aad, ct): return cryptolib.xchacha20_decrypt(ct, key, aad)
+
+
+class BeltAndBraces(CascadeLayer):
+    def __init__(self):
+        super().__init__(201, "belt-and-braces",
+                         [ProtectionLayer.XCHACHA20_POLY1305, ProtectionLayer.AES256_GCM, MyLayer()])
+
+
+class Impostor(ProtectionLayer):
+    id, wire_name = 3, "committing"
+    def seal(self, key, aad, pt): return pt
+    def open(self, key, aad, ct): return ct
+
+
+class TokenSource(KeySource):
+    id, label = 210, "token"
+    def __init__(self, token): self.token = token
+    def derive_root(self, salt, ops, mem): return self.token
+
+
+class WeakSource(KeySource):
+    id, label = 211, "weak"
+    def derive_root(self, salt, ops, mem): return b"\x00" * 16
+
+
+class PrefixedEd25519(SignatureScheme):
+    id, label = 220, "prefixed-ed25519"
+    def __init__(self, sk=None, pk=None): self.sk, self.pk = sk, pk
+    def sign(self, m): return cryptolib.ed25519_sign(b"custom:" + m, self.sk)
+    def verify(self, m, sig): return cryptolib.ed25519_verify(b"custom:" + m, sig, self.pk)
+
+
+class FakeEd25519(SignatureScheme):
+    id, label = 1, "fake"
+    def sign(self, m): return b"\x00" * 64
+    def verify(self, m, sig): return True
 
 
 def ck(label, ok):
@@ -171,6 +218,66 @@ def main():
     ck("foreign bytes rejected", throws(lambda: r.open(b"not an envelope at all")))
     ck("short key refused", throws(lambda: cryptolib.recipe().with_key(b"\x00" * 31)))
     ck("empty layer list refused", throws(lambda: cryptolib.recipe().with_layers([])))
+
+    # Extension points
+    ck("built-in ids pinned",
+       [l.id for l in (ProtectionLayer.XCHACHA20_POLY1305, ProtectionLayer.AES256_GCM,
+                       ProtectionLayer.COMMITTING, ProtectionLayer.MOLECULAR)] == [1, 2, 3, 4]
+       and cryptolib.PassphraseKeySource("x").id == 1 and Ed25519Signature().id == 1
+       and cryptolib.HybridSignature().id == 2)
+
+    ProtectionLayer.register(MyLayer())
+    cenv = cryptolib.recipe().with_key(key).with_layers([MyLayer()]).seal(secret)
+    ck("custom layer round-trips via the registry", cryptolib.recipe().with_key(key).open(cenv) == secret)
+
+    ProtectionLayer.register(BeltAndBraces())
+    br = cryptolib.recipe().with_key(key).with_layers([BeltAndBraces()])
+    benv = br.seal(secret)
+    ck("cascade subclass mixes three ciphers as one layer", cryptolib.recipe().with_key(key).open(benv) == secret)
+    bbad = bytearray(benv); bbad[-1] ^= 1
+    ck("cascade fails closed on tamper", throws(lambda: br.open(bytes(bbad))))
+
+    nested = CascadeLayer(202, "nested", [BeltAndBraces(), ProtectionLayer.COMMITTING])
+    ProtectionLayer.register(nested)
+    nenv = cryptolib.recipe().with_key(key).with_layers([ProtectionLayer.XCHACHA20_POLY1305, nested]).seal(secret)
+    ck("cascades nest, mixed with built-ins", cryptolib.recipe().with_key(key).open(nenv) == secret)
+
+    ck("reserved layer id refused at register", throws(lambda: ProtectionLayer.register(Impostor())))
+    ck("reserved layer id refused at add_layer", throws(lambda: cryptolib.recipe().with_key(key).add_layer(Impostor())))
+    ck("reserved scheme id refused", throws(lambda: cryptolib.recipe().with_key(key).signed_with(FakeEd25519())))
+    ProtectionLayer.register(MyLayer())
+    ck("re-registering an id under another wire_name refused",
+       throws(lambda: ProtectionLayer.register(CascadeLayer(200, "other", [ProtectionLayer.XCHACHA20_POLY1305]))))
+
+    e1 = cryptolib.recipe().with_key(key).with_layers([MyLayer()]).seal(secret)
+    e2 = cryptolib.recipe().with_key(key).with_layers(
+        [CascadeLayer(203, "renamed", [ProtectionLayer.XCHACHA20_POLY1305])]).seal(secret)
+    ck("wire_name feeds the key derivation", len(e1) == len(e2) and e1 != e2)
+
+    token = cryptolib.random_bytes(32)
+    tenv2 = cryptolib.recipe(SecurityProfile.HIGH).with_key_source(TokenSource(token)).seal(secret)
+    ck("custom key source round-trips",
+       cryptolib.recipe(SecurityProfile.HIGH).with_key_source(TokenSource(token)).open(tenv2) == secret)
+    ck("wrong token rejected", throws(lambda: cryptolib.recipe(SecurityProfile.HIGH)
+                                      .with_key_source(TokenSource(cryptolib.random_bytes(32))).open(tenv2)))
+    ck("header pins the source id", throws(lambda: cryptolib.recipe(SecurityProfile.HIGH).with_key(key).open(tenv2)))
+    ck("narrowing key source refused", throws(lambda: cryptolib.recipe().with_key_source(WeakSource()).seal(secret)))
+
+    spk, ssk = cryptolib.ed25519_keygen()
+    senv3 = cryptolib.recipe().with_key(key).signed_with(PrefixedEd25519(sk=ssk)).seal(secret)
+    ck("custom signature scheme round-trips",
+       cryptolib.recipe().with_key(key).verified_with(PrefixedEd25519(pk=spk)).open(senv3) == secret)
+    ck("key-only verifier cannot serve a custom scheme",
+       throws(lambda: cryptolib.recipe().with_key(key).verified_by(spk).open(senv3)))
+    ck("unverified custom-signed envelope refused", throws(lambda: cryptolib.recipe().with_key(key).open(senv3)))
+    ck("verifier with the wrong scheme id refused",
+       throws(lambda: cryptolib.recipe().with_key(key).verified_with(Ed25519Signature(public_key=spk)).open(senv3)))
+
+    hr = cryptolib.recipe().with_key(key).signed_by(hsk, SignatureAlgorithm.HYBRID).verified_by(hpk)
+    ck("built-in shorthand with key-only verifier", hr.open(hr.seal(secret)) == secret)
+
+    d = cryptolib.recipe().with_key_source(TokenSource(token)).with_layers([BeltAndBraces()]).describe()
+    ck("describe names custom parts", "token" in d and "belt-and-braces" in d)
 
     shutil.rmtree(tmp, ignore_errors=True)
     print(f"\n{_pass} passed, {_fail} failed — recipes {'OK' if _fail == 0 else 'FAILED'}")

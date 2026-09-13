@@ -49,21 +49,15 @@ public final class Recipe {
     private static final int VERSION = 1;
     private static final int SALT_LEN = 16;
 
-    private static final int SRC_RAW = 0, SRC_PASSPHRASE = 1, SRC_KEY_FILE = 2;
-    private static final String[] SRC_NAME = {"raw", "passphrase", "keyFile"};
-
     private final CryptoLib lib;
     private final SecurityProfile profile;
     private final SecureRandom rng = new SecureRandom();
 
     private List<ProtectionLayer> layers;
-    private int source = SRC_RAW;
-    private byte[] rawKey;
-    private String passphrase;
-    private String keyFilePath;
-    private SignatureAlgorithm signAlgorithm = SignatureAlgorithm.NONE;
-    private byte[] signSecret;
-    private byte[] signPublic;
+    private KeySource source;
+    private SignatureScheme signer;
+    private SignatureScheme verifier;
+    private byte[] verifierKey;
     private FecScheme fec = FecScheme.NONE;
     private long argonOps;
     private long argonMemory;
@@ -78,48 +72,42 @@ public final class Recipe {
 
     // ── Key source (exactly one) ─────────────────────────────────────────────
 
-    /** Derive the root key from a passphrase with Argon2id at this profile's cost. */
-    public Recipe withPassphrase(String passphrase) {
-        this.source = SRC_PASSPHRASE;
-        this.passphrase = passphrase;
+    /** Use any {@link KeySource} — a built-in or your own implementation. */
+    public Recipe withKeySource(KeySource source) {
+        Builtin.requireValidId(source, source.id(), "key source");
+        this.source = source;
         return this;
     }
+
+    /** Derive the root key from a passphrase with Argon2id at this profile's cost. */
+    public Recipe withPassphrase(String passphrase) { return withKeySource(new PassphraseKeySource(passphrase)); }
 
     /**
      * Use a 32-byte key directly — from a KEM shared secret, a keyring unlock, a
      * hardware token, anywhere. Nothing is stretched; the key must already be
      * full-entropy.
      */
-    public Recipe withKey(byte[] key) {
-        if (key.length != 32) {
-            throw new IllegalArgumentException("cryptolib: root key must be exactly 32 bytes, got " + key.length);
-        }
-        this.source = SRC_RAW;
-        this.rawKey = key.clone();
-        return this;
-    }
+    public Recipe withKey(byte[] key) { return withKeySource(new RawKeySource(key)); }
 
     /**
      * Derive the root key deterministically from a media file — "the file is the
      * key". The same file always yields the same key on any machine.
      */
-    public Recipe withKeyFile(String path) {
-        this.source = SRC_KEY_FILE;
-        this.keyFilePath = path;
-        return this;
-    }
+    public Recipe withKeyFile(String path) { return withKeySource(new KeyFileSource(path)); }
 
     // ── Layers ───────────────────────────────────────────────────────────────
 
     /** Replace the cascade with exactly these layers, innermost first. */
     public Recipe withLayers(List<ProtectionLayer> layers) {
         if (layers.isEmpty()) throw new IllegalArgumentException("cryptolib: a recipe needs at least one layer");
+        for (ProtectionLayer l : layers) Builtin.requireValidId(l, l.id(), "layer");
         this.layers = new ArrayList<>(layers);
         return this;
     }
 
     /** Append one more layer on the outside of the current cascade. */
     public Recipe addLayer(ProtectionLayer layer) {
+        Builtin.requireValidId(layer, layer.id(), "layer");
         this.layers.add(layer);
         return this;
     }
@@ -133,29 +121,46 @@ public final class Recipe {
 
     // ── Authenticity ─────────────────────────────────────────────────────────
 
-    /**
-     * Sign the plaintext before it is encrypted, proving who produced it. The
-     * signature travels inside the encryption, so it reveals nothing about the
-     * sender to an observer.
-     */
-    public Recipe signedBy(byte[] secretKey, SignatureAlgorithm algorithm) {
-        if (algorithm == SignatureAlgorithm.NONE) {
-            throw new IllegalArgumentException("cryptolib: signedBy needs a real algorithm");
-        }
-        this.signAlgorithm = algorithm;
-        this.signSecret = secretKey.clone();
+    /** Sign with any {@link SignatureScheme} — a built-in or your own implementation. */
+    public Recipe signedWith(SignatureScheme scheme) {
+        Builtin.requireValidId(scheme, scheme.id(), "signature scheme");
+        this.signer = scheme;
+        return this;
+    }
+
+    /** Verify with any {@link SignatureScheme}. Required for a custom scheme. */
+    public Recipe verifiedWith(SignatureScheme scheme) {
+        Builtin.requireValidId(scheme, scheme.id(), "signature scheme");
+        this.verifier = scheme;
+        this.verifierKey = null;
         return this;
     }
 
     /**
+     * Sign the plaintext before it is encrypted with a built-in scheme, proving
+     * who produced it. The signature travels inside the encryption, so it
+     * reveals nothing about the sender to an observer.
+     */
+    public Recipe signedBy(byte[] secretKey, SignatureAlgorithm algorithm) {
+        return switch (algorithm) {
+            case ED25519 -> signedWith(Ed25519Signature.signer(secretKey));
+            case HYBRID -> signedWith(HybridSignature.signer(secretKey));
+            case NONE -> throw new IllegalArgumentException("cryptolib: signedBy needs a real algorithm");
+        };
+    }
+
+    /**
      * The public key {@link #open} must verify the embedded signature against.
+     * Works for either built-in scheme — the envelope records which one. A
+     * custom {@link SignatureScheme} must be supplied through {@link #verifiedWith}.
      *
      * <p>Required whenever the envelope is signed: without it there would be a
      * signature but nobody checking it, so {@link #open} fails rather than
      * silently accepting.
      */
     public Recipe verifiedBy(byte[] publicKey) {
-        this.signPublic = publicKey.clone();
+        this.verifier = null;
+        this.verifierKey = publicKey.clone();
         return this;
     }
 
@@ -169,19 +174,14 @@ public final class Recipe {
 
     /** Protect {@code plaintext} and return the envelope. */
     public byte[] seal(byte[] plaintext) {
+        KeySource src = requireSource();
         byte[] salt = new byte[SALT_LEN];
         rng.nextBytes(salt);
-        byte[] header = buildHeader(salt);
-        byte[] root = rootKey(salt, argonOps, argonMemory);
+        byte[] header = buildHeader(src, salt);
+        byte[] root = rootKey(src, salt, argonOps, argonMemory);
 
         byte[] body = plaintext;
-        if (signAlgorithm != SignatureAlgorithm.NONE) {
-            if (signSecret == null) throw new IllegalStateException("cryptolib: signing requested without a secret key");
-            byte[] sig = signAlgorithm == SignatureAlgorithm.ED25519
-                    ? lib.ed25519Sign(plaintext, signSecret)
-                    : lib.hybridSigSign(plaintext, signSecret);
-            body = prefixLengthed(sig, plaintext);
-        }
+        if (signer != null) body = prefixLengthed(signer.sign(lib, plaintext), plaintext);
         for (int i = 0; i < layers.size(); i++) {
             body = applyLayer(layers.get(i), i, root, salt, header, body, true);
         }
@@ -194,26 +194,33 @@ public final class Recipe {
      * signature is present but does not verify.
      */
     public byte[] open(byte[] envelope) {
+        KeySource src = requireSource();
         byte[] inner = unwrapFec(envelope);
-        Parsed h = parseHeader(inner);
-        byte[] root = rootKey(h.salt, h.ops, h.memory);
+        Parsed h = parseHeader(inner, src);
+        byte[] root = rootKey(src, h.salt, h.ops, h.memory);
 
         byte[] body = Arrays.copyOfRange(inner, h.header.length, inner.length);
         for (int i = h.layers.size() - 1; i >= 0; i--) {
             body = applyLayer(h.layers.get(i), i, root, h.salt, h.header, body, false);
         }
-        if (h.signAlgorithm == SignatureAlgorithm.NONE) return body;
+        if (h.signatureId == 0) return body;
 
         byte[][] parts = splitLengthed(body);
-        if (signPublic == null) {
+        SignatureScheme v = verifier != null ? verifier : builtinVerifier(h.signatureId);
+        if (v == null) {
+            if (verifierKey != null) {
+                throw new IllegalStateException("cryptolib: envelope was signed with scheme id " + h.signatureId
+                        + ", which is not a built-in — supply that SignatureScheme with verifiedWith()");
+            }
             throw new IllegalStateException(
-                    "cryptolib: envelope is signed but no public key was supplied — "
-                    + "call verifiedBy so the signature is actually checked");
+                    "cryptolib: envelope is signed but no verifier was supplied — "
+                    + "call verifiedBy/verifiedWith so the signature is actually checked");
         }
-        boolean ok = h.signAlgorithm == SignatureAlgorithm.ED25519
-                ? lib.ed25519Verify(parts[1], parts[0], signPublic)
-                : lib.hybridSigVerify(parts[1], parts[0], signPublic);
-        if (!ok) throw new RuntimeException("cryptolib: signature verification failed");
+        if (v.id() != h.signatureId) {
+            throw new IllegalStateException("cryptolib: envelope was signed with scheme id " + h.signatureId
+                    + ", but the verifier is '" + v.label() + "' (id " + v.id() + ")");
+        }
+        if (!v.verify(lib, parts[1], parts[0])) throw new RuntimeException("cryptolib: signature verification failed");
         return parts[1];
     }
 
@@ -236,16 +243,16 @@ public final class Recipe {
      */
     public String describe() {
         StringBuilder b = new StringBuilder("Recipe(").append(profile.label()).append(")\n");
-        b.append("  key      : ").append(SRC_NAME[source]).append('\n');
+        b.append("  key      : ").append(source == null ? "(unset)" : source.label()).append('\n');
         StringBuilder names = new StringBuilder();
         for (int i = 0; i < layers.size(); i++) {
             if (i > 0) names.append(" → ");
             names.append(layers.get(i).wireName());
         }
         b.append("  layers   : ").append(names).append('\n');
-        b.append("  signature: ").append(signAlgorithm.name().toLowerCase()).append('\n');
+        b.append("  signature: ").append(signer == null ? "none" : signer.label()).append('\n');
         b.append("  fec      : ").append(fec.id()).append('\n');
-        if (source == SRC_PASSPHRASE) {
+        if (source instanceof PassphraseKeySource) {
             b.append("  argon2id : ops=").append(argonOps)
              .append(", mem=").append(argonMemory / (1024 * 1024)).append("MiB\n");
         }
@@ -254,18 +261,29 @@ public final class Recipe {
 
     // ── Internals ────────────────────────────────────────────────────────────
 
-    private byte[] rootKey(byte[] salt, long ops, long memory) {
-        return switch (source) {
-            case SRC_PASSPHRASE -> lib.argon2idDerive(passphrase, salt, 32, ops, memory);
-            case SRC_KEY_FILE -> lib.keyFromFileDeterministic(keyFilePath);
-            default -> {
-                if (rawKey == null) {
-                    throw new IllegalStateException(
-                            "cryptolib: no key set — call withKey/withPassphrase/withKeyFile");
-                }
-                yield rawKey;
-            }
+    private KeySource requireSource() {
+        if (source == null) {
+            throw new IllegalStateException("cryptolib: no key set — call withKey/withPassphrase/withKeyFile/withKeySource");
+        }
+        return source;
+    }
+
+    private SignatureScheme builtinVerifier(int id) {
+        if (verifierKey == null) return null;
+        return switch (id) {
+            case 1 -> Ed25519Signature.verifier(verifierKey);
+            case 2 -> HybridSignature.verifier(verifierKey);
+            default -> null;
         };
+    }
+
+    private byte[] rootKey(KeySource src, byte[] salt, long ops, long memory) {
+        byte[] root = src.deriveRoot(lib, salt, ops, memory);
+        if (root == null || root.length != 32) {
+            throw new IllegalStateException("cryptolib: key source '" + src.label() + "' produced "
+                    + (root == null ? 0 : root.length) + " bytes; the root key must be exactly 32");
+        }
+        return root;
     }
 
     /** HKDF under a distinct info string, so no two layers share key material. */
@@ -278,24 +296,15 @@ public final class Recipe {
     private byte[] applyLayer(ProtectionLayer layer, int index, byte[] root, byte[] salt,
                               byte[] header, byte[] data, boolean seal) {
         byte[] key = layerKey(root, salt, index, layer);
-        return switch (layer) {
-            case XCHACHA20_POLY1305 -> seal ? lib.xchacha20Encrypt(data, key, header)
-                                            : lib.xchacha20Decrypt(data, key, header);
-            case AES256_GCM -> seal ? lib.aes256gcmEncrypt(data, key, header)
-                                    : lib.aes256gcmDecrypt(data, key, header);
-            case COMMITTING -> seal ? lib.committingEncrypt(data, key, header)
-                                    : lib.committingDecrypt(data, key, header);
-            case MOLECULAR -> seal ? lib.molecularSealWithKey(data, key, header)
-                                   : lib.molecularOpenWithKey(data, key, header);
-        };
+        return seal ? layer.seal(lib, key, header, data) : layer.open(lib, key, header, data);
     }
 
-    private byte[] buildHeader(byte[] salt) {
+    private byte[] buildHeader(KeySource src, byte[] salt) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.writeBytes(MAGIC);
         out.write(VERSION);
-        out.write(source);
-        out.write(signAlgorithm.id());
+        out.write(src.id());
+        out.write(signer == null ? 0 : signer.id());
         out.write(layers.size());
         for (ProtectionLayer l : layers) out.write(l.id());
         out.writeBytes(salt);
@@ -304,20 +313,20 @@ public final class Recipe {
     }
 
     private record Parsed(byte[] header, List<ProtectionLayer> layers, byte[] salt,
-                          SignatureAlgorithm signAlgorithm, long ops, long memory) {}
+                          int signatureId, long ops, long memory) {}
 
-    private Parsed parseHeader(byte[] env) {
+    private Parsed parseHeader(byte[] env, KeySource src) {
         if (env.length < 8 + SALT_LEN + 8) throw new RuntimeException("cryptolib: envelope too short");
         for (int i = 0; i < 4; i++) {
             if (env[i] != MAGIC[i]) throw new RuntimeException("cryptolib: not a CryptoRecipe envelope");
         }
         if (env[4] != VERSION) throw new RuntimeException("cryptolib: unsupported envelope version " + env[4]);
-        int src = env[5] & 0xFF;
-        if (src != source) {
-            throw new RuntimeException("cryptolib: envelope was sealed with the " + SRC_NAME[src]
-                    + " key source, but this recipe is configured for " + SRC_NAME[source]);
+        int srcId = env[5] & 0xFF;
+        if (srcId != src.id()) {
+            throw new RuntimeException("cryptolib: envelope was sealed with key source id " + srcId
+                    + ", but this recipe is configured for '" + src.label() + "' (id " + src.id() + ")");
         }
-        SignatureAlgorithm sa = SignatureAlgorithm.fromId(env[6] & 0xFF);
+        int sa = env[6] & 0xFF;
         int count = env[7] & 0xFF;
         int headerLen = 8 + count + SALT_LEN + 8;
         if (env.length < headerLen) throw new RuntimeException("cryptolib: truncated envelope header");

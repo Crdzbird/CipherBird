@@ -3,7 +3,8 @@
 //!
 //!   cargo run --example recipe                 # run the checks
 //!   cargo run --example recipe seal|open DIR   # interop mode
-use cryptolib::{FecScheme, ProtectionLayer, Recipe, SecurityProfile, SignatureAlgorithm};
+use cryptolib::{BuiltinLayer, CascadeLayer, Ed25519Signature, FecScheme, KeySource, Layer, ProtectionLayer,
+                Recipe, SecurityProfile, SignatureAlgorithm, SignatureScheme};
 use std::fs;
 use std::path::PathBuf;
 
@@ -16,6 +17,72 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 static PASS: AtomicU32 = AtomicU32::new(0);
 static FAIL: AtomicU32 = AtomicU32::new(0);
+
+// ── custom parts used by the extension-point checks ─────────────────────────
+
+struct MyLayer;
+impl ProtectionLayer for MyLayer {
+    fn id(&self) -> u8 { 200 }
+    fn wire_name(&self) -> &str { "my-xchacha" }
+    fn seal(&self, k: &[u8], aad: &[u8], pt: &[u8]) -> Result<Vec<u8>, String> { cryptolib::xchacha20_encrypt(pt, k, aad) }
+    fn open(&self, k: &[u8], aad: &[u8], ct: &[u8]) -> Result<Vec<u8>, String> { cryptolib::xchacha20_decrypt(ct, k, aad) }
+}
+
+/// Three ciphers as ONE layer: a newtype around CascadeLayer that delegates.
+struct BeltAndBraces(CascadeLayer);
+impl BeltAndBraces {
+    fn new() -> Self {
+        BeltAndBraces(CascadeLayer::new(201, "belt-and-braces",
+            vec![BuiltinLayer::XChaCha20Poly1305.into(), BuiltinLayer::Aes256Gcm.into(), MyLayer.into()]))
+    }
+}
+impl ProtectionLayer for BeltAndBraces {
+    fn id(&self) -> u8 { self.0.id() }
+    fn wire_name(&self) -> &str { self.0.wire_name() }
+    fn seal(&self, k: &[u8], aad: &[u8], pt: &[u8]) -> Result<Vec<u8>, String> { self.0.seal(k, aad, pt) }
+    fn open(&self, k: &[u8], aad: &[u8], ct: &[u8]) -> Result<Vec<u8>, String> { self.0.open(k, aad, ct) }
+}
+
+struct Impostor;
+impl ProtectionLayer for Impostor {
+    fn id(&self) -> u8 { 3 }
+    fn wire_name(&self) -> &str { "committing" }
+    fn seal(&self, _: &[u8], _: &[u8], pt: &[u8]) -> Result<Vec<u8>, String> { Ok(pt.to_vec()) }
+    fn open(&self, _: &[u8], _: &[u8], ct: &[u8]) -> Result<Vec<u8>, String> { Ok(ct.to_vec()) }
+}
+
+struct TokenSource(Vec<u8>);
+impl KeySource for TokenSource {
+    fn id(&self) -> u8 { 210 }
+    fn label(&self) -> &str { "token" }
+    fn derive_root(&self, _: &[u8], _: u64, _: usize) -> Result<Vec<u8>, String> { Ok(self.0.clone()) }
+}
+
+struct WeakSource;
+impl KeySource for WeakSource {
+    fn id(&self) -> u8 { 211 }
+    fn label(&self) -> &str { "weak" }
+    fn derive_root(&self, _: &[u8], _: u64, _: usize) -> Result<Vec<u8>, String> { Ok(vec![0u8; 16]) }
+}
+
+struct PrefixedEd25519 { sk: Vec<u8>, pk: Vec<u8> }
+impl PrefixedEd25519 {
+    fn tag(m: &[u8]) -> Vec<u8> { let mut t = b"custom:".to_vec(); t.extend_from_slice(m); t }
+}
+impl SignatureScheme for PrefixedEd25519 {
+    fn id(&self) -> u8 { 220 }
+    fn label(&self) -> &str { "prefixed-ed25519" }
+    fn sign(&self, m: &[u8]) -> Result<Vec<u8>, String> { cryptolib::ed25519_sign(&Self::tag(m), &self.sk) }
+    fn verify(&self, m: &[u8], sig: &[u8]) -> bool { cryptolib::ed25519_verify(&Self::tag(m), sig, &self.pk) }
+}
+
+struct FakeEd25519;
+impl SignatureScheme for FakeEd25519 {
+    fn id(&self) -> u8 { 1 }
+    fn label(&self) -> &str { "fake" }
+    fn sign(&self, _: &[u8]) -> Result<Vec<u8>, String> { Ok(vec![0u8; 64]) }
+    fn verify(&self, _: &[u8], _: &[u8]) -> bool { true }
+}
 
 fn ck(label: &str, ok: bool) {
     println!("{} {}", if ok { "  ok  " } else { " FAIL " }, label);
@@ -86,7 +153,7 @@ fn main() {
        mx.ml_kem_level() == 2 && mx.ml_dsa_level() == 2 && mx.slh_dsa_hash() == 1
        && mx.sealed_tier() == 1 && mx.kdf_preset() == 1);
     ck("maximum cascade ends key-committing",
-       mx.cascade().len() == 3 && *mx.cascade().last().unwrap() == ProtectionLayer::Committing);
+       mx.cascade().len() == 3 && mx.cascade().last().unwrap().id() == 3);
     ck("profiles are ordered", SecurityProfile::Balanced.argon2_memory() < mx.argon2_memory());
 
     let key = cryptolib::random_bytes(32).unwrap();
@@ -104,14 +171,14 @@ fn main() {
        cryptolib::recipe(SecurityProfile::Balanced).with_key_file(kf).open(&by_file).unwrap() == secret);
 
     let mol = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
-        .with_layers(&[ProtectionLayer::Molecular]);
+        .with_layers([BuiltinLayer::Molecular]);
     ck("MolecularVault as one layer", mol.open(&mol.seal(secret).unwrap()).unwrap() == secret);
 
     let one = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
-        .with_layers(&[ProtectionLayer::XChaCha20Poly1305]).seal(secret).unwrap();
+        .with_layers([BuiltinLayer::XChaCha20Poly1305]).seal(secret).unwrap();
     let three = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
-        .with_layers(&[ProtectionLayer::XChaCha20Poly1305, ProtectionLayer::Aes256Gcm])
-        .add_layer(ProtectionLayer::Committing).seal(secret).unwrap();
+        .with_layers([BuiltinLayer::XChaCha20Poly1305, BuiltinLayer::Aes256Gcm])
+        .add_layer(BuiltinLayer::Committing).seal(secret).unwrap();
     ck("each layer adds overhead", three.len() > one.len());
 
     let (pk, sk) = cryptolib::ed25519_keygen();
@@ -159,7 +226,83 @@ fn main() {
     ck("short key refused",
        cryptolib::recipe(SecurityProfile::Balanced).with_key(&[0u8; 31]).seal(secret).is_err());
     ck("empty layer list refused",
-       cryptolib::recipe(SecurityProfile::Balanced).with_layers(&[]).seal(secret).is_err());
+       cryptolib::recipe(SecurityProfile::Balanced).with_layers(Vec::<Layer>::new()).seal(secret).is_err());
+
+    // Extension points
+    ck("built-in ids pinned",
+       BuiltinLayer::XChaCha20Poly1305.id() == 1 && BuiltinLayer::Aes256Gcm.id() == 2
+           && BuiltinLayer::Committing.id() == 3 && BuiltinLayer::Molecular.id() == 4
+           && cryptolib::PassphraseKeySource("x".into()).id() == 1
+           && Ed25519Signature::verifier(&[0u8; 32]).id() == 1
+           && cryptolib::HybridSignature::verifier(&[0u8; 32]).id() == 2);
+
+    cryptolib::register_layer(MyLayer).unwrap();
+    let cenv = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).with_layers([MyLayer]).seal(secret).unwrap();
+    ck("custom layer round-trips via the registry",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).open(&cenv).unwrap() == secret);
+
+    cryptolib::register_layer(BeltAndBraces::new()).unwrap();
+    let br = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).with_layers([BeltAndBraces::new()]);
+    let benv = br.seal(secret).unwrap();
+    ck("cascade newtype mixes three ciphers as one layer",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).open(&benv).unwrap() == secret);
+    let mut bbad = benv.clone();
+    let bl = bbad.len() - 1;
+    bbad[bl] ^= 1;
+    ck("cascade fails closed on tamper", br.open(&bbad).is_err());
+
+    let nested = || CascadeLayer::new(202, "nested", vec![BeltAndBraces::new().into(), BuiltinLayer::Committing.into()]);
+    cryptolib::register_layer(nested()).unwrap();
+    let nenv = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+        .with_layers(vec![Layer::from(BuiltinLayer::XChaCha20Poly1305), nested().into()]).seal(secret).unwrap();
+    ck("cascades nest, mixed with built-ins",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).open(&nenv).unwrap() == secret);
+
+    ck("reserved layer id refused at register", cryptolib::register_layer(Impostor).is_err());
+    ck("reserved layer id refused at add_layer",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).add_layer(Impostor).seal(secret).is_err());
+    ck("reserved scheme id refused",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).signed_with(FakeEd25519).seal(secret).is_err());
+    cryptolib::register_layer(MyLayer).unwrap();
+    ck("re-registering an id under another wire_name refused",
+       cryptolib::register_layer(CascadeLayer::new(200, "other", vec![BuiltinLayer::XChaCha20Poly1305.into()])).is_err());
+
+    let e1 = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).with_layers([MyLayer]).seal(secret).unwrap();
+    let e2 = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+        .with_layers([CascadeLayer::new(203, "renamed", vec![BuiltinLayer::XChaCha20Poly1305.into()])]).seal(secret).unwrap();
+    ck("wire_name feeds the key derivation", e1.len() == e2.len() && e1 != e2);
+
+    let token = cryptolib::random_bytes(32).unwrap();
+    let tenv2 = cryptolib::recipe(SecurityProfile::High).with_key_source(TokenSource(token.clone())).seal(secret).unwrap();
+    ck("custom key source round-trips",
+       cryptolib::recipe(SecurityProfile::High).with_key_source(TokenSource(token.clone())).open(&tenv2).unwrap() == secret);
+    ck("wrong token rejected",
+       cryptolib::recipe(SecurityProfile::High).with_key_source(TokenSource(cryptolib::random_bytes(32).unwrap())).open(&tenv2).is_err());
+    ck("header pins the source id", cryptolib::recipe(SecurityProfile::High).with_key(&key).open(&tenv2).is_err());
+    ck("narrowing key source refused",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key_source(WeakSource).seal(secret).is_err());
+
+    let (spk, ssk) = cryptolib::ed25519_keygen();
+    let senv3 = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+        .signed_with(PrefixedEd25519 { sk: ssk.clone(), pk: vec![] }).seal(secret).unwrap();
+    ck("custom signature scheme round-trips",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+           .verified_with(PrefixedEd25519 { sk: vec![], pk: spk.clone() }).open(&senv3).unwrap() == secret);
+    ck("key-only verifier cannot serve a custom scheme",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).verified_by(&spk).open(&senv3).is_err());
+    ck("unverified custom-signed envelope refused",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key).open(&senv3).is_err());
+    ck("verifier with the wrong scheme id refused",
+       cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+           .verified_with(Ed25519Signature::verifier(&spk)).open(&senv3).is_err());
+
+    let hr = cryptolib::recipe(SecurityProfile::Balanced).with_key(&key)
+        .signed_by(&hsk, SignatureAlgorithm::Hybrid).verified_by(&hpk);
+    ck("built-in shorthand with key-only verifier", hr.open(&hr.seal(secret).unwrap()).unwrap() == secret);
+
+    let d = cryptolib::recipe(SecurityProfile::Balanced).with_key_source(TokenSource(token))
+        .with_layers([BeltAndBraces::new()]).describe();
+    ck("describe names custom parts", d.contains("token") && d.contains("belt-and-braces"));
 
     fs::remove_dir_all(&tmp).ok();
     let (passed, failed) = (PASS.load(Ordering::Relaxed), FAIL.load(Ordering::Relaxed));

@@ -204,7 +204,8 @@ swift-bbs-pseudonym: lib
 node-security: lib
 	$(call hdr,Node security profiles + recipes)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3; \
+		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3 && \
+		CRYPTOLIB_DYLIB=$(DYLIB) node test/extensibility.js | tail -1; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: node-noise
@@ -213,6 +214,15 @@ node-noise: lib
 	@if command -v node >/dev/null 2>&1; then \
 		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/noise.js | tail -3; \
 	else echo "node not found — skipping"; fi
+
+.PHONY: dart-security
+dart-security: lib
+	$(call hdr,Dart security profiles + recipes + extension points)
+	@if command -v dart >/dev/null 2>&1; then \
+		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		dart run bin/security_verify.dart $(DYLIB) | tail -1 && \
+		dart run bin/extensibility_verify.dart $(DYLIB) | tail -1; \
+	else echo "dart not found — skipping"; fi
 
 .PHONY: dart-noise
 dart-noise: lib
@@ -317,7 +327,7 @@ flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
 	@if command -v flutter >/dev/null 2>&1; then \
 		cd bridge/bindings/cryptolib_flutter && \
-		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart | tail -2; \
+		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart | tail -2; \
 	else echo "flutter not found — skipping"; fi
 
 # ── Go (cgo) ─────────────────────────────────────────────────────────────────

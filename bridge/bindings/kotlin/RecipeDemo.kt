@@ -9,7 +9,10 @@
 //   java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cryptolib-jvm/out RecipeDemoKt
 import cryptolib.CryptoLib
 import cryptolib.FecScheme
+import cryptolib.CascadeLayer
+import cryptolib.KeySource
 import cryptolib.ProtectionLayer
+import cryptolib.SignatureScheme
 import cryptolib.SecurityProfile
 import cryptolib.SignatureAlgorithm
 import java.nio.file.Files
@@ -35,6 +38,43 @@ private fun noisePpm(w: Int, h: Int, seed: Int): ByteArray {
         body[i] = s.toByte()
     }
     return head + body
+}
+
+// ── Custom parts: the same interfaces the library's own layers implement ─────
+
+/** A user layer: a real AEAD (the library's XChaCha20) under its own identity. */
+class MyLayer : ProtectionLayer {
+    override fun id() = 200
+    override fun wireName() = "my-xchacha"
+    override fun seal(lib: CryptoLib, key: ByteArray, aad: ByteArray, pt: ByteArray) = lib.xchacha20Encrypt(pt, key, aad)
+    override fun open(lib: CryptoLib, key: ByteArray, aad: ByteArray, ct: ByteArray) = lib.xchacha20Decrypt(ct, key, aad)
+}
+
+/** Three ciphers as ONE layer, by extending CascadeLayer. */
+class BeltAndBraces : CascadeLayer(201, "belt-and-braces",
+    listOf(ProtectionLayer.XCHACHA20_POLY1305, ProtectionLayer.AES256_GCM, MyLayer()))
+
+/** A key that comes from somewhere else entirely — a token, a KMS, a keyring. */
+class TokenSource(private val token: ByteArray) : KeySource {
+    override fun id() = 210
+    override fun label() = "token"
+    override fun deriveRoot(lib: CryptoLib, salt: ByteArray, ops: Long, mem: Long) = token
+}
+
+/** A custom signature scheme: Ed25519 over a domain-separated message. */
+class PrefixedEd25519(private val sk: ByteArray? = null, private val pk: ByteArray? = null) : SignatureScheme {
+    override fun id() = 220
+    override fun label() = "prefixed-ed25519"
+    private fun tag(m: ByteArray) = "custom:".toByteArray() + m
+    override fun sign(lib: CryptoLib, m: ByteArray) = lib.ed25519Sign(tag(m), sk!!)
+    override fun verify(lib: CryptoLib, m: ByteArray, sig: ByteArray) = lib.ed25519Verify(tag(m), sig, pk!!)
+}
+
+class Impostor : ProtectionLayer {
+    override fun id() = 3
+    override fun wireName() = "committing"
+    override fun seal(lib: CryptoLib, key: ByteArray, aad: ByteArray, pt: ByteArray) = pt
+    override fun open(lib: CryptoLib, key: ByteArray, aad: ByteArray, ct: ByteArray) = ct
 }
 
 fun main() {
@@ -104,6 +144,30 @@ fun main() {
             lib.recipe(SecurityProfile.HIGH).withKey(lib.randomBytes(32)).open(r.seal(secret))
         })
         ck("short key refused", throwsErr { lib.recipe(SecurityProfile.BALANCED).withKey(ByteArray(31)) })
+
+        // Extension points
+        ProtectionLayer.register(MyLayer())
+        ProtectionLayer.register(BeltAndBraces())
+        val br = lib.recipe(SecurityProfile.BALANCED).withKey(key).withLayers(listOf(BeltAndBraces()))
+        val benv = br.seal(secret)
+        ck("custom cascade subclass round-trips via the registry",
+            lib.recipe(SecurityProfile.BALANCED).withKey(key).open(benv).contentEquals(secret))
+        benv[benv.size - 1] = (benv[benv.size - 1].toInt() xor 1).toByte()
+        ck("custom cascade fails closed", throwsErr { br.open(benv) })
+        ck("reserved id refused", throwsErr { ProtectionLayer.register(Impostor()) })
+
+        val token = lib.randomBytes(32)
+        val tenv2 = lib.recipe(SecurityProfile.HIGH).withKeySource(TokenSource(token)).seal(secret)
+        ck("custom key source round-trips",
+            lib.recipe(SecurityProfile.HIGH).withKeySource(TokenSource(token)).open(tenv2).contentEquals(secret))
+        ck("header pins the custom source id", throwsErr { lib.recipe(SecurityProfile.HIGH).withKey(key).open(tenv2) })
+
+        val sid = lib.ed25519Keygen()
+        val senv3 = lib.recipe(SecurityProfile.BALANCED).withKey(key).signedWith(PrefixedEd25519(sk = sid.secretKey())).seal(secret)
+        ck("custom signature scheme round-trips",
+            lib.recipe(SecurityProfile.BALANCED).withKey(key).verifiedWith(PrefixedEd25519(pk = sid.publicKey())).open(senv3).contentEquals(secret))
+        ck("key-only verifier cannot serve a custom scheme",
+            throwsErr { lib.recipe(SecurityProfile.BALANCED).withKey(key).verifiedBy(sid.publicKey()).open(senv3) })
 
         dir.toFile().deleteRecursively()
         println("\n$pass passed, $fail failed — recipes ${if (fail == 0) "OK" else "FAILED"}")

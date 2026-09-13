@@ -309,5 +309,7 @@ pub fn fec_decode(data: &[u8], scheme: i32, original_length: usize) -> Result<Ve
 }
 
 mod security;
-pub use security::{FecScheme, ProtectionLayer, Recipe, SecurityProfile, SignatureAlgorithm,
-                   maximum_security, recipe};
+pub use security::{BuiltinLayer, CascadeLayer, Ed25519Signature, FecScheme, HybridSignature,
+                   KeyFileSource, KeySource, Layer, PassphraseKeySource, ProtectionLayer,
+                   RawKeySource, Recipe, SecurityProfile, SignatureAlgorithm, SignatureScheme,
+                   maximum_security, recipe, register_layer};

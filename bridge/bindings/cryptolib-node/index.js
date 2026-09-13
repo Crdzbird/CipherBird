@@ -1124,18 +1124,234 @@ const Composed = {
 // The envelope is a library-native format, and is identical across every
 // CryptoLib binding: an envelope sealed here opens in Dart, Go or Swift.
 
-/** One AEAD layer in a Recipe cascade. */
-const ProtectionLayer = { xchacha20Poly1305: 1, aes256Gcm: 2, committing: 3, molecular: 4 };
+// ── Extension points ─────────────────────────────────────────────────────────
+//
+// Three base classes can be subclassed and plugged into a Recipe:
+//   ProtectionLayer  — one authenticated-encryption layer in the cascade.
+//   KeySource        — where the 32-byte root key comes from.
+//   SignatureScheme  — how the plaintext is signed and verified.
+// The library's own implementations extend the same classes, so a custom one
+// is a first-class citizen. To compose several ciphers into ONE layer, extend
+// CascadeLayer.
+//
+// What the recipe keeps for itself, whatever you plug in: a layer never chooses
+// its key (it receives a fresh 32-byte key per layer per envelope, HKDF-derived
+// under salt + wireName); a layer cannot opt out of the AAD; the order is fixed
+// (sign → encrypt → correct → conceal); a KeySource must return exactly 32
+// bytes; ids 0–127 are reserved — custom parts must use 128–255, enforced so a
+// custom part can never shadow a built-in.
+//
+// Cross-language: built-in ids open in every CryptoLib binding. A custom part
+// opens only where the same id + wireName + algorithm is registered — and since
+// wireName feeds the key derivation, a mismatched implementation fails the AEAD
+// tag rather than yielding garbage.
 
-// Pinned wire names: part of the format (they feed each layer's HKDF info
-// string), so they must never drift from the other bindings.
-const LAYER_WIRE_NAME = { 1: 'xchacha20Poly1305', 2: 'aes256Gcm', 3: 'committing', 4: 'molecular' };
+// Module-private marker: only classes defined in this file carry it, so a
+// subclass cannot claim a reserved id by pretending to be built in.
+const BUILTIN = Symbol('cryptolib.builtin');
+const CUSTOM_ID_MIN = 128, CUSTOM_ID_MAX = 255;
 
-/** Origin authentication for a Recipe. */
+function requireValidId(part, what) {
+  if (part == null || typeof part.id !== 'number') throw new TypeError(`cryptolib: ${what} must have a numeric id`);
+  if (part[BUILTIN]) return;
+  if (!Number.isInteger(part.id) || part.id < CUSTOM_ID_MIN || part.id > CUSTOM_ID_MAX) {
+    throw new RangeError(`cryptolib: custom ${what} ids must be in ${CUSTOM_ID_MIN}..${CUSTOM_ID_MAX} (0–127 are reserved), got ${part.id}`);
+  }
+}
+
+/**
+ * One authenticated-encryption layer in a Recipe cascade.
+ *
+ * Subclass it to add your own layer, then ProtectionLayer.register() it (on
+ * the opening side too — the envelope stores only the id). Contract: seal()
+ * must be authenticated encryption that binds `aad`, and open() must throw on
+ * any modification. The key is fresh per layer per envelope — never reuse it.
+ *
+ *   class MyLayer extends cryptolib.ProtectionLayer {
+ *     get id() { return 200; }
+ *     get wireName() { return 'my-xchacha'; }
+ *     seal(api, key, aad, pt) { return api.xchacha20Encrypt(pt, key, aad); }
+ *     open(api, key, aad, ct) { return api.xchacha20Decrypt(ct, key, aad); }
+ *   }
+ */
+class ProtectionLayer {
+  /** Recorded in the envelope header. Built-ins use 1–4; custom 128–255. */
+  get id() { throw new Error('ProtectionLayer.id not implemented'); }
+  /** Feeds this layer's HKDF info string. Part of the wire format. */
+  get wireName() { throw new Error('ProtectionLayer.wireName not implemented'); }
+  seal(/* api, key, aad, plaintext */) { throw new Error('ProtectionLayer.seal not implemented'); }
+  open(/* api, key, aad, ciphertext */) { throw new Error('ProtectionLayer.open not implemented'); }
+
+  /** Make a custom layer resolvable by id when opening. Re-registering an id under another wireName is refused. */
+  static register(layer) {
+    requireValidId(layer, 'layer');
+    const existing = LAYER_REGISTRY.get(layer.id);
+    if (existing && existing.wireName !== layer.wireName) {
+      throw new Error(`cryptolib: layer id ${layer.id} is already registered as '${existing.wireName}'`);
+    }
+    LAYER_REGISTRY.set(layer.id, layer);
+  }
+  static _resolve(id) {
+    const l = LAYER_REGISTRY.get(id);
+    if (!l) throw new Error(`cryptolib: unknown protection layer id ${id} — ProtectionLayer.register() it before opening`);
+    return l;
+  }
+}
+
+class XChaCha20Layer extends ProtectionLayer {
+  get id() { return 1; } get wireName() { return 'xchacha20Poly1305'; }
+  seal(a, k, aad, p) { return a.xchacha20Encrypt(p, k, aad); }
+  open(a, k, aad, c) { return a.xchacha20Decrypt(c, k, aad); }
+}
+class Aes256GcmLayer extends ProtectionLayer {
+  get id() { return 2; } get wireName() { return 'aes256Gcm'; }
+  seal(a, k, aad, p) { return a.aes256gcmEncrypt(p, k, aad); }
+  open(a, k, aad, c) { return a.aes256gcmDecrypt(c, k, aad); }
+}
+class CommittingLayer extends ProtectionLayer {
+  get id() { return 3; } get wireName() { return 'committing'; }
+  seal(a, k, aad, p) { return a.committingEncrypt(p, k, aad); }
+  open(a, k, aad, c) { return a.committingDecrypt(c, k, aad); }
+}
+class MolecularLayer extends ProtectionLayer {
+  get id() { return 4; } get wireName() { return 'molecular'; }
+  seal(a, k, aad, p) { return a.molecularSealWithKey(p, k, aad); }
+  open(a, k, aad, c) { return a.molecularOpenWithKey(c, k, aad); }
+}
+for (const C of [XChaCha20Layer, Aes256GcmLayer, CommittingLayer, MolecularLayer]) C.prototype[BUILTIN] = true;
+
+/** Large nonce, no timing-sensitive tables. */
+ProtectionLayer.xchacha20Poly1305 = Object.freeze(new XChaCha20Layer());
+/** A different cipher family from ChaCha. */
+ProtectionLayer.aes256Gcm = Object.freeze(new Aes256GcmLayer());
+/** Binds the ciphertext to exactly one key. */
+ProtectionLayer.committing = Object.freeze(new CommittingLayer());
+/** A full MolecularVault as one layer. */
+ProtectionLayer.molecular = Object.freeze(new MolecularLayer());
+
+const LAYER_REGISTRY = new Map([
+  [1, ProtectionLayer.xchacha20Poly1305], [2, ProtectionLayer.aes256Gcm],
+  [3, ProtectionLayer.committing], [4, ProtectionLayer.molecular],
+]);
+
+/**
+ * A layer that is itself a mixture of layers — the way to compose several
+ * encryptions into one custom type.
+ *
+ *   class BeltAndBraces extends cryptolib.CascadeLayer {
+ *     constructor() { super({ id: 201, wireName: 'belt-and-braces',
+ *       layers: [cryptolib.ProtectionLayer.xchacha20Poly1305, new MyLayer()] }); }
+ *   }
+ *
+ * Each inner layer receives its own sub-key, HKDF-derived from this layer's key
+ * under the inner index and wireName, so nesting never collapses two ciphers
+ * onto one key. The AAD is bound by every inner layer. Cascades nest.
+ */
+class CascadeLayer extends ProtectionLayer {
+  constructor({ id, wireName, layers }) {
+    super();
+    if (!layers || layers.length === 0) throw new Error(`cryptolib: CascadeLayer '${wireName}' has no layers`);
+    this._id = id; this._wireName = wireName; this.layers = [...layers];
+  }
+  get id() { return this._id; }
+  get wireName() { return this._wireName; }
+  _subKey(api, key, i) {
+    return api.hkdfDerive(key, { info: Buffer.from(`${this.wireName}/${i}/${this.layers[i].wireName}`), outLen: 32 });
+  }
+  seal(api, key, aad, plaintext) {
+    let body = plaintext;
+    this.layers.forEach((l, i) => { body = l.seal(api, this._subKey(api, key, i), aad, body); });
+    return body;
+  }
+  open(api, key, aad, ciphertext) {
+    let body = ciphertext;
+    for (let i = this.layers.length - 1; i >= 0; i--) body = this.layers[i].open(api, this._subKey(api, key, i), aad, body);
+    return body;
+  }
+}
+
+/**
+ * Where a Recipe's 32-byte root key comes from. Subclass it for a hardware
+ * token, a KMS, a keyring unlock — anything that can produce the same 32 bytes
+ * again when opening. The recipe refuses any other length.
+ */
+class KeySource {
+  /** Recorded in the envelope header. Built-ins use 0–2; custom 128–255. */
+  get id() { throw new Error('KeySource.id not implemented'); }
+  get label() { throw new Error('KeySource.label not implemented'); }
+  /** `salt` is fresh per envelope; ops/memory are the recipe's Argon2id cost. */
+  deriveRoot(/* api, salt, argon2Ops, argon2Memory */) { throw new Error('KeySource.deriveRoot not implemented'); }
+}
+/** A 32-byte full-entropy key used as-is. */
+class RawKeySource extends KeySource {
+  constructor(key) {
+    super();
+    const k = u8(key);
+    if (k.length !== 32) throw new Error(`cryptolib: root key must be exactly 32 bytes, got ${k.length}`);
+    this._key = Buffer.from(k);
+  }
+  get id() { return 0; } get label() { return 'raw'; }
+  deriveRoot() { return this._key; }
+}
+/** A passphrase stretched with Argon2id. */
+class PassphraseKeySource extends KeySource {
+  constructor(passphrase) { super(); this._passphrase = passphrase; }
+  get id() { return 1; } get label() { return 'passphrase'; }
+  deriveRoot(api, salt, ops, mem) { return api.argon2idDerive(this._passphrase, salt, 32, ops, mem); }
+}
+/**
+ * The key derived deterministically from a media file. Uses the reproducible
+ * entropy path; keyFromFile mixes in fresh system entropy and so could never
+ * reopen its own envelope.
+ */
+class KeyFileSource extends KeySource {
+  constructor(path) { super(); this._path = path; }
+  get id() { return 2; } get label() { return 'keyFile'; }
+  deriveRoot(api) {
+    const h = api.entropyFromFileDeterministic(this._path);
+    try { return api.entropySymmetricKey(h); } finally { api.entropyFree(h); }
+  }
+}
+for (const C of [RawKeySource, PassphraseKeySource, KeyFileSource]) C.prototype[BUILTIN] = true;
+
+/**
+ * How a Recipe signs and verifies the plaintext. Subclass it for another
+ * algorithm; a scheme holding only a public key should throw from sign().
+ * The signature is applied before encryption, so it stays confidential.
+ */
+class SignatureScheme {
+  /** Recorded in the envelope header. Built-ins use 1–2; custom 128–255. */
+  get id() { throw new Error('SignatureScheme.id not implemented'); }
+  get label() { throw new Error('SignatureScheme.label not implemented'); }
+  sign(/* api, message */) { throw new Error('SignatureScheme.sign not implemented'); }
+  verify(/* api, message, signature */) { throw new Error('SignatureScheme.verify not implemented'); }
+}
+/** Ed25519: pass `secretKey` to sign, `publicKey` to verify, or both. */
+class Ed25519Signature extends SignatureScheme {
+  constructor({ secretKey = null, publicKey = null } = {}) {
+    super();
+    this._sk = secretKey ? Buffer.from(u8(secretKey)) : null;
+    this._pk = publicKey ? Buffer.from(u8(publicKey)) : null;
+  }
+  get id() { return 1; } get label() { return 'ed25519'; }
+  sign(api, m) { if (!this._sk) throw new Error('cryptolib: Ed25519Signature has no secret key'); return api.ed25519Sign(m, this._sk); }
+  verify(api, m, sig) { return !!this._pk && api.ed25519Verify(m, sig, this._pk); }
+}
+/** Ed25519 + ML-DSA-65: a forgery needs breaking both. */
+class HybridSignature extends SignatureScheme {
+  constructor({ secretKey = null, publicKey = null } = {}) {
+    super();
+    this._sk = secretKey ? Buffer.from(u8(secretKey)) : null;
+    this._pk = publicKey ? Buffer.from(u8(publicKey)) : null;
+  }
+  get id() { return 2; } get label() { return 'hybrid'; }
+  sign(api, m) { if (!this._sk) throw new Error('cryptolib: HybridSignature has no secret key'); return api.hybridSigSign(m, this._sk); }
+  verify(api, m, sig) { return !!this._pk && api.hybridSigVerify(m, sig, this._pk); }
+}
+for (const C of [Ed25519Signature, HybridSignature]) C.prototype[BUILTIN] = true;
+
+/** Built-in scheme selector for the signedBy() shorthand. */
 const SignatureAlgorithm = { none: 0, ed25519: 1, hybrid: 2 };
-
-const KEY_SOURCE = { raw: 0, passphrase: 1, keyFile: 2 };
-const KEY_SOURCE_NAME = { 0: 'raw', 1: 'passphrase', 2: 'keyFile' };
 
 /** Coherent algorithm parameter sets, from ordinary to maximal. */
 const SecurityProfile = {
@@ -1187,37 +1403,40 @@ class Recipe {
     this._layers = [...p.cascade];
     this._argonOps = p.argon2Ops;
     this._argonMem = p.argon2Memory;
-    this._source = KEY_SOURCE.raw;
-    this._rawKey = null; this._passphrase = null; this._keyFilePath = null;
-    this._signAlgo = SignatureAlgorithm.none; this._signSecret = null; this._signPublic = null;
+    this._source = null;
+    this._signer = null; this._verifier = null; this._verifierKey = null;
     this._fec = FecScheme.none;
   }
 
-  /** Derive the root key from a passphrase with Argon2id. */
-  withPassphrase(passphrase) { this._source = KEY_SOURCE.passphrase; this._passphrase = passphrase; return this; }
-
-  /** Use a 32-byte full-entropy key directly (KEM secret, keyring unlock, token). */
-  withKey(key) {
-    const k = u8(key);
-    if (k.length !== 32) throw new Error(`cryptolib: root key must be exactly 32 bytes, got ${k.length}`);
-    this._source = KEY_SOURCE.raw; this._rawKey = Buffer.from(k); return this;
+  /** Use any KeySource — a built-in or your own subclass. */
+  withKeySource(source) {
+    if (!(source instanceof KeySource)) throw new TypeError('cryptolib: withKeySource expects a KeySource');
+    requireValidId(source, 'key source'); this._source = source; return this;
   }
 
-  /**
-   * Derive the root key deterministically from a media file — "the file is the key".
-   * Uses the reproducible entropy path; keyFromFile mixes in fresh system entropy
-   * and so could never reopen its own envelope.
-   */
-  withKeyFile(path) { this._source = KEY_SOURCE.keyFile; this._keyFilePath = path; return this; }
+  /** Derive the root key from a passphrase with Argon2id. */
+  withPassphrase(passphrase) { return this.withKeySource(new PassphraseKeySource(passphrase)); }
+
+  /** Use a 32-byte full-entropy key directly (KEM secret, keyring unlock, token). */
+  withKey(key) { return this.withKeySource(new RawKeySource(key)); }
+
+  /** Derive the root key deterministically from a media file — "the file is the key". */
+  withKeyFile(path) { return this.withKeySource(new KeyFileSource(path)); }
 
   /** Replace the cascade with exactly these layers, innermost first. */
   withLayers(layers) {
     if (!layers || layers.length === 0) throw new Error('cryptolib: a recipe needs at least one layer');
+    layers.forEach((l) => Recipe._checkLayer(l));
     this._layers = [...layers]; return this;
   }
 
   /** Append one more layer on the outside of the cascade. */
-  addLayer(layer) { this._layers.push(layer); return this; }
+  addLayer(layer) { Recipe._checkLayer(layer); this._layers.push(layer); return this; }
+
+  static _checkLayer(l) {
+    if (!(l instanceof ProtectionLayer)) throw new TypeError('cryptolib: layers must be ProtectionLayer instances');
+    requireValidId(l, 'layer');
+  }
 
   /** Override the Argon2id cost. Only meaningful with withPassphrase. */
   argon2Cost({ ops, memoryBytes } = {}) {
@@ -1226,25 +1445,43 @@ class Recipe {
     return this;
   }
 
-  /** Sign the plaintext before encryption, so the signature stays confidential. */
-  signedBy(secretKey, algorithm = SignatureAlgorithm.ed25519) {
-    if (algorithm === SignatureAlgorithm.none) throw new Error('cryptolib: signedBy needs a real algorithm');
-    this._signAlgo = algorithm; this._signSecret = Buffer.from(u8(secretKey)); return this;
+  /** Sign with any SignatureScheme — a built-in or your own subclass. */
+  signedWith(scheme) {
+    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cryptolib: signedWith expects a SignatureScheme');
+    requireValidId(scheme, 'signature scheme'); this._signer = scheme; return this;
   }
 
-  /** The public key open() must verify against. Required whenever the envelope is signed. */
-  verifiedBy(publicKey) { this._signPublic = Buffer.from(u8(publicKey)); return this; }
+  /** Verify with any SignatureScheme. Required for a custom scheme. */
+  verifiedWith(scheme) {
+    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cryptolib: verifiedWith expects a SignatureScheme');
+    requireValidId(scheme, 'signature scheme'); this._verifier = scheme; this._verifierKey = null; return this;
+  }
+
+  /** Sign the plaintext before encryption with a built-in scheme. */
+  signedBy(secretKey, algorithm = SignatureAlgorithm.ed25519) {
+    switch (algorithm) {
+      case SignatureAlgorithm.ed25519: return this.signedWith(new Ed25519Signature({ secretKey }));
+      case SignatureAlgorithm.hybrid: return this.signedWith(new HybridSignature({ secretKey }));
+      default: throw new Error('cryptolib: signedBy needs a real algorithm');
+    }
+  }
+
+  /**
+   * The public key open() must verify against. Works for either built-in
+   * scheme — the envelope records which one. A custom SignatureScheme must be
+   * supplied through verifiedWith().
+   */
+  verifiedBy(publicKey) { this._verifier = null; this._verifierKey = Buffer.from(u8(publicKey)); return this; }
 
   /** Apply forward error correction to the finished envelope. */
   withFec(scheme) { this._fec = scheme; return this; }
 
   /** Human-readable summary — useful in logs and review. */
   describe() {
-    const layers = this._layers.map((l) => LAYER_WIRE_NAME[l]).join(' → ');
-    const sig = Object.keys(SignatureAlgorithm).find((k) => SignatureAlgorithm[k] === this._signAlgo);
-    let out = `Recipe(${this.profile})\n  key      : ${KEY_SOURCE_NAME[this._source]}\n`
-            + `  layers   : ${layers}\n  signature: ${sig}\n  fec      : ${this._fec}\n`;
-    if (this._source === KEY_SOURCE.passphrase) {
+    const layers = this._layers.map((l) => l.wireName).join(' → ');
+    let out = `Recipe(${this.profile})\n  key      : ${this._source ? this._source.label : '(unset)'}\n`
+            + `  layers   : ${layers}\n  signature: ${this._signer ? this._signer.label : 'none'}\n  fec      : ${this._fec}\n`;
+    if (this._source instanceof PassphraseKeySource) {
       out += `  argon2id : ops=${this._argonOps}, mem=${Math.floor(this._argonMem / (1024 * 1024))}MiB\n`;
     }
     return out;
@@ -1252,18 +1489,13 @@ class Recipe {
 
   /** Protect `plaintext` and return the envelope. */
   seal(plaintext) {
+    const source = this._requireSource();
     const salt = this._api.randomBytes(RECIPE_SALT_LEN);
-    const header = this._buildHeader(salt);
-    const root = this._rootKey(salt, this._argonOps, this._argonMem);
+    const header = this._buildHeader(source, salt);
+    const root = this._rootKey(source, salt, this._argonOps, this._argonMem);
 
     let body = u8(plaintext);
-    if (this._signAlgo !== SignatureAlgorithm.none) {
-      if (!this._signSecret) throw new Error('cryptolib: signing requested without a secret key');
-      const sig = this._signAlgo === SignatureAlgorithm.ed25519
-        ? this._api.ed25519Sign(body, this._signSecret)
-        : this._api.hybridSigSign(body, this._signSecret);
-      body = prefixLengthed(sig, body);
-    }
+    if (this._signer) body = prefixLengthed(this._signer.sign(this._api, body), body);
     this._layers.forEach((layer, i) => { body = this._applyLayer(layer, i, root, salt, header, body, true); });
 
     const envelope = Buffer.concat([header, body]);
@@ -1272,25 +1504,31 @@ class Recipe {
 
   /** Recover the plaintext. Throws on a wrong key, an altered byte, or a bad signature. */
   open(envelope) {
+    const source = this._requireSource();
     const inner = this._unwrapFec(u8(envelope));
-    const h = this._parseHeader(inner);
-    const root = this._rootKey(h.salt, h.ops, h.memory);
+    const h = this._parseHeader(inner, source);
+    const root = this._rootKey(source, h.salt, h.ops, h.memory);
 
     let body = inner.subarray(h.header.length);
     for (let i = h.layers.length - 1; i >= 0; i--) {
       body = this._applyLayer(h.layers[i], i, root, h.salt, h.header, body, false);
     }
-    if (h.signAlgo === SignatureAlgorithm.none) return body;
+    if (h.signatureId === SignatureAlgorithm.none) return body;
 
     const [sig, plaintext] = splitLengthed(body);
-    if (!this._signPublic) {
-      throw new Error('cryptolib: envelope is signed but no public key was supplied — '
-                    + 'call verifiedBy() so the signature is actually checked');
+    const verifier = this._verifier || this._builtinVerifier(h.signatureId);
+    if (!verifier) {
+      if (this._verifierKey) {
+        throw new Error(`cryptolib: envelope was signed with scheme id ${h.signatureId}, which is not a built-in — `
+                      + 'supply that SignatureScheme with verifiedWith()');
+      }
+      throw new Error('cryptolib: envelope is signed but no verifier was supplied — '
+                    + 'call verifiedBy()/verifiedWith() so the signature is actually checked');
     }
-    const ok = h.signAlgo === SignatureAlgorithm.ed25519
-      ? this._api.ed25519Verify(plaintext, sig, this._signPublic)
-      : this._api.hybridSigVerify(plaintext, sig, this._signPublic);
-    if (!ok) throw new Error('cryptolib: signature verification failed');
+    if (verifier.id !== h.signatureId) {
+      throw new Error(`cryptolib: envelope was signed with scheme id ${h.signatureId}, but the verifier is '${verifier.label}' (id ${verifier.id})`);
+    }
+    if (!verifier.verify(this._api, plaintext, sig)) throw new Error('cryptolib: signature verification failed');
     return plaintext;
   }
 
@@ -1304,68 +1542,62 @@ class Recipe {
 
   // ── internals ──────────────────────────────────────────────────────────────
 
-  _rootKey(salt, ops, mem) {
-    switch (this._source) {
-      case KEY_SOURCE.passphrase:
-        if (this._passphrase == null) throw new Error('cryptolib: no passphrase set');
-        return this._api.argon2idDerive(this._passphrase, salt, 32, ops, mem);
-      case KEY_SOURCE.keyFile: {
-        const h = this._api.entropyFromFileDeterministic(this._keyFilePath);
-        try { return this._api.entropySymmetricKey(h); } finally { this._api.entropyFree(h); }
-      }
-      default:
-        if (!this._rawKey) throw new Error('cryptolib: no key set — call withKey/withPassphrase/withKeyFile');
-        return this._rawKey;
+  _requireSource() {
+    if (!this._source) throw new Error('cryptolib: no key set — call withKey/withPassphrase/withKeyFile/withKeySource');
+    return this._source;
+  }
+
+  _builtinVerifier(id) {
+    if (!this._verifierKey) return null;
+    if (id === SignatureAlgorithm.ed25519) return new Ed25519Signature({ publicKey: this._verifierKey });
+    if (id === SignatureAlgorithm.hybrid) return new HybridSignature({ publicKey: this._verifierKey });
+    return null;
+  }
+
+  _rootKey(source, salt, ops, mem) {
+    const root = u8(source.deriveRoot(this._api, salt, ops, mem));
+    if (root.length !== 32) {
+      throw new Error(`cryptolib: key source '${source.label}' produced ${root.length} bytes; the root key must be exactly 32`);
     }
+    return root;
   }
 
   _layerKey(root, salt, index, layer) {
-    const info = Buffer.from(`cryptolib/recipe/v1/layer${index}/${LAYER_WIRE_NAME[layer]}`);
+    const info = Buffer.from(`cryptolib/recipe/v1/layer${index}/${layer.wireName}`);
     return this._api.hkdfDerive(root, { salt, info, outLen: 32 });
   }
 
   _applyLayer(layer, index, root, salt, header, data, seal) {
     const key = this._layerKey(root, salt, index, layer);
-    const a = this._api;
-    switch (layer) {
-      case ProtectionLayer.xchacha20Poly1305: return seal ? a.xchacha20Encrypt(data, key, header) : a.xchacha20Decrypt(data, key, header);
-      case ProtectionLayer.aes256Gcm:         return seal ? a.aes256gcmEncrypt(data, key, header) : a.aes256gcmDecrypt(data, key, header);
-      case ProtectionLayer.committing:        return seal ? a.committingEncrypt(data, key, header) : a.committingDecrypt(data, key, header);
-      case ProtectionLayer.molecular:         return seal ? a.molecularSealWithKey(data, key, header) : a.molecularOpenWithKey(data, key, header);
-      default: throw new Error(`cryptolib: unknown protection layer ${layer}`);
-    }
+    return seal ? layer.seal(this._api, key, header, data) : layer.open(this._api, key, header, data);
   }
 
-  _buildHeader(salt) {
-    const head = Buffer.from([...RECIPE_MAGIC, RECIPE_VERSION, this._source, this._signAlgo, this._layers.length, ...this._layers]);
+  _buildHeader(source, salt) {
+    const sigId = this._signer ? this._signer.id : SignatureAlgorithm.none;
+    const head = Buffer.from([...RECIPE_MAGIC, RECIPE_VERSION, source.id, sigId, this._layers.length, ...this._layers.map((l) => l.id)]);
     const costs = Buffer.alloc(8);
     costs.writeUInt32BE(this._argonOps, 0);
     costs.writeUInt32BE(this._argonMem, 4);
     return Buffer.concat([head, u8(salt), costs]);
   }
 
-  _parseHeader(env) {
+  _parseHeader(env, source) {
     if (env.length < 8 + RECIPE_SALT_LEN + 8) throw new Error('cryptolib: envelope too short');
     if (!env.subarray(0, 4).equals(RECIPE_MAGIC)) throw new Error('cryptolib: not a CryptoRecipe envelope');
     if (env[4] !== RECIPE_VERSION) throw new Error(`cryptolib: unsupported envelope version ${env[4]}`);
-    const source = env[5];
-    if (source !== this._source) {
-      throw new Error(`cryptolib: envelope was sealed with the ${KEY_SOURCE_NAME[source]} key source, `
-                    + `but this recipe is configured for ${KEY_SOURCE_NAME[this._source]}`);
+    if (env[5] !== source.id) {
+      throw new Error(`cryptolib: envelope was sealed with key source id ${env[5]}, `
+                    + `but this recipe is configured for '${source.label}' (id ${source.id})`);
     }
-    const signAlgo = env[6];
+    const signatureId = env[6];
     const layerCount = env[7];
     const headerLen = 8 + layerCount + RECIPE_SALT_LEN + 8;
     if (env.length < headerLen) throw new Error('cryptolib: truncated envelope header');
     const layers = [];
-    for (let i = 0; i < layerCount; i++) {
-      const id = env[8 + i];
-      if (!LAYER_WIRE_NAME[id]) throw new Error(`cryptolib: unknown protection layer id ${id}`);
-      layers.push(id);
-    }
+    for (let i = 0; i < layerCount; i++) layers.push(ProtectionLayer._resolve(env[8 + i]));
     const salt = Buffer.from(env.subarray(8 + layerCount, 8 + layerCount + RECIPE_SALT_LEN));
     const costs = env.subarray(8 + layerCount + RECIPE_SALT_LEN, headerLen);
-    return { header: Buffer.from(env.subarray(0, headerLen)), layers, salt, signAlgo,
+    return { header: Buffer.from(env.subarray(0, headerLen)), layers, salt, signatureId,
              ops: costs.readUInt32BE(0), memory: costs.readUInt32BE(4) };
   }
 
@@ -1474,7 +1706,9 @@ module.exports = {
   SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
   Rng, Drbg, Fortuna, StegoAdvanced, Composed, FecScheme, MediaFormat, assessFileHealth,
   Blake3Hasher, blake3Hasher, Noise, noise,
-  SecurityProfile, ProtectionLayer, SignatureAlgorithm, Recipe,
+  SecurityProfile, ProtectionLayer, CascadeLayer, XChaCha20Layer, Aes256GcmLayer, CommittingLayer, MolecularLayer,
+  KeySource, RawKeySource, PassphraseKeySource, KeyFileSource,
+  SignatureScheme, Ed25519Signature, HybridSignature, SignatureAlgorithm, Recipe,
   /** Start a Recipe at the given profile's settings. */
   recipe(profile = SecurityProfile.balanced) { return new Recipe(module.exports, profile); },
   /** A Recipe using the strongest option at every choice. */

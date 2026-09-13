@@ -1,3 +1,33 @@
+## 0.3.0
+
+Extensible recipes: mix your own encryption into a `CryptoRecipe`.
+
+### Added
+
+* `ProtectionLayer` is now an abstract class you can subclass (`id`, `wireName`,
+  `seal`, `open`) and register with `ProtectionLayer.register()`. The four
+  built-ins (`xchacha20Poly1305`, `aes256Gcm`, `committing`, `molecular`) are
+  instances of the same base.
+* `CascadeLayer` — a layer that is itself a mixture of layers, so several
+  ciphers (built-in or custom) become ONE custom layer; cascades nest.
+* `KeySource` (abstract) with `RawKeySource`, `PassphraseKeySource`,
+  `KeyFileSource`; `CryptoRecipe.withKeySource()` accepts your own (token, KMS,
+  keyring unlock).
+* `SignatureScheme` (abstract) with `Ed25519Signature`, `HybridSignature`;
+  `CryptoRecipe.signedWith()` / `verifiedWith()` accept your own.
+* Guardrails: ids 0–127 are reserved for the library (custom parts must use
+  128–255, enforced); a key source must return exactly 32 bytes; a layer's
+  `wireName` feeds its HKDF sub-key; the envelope pins the key-source id and
+  the signature-scheme id.
+
+### Changed
+
+* `verifiedBy(pk)` no longer takes an `algorithm` argument — the envelope
+  records which built-in scheme signed it. A custom scheme must be supplied
+  with `verifiedWith()`.
+* The wire format is unchanged: envelopes sealed by 0.2.0 open unchanged, and
+  cross-language interop stays byte-identical.
+
 ## 0.2.0
 
 Brought in line with the Flutter plugin.

@@ -181,11 +181,137 @@ public final class RecipeVerify {
             ck("empty layer list refused", throwsErr(() ->
                     lib.recipe(SecurityProfile.BALANCED).withLayers(List.of())));
 
+            // Extension points
+            ck("built-in ids pinned",
+                    ProtectionLayer.XCHACHA20_POLY1305.id() == 1 && ProtectionLayer.AES256_GCM.id() == 2
+                            && ProtectionLayer.COMMITTING.id() == 3 && ProtectionLayer.MOLECULAR.id() == 4
+                            && new PassphraseKeySource("x").id() == 1
+                            && Ed25519Signature.verifier(new byte[32]).id() == 1
+                            && HybridSignature.verifier(new byte[32]).id() == 2);
+
+            ProtectionLayer.register(new MyLayer());
+            byte[] cenv = lib.recipe(SecurityProfile.BALANCED).withKey(key).withLayers(List.of(new MyLayer())).seal(secret);
+            ck("custom layer round-trips via the registry",
+                    Arrays_equals(lib.recipe(SecurityProfile.BALANCED).withKey(key).open(cenv), secret));
+
+            ProtectionLayer.register(new BeltAndBraces());
+            Recipe br = lib.recipe(SecurityProfile.BALANCED).withKey(key).withLayers(List.of(new BeltAndBraces()));
+            byte[] benv = br.seal(secret);
+            ck("cascade subclass mixes three ciphers as one layer",
+                    Arrays_equals(lib.recipe(SecurityProfile.BALANCED).withKey(key).open(benv), secret));
+            byte[] bbad = benv.clone(); bbad[bbad.length - 1] ^= 1;
+            ck("cascade fails closed on tamper", throwsErr(() -> br.open(bbad)));
+
+            var nested = new CascadeLayer(202, "nested", List.of(new BeltAndBraces(), ProtectionLayer.COMMITTING));
+            ProtectionLayer.register(nested);
+            byte[] nenv = lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                    .withLayers(List.of(ProtectionLayer.XCHACHA20_POLY1305, nested)).seal(secret);
+            ck("cascades nest, mixed with built-ins",
+                    Arrays_equals(lib.recipe(SecurityProfile.BALANCED).withKey(key).open(nenv), secret));
+
+            ck("reserved layer id refused at register", throwsErr(() -> ProtectionLayer.register(new Impostor())));
+            ck("reserved layer id refused at addLayer", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKey(key).addLayer(new Impostor())));
+            ck("reserved scheme id refused", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKey(key).signedWith(new FakeEd25519())));
+            ProtectionLayer.register(new MyLayer());
+            ck("re-registering an id under another wireName refused", throwsErr(() ->
+                    ProtectionLayer.register(new CascadeLayer(200, "other", List.of(ProtectionLayer.XCHACHA20_POLY1305)))));
+
+            byte[] e1 = lib.recipe(SecurityProfile.BALANCED).withKey(key).withLayers(List.of(new MyLayer())).seal(secret);
+            byte[] e2 = lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                    .withLayers(List.of(new CascadeLayer(203, "renamed", List.of(ProtectionLayer.XCHACHA20_POLY1305)))).seal(secret);
+            ck("wireName feeds the key derivation", e1.length == e2.length && !Arrays_equals(e1, e2));
+
+            byte[] token = lib.randomBytes(32);
+            byte[] tenv2 = lib.recipe(SecurityProfile.HIGH).withKeySource(new TokenSource(token)).seal(secret);
+            ck("custom key source round-trips",
+                    Arrays_equals(lib.recipe(SecurityProfile.HIGH).withKeySource(new TokenSource(token)).open(tenv2), secret));
+            ck("wrong token rejected", throwsErr(() ->
+                    lib.recipe(SecurityProfile.HIGH).withKeySource(new TokenSource(lib.randomBytes(32))).open(tenv2)));
+            ck("header pins the source id", throwsErr(() -> lib.recipe(SecurityProfile.HIGH).withKey(key).open(tenv2)));
+            ck("narrowing key source refused", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKeySource(new WeakSource()).seal(secret)));
+
+            var sid = lib.ed25519Keygen();
+            byte[] senv3 = lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                    .signedWith(new PrefixedEd25519(sid.secretKey(), null)).seal(secret);
+            ck("custom signature scheme round-trips", Arrays_equals(lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                    .verifiedWith(new PrefixedEd25519(null, sid.publicKey())).open(senv3), secret));
+            ck("key-only verifier cannot serve a custom scheme", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKey(key).verifiedBy(sid.publicKey()).open(senv3)));
+            ck("unverified custom-signed envelope refused", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKey(key).open(senv3)));
+            ck("verifier with the wrong scheme id refused", throwsErr(() ->
+                    lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                            .verifiedWith(Ed25519Signature.verifier(sid.publicKey())).open(senv3)));
+
+            Recipe hr = lib.recipe(SecurityProfile.BALANCED).withKey(key)
+                    .signedBy(hid.secretKey(), SignatureAlgorithm.HYBRID).verifiedBy(hid.publicKey());
+            ck("built-in shorthand with key-only verifier", Arrays_equals(hr.open(hr.seal(secret)), secret));
+
+            String d = lib.recipe(SecurityProfile.BALANCED).withKeySource(new TokenSource(token))
+                    .withLayers(List.of(new BeltAndBraces())).describe();
+            ck("describe names custom parts", d.contains("token") && d.contains("belt-and-braces"));
+
             deleteTree(dir);
             System.out.println("\n" + pass + " passed, " + fail + " failed — recipes "
                     + (fail == 0 ? "OK" : "FAILED"));
             System.exit(fail == 0 ? 0 : 1);
         }
+    }
+
+    // ── custom parts used by the extension-point checks ─────────────────────
+
+    static final class MyLayer implements ProtectionLayer {
+        public int id() { return 200; }
+        public String wireName() { return "my-xchacha"; }
+        public byte[] seal(CryptoLib l, byte[] k, byte[] a, byte[] p) { return l.xchacha20Encrypt(p, k, a); }
+        public byte[] open(CryptoLib l, byte[] k, byte[] a, byte[] c) { return l.xchacha20Decrypt(c, k, a); }
+    }
+    static final class BeltAndBraces extends CascadeLayer {
+        BeltAndBraces() {
+            super(201, "belt-and-braces",
+                  List.of(ProtectionLayer.XCHACHA20_POLY1305, ProtectionLayer.AES256_GCM, new MyLayer()));
+        }
+    }
+    static final class Impostor implements ProtectionLayer {
+        public int id() { return 3; }
+        public String wireName() { return "committing"; }
+        public byte[] seal(CryptoLib l, byte[] k, byte[] a, byte[] p) { return p; }
+        public byte[] open(CryptoLib l, byte[] k, byte[] a, byte[] c) { return c; }
+    }
+    static final class TokenSource implements KeySource {
+        private final byte[] token;
+        TokenSource(byte[] token) { this.token = token; }
+        public int id() { return 210; }
+        public String label() { return "token"; }
+        public byte[] deriveRoot(CryptoLib l, byte[] s, long o, long m) { return token; }
+    }
+    static final class WeakSource implements KeySource {
+        public int id() { return 211; }
+        public String label() { return "weak"; }
+        public byte[] deriveRoot(CryptoLib l, byte[] s, long o, long m) { return new byte[16]; }
+    }
+    static final class PrefixedEd25519 implements SignatureScheme {
+        private final byte[] sk, pk;
+        PrefixedEd25519(byte[] sk, byte[] pk) { this.sk = sk; this.pk = pk; }
+        public int id() { return 220; }
+        public String label() { return "prefixed-ed25519"; }
+        private static byte[] tag(byte[] m) {
+            byte[] p = "custom:".getBytes(StandardCharsets.UTF_8);
+            byte[] out = java.util.Arrays.copyOf(p, p.length + m.length);
+            System.arraycopy(m, 0, out, p.length, m.length);
+            return out;
+        }
+        public byte[] sign(CryptoLib l, byte[] m) { return l.ed25519Sign(tag(m), sk); }
+        public boolean verify(CryptoLib l, byte[] m, byte[] sig) { return l.ed25519Verify(tag(m), sig, pk); }
+    }
+    static final class FakeEd25519 implements SignatureScheme {
+        public int id() { return 1; }
+        public String label() { return "fake"; }
+        public byte[] sign(CryptoLib l, byte[] m) { return new byte[64]; }
+        public boolean verify(CryptoLib l, byte[] m, byte[] sig) { return true; }
     }
 
     private static boolean Arrays_equals(byte[] a, byte[] b) { return java.util.Arrays.equals(a, b); }
