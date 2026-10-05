@@ -1,4 +1,9 @@
-# CryptoLib
+# CipherBird
+
+[![cipherbird on pub.dev](https://img.shields.io/pub/v/cipherbird.svg?label=cipherbird)](https://pub.dev/packages/cipherbird)
+[![cipherbird_dart on pub.dev](https://img.shields.io/pub/v/cipherbird_dart.svg?label=cipherbird_dart)](https://pub.dev/packages/cipherbird_dart)
+[![Release v1.0.0](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0)
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > A C++20 cryptography library covering classical, post-quantum, hybrid, and
 > blockchain primitives behind a single C ABI, usable from Flutter, Go, Node,
@@ -15,6 +20,25 @@ in another.
 ```cpp
 #include <cryptolib/cryptolib.hpp>
 ```
+
+---
+
+## Packages on pub.dev
+
+The Dart side ships as two independent packages built from this repository.
+Both expose the same `CipherBird` API and pass the same test suite; pick one
+by how your project is built.
+
+| Package | For | Install |
+|---|---|---|
+| [cipherbird](https://pub.dev/packages/cipherbird) | Flutter apps on Android, iOS and macOS. The engine is bundled per platform and the plugin loads it on startup. | `flutter pub add cipherbird` |
+| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | Plain Dart on the command line and servers. No Flutter dependency, the engine ships inside the package. | `dart pub add cipherbird_dart` |
+
+Both packages are at version 1.0.0, matching the
+[v1.0.0](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0) tag of
+this repository. Each package README explains the choice in detail:
+[cipherbird](bridge/bindings/cipherbird/README.md) and
+[cipherbird_dart](bridge/bindings/cipherbird_dart/README.md).
 
 ---
 
@@ -43,7 +67,7 @@ Composition of vetted primitives (no new cryptography) that raises the
 *practical* cost of decryption to this library's theoretical maximum:
 
 ```
-plaintext ─XChaCha20-Poly1305─▶ ─AES-256-GCM-SIV─▶ ─CommittingAead(UtC)─▶ "MVLT" envelope
+plaintext -> XChaCha20-Poly1305 -> AES-256-GCM-SIV -> CommittingAead(UtC) -> "MVLT" envelope
    key = Argon2id(passphrase, tunable to GiBs)  |  a 32-byte full-entropy master
 ```
 
@@ -89,7 +113,7 @@ attribute set while revealing only what a verifier needs.
 | **Selective disclosure** | A zero-knowledge proof that reveals a chosen subset of attributes while proving a valid signature covers *all* of them, the core of W3C Verifiable Credentials | same |
 | **Per-verifier pseudonyms** | A holder is **unlinkable across verifiers** yet presents a **stable pseudonym per context**, a verifier recognises the same holder on return visits without any cross-verifier tracking | `draft-irtf-cfrg-bbs-per-verifier-linkability-02` |
 | **Blind issuance** | The holder commits to private attributes the **issuer never sees**; the issuer blind-signs over the commitment plus its own attributes | `draft-irtf-cfrg-bbs-blind-signatures-02` |
-| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` to a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets, both guaranteed `< r` so they never silently break a proof | base draft §D.2.3 vector |
+| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` to a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets, both guaranteed `< r` so they never silently break a proof | base draft �section D.2.3 vector |
 
 Validated **byte-exact against the drafts' official test vectors** (generators,
 commitment, blind-sign, proof, and `hash_to_scalar`); the pseudonym prover-secret
@@ -99,13 +123,13 @@ Node, Swift**. Composition/standards implementation only, no new cryptography.
 
 ```
 Issuer                                   Holder                          Verifier
-  │                                         │                                │
-  │        commitment (blinds secret attrs) │                                │
-  │◀────────────────────────────────────────                                │
-  │  blind-sign(commitment + issuer attrs)  │                                │
-  ────────────────────────────────────────▶│  proof: reveal subset + nym    │
-  │                                         ────────────────────────────────▶│
-  │                                         │        verify(proof, pseudonym) │
+  |                                         |                                |
+  |  <--- commitment (blinds secret attrs)  |                                |
+  |                                         |                                |
+  |  blind-sign(commitment + issuer attrs)  |                                |
+  |  -------------------------------------> |  proof: reveal subset + nym    |
+  |                                         |  ----------------------------> |
+  |                                         |       verify(proof, pseudonym) |
 ```
 
 ---
@@ -120,12 +144,12 @@ languages.
 
 ```mermaid
 flowchart TB
-  subgraph core["C++20 header-only core — include/cryptolib/*.hpp"]
+  subgraph core["C++20 header-only core, include/cryptolib/*.hpp"]
     prim["Primitives<br/>AEAD, Ed25519/X25519, ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381, secp256k1, Keccak/RIPEMD/BLAKE3"]
     hl["Constructions<br/>Vault, MolecularVault, Flagship/Fortress sealed messaging<br/>Keyring, Noise XX, Shamir, media entropy"]
     safe["Result monad, SecureBuffer (mlock + zeroize), constant-time"]
   end
-  core --> abi["C ABI — bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c, 127 functions, exception-isolated"]
+  core --> abi["C ABI, bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c, 127 functions, exception-isolated"]
   abi --> ffi{{"FFI boundary (caller's concern)"}}
   ffi --> go["Go<br/>(cgo)"]
   ffi --> dart["Dart /<br/>Flutter"]
@@ -231,7 +255,7 @@ What the recipe keeps for itself, whatever you plug in: a layer never chooses
 its key (fresh 32-byte HKDF sub-key per layer per envelope, bound to the salt
 and the layer's wire name); no layer can opt out of the authenticated header;
 the order sign to encrypt to correct to conceal is fixed; a key source must return
-exactly 32 bytes; ids 0–127 are reserved and enforced, so a custom part can
+exactly 32 bytes; ids 0 to 127 are reserved and enforced, so a custom part can
 never shadow a built-in. A custom part opens only where the same id + wire name
 + algorithm is registered, and because the wire name feeds the key derivation,
 a mismatched implementation fails the AEAD tag rather than yielding garbage.
@@ -247,10 +271,10 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 | Test suite | **317 / 317 passing** (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test) |
-| Differential fuzzing | libFuzzer harness in CI; wrapper ⟷ raw libsodium byte-equality |
+| Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
 | Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (Linux CI) |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |
-| Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model §8) |
+| Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model section 8) |
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
 | Language coverage | 10 bindings verified end-to-end by running, not just compiling |
 | Self-contained binary | macOS desktop dylib depends only on `/usr/lib/libSystem` + `libc++`, bundled in the npm / JVM / .NET packages |
@@ -309,11 +333,10 @@ for the full guide, the comparison with other Dart packages and benchmarks.
 1. **Add the plugin.** In your app's `pubspec.yaml`:
    ```yaml
    dependencies:
-     cipherbird:
-       # After publication on pub.dev: cipherbird: ^1.0.0
-       # During evaluation, depend on the path:
-       path: ../path/to/bridge/bindings/cipherbird
+     cipherbird: ^1.0.0
    ```
+   To evaluate an unpublished checkout instead, depend on the path
+   `bridge/bindings/cipherbird` of this repository.
 2. **Get dependencies.** `flutter pub get`.
 3. **Import + call.** The loader picks `DynamicLibrary.process()` on iOS, the
    bundled `.so` on Android, and the system `.dylib` on macOS automatically.
@@ -327,7 +350,7 @@ for the full guide, the comparison with other Dart packages and benchmarks.
      final (ct, ss) = lib.hybridKemEncapsulate(kp.publicKey);
      final ss2 = lib.hybridKemDecapsulate(ct, kp.secretKey);
      assert(ss.length == 32);
-     // ss and ss2 are equal — both parties hold the same shared secret.
+     // ss and ss2 are equal, both parties hold the same shared secret.
    }
    ```
 4. **Build for your platform.** `flutter build apk` / `flutter build ios --simulator`.
@@ -465,7 +488,7 @@ cmake --build build/release --target cryptolib_c
 
 # Sealed, self-contained static archive: every dependency linked in, with a
 # no-sock/no-dso libcrypto so the binary carries no socket or dlopen code.
-bash scripts/build_static_archive.sh          # → build/static/libcryptolib_c.a
+bash scripts/build_static_archive.sh          # writes build/static/libcryptolib_c.a
 make audit                                     # no-ambient-authority symbol gate
 
 # Optionally back ML-KEM/ML-DSA/SLH-DSA with OpenSSL EVP (FIPS-track) vs liboqs
