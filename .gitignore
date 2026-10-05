@@ -42,6 +42,7 @@ third_party/android/x86_64/
 third_party/ios/iphoneos/
 third_party/ios/iphonesimulator/
 third_party/ios/macosx/
+third_party/web/
 
 # Keep the vendored dependency source tarballs; drop unpacked sources.
 third_party/ios/src/*
@@ -101,3 +102,7 @@ local/
 
 # ────────────────────────────── macOS ────────────────────────────
 .DS_Store
+
+# The WebAssembly engine ships inside both Dart packages.
+!bridge/bindings/cipherbird/assets/cipherbird.wasm
+!bridge/bindings/cipherbird_dart/lib/assets/cipherbird.wasm

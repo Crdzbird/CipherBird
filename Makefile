@@ -339,6 +339,25 @@ flutter-recipes: lib
 		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart test/easy_test.dart | tail -2; \
 	else echo "flutter not found — skipping"; fi
 
+# WebAssembly engine (Emscripten): every dependency plus the C ABI compiled to
+# wasm32, then bundled into both Dart packages as assets/cipherbird.{js,wasm}.
+.PHONY: web-engine
+web-engine:
+	$(call hdr,WebAssembly engine (Emscripten))
+	@bash scripts/web/build_all.sh
+
+.PHONY: web-bundle
+web-bundle:
+	$(call hdr,Bundling the WebAssembly engine into cipherbird and cipherbird_dart)
+	@cp build/web/dist/cipherbird.js build/web/dist/cipherbird.wasm bridge/bindings/cipherbird/assets/
+	@python3 scripts/web/gen_dart.py build/web/gen bridge/bindings/cipherbird
+	@bash scripts/sync_dart_package.sh
+
+.PHONY: flutter-web-test
+flutter-web-test:
+	$(call hdr,Flutter test suite in Chrome against the WebAssembly engine)
+	@bash scripts/web/test_chrome.sh
+
 # ── Go (cgo) ─────────────────────────────────────────────────────────────────
 .PHONY: go
 go: lib
