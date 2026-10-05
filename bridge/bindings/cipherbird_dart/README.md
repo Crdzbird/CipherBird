@@ -23,6 +23,23 @@ API, with `CipherBird` as the entry point.
 | Storage | vaults, MolecularVault, keyring with device and passphrase slots | |
 | Media | media entropy, DRBG, Fortuna, steganography, forward error correction | |
 
+## Dart or Flutter?
+
+`cipherbird_dart` is the plain-Dart package: no Flutter dependency, the
+engine bundled for the host machine, found through the program's package
+configuration. For a Flutter app use
+[cipherbird](https://pub.dev/packages/cipherbird) instead; it carries the
+engine for Android, iOS and macOS and plugs it into Flutter's build. The two
+expose the same classes and methods and run the same test suite.
+
+| | cipherbird_dart | cipherbird |
+|---|---|---|
+| Depends on | `ffi` only | Flutter SDK, `ffi` |
+| Engine binaries | host slot under `native/<os>-<arch>/`, macOS on Apple silicon in this release | Android arm64-v8a and x86_64, iOS device and simulator, macOS |
+| How the engine is found | the package's `native/` directory via `.dart_tool/package_config.json`, the current directory or the script location | the process image on iOS and macOS, `jniLibs` on Android |
+| Download size | about 5 MB | about 28 MB |
+| API, wire formats, tests | identical | identical |
+
 ## Install
 
 ```bash

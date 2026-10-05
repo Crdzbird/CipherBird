@@ -25,6 +25,28 @@ plain Dart as [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) for
 servers, command-line tools and desktop programs; both packages are generated
 from one source tree and expose the same API.
 
+## Flutter or Dart?
+
+`cipherbird` is the Flutter package. Use it in a Flutter app: it carries the
+compiled engine for every mobile and desktop target the app can run on and
+plugs it into Flutter's build through Swift Package Manager and `jniLibs`.
+It is optional everywhere else. A server, a command-line tool or a plain Dart
+desktop program should depend on
+[cipherbird_dart](https://pub.dev/packages/cipherbird_dart) instead, which
+has no Flutter dependency. The two expose the same classes and methods and
+run the same test suite; they differ only in how the engine reaches the
+program.
+
+| | cipherbird | cipherbird_dart |
+|---|---|---|
+| Depends on | Flutter SDK, `ffi` | `ffi` only |
+| Engine binaries | bundled per platform: Android arm64-v8a and x86_64, iOS device and simulator, macOS | bundled for the host under `native/<os>-<arch>/`, macOS on Apple silicon in this release |
+| How the engine is found | the process image on iOS and macOS, `libcipherbird.so` from `jniLibs` on Android | the package's `native/` directory, located through the program's package configuration |
+| Startup | `await CipherBird.preload()` before `runApp`, or lazy on first use | lazy on first use, `preload` optional |
+| Build integration | Flutter's plugin tooling, nothing to configure | none needed; `dart run`, `dart test` and `dart compile exe` (pass the library path) |
+| Download size | about 28 MB | about 5 MB |
+| API, wire formats, tests | identical | identical |
+
 ## Install
 
 ```bash

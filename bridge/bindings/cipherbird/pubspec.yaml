@@ -1,9 +1,8 @@
 name: cipherbird
-description: "CipherBird for Flutter: hashing, AEAD, asymmetric, vaults, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS, Noise, sealed messaging and a keyring via dart:ffi, with easy-mode keys. The native library is bundled per platform."
+description: "Native cryptography for Flutter over dart:ffi: hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys, engine bundled."
 version: 1.0.0
 homepage: https://github.com/Crdzbird/CryptoLib
 repository: https://github.com/Crdzbird/CryptoLib
-issue_tracker: https://github.com/Crdzbird/CryptoLib/issues
 documentation: https://github.com/Crdzbird/CryptoLib/blob/main/bridge/bindings/cipherbird/README.md
 topics:
   - cryptography
