@@ -1,75 +1,53 @@
 # cipherbird
 
-CipherBird is the Flutter package for CryptoLib: one dependency that gives an
-app hashing, authenticated encryption, public-key cryptography, post-quantum
-algorithms, hybrid key agreement, sealed messaging, a secure channel, password
-hashing, vaults, a keyring, anonymous credentials, threshold signatures and
-steganography, all from a single native library that ships inside the package.
+Native cryptography for Flutter. CipherBird binds the CryptoLib C++ engine
+through `dart:ffi` and ships the compiled library inside the package, so an
+app gets hashing, authenticated encryption, public-key cryptography,
+post-quantum algorithms, hybrid key agreement, sealed messaging, a secure
+channel, password hashing, vaults, a keyring, anonymous credentials,
+threshold signatures and steganography from one dependency, with no platform
+channels and no setup. The Dart API keeps the engine's name as its entry
+point: `CryptoLib`, `CryptoRecipe`, `CryptoLibRunner`.
 
-The same code is published for plain Dart as `cipherbird_dart`, for servers,
-command-line tools and desktop programs. Both packages are generated from one
-source tree and expose exactly the same API.
-
-| Package | Use it for | Native library |
+| Area | What runs | Notes |
 |---|---|---|
-| `cipherbird` | Flutter apps on Android, iOS and macOS | bundled per platform inside the plugin |
-| `cipherbird_dart` | Dart on the server, CLIs, desktop | bundled under `native/<os>-<arch>/` for the host |
+| Hashing | SHA-256, SHA-512, BLAKE2b, BLAKE3, Keccak-256 | HMAC, HKDF, incremental BLAKE3 |
+| Passwords | Argon2id | PHC strings, derive keys, three cost profiles |
+| Symmetric | XChaCha20-Poly1305, AES-256-GCM, key-committing AEAD, SecretStream | the committing mode is the default in easy mode |
+| Public key | X25519, Ed25519, boxes, sealed boxes, secp256k1 | EVM addresses and recovery |
+| Post-quantum | ML-KEM, ML-DSA, SLH-DSA, sntrup761 | FIPS 203, 204 and 205 through liboqs |
+| Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
+| Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchet | composition of the primitives above |
+| Storage | vaults, MolecularVault, keyring with device and passphrase slots | |
+| Media | media entropy, DRBG, Fortuna, steganography, forward error correction | |
 
-## Contents
+Supported platforms: Android, iOS and macOS. The same code is published for
+plain Dart as [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) for
+servers, command-line tools and desktop programs; both packages are generated
+from one source tree and expose the same API.
 
-1. [Why this library](#why-this-library)
-2. [Install and set up](#install-and-set-up)
-3. [Easy mode](#easy-mode)
-4. [The full API, by group](#the-full-api-by-group)
-5. [Security profiles and recipes](#security-profiles-and-recipes)
-6. [Extending the recipe with your own parts](#extending-the-recipe-with-your-own-parts)
-7. [Off-thread work](#off-thread-work)
-8. [Comparison with other Dart packages](#comparison-with-other-dart-packages)
-9. [Benchmarks](#benchmarks)
-10. [Interoperability with other languages](#interoperability-with-other-languages)
-11. [Platform support](#platform-support)
-12. [Package structure and conventions](#package-structure-and-conventions)
-13. [Maintaining the bundled binaries](#maintaining-the-bundled-binaries)
-14. [License and attribution](#license-and-attribution)
+## Install
 
-## Why this library
-
-- Native speed. Every operation runs in the C++ core through `dart:ffi`. A
-  1 MiB SHA-256 or AES-GCM runs at memory bandwidth instead of at the speed
-  of a Dart loop. The benchmarks below show the difference.
-- Vetted primitives, composed. The core wraps libsodium, liboqs, OpenSSL
-  libcrypto, blst, secp256k1 and BLAKE3. The library adds composition and
-  plumbing, never new cryptography.
-- Post-quantum today. ML-KEM, ML-DSA and SLH-DSA from FIPS 203, 204 and 205,
-  the sntrup761 KEM, and hybrid constructions that stay secure if either the
-  classical or the post-quantum half holds.
-- Safe defaults that are hard to misuse. The easy-mode classes pick the
-  key-committing AEAD, Argon2id for passphrases, HKDF for sub-keys and the
-  hybrid signature. Recipes fix the order of operations and fail closed.
-- Higher-level protocols, not just primitives. Sealed messaging with two
-  assurance tiers, Noise XX channels, HPKE, OPAQUE password login, OPRF, BBS
-  anonymous credentials with selective disclosure, FROST threshold
-  signatures, ECVRF, BLS aggregation, a forward-secret session ratchet, media
-  entropy and steganography.
-- One wire format across ten languages. An envelope sealed in Dart opens in
-  Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust and .NET, and the
-  repository proves it with 72 cross-language seal and open pairs.
-- No setup. The native library is inside the package and loads itself.
-
-## Install and set up
-
-```yaml
-dependencies:
-  cipherbird: ^1.0.0
+```bash
+flutter pub add cipherbird
 ```
 
-Warm the library before the first frame and keep every later call
-synchronous:
+Nothing else is required. The native library is vendored per platform: a
+dynamic `CryptoLibC` framework through Swift Package Manager on iOS and
+macOS, and `libcryptolib_c.so` under `jniLibs` on Android. libsodium,
+liboqs, OpenSSL libcrypto, blst, secp256k1 and BLAKE3 are linked into it
+statically, so no system library is needed.
+
+| Platform | Minimum |
+|---|---|
+| Android | API 24, arm64-v8a and x86_64 |
+| iOS | 15.0, arm64 device and arm64 simulator |
+| macOS | 12.0, Apple silicon, Swift Package Manager |
+
+Call `CryptoLib.preload()` once at startup. It loads and initialises the
+library on a background isolate; every later call is synchronous:
 
 ```dart
-import 'package:cipherbird/cipherbird.dart';
-import 'package:flutter/material.dart';
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await CryptoLib.preload();
@@ -77,66 +55,79 @@ Future<void> main() async {
 }
 ```
 
-`preload` runs the one-time load and initialisation on a background isolate.
-It is optional: the first use of `CryptoLib.instance` does the same work
-synchronously. There is no `await` anywhere else in the API; every operation
-is a plain synchronous call.
+Skipping `preload` is allowed: the first use of `CryptoLib.instance` does the
+same work synchronously.
 
-## Easy mode
-
-The safe choices are already made. Text in, text out, no byte plumbing.
+## Quick start
 
 ```dart
+import 'package:cipherbird/cipherbird.dart';
+
 final key = SymmetricKey.generate();
 final box = key.encryptText('meet at dawn');
 final back = key.decryptText(box);
 
-final salt = CryptoLib.instance.easy.randomBytes(16);
-final fromPassphrase = SymmetricKey.fromPassphrase(
-  'correct horse battery staple',
-  salt: salt,
-);
-final databaseKey = key.derive('database');
-
 final signer = SigningKey.generate(algorithm: SignatureAlgorithm.hybrid);
 final signature = signer.signText('release 1.0.0');
-final verifier = VerifyKey.fromHex(
-  signer.publicKey.hex,
-  algorithm: SignatureAlgorithm.hybrid,
-);
-final valid = verifier.verifyText('release 1.0.0', signature);
+final valid = signer.verifyKey.verifyText('release 1.0.0', signature);
 
 final me = KemKeyPair.generate();
 final blob = KemKeyPair.encryptTextFor(me.publicKey, 'for your eyes only');
 final plain = me.decryptText(blob);
-
-final lib = CryptoLib.instance;
-final phc = lib.easy.hashPassword('hunter2');
-final good = lib.easy.verifyPassword('hunter2', phc);
-final sessionId = lib.easy.token();
-final digest = lib.sha256('abc'.bytes).hex;
 ```
 
-| Class | What it does | Underneath |
-|---|---|---|
-| `SymmetricKey` | `encrypt`, `decrypt`, `encryptText`, `decryptText`, `derive(purpose)`, `fromPassphrase(salt:)`, hex and base64 round-trips, `asKeySource`, `destroy()` | key-committing AEAD, HKDF-SHA256, Argon2id at the profile cost |
-| `SigningKey`, `VerifyKey` | `sign`, `verify`, text variants, `scheme` for recipes | Ed25519, or Ed25519 plus ML-DSA-65 with `algorithm: SignatureAlgorithm.hybrid` |
-| `KemKeyPair` | `encapsulate` and `decapsulate` to a `SymmetricKey`, one-call `encryptFor` and `decrypt` | X25519 plus ML-KEM-768, HKDF, key-committing AEAD |
-| `Identity` | `sealText`, `openText`, streaming sealers and openers | Flagship or Fortress sealed messaging |
-| `lib.easy` | factories for the above, `hashPassword`, `verifyPassword`, `randomBytes`, `randomHex`, `token`, `sha256Hex` | Argon2id PHC strings, the OS CSPRNG |
+The easy-mode classes make the safe choice for you: the key-committing AEAD,
+Argon2id for passphrases, HKDF for sub-keys and the post-quantum hybrid
+signature. To stretch a passphrase into a key:
 
-Bytes and strings convert with `'text'.bytes`, `'ab12'.hexBytes`,
-`'...'.base64Bytes`, `bytes.hex`, `bytes.base64`, `bytes.base64Url`,
-`bytes.text`, `bytes.constantTimeEquals(other)`, `bytes.concat(other)`,
-`bytes.wipe()` and `List<int>.u8`.
+```dart
+final salt = CryptoLib.instance.easy.randomBytes(16);
+final key = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
+final databaseKey = key.derive('database');
+```
 
-Every class exposes its raw bytes and plugs into the recipes, so the full
-API is always one step away.
+Store the salt next to the data; it is not secret. The same passphrase and
+salt always give the same key.
 
-## The full API, by group
+## Easy mode
 
-All 265 native operations are available on `CryptoLib`, both as flat methods
-and through grouped views that keep autocomplete usable.
+Every class exposes its raw bytes and can be rebuilt from them, so moving
+between the easy classes and the full API costs nothing.
+
+| Class | Create | Use | Underneath |
+|---|---|---|---|
+| `SymmetricKey` | `generate()`, `fromBytes`, `fromHex`, `fromBase64`, `fromPassphrase(salt:)` | `encrypt`, `decrypt`, `encryptText`, `decryptText`, `derive(purpose)`, `asKeySource`, `destroy()` | key-committing AEAD, HKDF-SHA256, Argon2id |
+| `SigningKey` | `generate(algorithm:)`, `fromBytes` | `sign`, `signText`, `verifyKey`, `scheme` | Ed25519, or Ed25519 plus ML-DSA-65 |
+| `VerifyKey` | `fromBytes`, `fromHex` | `verify`, `verifyText`, `scheme` | |
+| `KemKeyPair` | `generate()`, `fromBytes` | `encapsulate`, `decapsulate`, `encryptFor`, `decrypt`, `encryptTextFor`, `decryptText` | X25519 plus ML-KEM-768, HKDF, committing AEAD |
+| `Identity` | `lib.easy.identity(tier)` | `sealText`, `openText`, `seal`, `open`, streaming sealers and openers | Flagship or Fortress sealed messaging |
+
+`lib.easy` holds the factories plus the small utilities every app needs:
+
+| Utility | Returns |
+|---|---|
+| `hashPassword(password)` | an Argon2id PHC string to store |
+| `verifyPassword(password, phc)` | whether the password matches |
+| `randomBytes(n)`, `randomHex(n)` | bytes from the OS CSPRNG |
+| `token()` | a URL-safe random token with 32 bytes of entropy |
+| `sha256Hex(text)` | the digest as hex |
+| `symmetricKeyFromPassphraseAsync`, `hashPasswordAsync`, `verifyPasswordAsync` | the Argon2id operations on a worker |
+
+Strings and bytes convert in place:
+
+| Expression | Result |
+|---|---|
+| `'text'.bytes` | UTF-8 bytes |
+| `'ab12'.hexBytes`, `'aGk='.base64Bytes` | decoded bytes |
+| `bytes.hex`, `bytes.base64`, `bytes.base64Url`, `bytes.text` | encoded strings |
+| `bytes.constantTimeEquals(other)` | comparison that does not leak the first mismatch |
+| `bytes.concat(other)`, `bytes.wipe()`, `list.u8` | join, zero, convert |
+
+## Full API
+
+All 265 native operations are reachable on `CryptoLib`, flat or through
+grouped views that keep autocomplete usable. Every operation takes and
+returns `Uint8List`, throws on failure and never returns partial data.
 
 ```dart
 final lib = CryptoLib.instance;
@@ -148,41 +139,36 @@ final opened = lib.pq.hybridKem.decapsulate(ciphertext, pair.secretKey);
 
 | Group | Operations |
 |---|---|
-| `lib.hash` | SHA-256, SHA-512, BLAKE2b, BLAKE3 (hash, keyed, derive key, incremental hasher), HMAC-SHA256 and SHA512 with constant-time verify, HKDF extract, expand and derive, Argon2id hash, verify and derive |
-| `lib.aead` | XChaCha20-Poly1305, AES-256-GCM, key-committing AEAD, SecretStream streaming encryption, symmetric key generation |
-| `lib.asym` | Ed25519 keys, sign and verify, X25519 key agreement, authenticated boxes and sealed boxes |
-| `lib.pq` | ML-KEM 512, 768, 1024; ML-DSA 44, 65, 87; SLH-DSA in all SHA2 and SHAKE parameter sets; hybrid X25519 plus ML-KEM-768 KEM; hybrid Ed25519 plus ML-DSA-65 signature; X25519 plus sntrup761 KEM |
-| `lib.sealed` | Flagship and Fortress sealed messaging: identities, one-shot seal and open, streaming, envelope inspection, recipient matching |
-| `lib.channel` | Noise XX secure channel with mutual authentication, forward secrecy and re-entrant decryption by counter |
+| `lib.hash` | SHA-256, SHA-512, BLAKE2b, BLAKE3 hash, keyed, derive key and incremental hasher, HMAC with constant-time verify, HKDF extract, expand and derive, Argon2id hash, verify and derive |
+| `lib.aead` | XChaCha20-Poly1305, AES-256-GCM, committing AEAD, SecretStream, key generation |
+| `lib.asym` | Ed25519 keys, sign, verify; X25519; boxes and sealed boxes |
+| `lib.pq` | `mlKem`, `mlDsa`, `slhDsa`, `hybridKem`, `hybridSig`, `sntrup` |
+| `lib.sealed` | identities, seal, open, streaming, envelope inspection, recipient matching |
+| `lib.channel` | Noise XX handshake and transport with re-entrant decryption by counter |
 | `lib.session` | post-quantum forward-secret session ratchet |
-| `lib.hpke` | HPKE (RFC 9180) in all four modes, single-shot and context forms |
-| `lib.opaque`, `lib.oprf` | OPAQUE password-authenticated login and the ristretto255 OPRF it builds on |
-| `lib.bbs` | BBS signatures with zero-knowledge selective disclosure, per-verifier pseudonyms and blind issuance |
-| `lib.frost` | FROST threshold Ed25519 signatures (RFC 9591) |
-| `lib.ecvrf`, `lib.bls` | verifiable random function (RFC 9381), BLS12-381 signatures and aggregation |
-| `lib.vault`, `lib.keyring` | symmetric and asymmetric vaults, MolecularVault, keyrings with device and passphrase slots |
-| `lib.suite`, `lib.composed` | one-call combinations: post-quantum messages, signed post-quantum messages, threshold vaults, file-as-key vaults, physical-media seals, HPKE into a steganographic carrier |
-| `lib.entropy`, `lib.stego` | media entropy with health assessment, DRBG and Fortuna generators, steganography across image, audio and video formats, forward error correction |
+| `lib.hpke` | HPKE in all four modes, single-shot and context forms |
+| `lib.opaque`, `lib.oprf` | OPAQUE password login and the OPRF it builds on |
+| `lib.bbs` | BBS signatures, selective disclosure, pseudonyms, blind issuance |
+| `lib.frost`, `lib.ecvrf`, `lib.bls` | threshold Ed25519, verifiable random function, BLS12-381 |
+| `lib.vault`, `lib.keyring` | symmetric and asymmetric vaults, MolecularVault, keyrings |
+| `lib.suite`, `lib.composed` | one-call combinations: post-quantum messages, threshold vaults, file-as-key vaults, physical-media seals, HPKE into a carrier |
+| `lib.entropy`, `lib.stego`, `lib.rng` | media entropy and health, DRBG, Fortuna, steganography, forward error correction |
 | `lib.chain` | Keccak-256, secp256k1 sign and recover, EVM addresses |
-| `lib.rng` | OS randomness, DRBG, Fortuna |
 
-Every operation takes and returns `Uint8List`, throws on failure, and never
-returns partially decrypted data.
+## Profiles and recipes
 
-## Security profiles and recipes
+`SecurityProfile` moves every parameter together so a maximal KEM is never
+paired with an interactive KDF.
 
-`SecurityProfile` moves every algorithm parameter together so a maximal KEM
-is never paired with an interactive KDF.
-
-| Profile | KEM | Signature | Sealed tier | Cascade | Argon2id |
+| Profile | KEM | Signature | Sealed tier | AEAD cascade | Argon2id |
 |---|---|---|---|---|---|
 | `balanced` | ML-KEM-768 | ML-DSA-65 | Flagship | XChaCha20-Poly1305 | 2 passes, 64 MiB |
-| `high` | ML-KEM-768 | ML-DSA-65 | Flagship | XChaCha20-Poly1305 then AES-256-GCM | 3 passes, 256 MiB |
-| `maximum` | ML-KEM-1024 | ML-DSA-87 | Fortress | XChaCha20-Poly1305, AES-256-GCM, then key-committing | 4 passes, 512 MiB |
+| `high` | ML-KEM-768 | ML-DSA-65 | Flagship | XChaCha20-Poly1305, AES-256-GCM | 3 passes, 256 MiB |
+| `maximum` | ML-KEM-1024 | ML-DSA-87 | Fortress | XChaCha20-Poly1305, AES-256-GCM, key-committing | 4 passes, 512 MiB |
 
-`CryptoRecipe` composes a key source, an AEAD cascade, an optional signature,
+`CryptoRecipe` composes a key source, the cascade, an optional signature,
 optional forward error correction and an optional steganographic carrier into
-one envelope:
+one self-describing envelope:
 
 ```dart
 final recipe = lib
@@ -192,25 +178,31 @@ final recipe = lib
     .verifiedBy(identity.publicKey);
 final envelope = recipe.seal(secret);
 final back = recipe.open(envelope);
-print(recipe.describe());
 ```
 
-What the recipe guarantees regardless of configuration: each layer gets its
-own HKDF-derived key, the header describing the recipe is authenticated by
-every layer, the order sign, encrypt, correct, conceal is fixed, and any
-failure throws before data is returned.
+| Method | Effect |
+|---|---|
+| `withKey`, `withPassphrase`, `withKeyFile`, `withKeySource` | where the 32-byte root key comes from |
+| `withLayers`, `addLayer` | the AEAD cascade, innermost first |
+| `signedBy`, `verifiedBy`, `signedWith`, `verifiedWith` | sign the plaintext before encryption |
+| `withFec` | repetition or Hamming error correction on the envelope |
+| `argon2Cost` | override the passphrase stretching cost |
+| `seal`, `open`, `sealIntoCarrier`, `openFromCarrier`, `describe` | run it, or print the configuration for review |
 
-## Extending the recipe with your own parts
+Whatever the configuration, each layer gets its own HKDF-derived key, the
+header is authenticated by every layer, the order sign, encrypt, correct,
+conceal is fixed, and any failure throws before data is returned.
 
-Three abstract classes can be subclassed; the library's own implementations
-subclass the same ones.
+## Bring your own parts
 
-| Base | Built-ins | Your subclass |
+Three bases can be subclassed, and the built-ins subclass the same ones.
+
+| Base | Built-ins | Register |
 |---|---|---|
-| `ProtectionLayer` | XChaCha20-Poly1305, AES-256-GCM, key-committing, MolecularVault | implement `id`, `wireName`, `seal`, `open`, then `ProtectionLayer.register()` it |
-| `CascadeLayer` | | mixes several layers, built-in or custom, into one layer; cascades nest |
-| `KeySource` | raw key, passphrase, media file | a hardware token, a KMS, a keyring unlock, via `withKeySource()` |
-| `SignatureScheme` | Ed25519, hybrid | another algorithm, via `signedWith()` and `verifiedWith()` |
+| `ProtectionLayer` | `xchacha20Poly1305`, `aes256Gcm`, `committing`, `molecular` | `ProtectionLayer.register(layer)` on both sides |
+| `CascadeLayer` | | subclass it to mix several layers, built-in or custom, into one; cascades nest |
+| `KeySource` | `RawKeySource`, `PassphraseKeySource`, `KeyFileSource` | `recipe.withKeySource(source)` |
+| `SignatureScheme` | `Ed25519Signature`, `HybridSignature` | `recipe.signedWith(scheme)`, `recipe.verifiedWith(scheme)` |
 
 ```dart
 final class BeltAndBraces extends CascadeLayer {
@@ -221,61 +213,58 @@ final class BeltAndBraces extends CascadeLayer {
           ProtectionLayer.committing,
         ]);
 }
-
-ProtectionLayer.register(const BeltAndBraces());
-final envelope = lib.recipe().withKey(key).withLayers([const BeltAndBraces()]).seal(secret);
 ```
 
 Ids 0 to 127 are reserved and enforced, a key source must return exactly 32
-bytes, a layer never chooses its key, and the wire name feeds the key
+bytes, a layer never chooses its own key, and the wire name feeds the key
 derivation, so a mismatched implementation fails the authentication tag
 instead of producing garbage.
 
 ## Off-thread work
 
 Argon2id at 64 MiB takes a noticeable fraction of a second. The asynchronous
-twins run it on a worker through a `CryptoLibRunner`:
+twins run it through a `CryptoLibRunner`, `CryptoLibIsolateRunner` by
+default and `CryptoLibInlineRunner` in tests:
 
 ```dart
 final key = await lib.easy.symmetricKeyFromPassphraseAsync('pw', salt: salt);
 final phc = await lib.easy.hashPasswordAsync('hunter2');
-final ok = await lib.easy.verifyPasswordAsync('hunter2', phc);
 ```
 
-`CryptoLibIsolateRunner` is the default. Pass `CryptoLibInlineRunner` in
-tests to keep them deterministic. The seam has the same shape as an
-injectable isolate runner, so an app can wrap its own.
+Everything else is fast enough to call on the UI isolate; the figures below
+say how fast.
 
-## Comparison with other Dart packages
+## How it compares
 
-| | cipherbird | pointycastle | cryptography | crypto | libsodium bindings |
+The pub.dev packages below each cover part of the same job. The first table
+is about scope; the second is measured.
+
+| | cipherbird | pointycastle 3.9 | cryptography 2.7 | crypto 3.0 | sodium 3.x |
 |---|---|---|---|---|---|
-| Implementation | native C++ core through FFI | pure Dart | pure Dart, native on some platforms through a companion package | pure Dart | native |
+| Implementation | C++ engine over `dart:ffi` | pure Dart | pure Dart, native through a companion package on some platforms | pure Dart | libsodium over `dart:ffi` |
 | Hashing | SHA-2, BLAKE2b, BLAKE3, Keccak, HMAC, HKDF | SHA-2, SHA-3, BLAKE2b, HMAC, HKDF | SHA-2, BLAKE2, HMAC, HKDF | SHA-2, HMAC | SHA-2, BLAKE2b |
 | AEAD | XChaCha20-Poly1305, AES-256-GCM, key-committing, streaming | ChaCha20-Poly1305, AES-GCM | ChaCha20-Poly1305, AES-GCM | none | XChaCha20-Poly1305, AES-GCM, streaming |
 | Password hashing | Argon2id | Argon2 | Argon2id | none | Argon2id |
 | Post-quantum | ML-KEM, ML-DSA, SLH-DSA, sntrup761, hybrids | none | none | none | none |
-| Signatures | Ed25519, hybrid Ed25519 plus ML-DSA, BLS, secp256k1 | ECDSA, RSA | Ed25519, ECDSA | none | Ed25519 |
-| Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, VRF, session ratchet | none | none | none | sealed boxes |
-| Vaults, keyring, steganography, media entropy | yes | none | none | none | none |
-| Cross-language wire formats | ten languages, verified | n/a | n/a | n/a | compatible with libsodium |
-| Safe-default layer | easy mode, profiles, recipes | no | partial | no | no |
-| Size cost | about 28 MB download, 7 MB per platform in the app | small | small | small | native library size |
-| Web | no | yes | yes | yes | depends |
+| Signatures | Ed25519, hybrid, BLS, secp256k1 | ECDSA, RSA | Ed25519, ECDSA | none | Ed25519 |
+| Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, VRF, ratchet | none | none | none | sealed boxes |
+| Vaults, keyring, steganography, media entropy | yes | no | no | no | no |
+| Safe-default layer | easy mode, profiles, recipes | no | partial | no | partial |
+| Same wire format in other languages | ten bindings, verified | no | no | no | libsodium compatible |
+| Web | no | yes | yes | yes | yes |
+| License | MIT | MIT | MIT | BSD-3-Clause | LGPL-3.0 |
 
-Choose a pure-Dart package when the target is the web or when a few
-kilobytes of download matter more than throughput. Choose cipherbird when
-speed, post-quantum readiness, higher-level protocols or cross-language
-compatibility matter.
+Choose a pure-Dart package for the web or when a few kilobytes of download
+matter more than throughput. Choose cipherbird when speed, post-quantum
+readiness, higher-level protocols or cross-language compatibility matter.
 
-## Benchmarks
+### Measured
 
-Measured with `cipherbird_dart/benchmark/bench.dart` on an Apple M3 Max,
-macOS 26.6, Dart 3.13.5, pointycastle 3.9, cryptography 2.7, crypto 3.0.
-Each cell is the mean over a two-second window after one warm-up run.
-Throughput rows are in MB/s on 1 MiB inputs; the rest are operations per
-second. Factors are relative to cipherbird. Run the harness on your own
-machine before relying on any number here.
+The harness in `cipherbird_dart/benchmark/bench.dart` runs each operation
+for two seconds after one warm-up call and reports the mean. Apple M3 Max,
+macOS 26.6, Dart 3.13.5, pointycastle 3.9.1, cryptography 2.7.0, crypto
+3.0.6. Throughput rows are in MB/s on 1 MiB inputs; the rest are operations
+per second. Factors are relative to cipherbird.
 
 | Operation | cipherbird (native) | pointycastle | cryptography | crypto |
 |---|---|---|---|---|
@@ -291,65 +280,60 @@ machine before relying on any number here.
 | ML-KEM-768 keygen + encapsulate + decapsulate | 11847 ops/s | n/a | n/a | n/a |
 | Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 3826 ops/s | n/a | n/a | n/a |
 
-Every cipherbird call copies its input into native memory and the result back,
-so the throughput rows include that cost; the gap on long inputs is the
-difference between the C implementations and Dart loops, and the gap on
-public-key operations is larger still.
+Reading the numbers fairly:
 
-There is no pure-Dart ML-KEM to compare against in these packages. The
-post-quantum rows show what the native core delivers on its own.
+- Every cipherbird call copies its input into native memory and the result
+  back. The throughput rows include that cost; the public-key rows are pure
+  compute and show the larger gap.
+- The cryptography package runs pure Dart on the Dart VM here. Its companion
+  `cryptography_flutter` reaches platform APIs on some targets, which this
+  harness does not measure.
+- pointycastle's AES-GCM is a pure-Dart table implementation with no
+  hardware acceleration, which is where its figure comes from.
+- There is no pure-Dart ML-KEM in these packages, so the post-quantum rows
+  show what the native engine delivers on its own.
 
-## Interoperability with other languages
+Release bundle size, measured as the whole app against an empty Flutter app
+built the same way:
+
+| Build | Empty Flutter app | With cipherbird | Added |
+|---|---|---|---|
+| macOS release `.app`, Apple silicon | 37 MB | 46 MB | 9 MB (the `CryptoLibC` framework is 8 MB) |
+| Android release APK, arm64 only | 14.8 MB | 30.1 MB | 15.3 MB |
+
+The added size is the native library: libsodium, liboqs with every parameter
+set the package exposes, OpenSSL libcrypto, blst, secp256k1 and BLAKE3
+linked into one binary per platform.
+
+## Interoperability
 
 Every CryptoLib binding (Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust,
 .NET and the two Dart packages) wraps the same C ABI and uses the library's
-own wire formats, so vaults, sealed envelopes, recipes and keyrings move
-between languages unchanged. `make recipe-interop` in the repository seals
-five recipe configurations in each language and opens them in every other
-one, 72 pairs in total.
+own wire formats. Vaults, sealed envelopes, recipes and keyrings move between
+languages unchanged. The repository seals five recipe configurations in each
+language and opens them in every other one, 72 pairs, on every change.
 
-## Platform support
+## Example and playground
 
-| Platform | Status |
-|---|---|
-| Android (arm64-v8a, x86_64) | bundled, verified on device |
-| iOS 15 and later (arm64 device and arm64 simulator) | bundled, verified on simulator |
-| macOS 12 and later (Apple silicon) | bundled, verified build |
-| Linux, Windows, web | not in this release |
-| Android armeabi-v7a and x86, Intel macOS | not in this release |
+The [example](example) checks the library on a device: it loads the engine,
+verifies a SHA-256 known answer and round-trips a hybrid key agreement, a
+hybrid signature, a sealed message and a MolecularVault.
 
-The iOS simulator slice is arm64 only. A generic
-`flutter build ios --simulator` also tries x86_64 and fails. Either add a
-universal simulator slice before publishing or exclude x86_64 in the consuming
-app:
+The [playground](playground) is the app to play with: buttons to encrypt,
+corrupt and decrypt text with the committing AEAD, sign and verify with the
+hybrid signature, encrypt to a hybrid KEM public key and hash a passphrase
+with Argon2id on a worker.
 
-```ruby
-post_install do |installer|
-  installer.pods_project.targets.each do |t|
-    t.build_configurations.each do |c|
-      c.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64'
-    end
-  end
-end
-```
-
-## Package structure and conventions
+## Package structure
 
 `lib/src` follows one declaration per file with a limit of 100 lines, no
 `else` branches, no inline comments, `final` classes and `const factory`
-redirects. `test/conventions_test.dart` enforces it. Large extensions are
+redirects; `test/conventions_test.dart` enforces it. Large extensions are
 split into named chunks such as `CryptoLibHybridKem` or
-`CryptoRecipeSealing`; all are re-exported by the barrel, so every method is
-reachable from a single import.
+`CryptoRecipeSealing`, all re-exported by the barrel. The pure-Dart package
+is generated from this one with `scripts/sync_dart_package.sh`.
 
-`playground/` is a small Flutter app that exercises the package the way an
-app would, with buttons to encrypt, corrupt and decrypt, sign and verify,
-encrypt to a public key and hash a passphrase on a worker.
-
-The pure-Dart package is generated from this one with
-`scripts/sync_dart_package.sh`; never edit its `lib/src` by hand.
-
-## Maintaining the bundled binaries
+## Maintaining the binaries
 
 The prebuilt binaries are committed and published with the package. They go
 stale after any C ABI change because the Dart side resolves every symbol, so
@@ -365,24 +349,27 @@ cp -R CryptoLib.xcframework ios/cipherbird/CryptoLibC.xcframework
 cp -R CryptoLib.xcframework macos/cipherbird/CryptoLibC.xcframework
 ```
 
-Then check that the symbol count matches the header:
+Then check the symbol count against the header, and run the consumer proof,
+which installs the exact archive as a hosted package in a fresh app and runs
+this package's tests on a device:
 
 ```bash
 grep -c '^CRYPTO_API' bridge/cryptolib_c.h
 nm -gU ios/cipherbird/CryptoLibC.xcframework/ios-arm64/CryptoLibC.framework/CryptoLibC | grep -c ' T _cryptolib_'
-strings android/src/main/jniLibs/arm64-v8a/libcryptolib_c.so | grep -c '^cryptolib_'
-```
-
-Before publishing, run the consumer proof from the repository root. It
-installs the exact archive as a hosted package in a fresh app and runs this
-package's test suite on a device:
-
-```bash
 make flutter-consumer DEVICE=macos
 ```
 
-## License and attribution
+The iOS simulator slice is arm64 only. A generic
+`flutter build ios --simulator` also tries x86_64 and fails; exclude that
+architecture for the simulator in the consuming app or add a universal slice.
 
-MIT, see [LICENSE](LICENSE). The license requires that the copyright notice,
-which credits the author Crdzbird, is kept in every copy or substantial
-portion of this software, including apps and libraries that bundle it.
+## Engine
+
+The engine is the CryptoLib C++ library: a header-only C++20 core with a
+pure C ABI of 265 functions, bindings for ten languages, a custom test runner
+with known-answer tests from the official sources, and a cross-language
+conformance harness. Its repository holds the build, the tests, the
+benchmark and the design notes. Everything is MIT licensed; the vendored
+dependencies are BSD, MIT, Apache or public domain. The license requires that
+the copyright notice, which credits the author Crdzbird, is kept in every
+copy or substantial portion of this software.
