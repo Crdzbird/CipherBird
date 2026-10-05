@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Symmetric operations.
-extension CryptoLibSymmetric on CryptoLib {
+extension CipherBirdSymmetric on CipherBird {
   /// Generate a 32-byte random symmetric key.
   Uint8List symKeygen() => _checkBufResult(_symmetric.symKeygen());
 

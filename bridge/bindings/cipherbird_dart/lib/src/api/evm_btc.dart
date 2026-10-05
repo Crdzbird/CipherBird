@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// EVM / Bitcoin interop: Keccak-256, RIPEMD-160 and secp256k1 ECDSA.
-extension CryptoLibEvmBtc on CryptoLib {
+extension CipherBirdEvmBtc on CipherBird {
   /// Keccak-256 (ORIGINAL padding, Ethereum). 32-byte digest. NOT SHA3-256.
   /// Used for tx hashing, contract-address derivation, ABI selectors, EIP-55.
   Uint8List keccak256(Uint8List msg) {

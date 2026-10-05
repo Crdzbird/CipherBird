@@ -37,10 +37,10 @@ class MyLayer extends ProtectionLayer {
   @override
   String get wireName => 'my-xchacha';
   @override
-  Uint8List seal(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List pt) =>
+  Uint8List seal(CipherBird lib, Uint8List key, Uint8List aad, Uint8List pt) =>
       lib.xchacha20Encrypt(pt, key, aad);
   @override
-  Uint8List open(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List ct) =>
+  Uint8List open(CipherBird lib, Uint8List key, Uint8List aad, Uint8List ct) =>
       lib.xchacha20Decrypt(ct, key, aad);
 }
 
@@ -69,9 +69,9 @@ class Impostor extends ProtectionLayer {
   @override
   String get wireName => 'committing';
   @override
-  Uint8List seal(CryptoLib lib, Uint8List k, Uint8List a, Uint8List p) => p;
+  Uint8List seal(CipherBird lib, Uint8List k, Uint8List a, Uint8List p) => p;
   @override
-  Uint8List open(CryptoLib lib, Uint8List k, Uint8List a, Uint8List c) => c;
+  Uint8List open(CipherBird lib, Uint8List k, Uint8List a, Uint8List c) => c;
 }
 
 class TokenSource extends KeySource {
@@ -82,7 +82,7 @@ class TokenSource extends KeySource {
   @override
   String get label => 'token';
   @override
-  Uint8List deriveRoot(CryptoLib lib, Uint8List salt, int ops, int mem) =>
+  Uint8List deriveRoot(CipherBird lib, Uint8List salt, int ops, int mem) =>
       token;
 }
 
@@ -93,7 +93,7 @@ class WeakSource extends KeySource {
   @override
   String get label => 'weak';
   @override
-  Uint8List deriveRoot(CryptoLib lib, Uint8List salt, int ops, int mem) =>
+  Uint8List deriveRoot(CipherBird lib, Uint8List salt, int ops, int mem) =>
       Uint8List(16);
 }
 
@@ -107,9 +107,9 @@ class PrefixedEd25519 extends SignatureScheme {
   String get label => 'prefixed-ed25519';
   Uint8List _tag(Uint8List m) => Uint8List.fromList([...b('custom:'), ...m]);
   @override
-  Uint8List sign(CryptoLib lib, Uint8List m) => lib.ed25519Sign(_tag(m), sk!);
+  Uint8List sign(CipherBird lib, Uint8List m) => lib.ed25519Sign(_tag(m), sk!);
   @override
-  bool verify(CryptoLib lib, Uint8List m, Uint8List sig) =>
+  bool verify(CipherBird lib, Uint8List m, Uint8List sig) =>
       lib.ed25519Verify(_tag(m), sig, pk!);
 }
 
@@ -120,13 +120,13 @@ class FakeEd25519 extends SignatureScheme {
   @override
   String get label => 'fake';
   @override
-  Uint8List sign(CryptoLib lib, Uint8List m) => Uint8List(64);
+  Uint8List sign(CipherBird lib, Uint8List m) => Uint8List(64);
   @override
-  bool verify(CryptoLib lib, Uint8List m, Uint8List s) => true;
+  bool verify(CipherBird lib, Uint8List m, Uint8List s) => true;
 }
 
 void main(List<String> args) {
-  final lib = CryptoLib.load(args.isNotEmpty ? args[0] : null);
+  final lib = CipherBird.load(args.isNotEmpty ? args[0] : null);
   lib.init();
   final secret = b('the treaty text nobody may read');
   Uint8List key() => lib.randomBytes(32);

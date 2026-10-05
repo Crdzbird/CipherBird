@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// `List<int>` -> `Uint8List` without copying when it already is one.
 extension CryptoByteList on List<int> {

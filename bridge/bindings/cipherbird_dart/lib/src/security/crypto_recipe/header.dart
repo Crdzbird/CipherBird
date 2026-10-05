@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,11 +19,11 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeHeader on CryptoRecipe {
+extension CipherBirdRecipeHeader on CipherBirdRecipe {
   Uint8List _buildHeader(KeySource source, Uint8List salt, int ops, int mem) {
     final out = BytesBuilder()
-      ..add(CryptoRecipe._magic)
-      ..addByte(CryptoRecipe._version)
+      ..add(CipherBirdRecipe._magic)
+      ..addByte(CipherBirdRecipe._version)
       ..addByte(source.id)
       ..addByte(_signer?.id ?? SignatureAlgorithm.none.id)
       ..addByte(_layers.length);
@@ -39,39 +39,39 @@ extension CryptoRecipeHeader on CryptoRecipe {
   }
 
   _ParsedHeader _parseHeader(Uint8List env, KeySource source) {
-    if (env.length < 8 + CryptoRecipe._saltLen + 8) {
-      throw Exception('cryptolib: envelope too short');
+    if (env.length < 8 + CipherBirdRecipe._saltLen + 8) {
+      throw Exception('cipherbird: envelope too short');
     }
     for (var i = 0; i < 4; i++) {
-      if (env[i] != CryptoRecipe._magic[i]) {
-        throw Exception('cryptolib: not a CryptoRecipe envelope');
+      if (env[i] != CipherBirdRecipe._magic[i]) {
+        throw Exception('cipherbird: not a CipherBirdRecipe envelope');
       }
     }
-    if (env[4] != CryptoRecipe._version) {
-      throw Exception('cryptolib: unsupported envelope version ${env[4]}');
+    if (env[4] != CipherBirdRecipe._version) {
+      throw Exception('cipherbird: unsupported envelope version ${env[4]}');
     }
     final sourceId = env[5];
     if (sourceId != source.id) {
       throw Exception(
-        'cryptolib: envelope was sealed with key source id $sourceId, '
+        'cipherbird: envelope was sealed with key source id $sourceId, '
         'but this recipe is configured for "${source.label}" (id ${source.id})',
       );
     }
     final signatureId = env[6];
     final layerCount = env[7];
-    final headerLen = 8 + layerCount + CryptoRecipe._saltLen + 8;
+    final headerLen = 8 + layerCount + CipherBirdRecipe._saltLen + 8;
     if (env.length < headerLen) {
-      throw Exception('cryptolib: truncated envelope header');
+      throw Exception('cipherbird: truncated envelope header');
     }
     final layers = [
       for (var i = 0; i < layerCount; i++) ProtectionLayer._resolve(env[8 + i]),
     ];
     final salt = Uint8List.fromList(
-      env.sublist(8 + layerCount, 8 + layerCount + CryptoRecipe._saltLen),
+      env.sublist(8 + layerCount, 8 + layerCount + CipherBirdRecipe._saltLen),
     );
     final costs = ByteData.sublistView(
       env,
-      8 + layerCount + CryptoRecipe._saltLen,
+      8 + layerCount + CipherBirdRecipe._saltLen,
       headerLen,
     );
     return _ParsedHeader(

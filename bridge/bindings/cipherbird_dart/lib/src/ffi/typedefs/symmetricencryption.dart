@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _SymKeygenC = CryptoBufferResult Function();
 typedef _SymKeygenDart = CryptoBufferResult Function();

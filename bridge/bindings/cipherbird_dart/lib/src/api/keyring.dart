@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Keyring operations.
-extension CryptoLibKeyring on CryptoLib {
+extension CipherBirdKeyring on CipherBird {
   /// New keyring with a fresh random master key.
   Pointer<Void> keyringCreate() =>
       _lib.lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(

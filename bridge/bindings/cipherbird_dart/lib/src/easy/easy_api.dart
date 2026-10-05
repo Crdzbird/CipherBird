@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// The easy-mode entry points, reachable as `lib.easy`.
-extension type EasyApi(CryptoLib _l) {
+extension type EasyApi(CipherBird _l) {
   /// A fresh [SymmetricKey].
   SymmetricKey symmetricKey() => SymmetricKey.generate(_l);
 

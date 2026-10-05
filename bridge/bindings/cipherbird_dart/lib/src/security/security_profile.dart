@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A coherent set of algorithm parameters, from ordinary to maximal.
 ///
@@ -62,14 +62,14 @@ enum SecurityProfile {
       ? KdfPreset.interactive
       : KdfPreset.sensitive;
 
-  /// Argon2id iteration count used by [CryptoRecipe].
+  /// Argon2id iteration count used by [CipherBirdRecipe].
   int get argon2Ops => switch (this) {
     SecurityProfile.balanced => 2,
     SecurityProfile.high => 3,
     SecurityProfile.maximum => 4,
   };
 
-  /// Argon2id memory cost in bytes used by [CryptoRecipe].
+  /// Argon2id memory cost in bytes used by [CipherBirdRecipe].
   ///
   /// Memory is what actually costs an attacker; raise it as far as the slowest
   /// device you must support can bear.

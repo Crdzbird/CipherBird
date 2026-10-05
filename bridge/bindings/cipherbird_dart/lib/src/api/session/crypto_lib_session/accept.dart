@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// Session (ratchet) methods on CryptoLib.
-extension CryptoLibSessionAccept on CryptoLib {
+/// Session (ratchet) methods on CipherBird.
+extension CipherBirdSessionAccept on CipherBird {
   /// Responder: accept a handshake with your prekey (public + secret).
   Session acceptSession(
     Uint8List handshake,
@@ -48,7 +48,7 @@ extension CryptoLibSessionAccept on CryptoLib {
         throw Exception(m);
       }
       if (h == nullptr) {
-        throw Exception('cryptolib: session accept failed');
+        throw Exception('cipherbird: session accept failed');
       }
       return Session(this, h);
     } finally {

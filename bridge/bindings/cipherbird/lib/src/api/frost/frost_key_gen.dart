@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// FROST trusted-dealer output: the group public key plus per-participant
 /// shares. Share i (0-based) has FROST identifier i+1. Keep [secretShares]

@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Suite - one-call advanced combinations.
 ///
@@ -8,7 +8,7 @@ part of '../../cryptolib.dart';
 /// self-describing (they carry the KEM ciphertext), so a recipient needs only
 /// their long-term secret key. Requires the native library built with OpenSSL
 /// and post-quantum support.
-extension CryptoLibSuiteOpenThreshold on CryptoLib {
+extension CipherBirdSuiteOpenThreshold on CipherBird {
   /// Reconstruct the master from any k of the shares and open the envelope.
   Uint8List suiteOpenThreshold(
     Uint8List envelope,

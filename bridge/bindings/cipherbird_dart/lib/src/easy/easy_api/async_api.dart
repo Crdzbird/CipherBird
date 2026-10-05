@@ -1,17 +1,17 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Off-thread variants of the slow easy-mode operations (Argon2id).
 ///
 /// Each call runs on `runner`; the default spawns a background isolate so a
 /// 64 MiB passphrase stretch never blocks the UI. Pass
-/// [CryptoLibInlineRunner] in tests.
+/// [CipherBirdInlineRunner] in tests.
 extension EasyApiAsync on EasyApi {
   /// [SymmetricKey.fromPassphrase] on a worker.
   Future<SymmetricKey> symmetricKeyFromPassphraseAsync(
     String passphrase, {
     required Uint8List salt,
     SecurityProfile profile = SecurityProfile.balanced,
-    CryptoLibRunner runner = const CryptoLibIsolateRunner(),
+    CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) async {
     if (salt.length < 16) {
       throw ArgumentError.value(
@@ -32,7 +32,7 @@ extension EasyApiAsync on EasyApi {
   Future<String> hashPasswordAsync(
     String password, {
     SecurityProfile profile = SecurityProfile.balanced,
-    CryptoLibRunner runner = const CryptoLibIsolateRunner(),
+    CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     _hashPasswordInWorker,
     (password, profile.argon2Ops, profile.argon2Memory),
@@ -43,6 +43,6 @@ extension EasyApiAsync on EasyApi {
   Future<bool> verifyPasswordAsync(
     String password,
     String phcHash, {
-    CryptoLibRunner runner = const CryptoLibIsolateRunner(),
+    CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(_verifyPasswordInWorker, (password, phcHash), cost: 1 << 30);
 }

@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-extension _MarshalBuffers on CryptoLib {
+extension _MarshalBuffers on CipherBird {
   Uint8List _copyBuf(CryptoBuffer buf) {
     if (buf.data == nullptr || buf.len == 0) {
       return Uint8List(0);

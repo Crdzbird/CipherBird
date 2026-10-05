@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibPostQuantum on CryptoLib {
+extension CipherBirdPostQuantum on CipherBird {
   KeyPairResult mlKemKeygen(MlKemLevel level) => _extractKeyPair(
     _lib.lookupFunction<
       CryptoKeyPair Function(Int32),

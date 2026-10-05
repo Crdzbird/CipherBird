@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Hashing operations.
-extension CryptoLibArgon2id on CryptoLib {
+extension CipherBirdArgon2id on CipherBird {
   /// Hash a password to PHC string format.
   Uint8List argon2idHashStr(
     String password, {

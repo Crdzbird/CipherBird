@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Symmetric operations.
-extension CryptoLibSymmetricCommittingDecrypt on CryptoLib {
+extension CipherBirdSymmetricCommittingDecrypt on CipherBird {
   /// Committing AEAD decrypt. Throws if the key/AAD don't match or the
   /// commitment check fails. [key] is 32 bytes.
   Uint8List committingDecrypt(

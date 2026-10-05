@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// HPKE mode. Determines which of sender authentication and pre-shared-key
 /// authentication are in play.

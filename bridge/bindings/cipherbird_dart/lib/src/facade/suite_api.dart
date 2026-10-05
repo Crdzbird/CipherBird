@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// One-call composed recipes (PQ seal, threshold, file-keyed, keyring-backed).
-extension type SuiteApi(CryptoLib _l) {
+extension type SuiteApi(CipherBird _l) {
   /// Post-quantum message: encapsulate to [recipientKemPublic] and seal under
   /// the shared secret. Secure while EITHER X25519 or ML-KEM-768 holds.
   Uint8List sealPq(

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// HPKE (RFC 9180) methods on CryptoLib.
-extension CryptoLibHpkeRecipientSetup on CryptoLib {
+/// HPKE (RFC 9180) methods on CipherBird.
+extension CipherBirdHpkeRecipientSetup on CipherBird {
   /// Receiver key schedule (any mode). Returns the established context.
   HpkeContext hpkeSetupR(
     HpkeKdf kdf,
@@ -84,7 +84,7 @@ extension CryptoLibHpkeRecipientSetup on CryptoLib {
         throw Exception(m);
       }
       if (h == nullptr) {
-        throw Exception('cryptolib: hpke setup_r failed');
+        throw Exception('cipherbird: hpke setup_r failed');
       }
       return HpkeContext(this, h);
     } finally {

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
 /// Keyed, encrypted and diagnostic steganography.
-extension CryptoLibStegoEncrypted on CryptoLib {
+extension CipherBirdStegoEncrypted on CipherBird {
   /// Authenticated-encrypt [plaintext] under [masterKey], then hide the
   /// ciphertext in [coverPath] -> [outputPath].
   ///

@@ -5,7 +5,7 @@ import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
 
   group('bytes & text sugar', () {
     test('utf8 / hex / base64 round-trip', () {

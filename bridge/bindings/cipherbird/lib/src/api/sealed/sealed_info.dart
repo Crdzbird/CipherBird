@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Public metadata carried by a sealed envelope (no secrets).
 final class SealedInfo {

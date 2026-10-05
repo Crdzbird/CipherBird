@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _RandomBytesC = CryptoBufferResult Function(Size n);
 typedef _RandomBytesDart = CryptoBufferResult Function(int n);

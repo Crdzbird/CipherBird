@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _X25519KeygenC = CryptoKeyPair Function();
 typedef _X25519KeygenDart = CryptoKeyPair Function();

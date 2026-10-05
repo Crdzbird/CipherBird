@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibHybridKem on CryptoLib {
+extension CipherBirdHybridKem on CipherBird {
   /// Returns (ciphertext, sharedSecret).
   (Uint8List, Uint8List) hybridKemEncapsulate(Uint8List publicKey) {
     final pp = _toNative(publicKey);

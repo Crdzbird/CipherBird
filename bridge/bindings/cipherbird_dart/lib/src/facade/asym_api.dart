@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// X25519 key exchange, Ed25519 signing, boxes and sealed boxes.
-extension type AsymApi(CryptoLib _l) {
+extension type AsymApi(CipherBird _l) {
   /// Generate an Ed25519 signing keypair.
   KeyPairResult ed25519Keygen() => _l.ed25519Keygen();
 

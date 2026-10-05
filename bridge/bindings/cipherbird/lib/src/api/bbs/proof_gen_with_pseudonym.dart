@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsProofGenWithPseudonym on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsProofGenWithPseudonym on CipherBird {
   /// Generate a pseudonym-bound selective-disclosure proof. Returns
   /// (proof, pseudonym). Disclosed index lists are 0-based into the signer and
   /// committed message vectors respectively.

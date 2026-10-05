@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A participant's public round-1 commitment.
 final class FrostCommitment {

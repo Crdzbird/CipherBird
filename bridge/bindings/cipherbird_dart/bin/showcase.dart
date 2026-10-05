@@ -1,4 +1,4 @@
-// CryptoLib Dart — FULL showcase of every capability family via dart:ffi.
+// CipherBird Dart — FULL showcase of every capability family via dart:ffi.
 //   dart pub get && dart run bin/showcase.dart <path-to-libcryptolib_c.dylib>
 
 import 'dart:io';
@@ -24,9 +24,9 @@ bool eq(List<int> a, List<int> b) {
 }
 
 void main(List<String> args) {
-  final lib = CryptoLib.load(args.isNotEmpty ? args[0] : null);
+  final lib = CipherBird.load(args.isNotEmpty ? args[0] : null);
   lib.init();
-  print('CryptoLib ${lib.version()} — Dart full showcase\n');
+  print('CipherBird ${lib.version()} — Dart full showcase\n');
   final abc = u('abc'), msg = u('secret payload');
 
   print('HASHING');

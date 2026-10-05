@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// X25519 + sntrup761 hybrid KEM (a second lattice family).
-extension type PqSntrupApi(CryptoLib _l) {
+extension type PqSntrupApi(CipherBird _l) {
   KeyPairResult keygen() => _l.sntrupX25519Keygen();
 
   /// Returns (ciphertext, sharedSecret).

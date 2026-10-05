@@ -1,5 +1,5 @@
 // Verifies the grouped API, the algorithm enums, and the composable
-// SecurityProfile / CryptoRecipe pipeline.
+// SecurityProfile / CipherBirdRecipe pipeline.
 //   dart run bin/security_verify.dart [path-to-libcryptolib_c.dylib]
 import 'dart:io';
 import 'dart:typed_data';
@@ -44,11 +44,11 @@ Uint8List noisePpm(int w, int h, int seed) {
 
 void main(List<String> args) {
   final path = args.isNotEmpty ? args[0] : null;
-  final lib = CryptoLib.load(path);
+  final lib = CipherBird.load(path);
   lib.init();
   final dir = Directory.systemTemp.createTempSync('cl_sec_');
   final secret = Uint8List.fromList('composed protection'.codeUnits);
-  CryptoRecipe cheap(CryptoRecipe r) =>
+  CipherBirdRecipe cheap(CipherBirdRecipe r) =>
       r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
 
   // ── Grouped API ────────────────────────────────────────────────────────────

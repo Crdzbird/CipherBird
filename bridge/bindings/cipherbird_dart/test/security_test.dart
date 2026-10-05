@@ -1,4 +1,4 @@
-// SecurityProfile presets and the composable CryptoRecipe pipeline.
+// SecurityProfile presets and the composable CipherBirdRecipe pipeline.
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -21,13 +21,13 @@ Uint8List _noisePpm(int w, int h, int seed) {
 }
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   final secret = _b('the treaty text nobody may read');
   late Directory dir;
 
   // Keep Argon2id cheap so the suite stays fast; the cost path itself is
   // covered by asserting the profile's own parameters below.
-  CryptoRecipe cheap(CryptoRecipe r) =>
+  CipherBirdRecipe cheap(CipherBirdRecipe r) =>
       r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
 
   setUpAll(() => dir = Directory.systemTemp.createTempSync('cl_sec_'));
@@ -70,7 +70,7 @@ void main() {
     });
   });
 
-  group('CryptoRecipe round-trips', () {
+  group('CipherBirdRecipe round-trips', () {
     test('maximum profile with a passphrase', () {
       final r = cheap(
         lib.maximumSecurity().withPassphrase('correct horse battery staple'),

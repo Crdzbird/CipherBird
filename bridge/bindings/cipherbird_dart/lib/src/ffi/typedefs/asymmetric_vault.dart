@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _AsymBundleGenerateC = CryptoAsymBundle Function();
 typedef _AsymBundleGenerateDart = CryptoAsymBundle Function();

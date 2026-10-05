@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await CryptoLib.preload();
+  await CipherBird.preload();
   runApp(const ExampleApp());
 }
 
@@ -11,7 +11,7 @@ final class ExampleApp extends StatelessWidget {
   const ExampleApp({super.key});
 
   List<(String, bool)> _checks() {
-    final lib = CryptoLib.instance;
+    final lib = CipherBird.instance;
     final key = SymmetricKey.generate();
     final signer = SigningKey.generate(algorithm: SignatureAlgorithm.hybrid);
     final me = KemKeyPair.generate();
@@ -19,7 +19,7 @@ final class ExampleApp extends StatelessWidget {
     final bob = lib.easy.identity();
     final envelope = bob.sealText('meet at dawn', to: alice.recipientPublic);
     return [
-      ('CryptoLib ${lib.version()} loaded', lib.version().isNotEmpty),
+      ('CipherBird ${lib.version()} loaded', lib.version().isNotEmpty),
       (
         'SHA-256 known answer',
         lib.easy.sha256Hex('abc') ==
@@ -49,7 +49,7 @@ final class ExampleApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final results = _checks();
     final allOk = results.every((r) => r.$2);
-    debugPrint('CRYPTOLIB_SELFTEST: ${allOk ? 'OK' : 'FAILED'}');
+    debugPrint('CIPHERBIRD_SELFTEST: ${allOk ? 'OK' : 'FAILED'}');
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('cipherbird')),
@@ -57,7 +57,7 @@ final class ExampleApp extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           children: [
             Text(
-              allOk ? 'CryptoLib loaded' : 'CryptoLib failed',
+              allOk ? 'CipherBird loaded' : 'CipherBird failed',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,

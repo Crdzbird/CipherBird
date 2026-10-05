@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// HPKE AEAD selector. Values are the RFC 9180 registry codepoints.
 enum HpkeAead {

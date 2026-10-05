@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Carriers that combine encryption with concealment, plus FEC.
 extension ComposedApiHpkeStego on ComposedApi {

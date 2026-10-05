@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// HPKE (RFC 9180) hybrid public-key encryption.
-extension type HpkeApi(CryptoLib _l) {
+extension type HpkeApi(CipherBird _l) {
   /// Fresh X25519 key pair for HPKE.
   KeyPairResult keygen() => _l.hpkeKeygen();
 

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// Domain-grouped entry points into the full CryptoLib surface.
-extension CryptoLibNamespaces on CryptoLib {
+/// Domain-grouped entry points into the full CipherBird surface.
+extension CipherBirdNamespaces on CipherBird {
   /// Hashes, MACs, password hashing and HKDF.
   HashApi get hash => HashApi(this);
 

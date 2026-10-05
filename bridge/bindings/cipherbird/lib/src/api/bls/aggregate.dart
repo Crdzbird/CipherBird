@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Bls operations.
-extension CryptoLibBlsAggregate on CryptoLib {
+extension CipherBirdBlsAggregate on CipherBird {
   /// Aggregate N BLS signatures (each a 96-byte compressed G2 point) into a
   /// single 96-byte signature. Throws if [sigs] is empty.
   Uint8List blsAggregate(List<Uint8List> sigs) {

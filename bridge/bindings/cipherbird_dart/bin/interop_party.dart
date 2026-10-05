@@ -37,7 +37,7 @@ void main(List<String> args) {
       '| dec <senderPub> <recipSec> <ct>',
     );
   }
-  final lib = CryptoLib.load(args[0]);
+  final lib = CipherBird.load(args[0]);
   lib.init();
   final cmd = args[1];
 

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Bls operations.
-extension CryptoLibBls on CryptoLib {
+extension CipherBirdBls on CipherBird {
   KeyPairResult blsKeygen() => _extractKeyPair(
     _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
       'cryptolib_bls_keygen',

@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// Where a [CryptoRecipe]'s 32-byte root key comes from.
+/// Where a [CipherBirdRecipe]'s 32-byte root key comes from.
 ///
 /// Subclass it for a hardware token, a KMS, a keyring unlock - anything that
 /// can produce the same 32 bytes again when opening. The recipe refuses any
@@ -12,14 +12,14 @@ abstract class KeySource {
   /// sources must use 128–255. Opening requires a source with the same id.
   int get id;
 
-  /// Short name for `CryptoRecipe.describe`.
+  /// Short name for `CipherBirdRecipe.describe`.
   String get label;
 
   /// Produce the root key. [salt] is fresh per envelope and stored in the
   /// header; [argon2Ops]/[argon2Memory] are the recipe's KDF cost, for sources
   /// that stretch a low-entropy input.
   Uint8List deriveRoot(
-    CryptoLib lib,
+    CipherBird lib,
     Uint8List salt,
     int argon2Ops,
     int argon2Memory,

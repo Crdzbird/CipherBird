@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// ML-KEM (FIPS 203) key encapsulation.
-extension type PqMlKemApi(CryptoLib _l) {
+extension type PqMlKemApi(CipherBird _l) {
   KeyPairResult keygen(MlKemLevel level) => _l.mlKemKeygen(level);
 
   /// Returns (ciphertext, sharedSecret).

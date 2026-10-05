@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A whole MolecularVault as one layer.
 final class MolecularLayer extends ProtectionLayer with _Builtin {
@@ -8,9 +8,9 @@ final class MolecularLayer extends ProtectionLayer with _Builtin {
   @override
   String get wireName => 'molecular';
   @override
-  Uint8List seal(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List pt) =>
+  Uint8List seal(CipherBird lib, Uint8List key, Uint8List aad, Uint8List pt) =>
       lib.molecularSealWithKey(pt, key, aad: aad);
   @override
-  Uint8List open(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List ct) =>
+  Uint8List open(CipherBird lib, Uint8List key, Uint8List aad, Uint8List ct) =>
       lib.molecularOpenWithKey(ct, key, aad: aad);
 }

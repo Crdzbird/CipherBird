@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 const _packageNames = ['cipherbird_dart', 'cipherbird'];
 

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Random bytes and explicitly-seeded generators.
-extension type RngApi(CryptoLib _l) {
+extension type RngApi(CipherBird _l) {
   /// [count] cryptographically-secure random bytes straight from the OS CSPRNG.
   ///
   /// This is the right default for key generation. Reach for [drbg] or

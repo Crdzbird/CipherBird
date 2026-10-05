@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Noise XX secure channel (Noise_XX_25519_ChaChaPoly_SHA256).
-extension type NoiseApi(CryptoLib _l) {
+extension type NoiseApi(CipherBird _l) {
   /// Create a Noise XX state from this side's X25519 keypair. Both sides must
   /// use the same [prologue].
   NoiseXX create({

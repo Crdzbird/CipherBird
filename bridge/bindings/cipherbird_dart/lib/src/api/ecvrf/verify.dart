@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// ECVRF (RFC 9381) methods on CryptoLib.
-extension CryptoLibEcvrfVerify on CryptoLib {
+/// ECVRF (RFC 9381) methods on CipherBird.
+extension CipherBirdEcvrfVerify on CipherBird {
   /// Verify: returns the 64-byte beta on success; throws if the proof is invalid.
   Uint8List ecvrfVerify(Uint8List publicKey, Uint8List alpha, Uint8List proof) {
     final pk = _toNative(publicKey),

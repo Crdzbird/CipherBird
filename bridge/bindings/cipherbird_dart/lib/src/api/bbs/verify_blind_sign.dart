@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsVerifyBlindSign on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsVerifyBlindSign on CipherBird {
   /// Verify a blind signature over [messages] + [committedMessages] using the
   /// [secretProverBlind] kept from [bbsBlindCommit].
   bool bbsVerifyBlindSign(

@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Bytes -> text conversions and the two byte helpers every app ends up writing.
 extension CryptoBytes on Uint8List {

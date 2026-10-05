@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A 32-byte key used as-is - from a KEM shared secret, a keyring unlock, a
 /// token. Nothing is stretched; the key must already be full-entropy.
@@ -18,5 +18,6 @@ final class RawKeySource extends KeySource with _Builtin {
   @override
   String get label => 'raw';
   @override
-  Uint8List deriveRoot(CryptoLib lib, Uint8List salt, int ops, int mem) => _key;
+  Uint8List deriveRoot(CipherBird lib, Uint8List salt, int ops, int mem) =>
+      _key;
 }

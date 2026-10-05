@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-Future<bool> _warmUp(CryptoLibRunner runner) async {
+Future<bool> _warmUp(CipherBirdRunner runner) async {
   try {
     return await runner.runHeavy(_warmInWorker);
   } on Object catch (_) {
@@ -9,7 +9,7 @@ Future<bool> _warmUp(CryptoLibRunner runner) async {
 }
 
 bool _warmInWorker() {
-  final warm = CryptoLib.load()..init();
+  final warm = CipherBird.load()..init();
   warm.version();
   return true;
 }

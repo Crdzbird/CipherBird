@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Hex views of a raw key pair.
 extension KeyPairText on KeyPairResult {

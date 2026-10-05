@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// EVM and Bitcoin interop primitives.
-extension type ChainApi(CryptoLib _l) {
+extension type ChainApi(CipherBird _l) {
   /// Keccak-256 (ORIGINAL padding, Ethereum). 32-byte digest. NOT SHA3-256.
   /// Used for tx hashing, contract-address derivation, ABI selectors, EIP-55.
   Uint8List keccak256(Uint8List msg) => _l.keccak256(msg);

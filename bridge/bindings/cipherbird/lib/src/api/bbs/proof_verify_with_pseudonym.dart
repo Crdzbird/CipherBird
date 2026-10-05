@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsProofVerifyWithPseudonym on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsProofVerifyWithPseudonym on CipherBird {
   /// Verify a pseudonym-bound proof. [disclosedMessages]/[disclosedIndexes] are
   /// the COMBINED signer+committed disclosures (committed index j passed as j+L+1).
   bool bbsProofVerifyWithPseudonym(

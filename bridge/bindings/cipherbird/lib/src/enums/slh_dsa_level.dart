@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// SLH-DSA parameter set (FIPS 205) - stateless hash-based signatures.
 ///

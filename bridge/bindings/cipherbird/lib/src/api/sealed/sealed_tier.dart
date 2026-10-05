@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Assurance tier for Flagship/Fortress sealed messaging.
 ///

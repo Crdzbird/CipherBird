@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// Session (ratchet) methods on CryptoLib.
-extension CryptoLibSessionMessaging on CryptoLib {
+/// Session (ratchet) methods on CipherBird.
+extension CipherBirdSessionMessaging on CipherBird {
   Uint8List _sessionMsg(
     String symbol,
     Pointer<Void> h,

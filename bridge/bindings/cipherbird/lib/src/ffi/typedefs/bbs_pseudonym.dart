@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _BbsProofGenWithNymC =
     CryptoBufferResult Function(

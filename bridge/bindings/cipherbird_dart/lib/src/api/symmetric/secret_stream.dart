@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Symmetric operations.
-extension CryptoLibSecretStream on CryptoLib {
+extension CipherBirdSecretStream on CipherBird {
   /// Streaming encrypt: encrypt chunks of data with ordering.
   /// Returns (header, encryptedChunks).
   (Uint8List header, List<Uint8List> chunks) streamEncrypt(

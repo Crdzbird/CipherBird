@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Client OPRF Blind output: the secret blind + the blinded element to send.
 final class OprfBlindResult {

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// ECVRF (RFC 9381) verifiable random function.
-extension type EcvrfApi(CryptoLib _l) {
+extension type EcvrfApi(CipherBird _l) {
   /// ECVRF key pair (pk 32 B, sk = 32-byte seed).
   KeyPairResult keygen() => _l.ecvrfKeygen();
 

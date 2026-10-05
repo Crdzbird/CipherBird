@@ -8,7 +8,7 @@
 PRODUCT_NAME = cipherbird_playground
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = dev.cryptolib.cipherbirdPlayground
+PRODUCT_BUNDLE_IDENTIFIER = dev.cipherbird.cipherbirdPlayground
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 dev.cryptolib. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 dev.cipherbird. All rights reserved.

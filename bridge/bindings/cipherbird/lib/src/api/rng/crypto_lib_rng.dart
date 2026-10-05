@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Stateful RNG constructors on CryptoLib.
-extension CryptoLibRng on CryptoLib {
+/// Stateful RNG constructors on CipherBird.
+extension CipherBirdRng on CipherBird {
   /// Instantiate an HMAC-DRBG from a caller-supplied seed.
   ///
   /// [entropy] should carry at least 32 bytes of real entropy. [nonce] and
@@ -50,7 +50,7 @@ extension CryptoLibRng on CryptoLib {
         throw Exception(msg);
       }
       if (h == nullptr) {
-        throw Exception('cryptolib: drbg instantiate failed');
+        throw Exception('cipherbird: drbg instantiate failed');
       }
       return Drbg._(this, h);
     } finally {
@@ -75,7 +75,7 @@ extension CryptoLibRng on CryptoLib {
           'cryptolib_fortuna_new',
         )();
     if (h == nullptr) {
-      throw Exception('cryptolib: fortuna alloc failed');
+      throw Exception('cipherbird: fortuna alloc failed');
     }
     return Fortuna._(this, h);
   }

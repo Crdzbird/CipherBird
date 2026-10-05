@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Hashing operations.
-extension CryptoLibHashing on CryptoLib {
+extension CipherBirdHashing on CipherBird {
   /// BLAKE2b-512 hash. key may be empty for unkeyed.
   Uint8List blake2b(Uint8List msg, [Uint8List? key]) {
     final pm = _toNative(msg);

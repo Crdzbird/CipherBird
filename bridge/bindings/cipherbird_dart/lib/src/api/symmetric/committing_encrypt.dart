@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Symmetric operations.
-extension CryptoLibSymmetricCommittingEncrypt on CryptoLib {
+extension CipherBirdSymmetricCommittingEncrypt on CipherBird {
   /// Committing AEAD encrypt. Unlike a plain AEAD, the ciphertext binds the
   /// exact key, so it cannot be opened under a second key (no invisible
   /// salamander / partitioning-oracle attack). [key] is 32 bytes.

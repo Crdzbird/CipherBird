@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// HMAC-DRBG (NIST SP 800-90A) accumulator.
 ///
@@ -8,7 +8,7 @@ part of '../../cryptolib.dart';
 final class Drbg {
   Drbg._(this._lib, this._h);
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
   Pointer<Void> _h;
 
   /// Generate [numBytes] (<= 65536) pseudo-random bytes, optionally mixing in

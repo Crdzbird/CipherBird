@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A hybrid X25519 + ML-KEM-768 key pair: a shared key that stays secret if
 /// *either* half holds (harvest-now-decrypt-later resistant).
@@ -27,11 +27,11 @@ extension KemKeyPairDecryption on KemKeyPair {
   Uint8List decrypt(List<int> blob, {List<int>? aad}) {
     final b = blob.u8;
     if (b.length < 4) {
-      throw ArgumentError('cryptolib: malformed blob');
+      throw ArgumentError('cipherbird: malformed blob');
     }
     final n = ByteData.sublistView(b).getUint32(0);
     if (b.length < 4 + n) {
-      throw ArgumentError('cryptolib: malformed blob');
+      throw ArgumentError('cipherbird: malformed blob');
     }
     return decapsulate(
       Uint8List.sublistView(b, 4, 4 + n),

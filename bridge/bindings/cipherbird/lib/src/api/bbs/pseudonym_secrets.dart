@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsPseudonymSecrets on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsPseudonymSecrets on CipherBird {
   /// Finalize nym_secrets = [proverNyms] with the last element +=
   /// [signerNymEntropy]. Returns concatenated 32-byte scalars.
   Uint8List bbsFinalizeNymSecrets(

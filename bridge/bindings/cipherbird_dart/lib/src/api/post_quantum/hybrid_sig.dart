@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibHybridSig on CryptoLib {
+extension CipherBirdHybridSig on CipherBird {
   bool hybridSigVerify(Uint8List msg, Uint8List sig, Uint8List publicKey) {
     final mp = _toNative(msg), sgp = _toNative(sig), pp = _toNative(publicKey);
     try {

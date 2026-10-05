@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Session (ratchet) methods on CryptoLib.
-extension CryptoLibSession on CryptoLib {
+/// Session (ratchet) methods on CipherBird.
+extension CipherBirdSession on CipherBird {
   /// Responder: generate a prekey (hybrid-KEM keypair). Publish publicKey.
   KeyPairResult generateSessionPrekey() => _extractKeyPair(
     _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
@@ -31,7 +31,7 @@ extension CryptoLibSession on CryptoLib {
         throw Exception(m);
       }
       if (h == nullptr) {
-        throw Exception('cryptolib: session initiate failed');
+        throw Exception('cipherbird: session initiate failed');
       }
       return Session(this, h);
     } finally {

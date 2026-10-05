@@ -3,7 +3,7 @@ import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:test/test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
   for (final tier in [SealedTier.flagship, SealedTier.fortress]) {
     test('sealed roundtrip + streaming ${tier.name}', () {

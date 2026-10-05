@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 final class CryptoFrostCommit extends Struct {
   external CryptoBuffer hidingNonce;

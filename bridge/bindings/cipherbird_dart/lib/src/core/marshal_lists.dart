@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-extension _MarshalLists on CryptoLib {
+extension _MarshalLists on CipherBird {
   (Pointer<Pointer<Uint8>>, Pointer<Size>) _toNativeList(
     List<Uint8List> items,
   ) {

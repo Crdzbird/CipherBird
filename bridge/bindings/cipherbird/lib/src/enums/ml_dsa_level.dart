@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// ML-DSA parameter set (FIPS 204) - post-quantum digital signatures.
 ///

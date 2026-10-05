@@ -1,5 +1,5 @@
-/// CryptoLib for Dart/Flutter - an idiomatic dart:ffi wrapper around the
-/// CryptoLib C ABI (libcryptolib_c).
+/// CipherBird for Dart/Flutter - an idiomatic dart:ffi wrapper around the
+/// CipherBird C ABI (libcryptolib_c).
 ///
 /// The native library is bundled per platform (iOS/macOS via the Swift Package,
 /// Android via jniLibs) and resolved automatically; no path or setup is needed.
@@ -7,11 +7,11 @@
 /// ```dart
 /// Future<void> main() async {
 ///   WidgetsFlutterBinding.ensureInitialized();
-///   await CryptoLib.preload();
+///   await CipherBird.preload();
 ///   runApp(const MyApp());
 /// }
 ///
-/// final digest = CryptoLib.instance.sha256('abc'.bytes).hex;
+/// final digest = CipherBird.instance.sha256('abc'.bytes).hex;
 /// ```
 library;
 
@@ -301,22 +301,22 @@ part 'security/signature_scheme.dart';
 part 'security/x_cha_cha20_layer.dart';
 part 'utils.dart';
 
-/// Entry point to the native library. Crypto operations live on the domain
+/// Entry point to the native engine. Crypto operations live on the domain
 /// extensions and the grouped views (`lib.hash`, `lib.pq`, `lib.easy`).
-final class CryptoLib {
-  CryptoLib._(this._lib);
+final class CipherBird {
+  CipherBird._(this._lib);
 
   /// Opens the native library: an explicit [path], else `CRYPTOLIB_DYLIB`,
   /// else the platform default (process image on Apple platforms, the bundled
   /// `libcryptolib_c.so` on Android and Linux).
-  factory CryptoLib.load([String? path]) => CryptoLib._(_openLibrary(path));
+  factory CipherBird.load([String? path]) => CipherBird._(_openLibrary(path));
 
-  static CryptoLib? _singleton;
+  static CipherBird? _singleton;
   static bool _initialized = false;
 
   /// Process-wide instance, opened and initialised synchronously on first use.
-  static CryptoLib get instance {
-    final lib = _singleton ??= CryptoLib.load();
+  static CipherBird get instance {
+    final lib = _singleton ??= CipherBird.load();
     if (_initialized) {
       return lib;
     }
@@ -329,7 +329,7 @@ final class CryptoLib {
   /// the UI isolate is instantaneous. Await it before `runApp`. Returns false
   /// if the warm-up failed; the lazy path still works in that case.
   static Future<bool> preload({
-    CryptoLibRunner runner = const CryptoLibIsolateRunner(),
+    CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => _warmUp(runner);
 
   final DynamicLibrary _lib;

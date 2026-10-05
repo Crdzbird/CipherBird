@@ -20,7 +20,7 @@ Uint8List _noisePpm(int w, int h, int seed) {
 }
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   late Directory dir;
 
   setUpAll(() => dir = Directory.systemTemp.createTempSync('cl_facade_'));
@@ -151,7 +151,7 @@ void main() {
 
       // Unkeyed payload is discoverable; the keyed one is not trivially so.
       lib.stegoEmbed(cover, Uint8List.fromList('plain'.codeUnits), out);
-      expect(lib.stego.detectHidden(out).cryptolibPayload, isTrue);
+      expect(lib.stego.detectHidden(out).cipherbirdPayload, isTrue);
     });
 
     test('keyed and encrypted stego round-trip; wrong key fails closed', () {

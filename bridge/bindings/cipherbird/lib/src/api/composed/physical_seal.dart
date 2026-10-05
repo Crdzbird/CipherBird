@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedPhysicalSeal on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedPhysicalSeal on CipherBird {
   /// Seal [plaintext] under a key derived from [keyMediaPath], hiding the
   /// result inside [coverPath] and writing it to [outputPath].
   ///

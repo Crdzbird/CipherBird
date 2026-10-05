@@ -1,20 +1,20 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Result of a heuristic probe for hidden data.
 ///
-/// Read this as a signal, never a verdict: [cryptolibPayload] is definitive
+/// Read this as a signal, never a verdict: [cipherbirdPayload] is definitive
 /// when true, but the statistical fields cannot prove that nothing is hidden.
 final class StegoHiddenDataReport {
   const StegoHiddenDataReport({
-    required this.cryptolibPayload,
+    required this.cipherbirdPayload,
     required this.lsbChiSquare,
     required this.lsbEmbeddingLikelihood,
     required this.samplesAnalysed,
     required this.note,
   });
 
-  /// An unkeyed CryptoLib payload was actually recovered - definitive.
-  final bool cryptolibPayload;
+  /// An unkeyed CipherBird payload was actually recovered - definitive.
+  final bool cipherbirdPayload;
 
   /// Raw chi-square statistic over least-significant bits.
   final double lsbChiSquare;

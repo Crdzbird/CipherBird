@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// `lib.easy` - the easy-mode entry points.
-extension CryptoLibEasy on CryptoLib {
+extension CipherBirdEasy on CipherBird {
   /// Keys and helpers with the safe defaults built in.
   EasyApi get easy => EasyApi(this);
 }

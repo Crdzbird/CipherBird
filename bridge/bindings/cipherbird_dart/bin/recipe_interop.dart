@@ -22,8 +22,8 @@ Uint8List hx(String s) {
   return o;
 }
 
-List<(String, CryptoRecipe)> configs(
-  CryptoLib lib,
+List<(String, CipherBirdRecipe)> configs(
+  CipherBird lib,
   Uint8List pk,
   Uint8List sk,
 ) => [
@@ -49,7 +49,7 @@ List<(String, CryptoRecipe)> configs(
 
 void main(List<String> args) {
   final mode = args[0], dir = args[1];
-  final lib = CryptoLib.load(args.length > 2 ? args[2] : null);
+  final lib = CipherBird.load(args.length > 2 ? args[2] : null);
   lib.init();
   final kp = lib.ed25519KeygenFromSeed(hx(skHex));
   final pk = kp.publicKey, sk = kp.secretKey;

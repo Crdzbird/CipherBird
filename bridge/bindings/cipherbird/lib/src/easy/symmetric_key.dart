@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A 32-byte symmetric key with the safe choices built in.
 ///
@@ -13,21 +13,21 @@ part of '../cryptolib.dart';
 /// final box = key.encryptText('meet at dawn');
 /// final back = key.decryptText(box);
 ///
-/// final salt = CryptoLib.instance.easy.randomBytes(16);
+/// final salt = CipherBird.instance.easy.randomBytes(16);
 /// final pk = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
 /// ```
 final class SymmetricKey {
   SymmetricKey._(this._lib, this._key);
 
   /// A fresh random key.
-  factory SymmetricKey.generate([CryptoLib? lib]) {
+  factory SymmetricKey.generate([CipherBird? lib]) {
     final l = _easyLib(lib);
     return SymmetricKey._(l, l.randomBytes(32));
   }
 
   /// Wrap existing 32-byte key material (a KEM shared secret, a keyring
   /// unlock, a token). Copies the bytes.
-  factory SymmetricKey.fromBytes(List<int> key, [CryptoLib? lib]) {
+  factory SymmetricKey.fromBytes(List<int> key, [CipherBird? lib]) {
     if (key.length != 32) {
       throw ArgumentError.value(
         key.length,
@@ -39,11 +39,11 @@ final class SymmetricKey {
   }
 
   /// From a hex string produced by [hex].
-  factory SymmetricKey.fromHex(String hex, [CryptoLib? lib]) =>
+  factory SymmetricKey.fromHex(String hex, [CipherBird? lib]) =>
       SymmetricKey.fromBytes(fromHex(hex), lib);
 
   /// From a base64 string produced by [base64].
-  factory SymmetricKey.fromBase64(String base64, [CryptoLib? lib]) =>
+  factory SymmetricKey.fromBase64(String base64, [CipherBird? lib]) =>
       SymmetricKey.fromBytes(base64.base64Bytes, lib);
 
   /// Stretch a passphrase with Argon2id. [salt] must be at least 16 random
@@ -57,7 +57,7 @@ final class SymmetricKey {
     SecurityProfile profile = SecurityProfile.balanced,
     int? ops,
     int? memoryBytes,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) {
     if (salt.length < 16) {
       throw ArgumentError.value(
@@ -78,7 +78,7 @@ final class SymmetricKey {
     );
   }
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   final Uint8List _key;
 

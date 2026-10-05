@@ -1,10 +1,10 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Incremental BLAKE3. The digest equals `blake3()` over the concatenation of
 /// every [update]. Not thread-safe; call [close] when done.
 final class Blake3Hasher {
   Blake3Hasher._(this._lib, this._h);
-  final CryptoLib _lib;
+  final CipherBird _lib;
   Pointer<Void> _h;
 
   /// Feed bytes. Throws after [finalize].
@@ -18,7 +18,7 @@ final class Blake3Hasher {
           >('cryptolib_blake3_hasher_update')(_h, p, data.length);
       if (ok != 1) {
         throw Exception(
-          'cryptolib: blake3 update failed (closed or finalized?)',
+          'cipherbird: blake3 update failed (closed or finalized?)',
         );
       }
     } finally {

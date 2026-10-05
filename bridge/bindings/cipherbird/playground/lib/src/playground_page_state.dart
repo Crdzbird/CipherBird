@@ -1,7 +1,7 @@
 part of 'playground_page.dart';
 
 final class _PlaygroundPageState extends State<PlaygroundPage> {
-  final _lib = CryptoLib.instance;
+  final _lib = CipherBird.instance;
   final _key = SymmetricKey.generate();
   final _signer = SigningKey.generate(algorithm: SignatureAlgorithm.hybrid);
   final _kem = KemKeyPair.generate();

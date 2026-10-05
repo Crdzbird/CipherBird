@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CryptoLib.
-extension CryptoLibOpaqueClientFinish on CryptoLib {
+/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CipherBird.
+extension CipherBirdOpaqueClientFinish on CipherBird {
   /// Client login step 2: authenticate server -> {ke3, sessionKey, exportKey}.
   /// Throws on a wrong password / server authentication failure.
   OpaqueKe3 opaqueClientFinish(

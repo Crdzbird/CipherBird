@@ -1,4 +1,4 @@
-// Standalone dart:ffi console demo for CryptoLib.
+// Standalone dart:ffi console demo for CipherBird.
 //
 // Reuses the same bindings the Flutter plugin uses (lib/cryptolib_ffi.dart).
 // Run (see Makefile target `dart`):
@@ -16,9 +16,9 @@ String hex(Uint8List b) =>
 void main(List<String> args) {
   final path = args.isNotEmpty ? args[0] : null;
 
-  final lib = CryptoLib.load(path);
+  final lib = CipherBird.load(path);
   lib.init();
-  stdout.writeln('CryptoLib version: ${lib.version()}');
+  stdout.writeln('CipherBird version: ${lib.version()}');
   stdout.writeln('random(32):  ${hex(lib.randomBytes(32))}');
   stdout.writeln(
     'sha256(abc): ${hex(lib.sha256(Uint8List.fromList('abc'.codeUnits)))}',

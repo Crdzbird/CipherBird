@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Post-quantum algorithms, grouped by scheme.
-extension type PqApi(CryptoLib _l) {
+extension type PqApi(CipherBird _l) {
   /// ML-KEM (FIPS 203) key encapsulation.
   PqMlKemApi get mlKem => PqMlKemApi(_l);
 

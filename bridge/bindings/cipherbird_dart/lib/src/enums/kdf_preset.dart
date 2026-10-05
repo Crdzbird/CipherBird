@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Argon2id cost preset used when a passphrase is stretched into a key.
 ///

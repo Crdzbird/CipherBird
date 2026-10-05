@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Suite - one-call advanced combinations.
 ///
@@ -8,7 +8,7 @@ part of '../../cryptolib.dart';
 /// self-describing (they carry the KEM ciphertext), so a recipient needs only
 /// their long-term secret key. Requires the native library built with OpenSSL
 /// and post-quantum support.
-extension CryptoLibSuiteFileCall on CryptoLib {
+extension CipherBirdSuiteFileCall on CipherBird {
   Uint8List _suiteFile(
     String symbol,
     Uint8List data,

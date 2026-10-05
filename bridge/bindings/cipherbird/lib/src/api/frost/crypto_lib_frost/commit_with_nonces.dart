@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrostCommitWithNonces on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrostCommitWithNonces on CipherBird {
   /// Deterministic round-1 commit from caller-supplied nonces (test vectors).
   (FrostNonces, FrostCommitment) frostCommitWithNonces(
     int identifier,

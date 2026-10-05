@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibMlDsa on CryptoLib {
+extension CipherBirdMlDsa on CipherBird {
   bool mlDsaVerify(
     Uint8List msg,
     Uint8List sig,

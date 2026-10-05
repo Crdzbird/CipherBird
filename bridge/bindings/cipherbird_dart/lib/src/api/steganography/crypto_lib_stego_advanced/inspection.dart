@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
 /// Keyed, encrypted and diagnostic steganography.
-extension CryptoLibStegoInspection on CryptoLib {
+extension CipherBirdStegoInspection on CipherBird {
   /// Inspect a media file's structural validity and true format.
   StegoFileInspection stegoInspect(String path) {
     final p = path.toNativeUtf8();
@@ -39,7 +39,7 @@ extension CryptoLibStegoInspection on CryptoLib {
 
   /// Probe [path] for hidden data.
   ///
-  /// A positive [StegoHiddenDataReport.cryptolibPayload] is conclusive; the
+  /// A positive [StegoHiddenDataReport.cipherbirdPayload] is conclusive; the
   /// statistical fields are heuristics that can suggest embedding but can never
   /// establish its absence.
   StegoHiddenDataReport stegoDetectHidden(String path) {
@@ -63,7 +63,7 @@ extension CryptoLibStegoInspection on CryptoLib {
         _core.strFree(r.note);
       }
       return StegoHiddenDataReport(
-        cryptolibPayload: r.cryptolibPayload == 1,
+        cipherbirdPayload: r.cipherbirdPayload == 1,
         lsbChiSquare: r.lsbChiSquare,
         lsbEmbeddingLikelihood: r.lsbEmbeddingLikelihood,
         samplesAnalysed: r.samplesAnalysed,

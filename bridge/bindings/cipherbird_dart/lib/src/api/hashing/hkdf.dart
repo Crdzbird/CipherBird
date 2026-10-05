@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Hashing operations.
-extension CryptoLibHkdf on CryptoLib {
+extension CipherBirdHkdf on CipherBird {
   /// HKDF-SHA256 expand: derive [outLen] bytes of output key material from a
   /// pseudorandom key [prk] and optional [info] context.
   Uint8List hkdfExpand(Uint8List prk, {Uint8List? info, int outLen = 32}) {

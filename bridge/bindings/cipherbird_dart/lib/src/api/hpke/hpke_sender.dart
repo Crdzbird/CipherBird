@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Sender-side HPKE result: the KEM encapsulation plus the sender context.
 final class HpkeSender {

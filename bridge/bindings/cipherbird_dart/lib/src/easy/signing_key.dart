@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A signing key pair: Ed25519 by default, or the post-quantum hybrid
 /// (Ed25519 + ML-DSA-65, a forgery needs breaking both).
@@ -14,7 +14,7 @@ final class SigningKey {
   /// A fresh key pair.
   factory SigningKey.generate({
     SignatureAlgorithm algorithm = SignatureAlgorithm.ed25519,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) {
     final l = _easyLib(lib);
     return SigningKey._(l, algorithm, switch (algorithm) {
@@ -33,14 +33,14 @@ final class SigningKey {
     required List<int> secretKey,
     required List<int> publicKey,
     SignatureAlgorithm algorithm = SignatureAlgorithm.ed25519,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) => SigningKey._(
     _easyLib(lib),
     algorithm,
     KeyPairResult(publicKey: publicKey.u8, secretKey: secretKey.u8),
   );
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   /// Which scheme this key belongs to.
   final SignatureAlgorithm algorithm;
@@ -69,7 +69,7 @@ final class SigningKey {
   bool verify(List<int> message, List<int> signature) =>
       verifyKey.verify(message, signature);
 
-  /// Plug into a [CryptoRecipe]: `recipe.signedWith(key.scheme)`.
+  /// Plug into a [CipherBirdRecipe]: `recipe.signedWith(key.scheme)`.
   SignatureScheme get scheme {
     if (algorithm == SignatureAlgorithm.hybrid) {
       return HybridSignature(secretKey: secretKey, publicKey: publicKey);

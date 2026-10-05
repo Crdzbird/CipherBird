@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// One-call composed recipes (PQ seal, threshold, file-keyed, keyring-backed).
 extension SuiteApiPassphraseAndThreshold on SuiteApi {

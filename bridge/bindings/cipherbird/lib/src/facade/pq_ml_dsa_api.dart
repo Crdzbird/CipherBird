@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// ML-DSA (FIPS 204) signatures.
-extension type PqMlDsaApi(CryptoLib _l) {
+extension type PqMlDsaApi(CipherBird _l) {
   KeyPairResult keygen(MlDsaLevel level) => _l.mlDsaKeygen(level);
 
   Uint8List sign(Uint8List msg, Uint8List secretKey, MlDsaLevel level) =>

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// AsymmetricVault operations.
-extension CryptoLibAsymmetricVault on CryptoLib {
+extension CipherBirdAsymmetricVault on CipherBird {
   /// Generate a full asymmetric key bundle (X25519 + Ed25519).
   AsymBundleResult asymBundleGenerate() =>
       _extractBundle(_vault.asymBundleGenerate());

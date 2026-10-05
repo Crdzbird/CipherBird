@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,9 +19,9 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeBuilder on CryptoRecipe {
+extension CipherBirdRecipeBuilder on CipherBirdRecipe {
   /// Replace the cascade with exactly these layers, innermost first.
-  CryptoRecipe withLayers(List<ProtectionLayer> layers) {
+  CipherBirdRecipe withLayers(List<ProtectionLayer> layers) {
     if (layers.isEmpty) {
       throw ArgumentError.value(
         layers,
@@ -37,21 +37,21 @@ extension CryptoRecipeBuilder on CryptoRecipe {
   }
 
   /// Append one more layer on the outside of the current cascade.
-  CryptoRecipe addLayer(ProtectionLayer layer) {
+  CipherBirdRecipe addLayer(ProtectionLayer layer) {
     _requireValidId(layer, layer.id, 'layer');
     _layers.add(layer);
     return this;
   }
 
   /// Override the Argon2id cost. Only meaningful with a passphrase source.
-  CryptoRecipe argon2Cost({int? ops, int? memoryBytes}) {
+  CipherBirdRecipe argon2Cost({int? ops, int? memoryBytes}) {
     _argon2Ops = ops;
     _argon2Memory = memoryBytes;
     return this;
   }
 
   /// Sign with any [SignatureScheme] - a built-in or your own subclass.
-  CryptoRecipe signedWith(SignatureScheme scheme) {
+  CipherBirdRecipe signedWith(SignatureScheme scheme) {
     _requireValidId(scheme, scheme.id, 'signature scheme');
     _signer = scheme;
     return this;
@@ -60,7 +60,7 @@ extension CryptoRecipeBuilder on CryptoRecipe {
   /// Verify with any [SignatureScheme]. Required whenever the envelope is
   /// signed: without it there is a signature but nobody checking it, so [open]
   /// refuses rather than silently accepting.
-  CryptoRecipe verifiedWith(SignatureScheme scheme) {
+  CipherBirdRecipe verifiedWith(SignatureScheme scheme) {
     _requireValidId(scheme, scheme.id, 'signature scheme');
     _verifier = scheme;
     _verifierKey = null;
@@ -69,7 +69,7 @@ extension CryptoRecipeBuilder on CryptoRecipe {
 
   /// Sign the plaintext before it is encrypted, proving who produced it.
   /// Shorthand for [signedWith] with a built-in scheme.
-  CryptoRecipe signedBy(
+  CipherBirdRecipe signedBy(
     Uint8List secretKey, {
     SignatureAlgorithm algorithm = SignatureAlgorithm.ed25519,
   }) {
@@ -90,7 +90,7 @@ extension CryptoRecipeBuilder on CryptoRecipe {
   /// Works for either built-in scheme: the envelope records which one it was
   /// signed with, so you need only the key. A custom [SignatureScheme] must be
   /// supplied through [verifiedWith] instead.
-  CryptoRecipe verifiedBy(Uint8List publicKey) {
+  CipherBirdRecipe verifiedBy(Uint8List publicKey) {
     _verifier = null;
     _verifierKey = Uint8List.fromList(publicKey);
     return this;

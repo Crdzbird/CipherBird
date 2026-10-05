@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Text -> bytes conversions. `'hello'.bytes`, `'ab12'.hexBytes`, `'aGk='.base64Bytes`.
 extension CryptoText on String {

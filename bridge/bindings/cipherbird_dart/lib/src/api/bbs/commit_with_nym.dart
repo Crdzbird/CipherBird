@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsCommitWithNym on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsCommitWithNym on CipherBird {
   /// Commit to [committedMessages] plus [proverNyms] (secret scalars the issuer
   /// must not learn). Returns (commitmentWithProof, secretProverBlind).
   (Uint8List, Uint8List) bbsCommitWithNym(

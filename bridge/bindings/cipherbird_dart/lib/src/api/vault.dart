@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Vault operations.
-extension CryptoLibVault on CryptoLib {
+extension CipherBirdVault on CipherBird {
   /// Create a vault from a 32-byte master key.
   Pointer<Void> vaultCreate(
     Uint8List masterKey, {
@@ -11,7 +11,7 @@ extension CryptoLibVault on CryptoLib {
     try {
       final h = _vault.vaultCreate(pk, masterKey.length, kdfPreset.value);
       if (h == nullptr) {
-        throw Exception('cryptolib: vault create failed');
+        throw Exception('cipherbird: vault create failed');
       }
       return h;
     } finally {
@@ -28,7 +28,7 @@ extension CryptoLibVault on CryptoLib {
   }) {
     final h = _vault.vaultFromEntropy(entropy, kdf.value);
     if (h == nullptr) {
-      throw Exception('cryptolib: vault from entropy failed');
+      throw Exception('cipherbird: vault from entropy failed');
     }
     return h;
   }

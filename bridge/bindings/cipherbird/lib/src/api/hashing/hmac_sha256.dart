@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Hashing operations.
-extension CryptoLibHmacSha256 on CryptoLib {
+extension CipherBirdHmacSha256 on CipherBird {
   /// Verify an HMAC-SHA256 tag in constant time. Returns true if valid.
   bool hmacSha256Verify(Uint8List msg, Uint8List mac, Uint8List key) {
     final pm = _toNative(msg), pmac = _toNative(mac), pk = _toNative(key);

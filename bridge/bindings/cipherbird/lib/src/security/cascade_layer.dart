@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A layer that is itself a mixture of layers - the way to compose several
 /// encryptions into one custom class:
@@ -28,20 +28,20 @@ class CascadeLayer extends ProtectionLayer {
   /// Inner layers, innermost first.
   final List<ProtectionLayer> layers;
 
-  Uint8List _subKey(CryptoLib lib, Uint8List key, int i) => lib.hkdfDerive(
+  Uint8List _subKey(CipherBird lib, Uint8List key, int i) => lib.hkdfDerive(
     key,
     info: Uint8List.fromList('$wireName/$i/${layers[i].wireName}'.codeUnits),
   );
 
   @override
   Uint8List seal(
-    CryptoLib lib,
+    CipherBird lib,
     Uint8List key,
     Uint8List aad,
     Uint8List plaintext,
   ) {
     if (layers.isEmpty) {
-      throw StateError('cryptolib: CascadeLayer "$wireName" has no layers');
+      throw StateError('cipherbird: CascadeLayer "$wireName" has no layers');
     }
     var body = plaintext;
     for (var i = 0; i < layers.length; i++) {
@@ -52,13 +52,13 @@ class CascadeLayer extends ProtectionLayer {
 
   @override
   Uint8List open(
-    CryptoLib lib,
+    CipherBird lib,
     Uint8List key,
     Uint8List aad,
     Uint8List ciphertext,
   ) {
     if (layers.isEmpty) {
-      throw StateError('cryptolib: CascadeLayer "$wireName" has no layers');
+      throw StateError('cipherbird: CascadeLayer "$wireName" has no layers');
     }
     var body = ciphertext;
     for (var i = layers.length - 1; i >= 0; i--) {

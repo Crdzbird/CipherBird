@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// HPKE (RFC 9180) methods on CryptoLib.
-extension CryptoLibHpkeSingleShot on CryptoLib {
+/// HPKE (RFC 9180) methods on CipherBird.
+extension CipherBirdHpkeSingleShot on CipherBird {
   /// Single-shot base-mode encryption -> (enc, ciphertext).
   (Uint8List, Uint8List) hpkeSealBase(
     HpkeKdf kdf,

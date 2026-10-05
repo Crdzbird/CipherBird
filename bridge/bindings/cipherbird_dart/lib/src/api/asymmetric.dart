@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Asymmetric operations.
-extension CryptoLibAsymmetric on CryptoLib {
+extension CipherBirdAsymmetric on CipherBird {
   /// Generate an Ed25519 signing keypair.
   KeyPairResult ed25519Keygen() => _extractKeyPair(_asymmetric.ed25519Keygen());
 

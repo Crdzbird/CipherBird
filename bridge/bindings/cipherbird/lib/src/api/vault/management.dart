@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Vault operations.
-extension CryptoLibVaultManagement on CryptoLib {
+extension CipherBirdVaultManagement on CipherBird {
   /// Open with entropy boost.
   Uint8List vaultOpenBoosted(
     Pointer<Void> vault,

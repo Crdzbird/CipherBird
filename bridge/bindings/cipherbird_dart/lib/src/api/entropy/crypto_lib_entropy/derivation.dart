@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
 /// Entropy operations.
-extension CryptoLibEntropyDerivation on CryptoLib {
+extension CipherBirdEntropyDerivation on CipherBird {
   /// Derive all 6 domain-separated keys at once.
   DerivedKeysResult entropyDeriveAll(Pointer<Void> handle) {
     final dk = _entropy.entropyDeriveAll(handle);

@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _InitC = Int32 Function();
 typedef _InitDart = int Function();

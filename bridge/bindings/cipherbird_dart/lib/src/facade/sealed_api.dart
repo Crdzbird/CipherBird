@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Flagship / Fortress sealed messaging.
-extension type SealedApi(CryptoLib _l) {
+extension type SealedApi(CipherBird _l) {
   /// Generate a party's recipient (KEM) + sender (signature) keypairs.
   Identity newIdentity(SealedTier tier) => _l.newIdentity(tier);
 

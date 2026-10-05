@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// SLH-DSA (FIPS 205) hash-based signatures.
-extension type PqSlhDsaApi(CryptoLib _l) {
+extension type PqSlhDsaApi(CipherBird _l) {
   KeyPairResult keygen(SlhDsaLevel level, SlhDsaHash hash) =>
       _l.slhDsaKeygen(level, hash);
 

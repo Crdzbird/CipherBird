@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 final class CryptoEntropyInfo extends Struct {
   external Pointer<Utf8> path;

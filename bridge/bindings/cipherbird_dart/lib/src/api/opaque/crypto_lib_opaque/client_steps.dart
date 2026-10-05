@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CryptoLib.
-extension CryptoLibOpaqueClientSteps on CryptoLib {
+/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CipherBird.
+extension CipherBirdOpaqueClientSteps on CipherBird {
   /// Client registration step 2: -> {record, exportKey}.
   OpaqueRecord opaqueFinalizeRequest(
     Uint8List password,

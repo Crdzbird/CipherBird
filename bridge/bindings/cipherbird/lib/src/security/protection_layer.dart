@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// One authenticated-encryption layer in a [CryptoRecipe] cascade.
+/// One authenticated-encryption layer in a [CipherBirdRecipe] cascade.
 ///
 /// Subclass it to add your own layer, then [ProtectionLayer.register] it (on
 /// the opening side too - the envelope stores only the [ProtectionLayer.id]):
@@ -10,9 +10,9 @@ part of '../cryptolib.dart';
 ///   const MyLayer();
 ///   @override int get id => 200;
 ///   @override String get wireName => 'my-layer';
-///   @override Uint8List seal(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List pt) =>
+///   @override Uint8List seal(CipherBird lib, Uint8List key, Uint8List aad, Uint8List pt) =>
 ///       lib.xchacha20Encrypt(pt, key, aad);
-///   @override Uint8List open(CryptoLib lib, Uint8List key, Uint8List aad, Uint8List ct) =>
+///   @override Uint8List open(CipherBird lib, Uint8List key, Uint8List aad, Uint8List ct) =>
 ///       lib.xchacha20Decrypt(ct, key, aad);
 /// }
 /// ProtectionLayer.register(const MyLayer());
@@ -47,7 +47,7 @@ abstract class ProtectionLayer {
 
   /// Authenticated-encrypt [plaintext] under [key], binding [aad].
   Uint8List seal(
-    CryptoLib lib,
+    CipherBird lib,
     Uint8List key,
     Uint8List aad,
     Uint8List plaintext,
@@ -55,7 +55,7 @@ abstract class ProtectionLayer {
 
   /// Reverse [seal]. Must throw on any modification.
   Uint8List open(
-    CryptoLib lib,
+    CipherBird lib,
     Uint8List key,
     Uint8List aad,
     Uint8List ciphertext,
@@ -76,7 +76,7 @@ abstract class ProtectionLayer {
     final existing = _registry[layer.id];
     if (existing != null && existing.wireName != layer.wireName) {
       throw StateError(
-        'cryptolib: layer id ${layer.id} is already registered as "${existing.wireName}"',
+        'cipherbird: layer id ${layer.id} is already registered as "${existing.wireName}"',
       );
     }
     _registry[layer.id] = layer;
@@ -85,7 +85,7 @@ abstract class ProtectionLayer {
   static ProtectionLayer _resolve(int id) =>
       _registry[id] ??
       (throw Exception(
-        'cryptolib: unknown protection layer id $id - register() it before opening',
+        'cipherbird: unknown protection layer id $id - register() it before opening',
       ));
 
   @override

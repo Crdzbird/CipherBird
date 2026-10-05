@@ -6,8 +6,7 @@ app gets hashing, authenticated encryption, public-key cryptography,
 post-quantum algorithms, hybrid key agreement, sealed messaging, a secure
 channel, password hashing, vaults, a keyring, anonymous credentials,
 threshold signatures and steganography from one dependency, with no platform
-channels and no setup. The Dart API keeps the engine's name as its entry
-point: `CryptoLib`, `CryptoRecipe`, `CryptoLibRunner`.
+channels and no setup. The Dart API carries the package name: `CipherBird`, `CipherBirdRecipe`, `CipherBirdRunner`.
 
 | Area | What runs | Notes |
 |---|---|---|
@@ -44,18 +43,18 @@ statically, so no system library is needed.
 | iOS | 15.0, arm64 device and arm64 simulator |
 | macOS | 12.0, Apple silicon, Swift Package Manager |
 
-Call `CryptoLib.preload()` once at startup. It loads and initialises the
+Call `CipherBird.preload()` once at startup. It loads and initialises the
 library on a background isolate; every later call is synchronous:
 
 ```dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await CryptoLib.preload();
+  await CipherBird.preload();
   runApp(const MyApp());
 }
 ```
 
-Skipping `preload` is allowed: the first use of `CryptoLib.instance` does the
+Skipping `preload` is allowed: the first use of `CipherBird.instance` does the
 same work synchronously.
 
 ## Quick start
@@ -81,7 +80,7 @@ Argon2id for passphrases, HKDF for sub-keys and the post-quantum hybrid
 signature. To stretch a passphrase into a key:
 
 ```dart
-final salt = CryptoLib.instance.easy.randomBytes(16);
+final salt = CipherBird.instance.easy.randomBytes(16);
 final key = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
 final databaseKey = key.derive('database');
 ```
@@ -125,12 +124,12 @@ Strings and bytes convert in place:
 
 ## Full API
 
-All 265 native operations are reachable on `CryptoLib`, flat or through
+All 265 native operations are reachable on `CipherBird`, flat or through
 grouped views that keep autocomplete usable. Every operation takes and
 returns `Uint8List`, throws on failure and never returns partial data.
 
 ```dart
-final lib = CryptoLib.instance;
+final lib = CipherBird.instance;
 final digest = lib.hash.sha256('abc'.bytes);
 final pair = lib.pq.hybridKem.keygen();
 final (ciphertext, shared) = lib.pq.hybridKem.encapsulate(pair.publicKey);
@@ -166,7 +165,7 @@ paired with an interactive KDF.
 | `high` | ML-KEM-768 | ML-DSA-65 | Flagship | XChaCha20-Poly1305, AES-256-GCM | 3 passes, 256 MiB |
 | `maximum` | ML-KEM-1024 | ML-DSA-87 | Fortress | XChaCha20-Poly1305, AES-256-GCM, key-committing | 4 passes, 512 MiB |
 
-`CryptoRecipe` composes a key source, the cascade, an optional signature,
+`CipherBirdRecipe` composes a key source, the cascade, an optional signature,
 optional forward error correction and an optional steganographic carrier into
 one self-describing envelope:
 
@@ -223,8 +222,8 @@ instead of producing garbage.
 ## Off-thread work
 
 Argon2id at 64 MiB takes a noticeable fraction of a second. The asynchronous
-twins run it through a `CryptoLibRunner`, `CryptoLibIsolateRunner` by
-default and `CryptoLibInlineRunner` in tests:
+twins run it through a `CipherBirdRunner`, `CipherBirdIsolateRunner` by
+default and `CipherBirdInlineRunner` in tests:
 
 ```dart
 final key = await lib.easy.symmetricKeyFromPassphraseAsync('pw', salt: salt);
@@ -329,8 +328,8 @@ with Argon2id on a worker.
 `lib/src` follows one declaration per file with a limit of 100 lines, no
 `else` branches, no inline comments, `final` classes and `const factory`
 redirects; `test/conventions_test.dart` enforces it. Large extensions are
-split into named chunks such as `CryptoLibHybridKem` or
-`CryptoRecipeSealing`, all re-exported by the barrel. The pure-Dart package
+split into named chunks such as `CipherBirdHybridKem` or
+`CipherBirdRecipeSealing`, all re-exported by the barrel. The pure-Dart package
 is generated from this one with `scripts/sync_dart_package.sh`.
 
 ## Maintaining the binaries
@@ -345,8 +344,8 @@ cp build/android/arm64-v8a/libcryptolib_c.so android/src/main/jniLibs/arm64-v8a/
 cp build/android/x86_64/libcryptolib_c.so android/src/main/jniLibs/x86_64/
 make ios
 rm -rf ios/cipherbird/CryptoLibC.xcframework macos/cipherbird/CryptoLibC.xcframework
-cp -R CryptoLib.xcframework ios/cipherbird/CryptoLibC.xcframework
-cp -R CryptoLib.xcframework macos/cipherbird/CryptoLibC.xcframework
+cp -R CipherBird.xcframework ios/cipherbird/CryptoLibC.xcframework
+cp -R CipherBird.xcframework macos/cipherbird/CryptoLibC.xcframework
 ```
 
 Then check the symbol count against the header, and run the consumer proof,

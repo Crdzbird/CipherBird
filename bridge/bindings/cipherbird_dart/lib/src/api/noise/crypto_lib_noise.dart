@@ -1,11 +1,11 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Incremental BLAKE3 and Noise XX constructors on CryptoLib.
-extension CryptoLibNoise on CryptoLib {
+/// Incremental BLAKE3 and Noise XX constructors on CipherBird.
+extension CipherBirdNoise on CipherBird {
   /// Incremental BLAKE3; pass a 32-byte [key] for keyed (MAC) mode.
   Blake3Hasher blake3Hasher({Uint8List? key}) {
     if (key != null && key.length != 32) {
-      throw ArgumentError('cryptolib: BLAKE3 key must be exactly 32 bytes');
+      throw ArgumentError('cipherbird: BLAKE3 key must be exactly 32 bytes');
     }
     final p = (key == null) ? nullptr : _toNative(key);
     try {
@@ -16,7 +16,7 @@ extension CryptoLibNoise on CryptoLib {
           >('cryptolib_blake3_hasher_create')(p, key?.length ?? 0);
       if (h == nullptr) {
         throw Exception(
-          'cryptolib: blake3 hasher create failed (BLAKE3 not enabled?)',
+          'cipherbird: blake3 hasher create failed (BLAKE3 not enabled?)',
         );
       }
       return Blake3Hasher._(this, h);
@@ -36,7 +36,9 @@ extension CryptoLibNoise on CryptoLib {
     Uint8List? prologue,
   }) {
     if (staticPublic.length != 32 || staticSecret.length != 32) {
-      throw ArgumentError('cryptolib: Noise static keys must be 32 bytes each');
+      throw ArgumentError(
+        'cipherbird: Noise static keys must be 32 bytes each',
+      );
     }
     final pp = _toNative(staticPublic), ps = _toNative(staticSecret);
     final pr = (prologue == null || prologue.isEmpty)
@@ -67,7 +69,7 @@ extension CryptoLibNoise on CryptoLib {
             'cryptolib_noise_create',
           )(initiator ? 1 : 0, pp, 32, ps, 32, pr, prologue?.length ?? 0);
       if (h == nullptr) {
-        throw Exception('cryptolib: noise create failed');
+        throw Exception('cipherbird: noise create failed');
       }
       return NoiseXX._(this, h);
     } finally {

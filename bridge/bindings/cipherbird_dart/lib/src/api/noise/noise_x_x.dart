@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Noise_XX_25519_ChaChaPoly_SHA256 - mutual static-key authentication and
 /// forward secrecy.
@@ -9,7 +9,7 @@ part of '../../cryptolib.dart';
 final class NoiseXX {
   NoiseXX._(this._lib, this._h);
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   Pointer<Void> _h;
 

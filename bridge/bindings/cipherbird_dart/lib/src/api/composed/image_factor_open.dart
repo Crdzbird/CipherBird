@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedImageFactorOpen on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedImageFactorOpen on CipherBird {
   /// Recover an [imageFactorSeal]ed message. Needs the same secret seed, the
   /// same reference image, and the same [aad].
   Uint8List imageFactorOpen({

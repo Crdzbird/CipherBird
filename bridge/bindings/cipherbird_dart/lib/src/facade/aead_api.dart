@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Authenticated symmetric encryption, incl. committing and streaming modes.
-extension type AeadApi(CryptoLib _l) {
+extension type AeadApi(CipherBird _l) {
   /// Generate a 32-byte random symmetric key.
   Uint8List symKeygen() => _l.symKeygen();
 

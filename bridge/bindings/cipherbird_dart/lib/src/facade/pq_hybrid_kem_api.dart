@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// X25519 + ML-KEM-768 hybrid KEM.
-extension type PqHybridKemApi(CryptoLib _l) {
+extension type PqHybridKemApi(CipherBird _l) {
   KeyPairResult keygen() => _l.hybridKemKeygen();
 
   /// Returns (ciphertext, sharedSecret).

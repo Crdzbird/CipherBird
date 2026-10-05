@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 final class _NativeCore {
   _NativeCore(DynamicLibrary lib)

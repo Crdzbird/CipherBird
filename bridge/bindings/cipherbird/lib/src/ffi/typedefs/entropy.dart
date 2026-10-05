@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _EntropyFromFileC =
     Pointer<Void> Function(Pointer<Utf8> path, Pointer<Pointer<Utf8>> outError);

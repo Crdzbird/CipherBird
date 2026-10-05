@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const scanRoot = 'lib/src';
   const maxLines = 100;
-  const lineLimitExempt = {'lib/src/cryptolib.dart'};
+  const lineLimitExempt = {'lib/src/cipher_bird.dart'};
   final classPattern = RegExp(
     r'^\s*(final |abstract final |abstract interface |sealed |base |abstract )*class\s',
   );

@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedHpkeStegoOpen on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedHpkeStegoOpen on CipherBird {
   /// Open an [hpkeStegoSeal]ed carrier with the recipient secret key and the
   /// `enc` value returned by the sealer. [aad] and [info] must match.
   Uint8List hpkeStegoOpen({

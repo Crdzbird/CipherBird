@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Forward-secret ratcheting sessions.
-extension type SessionApi(CryptoLib _l) {
+extension type SessionApi(CipherBird _l) {
   /// Responder: generate a prekey (hybrid-KEM keypair). Publish publicKey.
   KeyPairResult generateSessionPrekey() => _l.generateSessionPrekey();
 

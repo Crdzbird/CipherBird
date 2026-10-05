@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedHpkeStegoSeal on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedHpkeStegoSeal on CipherBird {
   /// Seal [plaintext] to the recipient's HPKE public key [recipientPublic] and
   /// hide it in [coverPath] -> [outputPath].
   ///

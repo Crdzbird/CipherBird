@@ -1,9 +1,9 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A party's keypairs - recipient (KEM) for receiving, sender (signature) for
 /// signing. The config/setup handle for the sealed-messaging API.
 final class Identity {
-  final CryptoLib lib;
+  final CipherBird lib;
   final SealedTier tier;
   final Uint8List recipientPublic, recipientSecret, senderPublic, senderSecret;
   Identity(

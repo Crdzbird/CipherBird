@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Ed25519. Supply [secretKey] to sign, [publicKey] to verify, or both.
 final class Ed25519Signature extends SignatureScheme with _Builtin {
@@ -10,16 +10,16 @@ final class Ed25519Signature extends SignatureScheme with _Builtin {
   @override
   String get label => 'ed25519';
   @override
-  Uint8List sign(CryptoLib lib, Uint8List m) => lib.ed25519Sign(
+  Uint8List sign(CipherBird lib, Uint8List m) => lib.ed25519Sign(
     m,
     secretKey ??
-        (throw StateError('cryptolib: Ed25519Signature has no secret key')),
+        (throw StateError('cipherbird: Ed25519Signature has no secret key')),
   );
   @override
-  bool verify(CryptoLib lib, Uint8List m, Uint8List sig) => lib.ed25519Verify(
+  bool verify(CipherBird lib, Uint8List m, Uint8List sig) => lib.ed25519Verify(
     m,
     sig,
     publicKey ??
-        (throw StateError('cryptolib: Ed25519Signature has no public key')),
+        (throw StateError('cipherbird: Ed25519Signature has no public key')),
   );
 }

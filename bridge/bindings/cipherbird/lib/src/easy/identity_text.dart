@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// String convenience on the Flagship/Fortress [Identity].
 extension IdentityText on Identity {

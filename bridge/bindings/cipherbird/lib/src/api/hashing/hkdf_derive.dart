@@ -1,6 +1,6 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-extension CryptoLibHkdfDerive on CryptoLib {
+extension CipherBirdHkdfDerive on CipherBird {
   /// HKDF-SHA256 one-shot (extract + expand): derive [outLen] bytes from [ikm]
   /// with optional [salt] and [info].
   Uint8List hkdfDerive(

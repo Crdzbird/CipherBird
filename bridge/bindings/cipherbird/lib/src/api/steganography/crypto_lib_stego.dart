@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Stego operations.
-extension CryptoLibStego on CryptoLib {
+extension CipherBirdStego on CipherBird {
   /// Embed raw bytes into a media file.
   void stegoEmbed(String coverPath, Uint8List payload, String outputPath) {
     final cc = coverPath.toNativeUtf8();

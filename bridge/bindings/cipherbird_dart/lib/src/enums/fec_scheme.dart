@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Forward-error-correction scheme applied to a stego payload.
 ///

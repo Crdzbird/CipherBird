@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrost on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrost on CipherBird {
   /// Trusted-dealer split: any [t] of [n] shares can sign. Share i (0-based) has
   /// FROST identifier i+1. Output verifies with standard Ed25519 verification.
   FrostKeyGen frostKeygen(int n, int t) {

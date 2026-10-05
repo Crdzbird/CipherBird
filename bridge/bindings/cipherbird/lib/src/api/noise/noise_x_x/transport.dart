@@ -1,4 +1,4 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
 /// Noise_XX_25519_ChaChaPoly_SHA256 - mutual static-key authentication and
 /// forward secrecy.
@@ -17,7 +17,7 @@ extension NoiseXXTransport on NoiseXX {
         >('cryptolib_noise_split')(_h);
     if (ok != 1) {
       throw Exception(
-        'cryptolib: noise split failed (handshake unfinished or already split)',
+        'cipherbird: noise split failed (handshake unfinished or already split)',
       );
     }
   }

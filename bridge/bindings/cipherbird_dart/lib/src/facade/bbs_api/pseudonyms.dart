@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// BBS anonymous credentials: selective disclosure, pseudonyms, blind issuance.
 extension BbsApiPseudonyms on BbsApi {

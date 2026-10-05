@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Keyring operations.
-extension CryptoLibKeyringManagement on CryptoLib {
+extension CipherBirdKeyringManagement on CipherBird {
   /// Recover the master key with a passphrase.
   Uint8List keyringUnlockWithPassphrase(Pointer<Void> kr, String passphrase) {
     final cpw = passphrase.toNativeUtf8();

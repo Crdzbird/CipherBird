@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// BBS anonymous credentials: selective disclosure, pseudonyms, blind issuance.
-extension type BbsApi(CryptoLib _l) {
+extension type BbsApi(CipherBird _l) {
   /// KeyGen from key material (>= 32 B) + optional key info. Throws on failure.
   KeyPairResult keygen(Uint8List keyMaterial, {Uint8List? keyInfo}) =>
       _l.bbsKeygen(keyMaterial, keyInfo: keyInfo);

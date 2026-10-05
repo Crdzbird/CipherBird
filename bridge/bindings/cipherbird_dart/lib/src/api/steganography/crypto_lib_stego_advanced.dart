@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Keyed, encrypted and diagnostic steganography.
-extension CryptoLibStegoAdvanced on CryptoLib {
+extension CipherBirdStegoAdvanced on CipherBird {
   /// Embed [payload] into [coverPath] -> [outputPath], permuting placement under
   /// [key]. Without the key an extractor cannot locate the bits.
   ///

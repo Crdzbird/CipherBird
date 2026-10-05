@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Suite - one-call advanced combinations.
 ///
@@ -8,7 +8,7 @@ part of '../cryptolib.dart';
 /// self-describing (they carry the KEM ciphertext), so a recipient needs only
 /// their long-term secret key. Requires the native library built with OpenSSL
 /// and post-quantum support.
-extension CryptoLibSuite on CryptoLib {
+extension CipherBirdSuite on CipherBird {
   /// Post-quantum message: encapsulate to [recipientKemPublic] and seal under
   /// the shared secret. Secure while EITHER X25519 or ML-KEM-768 holds.
   Uint8List suiteSealPq(

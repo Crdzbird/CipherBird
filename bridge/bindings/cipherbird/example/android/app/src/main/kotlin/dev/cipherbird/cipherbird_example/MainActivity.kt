@@ -1,4 +1,4 @@
-package com.cryptolib.cipherbird_example
+package dev.cipherbird.cipherbird_example
 
 import io.flutter.embedding.android.FlutterActivity
 

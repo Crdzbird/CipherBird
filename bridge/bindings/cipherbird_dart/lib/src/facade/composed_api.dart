@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Carriers that combine encryption with concealment, plus FEC.
-extension type ComposedApi(CryptoLib _l) {
+extension type ComposedApi(CipherBird _l) {
   /// FEC-encode [data] under [scheme]. Apply before embedding when the carrier
   /// may be degraded in transit.
   Uint8List fecEncode(Uint8List data, FecScheme scheme) =>

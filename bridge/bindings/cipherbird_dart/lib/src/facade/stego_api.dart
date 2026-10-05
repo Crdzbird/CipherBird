@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Steganographic embedding, extraction and carrier diagnostics.
-extension type StegoApi(CryptoLib _l) {
+extension type StegoApi(CipherBird _l) {
   /// Embed raw bytes into a media file.
   void embed(String coverPath, Uint8List payload, String outputPath) =>
       _l.stegoEmbed(coverPath, payload, outputPath);
@@ -50,7 +50,7 @@ extension type StegoApi(CryptoLib _l) {
 
   /// Probe [path] for hidden data.
   ///
-  /// A positive [StegoHiddenDataReport.cryptolibPayload] is conclusive; the
+  /// A positive [StegoHiddenDataReport.cipherbirdPayload] is conclusive; the
   /// statistical fields are heuristics that can suggest embedding but can never
   /// establish its absence.
   StegoHiddenDataReport detectHidden(String path) => _l.stegoDetectHidden(path);

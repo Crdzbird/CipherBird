@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// The public half of a [SigningKey].
 final class VerifyKey {
@@ -8,21 +8,21 @@ final class VerifyKey {
   factory VerifyKey.fromBytes(
     List<int> publicKey, {
     SignatureAlgorithm algorithm = SignatureAlgorithm.ed25519,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) => VerifyKey._(_easyLib(lib), algorithm, publicKey.u8);
 
   /// From a hex public key.
   factory VerifyKey.fromHex(
     String publicKeyHex, {
     SignatureAlgorithm algorithm = SignatureAlgorithm.ed25519,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) => VerifyKey.fromBytes(
     fromHex(publicKeyHex),
     algorithm: algorithm,
     lib: lib,
   );
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   /// Which scheme this key belongs to.
   final SignatureAlgorithm algorithm;
@@ -44,7 +44,7 @@ final class VerifyKey {
   bool verifyText(String message, String signatureBase64) =>
       verify(message.bytes, signatureBase64.base64Bytes);
 
-  /// Plug into a [CryptoRecipe]: `recipe.verifiedWith(key.scheme)`.
+  /// Plug into a [CipherBirdRecipe]: `recipe.verifiedWith(key.scheme)`.
   SignatureScheme get scheme {
     if (algorithm == SignatureAlgorithm.hybrid) {
       return HybridSignature(publicKey: publicKey);

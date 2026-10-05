@@ -11,7 +11,7 @@
 // configure the Kotlin compiler options.
 // See https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin
 
-group = "com.cryptolib.cipherbird"
+group = "dev.cipherbird.cipherbird"
 version = "3.0.0"
 
 plugins {
@@ -19,7 +19,7 @@ plugins {
 }
 
 android {
-    namespace = "com.cryptolib.cipherbird"
+    namespace = "dev.cipherbird.cipherbird"
     compileSdk = 36
 
     compileOptions {

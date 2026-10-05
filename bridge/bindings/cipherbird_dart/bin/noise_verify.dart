@@ -30,7 +30,7 @@ bool eq(Uint8List a, Uint8List b) {
 Uint8List b(String s) => Uint8List.fromList(s.codeUnits);
 
 void main(List<String> args) {
-  final lib = CryptoLib.load(args.isNotEmpty ? args[0] : null);
+  final lib = CipherBird.load(args.isNotEmpty ? args[0] : null);
   lib.init();
 
   final iks = lib.x25519Keygen(), rks = lib.x25519Keygen();

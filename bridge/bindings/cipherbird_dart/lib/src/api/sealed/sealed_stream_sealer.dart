@@ -1,9 +1,9 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Encrypting stream: preamble() once, push() each chunk, finalize() for the last
 /// chunk + signed trailer; close() when done.
 final class SealedStreamSealer {
-  final CryptoLib _cl;
+  final CipherBird _cl;
   Pointer<Void> _h;
   SealedStreamSealer(this._cl, this._h);
   Uint8List preamble() => _cl._sealedSealerPreamble(_h);

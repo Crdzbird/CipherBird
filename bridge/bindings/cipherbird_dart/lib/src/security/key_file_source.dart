@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A media file as the key - the same file always yields the same key.
 ///
@@ -12,7 +12,7 @@ final class KeyFileSource extends KeySource with _Builtin {
   @override
   String get label => 'keyFile';
   @override
-  Uint8List deriveRoot(CryptoLib lib, Uint8List salt, int ops, int mem) {
+  Uint8List deriveRoot(CipherBird lib, Uint8List salt, int ops, int mem) {
     final handle = lib.entropyFromFileDeterministic(path);
     try {
       return lib.entropySymmetricKey(handle);

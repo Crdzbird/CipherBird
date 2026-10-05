@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// FROST t-of-n threshold signatures.
-extension type FrostApi(CryptoLib _l) {
+extension type FrostApi(CipherBird _l) {
   /// Trusted-dealer split: any [t] of [n] shares can sign. Share i (0-based) has
   /// FROST identifier i+1. Output verifies with standard Ed25519 verification.
   FrostKeyGen keygen(int n, int t) => _l.frostKeygen(n, t);

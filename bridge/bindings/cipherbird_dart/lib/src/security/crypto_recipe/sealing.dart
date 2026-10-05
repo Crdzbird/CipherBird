@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,10 +19,10 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeSealing on CryptoRecipe {
+extension CipherBirdRecipeSealing on CipherBirdRecipe {
   /// Apply forward error correction to the finished envelope, so it survives a
   /// carrier that may be recompressed or resampled.
-  CryptoRecipe withFec(FecScheme scheme) {
+  CipherBirdRecipe withFec(FecScheme scheme) {
     _fec = scheme;
     return this;
   }
@@ -32,9 +32,9 @@ extension CryptoRecipeSealing on CryptoRecipe {
     final source =
         _source ??
         (throw StateError(
-          'cryptolib: no key set - call withKey/withPassphrase/withKeyFile/withKeySource',
+          'cipherbird: no key set - call withKey/withPassphrase/withKeyFile/withKeySource',
         ));
-    final salt = _lib.randomBytes(CryptoRecipe._saltLen);
+    final salt = _lib.randomBytes(CipherBirdRecipe._saltLen);
     final ops = _argon2Ops ?? profile.argon2Ops;
     final mem = _argon2Memory ?? profile.argon2Memory;
     final header = _buildHeader(source, salt, ops, mem);
@@ -43,7 +43,7 @@ extension CryptoRecipeSealing on CryptoRecipe {
     var body = plaintext;
     final signer = _signer;
     if (signer != null) {
-      body = CryptoRecipe._prefixLengthed(
+      body = CipherBirdRecipe._prefixLengthed(
         signer.sign(_lib, plaintext),
         plaintext,
       );
@@ -62,7 +62,7 @@ extension CryptoRecipeSealing on CryptoRecipe {
   /// A human-readable summary of what this recipe will do - handy in logs and
   /// code review, where a silently-weak configuration is the thing to catch.
   String describe() {
-    final b = StringBuffer('CryptoRecipe(${profile.name})\n')
+    final b = StringBuffer('CipherBirdRecipe(${profile.name})\n')
       ..writeln('  key      : ${_source?.label ?? '(unset)'}')
       ..writeln('  layers   : ${_layers.map((l) => l.wireName).join(' -> ')}')
       ..writeln('  signature: ${_signer?.label ?? 'none'}')

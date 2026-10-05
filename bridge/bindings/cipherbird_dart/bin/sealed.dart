@@ -1,4 +1,4 @@
-// CryptoLib for Dart — Flagship / Fortress: state-of-the-art sealed messaging.
+// CipherBird for Dart — Flagship / Fortress: state-of-the-art sealed messaging.
 //
 // Two assurance tiers of one construction: encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first.
@@ -15,7 +15,7 @@ void ck(String n, bool ok) {
 
 Uint8List b(String s) => Uint8List.fromList(s.codeUnits);
 
-void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
+void demo(CipherBird lib, SealedTier tier, String name, String blurb) {
   print('\n── $name ──  $blurb');
 
   // Each party is an Identity: recipient (KEM) keypair to RECEIVE, sender
@@ -95,9 +95,9 @@ void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
 }
 
 void main() {
-  final lib = CryptoLib.load(Platform.environment['CRYPTOLIB_DYLIB']);
+  final lib = CipherBird.load(Platform.environment['CRYPTOLIB_DYLIB']);
   lib.init();
-  print('CryptoLib ${lib.version()} — Flagship / Fortress (Dart)');
+  print('CipherBird ${lib.version()} — Flagship / Fortress (Dart)');
   demo(
     lib,
     SealedTier.flagship,

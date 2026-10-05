@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// How a [CryptoRecipe] signs and verifies the plaintext.
+/// How a [CipherBirdRecipe] signs and verifies the plaintext.
 ///
 /// Subclass it for another signature algorithm. A scheme that only holds a
 /// public key should throw from [sign]. The signature is always applied to the
@@ -12,13 +12,13 @@ abstract class SignatureScheme {
   /// schemes must use 128–255. Verification requires a scheme with the same id.
   int get id;
 
-  /// Short name for `CryptoRecipe.describe`.
+  /// Short name for `CipherBirdRecipe.describe`.
   String get label;
 
   /// Sign [message].
-  Uint8List sign(CryptoLib lib, Uint8List message);
+  Uint8List sign(CipherBird lib, Uint8List message);
 
   /// Verify [signature] over [message]. Must return false, never throw
   /// through, on a bad signature.
-  bool verify(CryptoLib lib, Uint8List message, Uint8List signature);
+  bool verify(CipherBird lib, Uint8List message, Uint8List signature);
 }

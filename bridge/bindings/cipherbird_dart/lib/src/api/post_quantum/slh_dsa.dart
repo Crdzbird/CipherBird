@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibSlhDsa on CryptoLib {
+extension CipherBirdSlhDsa on CipherBird {
   KeyPairResult slhDsaKeygen(SlhDsaLevel level, SlhDsaHash hash) =>
       _extractKeyPair(
         _lib.lookupFunction<

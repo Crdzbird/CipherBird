@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _KeyFromFileC = CryptoBufferResult Function(Pointer<Utf8> path);
 typedef _KeyFromFileDart = CryptoBufferResult Function(Pointer<Utf8> path);

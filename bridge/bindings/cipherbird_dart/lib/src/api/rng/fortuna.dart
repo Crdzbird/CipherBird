@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Fortuna-style entropy pool.
 ///
@@ -9,7 +9,7 @@ part of '../../cryptolib.dart';
 final class Fortuna {
   Fortuna._(this._lib, this._h);
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
   Pointer<Void> _h;
 
   /// Add an entropy event from logical source [sourceId] (0..255). Distinct

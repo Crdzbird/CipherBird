@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Public metadata of a sealed (Flagship/Fortress) envelope. No secrets.
 final class CryptoSealedInfo extends Struct {

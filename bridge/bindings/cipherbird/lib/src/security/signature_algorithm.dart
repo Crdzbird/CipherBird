@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// Built-in signature algorithms, for the `CryptoRecipe.signedBy` shorthand.
+/// Built-in signature algorithms, for the `CipherBirdRecipe.signedBy` shorthand.
 enum SignatureAlgorithm {
   /// No signature. The AEAD still guarantees integrity, but not who sent it.
   none(0),

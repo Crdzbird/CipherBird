@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,8 +19,9 @@ part of '../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-final class CryptoRecipe {
-  CryptoRecipe._(this._lib, this.profile) : _layers = List.of(profile.cascade);
+final class CipherBirdRecipe {
+  CipherBirdRecipe._(this._lib, this.profile)
+    : _layers = List.of(profile.cascade);
 
   static const List<int> _magic = [0x43, 0x4c, 0x52, 0x43];
 
@@ -30,7 +31,7 @@ final class CryptoRecipe {
 
   static const int _saltLen = 16;
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   /// The profile this recipe started from.
   final SecurityProfile profile;
@@ -60,11 +61,11 @@ final class CryptoRecipe {
 
   static (Uint8List, Uint8List) _splitLengthed(Uint8List data) {
     if (data.length < 4) {
-      throw Exception('cryptolib: malformed signed payload');
+      throw Exception('cipherbird: malformed signed payload');
     }
     final n = ByteData.sublistView(data, 0, 4).getUint32(0);
     if (data.length < 4 + n) {
-      throw Exception('cryptolib: malformed signed payload');
+      throw Exception('cipherbird: malformed signed payload');
     }
     return (
       Uint8List.fromList(data.sublist(4, 4 + n)),
@@ -75,7 +76,7 @@ final class CryptoRecipe {
   FecScheme _fec = FecScheme.none;
 
   /// Use any [KeySource] - a built-in or your own subclass.
-  CryptoRecipe withKeySource(KeySource source) {
+  CipherBirdRecipe withKeySource(KeySource source) {
     _requireValidId(source, source.id, 'key source');
     _source = source;
     return this;
@@ -83,13 +84,14 @@ final class CryptoRecipe {
 
   /// Derive the root key from a passphrase with Argon2id, at this profile's
   /// cost (override with [argon2Cost]). Shorthand for a [PassphraseKeySource].
-  CryptoRecipe withPassphrase(String passphrase) =>
+  CipherBirdRecipe withPassphrase(String passphrase) =>
       withKeySource(PassphraseKeySource(passphrase));
 
   /// Use a 32-byte key directly. Shorthand for a [RawKeySource].
-  CryptoRecipe withKey(Uint8List key) => withKeySource(RawKeySource(key));
+  CipherBirdRecipe withKey(Uint8List key) => withKeySource(RawKeySource(key));
 
   /// Derive the root key deterministically from a media file. Shorthand for a
   /// [KeyFileSource]. Check the file first with `lib.entropy.assessFileHealth`.
-  CryptoRecipe withKeyFile(String path) => withKeySource(KeyFileSource(path));
+  CipherBirdRecipe withKeyFile(String path) =>
+      withKeySource(KeyFileSource(path));
 }

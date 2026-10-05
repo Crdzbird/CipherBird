@@ -9,7 +9,7 @@ messaging, a secure channel, password hashing, vaults, a keyring, anonymous
 credentials, threshold signatures and steganography from one dependency. It
 is the plain-Dart twin of the [cipherbird](https://pub.dev/packages/cipherbird)
 Flutter plugin: both are generated from one source tree and expose the same
-API, with `CryptoLib` as the entry point.
+API, with `CipherBird` as the entry point.
 
 | Area | What runs | Notes |
 |---|---|---|
@@ -32,18 +32,18 @@ dart pub add cipherbird_dart
 | Platform | Status |
 |---|---|
 | macOS, Apple silicon | library bundled under `native/darwin-arm64` |
-| Linux x64, Windows x64, Intel macOS | not bundled in this release; build the library from the repository and point `CRYPTOLIB_DYLIB` at it |
+| Linux x64, Windows x64, Intel macOS | not bundled in this release; build the library from the repository and point `CIPHERBIRD_LIBRARY` at it |
 
-No setup call is needed. `CryptoLib.load()` resolves the library in this
-order: an explicit path, the `CRYPTOLIB_DYLIB` environment variable, the
+No setup call is needed. `CipherBird.load()` resolves the library in this
+order: an explicit path, the `CIPHERBIRD_LIBRARY` environment variable, the
 bundled copy found through the program's `.dart_tool/package_config.json`,
 the current directory or the directory above the running script, then the
 loader path. A compiled executable (`dart compile exe`) has no package
 configuration next to it, so pass the path or set the variable and ship the
 library file with the binary.
 
-`CryptoLib.preload()` warms the library on a worker isolate and is optional;
-the first use of `CryptoLib.instance` does the same work synchronously.
+`CipherBird.preload()` warms the library on a worker isolate and is optional;
+the first use of `CipherBird.instance` does the same work synchronously.
 
 ## Quick start
 
@@ -70,7 +70,7 @@ Argon2id for passphrases, HKDF for sub-keys and the post-quantum hybrid
 signature.
 
 ```dart
-final salt = CryptoLib.instance.easy.randomBytes(16);
+final salt = CipherBird.instance.easy.randomBytes(16);
 final key = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
 final databaseKey = key.derive('database');
 ```
@@ -90,7 +90,7 @@ final databaseKey = key.derive('database');
 | `hashPassword(password)`, `verifyPassword(password, phc)` | an Argon2id PHC string to store, and whether a password matches |
 | `randomBytes(n)`, `randomHex(n)`, `token()` | OS randomness, as bytes, hex or a URL-safe token |
 | `sha256Hex(text)` | the digest as hex |
-| `symmetricKeyFromPassphraseAsync`, `hashPasswordAsync`, `verifyPasswordAsync` | the Argon2id operations on a worker isolate through `CryptoLibRunner` |
+| `symmetricKeyFromPassphraseAsync`, `hashPasswordAsync`, `verifyPasswordAsync` | the Argon2id operations on a worker isolate through `CipherBirdRunner` |
 
 | Expression | Result |
 |---|---|
@@ -100,7 +100,7 @@ final databaseKey = key.derive('database');
 
 ## Full API
 
-All 265 native operations are reachable on `CryptoLib`, flat or through
+All 265 native operations are reachable on `CipherBird`, flat or through
 grouped views. Every operation takes and returns `Uint8List`, throws on
 failure and never returns partial data.
 

@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// DerivedKeysResult holds 6 domain-separated keys from a media file.
 final class DerivedKeysResult {

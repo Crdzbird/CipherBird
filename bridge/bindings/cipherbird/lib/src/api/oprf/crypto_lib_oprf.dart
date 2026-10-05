@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// OPRF (RFC 9497) methods on CryptoLib.
-extension CryptoLibOprf on CryptoLib {
+/// OPRF (RFC 9497) methods on CipherBird.
+extension CipherBirdOprf on CipherBird {
   /// Derive an OPRF key pair from a seed (+ optional info). Throws on failure.
   KeyPairResult oprfDeriveKeyPair(Uint8List seed, {Uint8List? info}) {
     final s = _toNative(seed);
@@ -19,7 +19,7 @@ extension CryptoLibOprf on CryptoLib {
         ),
       );
       if (r.publicKey.isEmpty) {
-        throw Exception('cryptolib: oprf derive_keypair failed');
+        throw Exception('cipherbird: oprf derive_keypair failed');
       }
       return r;
     } finally {

@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsScalars on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsScalars on CipherBird {
   /// Deterministically map (msg, dst) to a canonical scalar in [0, r) - the BBS
   /// hash_to_scalar primitive. Use for a stable per-holder nym seed:
   /// nymSeed = bbsHashToScalar(memberSecret, dst).

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// Sealed-messaging methods on CryptoLib (tier 0=Flagship, 1=Fortress).
-extension CryptoLibSealedOpen on CryptoLib {
+/// Sealed-messaging methods on CipherBird (tier 0=Flagship, 1=Fortress).
+extension CipherBirdSealedOpen on CipherBird {
   Uint8List sealedOpen(
     SealedTier tier,
     Uint8List envelope,

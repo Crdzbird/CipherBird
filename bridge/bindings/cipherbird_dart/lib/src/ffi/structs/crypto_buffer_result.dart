@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 final class CryptoBufferResult extends Struct {
   external CryptoBuffer buf;

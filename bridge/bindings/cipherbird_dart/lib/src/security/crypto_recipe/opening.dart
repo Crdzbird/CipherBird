@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,14 +19,14 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeOpening on CryptoRecipe {
+extension CipherBirdRecipeOpening on CipherBirdRecipe {
   /// Recover the plaintext from [envelope]. Throws if the key is wrong, a byte
   /// was altered, or a signature is present but does not verify.
   Uint8List open(Uint8List envelope) {
     final source =
         _source ??
         (throw StateError(
-          'cryptolib: no key set - call withKey/withPassphrase/withKeyFile/withKeySource',
+          'cipherbird: no key set - call withKey/withPassphrase/withKeyFile/withKeySource',
         ));
     final inner = _unwrapFec(envelope);
     final parsed = _parseHeader(inner, source);
@@ -50,28 +50,28 @@ extension CryptoRecipeOpening on CryptoRecipe {
       return body;
     }
 
-    final (sig, plaintext) = CryptoRecipe._splitLengthed(body);
+    final (sig, plaintext) = CipherBirdRecipe._splitLengthed(body);
     final verifier = _verifier ?? _builtinVerifier(parsed.signatureId);
     if (verifier == null) {
       if (_verifierKey != null) {
         throw Exception(
-          'cryptolib: envelope was signed with scheme id ${parsed.signatureId}, which is '
+          'cipherbird: envelope was signed with scheme id ${parsed.signatureId}, which is '
           'not a built-in - supply that SignatureScheme with verifiedWith()',
         );
       }
       throw StateError(
-        'cryptolib: envelope is signed but no verifier was supplied - '
+        'cipherbird: envelope is signed but no verifier was supplied - '
         'call verifiedBy()/verifiedWith() so the signature is actually checked',
       );
     }
     if (verifier.id != parsed.signatureId) {
       throw Exception(
-        'cryptolib: envelope was signed with scheme id ${parsed.signatureId}, '
+        'cipherbird: envelope was signed with scheme id ${parsed.signatureId}, '
         'but the verifier is "${verifier.label}" (id ${verifier.id})',
       );
     }
     if (!verifier.verify(_lib, plaintext, sig)) {
-      throw Exception('cryptolib: signature verification failed');
+      throw Exception('cipherbird: signature verification failed');
     }
     return plaintext;
   }

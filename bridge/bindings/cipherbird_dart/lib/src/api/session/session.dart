@@ -1,9 +1,9 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A post-quantum forward-secret ratchet channel. Stateful - not safe for
 /// concurrent use; close() when done.
 final class Session {
-  final CryptoLib _cl;
+  final CipherBird _cl;
   Pointer<Void> _h;
   Session(this._cl, this._h);
 

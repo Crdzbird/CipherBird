@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// HPKE (RFC 9180) methods on CryptoLib.
-extension CryptoLibHpke on CryptoLib {
+/// HPKE (RFC 9180) methods on CipherBird.
+extension CipherBirdHpke on CipherBird {
   /// Fresh X25519 key pair for HPKE.
   KeyPairResult hpkeKeygen() => _extractKeyPair(
     _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(

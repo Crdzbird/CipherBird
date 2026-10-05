@@ -1,8 +1,8 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// An established one-directional HPKE context. Stateful; close() when done.
 final class HpkeContext {
-  final CryptoLib _cl;
+  final CipherBird _cl;
   Pointer<Void> _h;
   HpkeContext(this._cl, this._h);
 

@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// ECVRF (RFC 9381) methods on CryptoLib.
-extension CryptoLibEcvrf on CryptoLib {
+/// ECVRF (RFC 9381) methods on CipherBird.
+extension CipherBirdEcvrf on CipherBird {
   /// ECVRF key pair (pk 32 B, sk = 32-byte seed).
   KeyPairResult ecvrfKeygen() => _extractKeyPair(
     _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrostVerify on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrostVerify on CipherBird {
   /// Verify an aggregate signature with standard Ed25519.
   bool frostVerify(Uint8List msg, Uint8List sig, Uint8List groupPublicKey) {
     final pm = _toNative(msg),

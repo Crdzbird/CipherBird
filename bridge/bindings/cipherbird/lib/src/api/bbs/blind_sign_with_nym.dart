@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsBlindSignWithNym on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsBlindSignWithNym on CipherBird {
   /// Blind-sign over the commitment + signer [messages], folding
   /// [signerNymEntropy] into the last nym slot. Returns an 80-byte signature.
   Uint8List bbsBlindSignWithNym(

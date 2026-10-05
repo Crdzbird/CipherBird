@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Layered vaults: Vault, asymmetric Vault and MolecularVault.
-extension type VaultApi(CryptoLib _l) {
+extension type VaultApi(CipherBird _l) {
   /// Create a vault from a 32-byte master key.
   Pointer<Void> vaultCreate(
     Uint8List masterKey, {

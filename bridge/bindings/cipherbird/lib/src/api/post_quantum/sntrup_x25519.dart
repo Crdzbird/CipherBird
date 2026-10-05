@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// PostQuantum operations.
-extension CryptoLibSntrupX25519 on CryptoLib {
+extension CipherBirdSntrupX25519 on CipherBird {
   Uint8List sntrupX25519Decapsulate(Uint8List ciphertext, Uint8List secretKey) {
     final cp = _toNative(ciphertext), sp = _toNative(secretKey);
     try {

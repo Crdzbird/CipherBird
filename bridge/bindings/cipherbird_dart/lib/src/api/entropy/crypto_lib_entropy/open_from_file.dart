@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
 /// Entropy operations.
-extension CryptoLibEntropyOpenFromFile on CryptoLib {
+extension CipherBirdEntropyOpenFromFile on CipherBird {
   /// One-liner: decrypt a packet using a file as the key.
   Uint8List openFromFile(String path, Packet pkt, String aad) {
     final cpath = path.toNativeUtf8();

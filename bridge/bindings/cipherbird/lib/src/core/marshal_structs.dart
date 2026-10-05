@@ -1,6 +1,6 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-extension _MarshalStructs on CryptoLib {
+extension _MarshalStructs on CipherBird {
   Packet _extractPacket(CryptoPacket cp, Pointer<Pointer<Utf8>> errPtr) {
     if (errPtr.value != nullptr) {
       final msg = errPtr.value.toDartString();

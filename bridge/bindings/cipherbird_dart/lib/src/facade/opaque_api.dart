@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// OPAQUE password-authenticated key exchange.
-extension type OpaqueApi(CryptoLib _l) {
+extension type OpaqueApi(CipherBird _l) {
   /// Client registration step 1: blind the password -> {blind, request}.
   OprfBlindResult registrationRequest(Uint8List password) =>
       _l.opaqueRegistrationRequest(password);

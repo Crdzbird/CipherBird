@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _StreamEncCreateC = Pointer<Void> Function(Pointer<Uint8> key);
 typedef _StreamEncCreateDart = Pointer<Void> Function(Pointer<Uint8> key);

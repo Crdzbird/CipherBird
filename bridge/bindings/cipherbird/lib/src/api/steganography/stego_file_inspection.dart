@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Structural inspection of a media file - is it a valid carrier, and does its
 /// real content match its extension?

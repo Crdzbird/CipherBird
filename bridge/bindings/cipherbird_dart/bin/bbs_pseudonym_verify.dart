@@ -30,7 +30,7 @@ bool eq(Uint8List a, Uint8List b) {
 
 void main(List<String> args) {
   final path = args.isNotEmpty ? args[0] : null;
-  final lib = CryptoLib.load(path);
+  final lib = CipherBird.load(path);
   lib.init();
 
   final sk = hx(

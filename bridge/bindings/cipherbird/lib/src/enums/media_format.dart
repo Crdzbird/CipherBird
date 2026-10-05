@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Media container format inferred from a file's actual bytes (not its
-/// extension). Returned by `CryptoLibStegoAdvanced.stegoInspect`.
+/// extension). Returned by `CipherBirdStegoAdvanced.stegoInspect`.
 enum MediaFormat {
   ppmImage(0),
   wavAudio(1),

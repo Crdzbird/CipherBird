@@ -1,7 +1,7 @@
-// CryptoLib recipes — composition in practice, verified against the host dylib.
+// CipherBird recipes — composition in practice, verified against the host dylib.
 //
 // Real-world flows that snap primitives together (no new crypto, just wiring).
-// Run: CRYPTOLIB_DYLIB=/abs/build/release/libcryptolib_c.dylib flutter test test/recipes_test.dart
+// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcryptolib_c.dylib flutter test test/recipes_test.dart
 //
 // (Shamir threshold splitting is C++-only — not in the C ABI — so this mirrors
 // the other five recipes; see example/recipes.cpp for all six.)
@@ -12,7 +12,7 @@ import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:test/test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   final aad = Uint8List.fromList('recipe/v1'.codeUnits);
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
   bool eq(Uint8List a, Uint8List b) {

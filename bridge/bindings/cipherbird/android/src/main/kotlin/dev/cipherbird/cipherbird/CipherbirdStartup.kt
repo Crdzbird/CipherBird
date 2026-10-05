@@ -1,4 +1,4 @@
-package com.cryptolib.cipherbird
+package dev.cipherbird.cipherbird
 
 import android.content.ContentProvider
 import android.content.ContentValues

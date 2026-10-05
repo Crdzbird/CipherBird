@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// OPAQUE registration record (store server-side) + export key.
 final class OpaqueRecord {

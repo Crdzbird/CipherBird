@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrostSign on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrostSign on CipherBird {
   /// Round 2: this participant's 32-byte signature share. [commitments] is the
   /// full round-1 set from every participating signer (including self).
   Uint8List frostSign(

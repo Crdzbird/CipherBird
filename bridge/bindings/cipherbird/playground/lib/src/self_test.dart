@@ -3,12 +3,12 @@ import 'package:cipherbird/cipherbird.dart';
 const _shaAbc =
     'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
 
-List<(String, bool)> selfTest(CryptoLib lib) {
+List<(String, bool)> selfTest(CipherBird lib) {
   final alice = lib.easy.identity(SealedTier.fortress);
   final bob = lib.easy.identity(SealedTier.fortress);
   final envelope = bob.sealText('hello', to: alice.recipientPublic);
   return [
-    ('CryptoLib ${lib.version()} loaded', lib.version().isNotEmpty),
+    ('CipherBird ${lib.version()} loaded', lib.version().isNotEmpty),
     ('SHA-256 known answer', lib.easy.sha256Hex('abc') == _shaAbc),
     (
       'Fortress sealed messaging (sntrup761 inside)',
@@ -18,7 +18,7 @@ List<(String, bool)> selfTest(CryptoLib lib) {
   ];
 }
 
-bool noiseRoundTrip(CryptoLib lib) {
+bool noiseRoundTrip(CipherBird lib) {
   final initiatorKeys = lib.x25519Keygen();
   final responderKeys = lib.x25519Keygen();
   final initiator = lib.noise(

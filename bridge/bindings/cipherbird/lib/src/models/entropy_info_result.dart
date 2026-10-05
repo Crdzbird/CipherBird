@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// EntropyInfoResult holds metadata about an entropy source.
 final class EntropyInfoResult {

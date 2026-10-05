@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposed on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposed on CipherBird {
   /// FEC-encode [data] under [scheme]. Apply before embedding when the carrier
   /// may be degraded in transit.
   Uint8List fecEncode(Uint8List data, FecScheme scheme) {

@@ -1,4 +1,4 @@
-package dev.cryptolib.cipherbird_playground
+package dev.cipherbird.cipherbird_playground
 
 import io.flutter.embedding.android.FlutterActivity
 

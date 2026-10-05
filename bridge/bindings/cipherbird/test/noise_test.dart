@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 Uint8List b(String s) => Uint8List.fromList(s.codeUnits);
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
 
   test('Noise XX: handshake, mutual auth, transport, fail-closed', () {
     final iks = lib.x25519Keygen(), rks = lib.x25519Keygen();

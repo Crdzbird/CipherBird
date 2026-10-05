@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 Uint8List _frostCopy(CryptoBuffer buf) {
   if (buf.data == nullptr || buf.len == 0) {

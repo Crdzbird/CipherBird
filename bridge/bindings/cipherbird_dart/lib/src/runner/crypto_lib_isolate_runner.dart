@@ -1,10 +1,10 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// The production [CryptoLibRunner]: a background isolate for any work whose
+/// The production [CipherBirdRunner]: a background isolate for any work whose
 /// [run] cost reaches [inlineThreshold], and always for [runHeavy].
-final class CryptoLibIsolateRunner implements CryptoLibRunner {
+final class CipherBirdIsolateRunner implements CipherBirdRunner {
   /// Creates the runner; work under [inlineThreshold] cost stays inline.
-  const CryptoLibIsolateRunner({this.inlineThreshold = 2048});
+  const CipherBirdIsolateRunner({this.inlineThreshold = 2048});
 
   /// Cost (payload size) below which [run] executes inline.
   final int inlineThreshold;

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CryptoLib.
-extension CryptoLibOpaqueServerRespond on CryptoLib {
+/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CipherBird.
+extension CipherBirdOpaqueServerRespond on CipherBird {
   /// Server login step 1: -> {ke2, serverState}.
   OpaqueKe2 opaqueServerRespond(
     Uint8List context,

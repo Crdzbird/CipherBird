@@ -1,3 +1,3 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-CryptoLib _easyLib(CryptoLib? lib) => lib ?? CryptoLib.instance;
+CipherBird _easyLib(CipherBird? lib) => lib ?? CipherBird.instance;

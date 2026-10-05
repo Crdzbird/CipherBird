@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrostAggregate on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrostAggregate on CipherBird {
   /// Aggregate signature shares into one 64-byte Ed25519 signature.
   Uint8List frostAggregate(
     Uint8List groupPublicKey,

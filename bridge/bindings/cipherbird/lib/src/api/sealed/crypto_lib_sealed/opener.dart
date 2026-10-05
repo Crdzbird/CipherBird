@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// Sealed-messaging methods on CryptoLib (tier 0=Flagship, 1=Fortress).
-extension CryptoLibSealedOpener on CryptoLib {
+/// Sealed-messaging methods on CipherBird (tier 0=Flagship, 1=Fortress).
+extension CipherBirdSealedOpener on CipherBird {
   SealedStreamOpener sealedOpenerBegin(
     SealedTier tier,
     Uint8List preamble,
@@ -69,7 +69,7 @@ extension CryptoLibSealedOpener on CryptoLib {
         throw Exception(m);
       }
       if (h == nullptr) {
-        throw Exception('cryptolib: stream opener begin failed');
+        throw Exception('cipherbird: stream opener begin failed');
       }
       return SealedStreamOpener(this, h);
     } finally {

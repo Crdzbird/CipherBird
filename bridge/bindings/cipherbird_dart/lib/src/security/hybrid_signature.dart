@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Ed25519 + ML-DSA-65. A forgery needs breaking both families.
 final class HybridSignature extends SignatureScheme with _Builtin {
@@ -10,16 +10,17 @@ final class HybridSignature extends SignatureScheme with _Builtin {
   @override
   String get label => 'hybrid';
   @override
-  Uint8List sign(CryptoLib lib, Uint8List m) => lib.hybridSigSign(
+  Uint8List sign(CipherBird lib, Uint8List m) => lib.hybridSigSign(
     m,
     secretKey ??
-        (throw StateError('cryptolib: HybridSignature has no secret key')),
+        (throw StateError('cipherbird: HybridSignature has no secret key')),
   );
   @override
-  bool verify(CryptoLib lib, Uint8List m, Uint8List sig) => lib.hybridSigVerify(
-    m,
-    sig,
-    publicKey ??
-        (throw StateError('cryptolib: HybridSignature has no public key')),
-  );
+  bool verify(CipherBird lib, Uint8List m, Uint8List sig) =>
+      lib.hybridSigVerify(
+        m,
+        sig,
+        publicKey ??
+            (throw StateError('cipherbird: HybridSignature has no public key')),
+      );
 }

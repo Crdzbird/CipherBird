@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Ed25519 + ML-DSA-65 hybrid signatures.
-extension type PqHybridSigApi(CryptoLib _l) {
+extension type PqHybridSigApi(CipherBird _l) {
   KeyPairResult keygen() => _l.hybridSigKeygen();
 
   Uint8List sign(Uint8List msg, Uint8List secretKey) =>

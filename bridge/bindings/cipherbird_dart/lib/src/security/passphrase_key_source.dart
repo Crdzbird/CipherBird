@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A passphrase stretched with Argon2id at the recipe's cost.
 final class PassphraseKeySource extends KeySource with _Builtin {
@@ -9,6 +9,6 @@ final class PassphraseKeySource extends KeySource with _Builtin {
   @override
   String get label => 'passphrase';
   @override
-  Uint8List deriveRoot(CryptoLib lib, Uint8List salt, int ops, int mem) =>
+  Uint8List deriveRoot(CipherBird lib, Uint8List salt, int ops, int mem) =>
       lib.argon2idDerive(passphrase, salt, ops: ops, mem: mem);
 }

@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _BufferFreeC = Void Function(Pointer<CryptoBuffer> buf);
 typedef _BufferFreeDart = void Function(Pointer<CryptoBuffer> buf);

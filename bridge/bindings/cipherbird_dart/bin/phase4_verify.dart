@@ -38,7 +38,7 @@ bool eq(Uint8List a, List<int> b) {
 
 void main(List<String> args) {
   final path = args.isNotEmpty ? args[0] : null;
-  final lib = CryptoLib.load(path);
+  final lib = CipherBird.load(path);
   lib.init();
   final dir = Directory.systemTemp.createTempSync('cl_p4_');
 
@@ -146,7 +146,7 @@ void main(List<String> args) {
     lib.stegoEmbed(cover, Uint8List.fromList('hi'.codeUnits), stego);
     final rep = lib.stegoDetectHidden(stego);
     check(
-      rep.cryptolibPayload && rep.note.isNotEmpty,
+      rep.cipherbirdPayload && rep.note.isNotEmpty,
       'detect unkeyed cryptolib payload + honesty note',
     );
   }

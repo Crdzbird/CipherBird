@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A 32-byte symmetric key with the safe choices built in.
 ///
@@ -13,7 +13,7 @@ part of '../../cryptolib.dart';
 /// final box = key.encryptText('meet at dawn');
 /// final back = key.decryptText(box);
 ///
-/// final salt = CryptoLib.instance.easy.randomBytes(16);
+/// final salt = CipherBird.instance.easy.randomBytes(16);
 /// final pk = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
 /// ```
 extension SymmetricKeyEncryption on SymmetricKey {
@@ -34,7 +34,7 @@ extension SymmetricKeyEncryption on SymmetricKey {
   String decryptText(String ciphertextBase64, {String? aad}) =>
       decrypt(ciphertextBase64.base64Bytes, aad: aad?.bytes).text;
 
-  /// Use this key as a [CryptoRecipe] key source: `lib.recipe().withKeySource(key.asKeySource)`.
+  /// Use this key as a [CipherBirdRecipe] key source: `lib.recipe().withKeySource(key.asKeySource)`.
   KeySource get asKeySource => RawKeySource(_key);
 
   /// Zero the key bytes. The object is unusable afterwards.

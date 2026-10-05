@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-  package="com.cryptolib.cipherbird">
+  package="dev.cipherbird.cipherbird">
   <application>
     <!--
       Startup hook: Android instantiates this ContentProvider very early in app
@@ -8,7 +8,7 @@
       unique per host app. Not exported; never queried.
     -->
     <provider
-      android:name="com.cryptolib.cipherbird.CipherbirdStartup"
+      android:name="dev.cipherbird.cipherbird.CipherbirdStartup"
       android:authorities="${applicationId}.cipherbird-startup"
       android:exported="false"
       android:initOrder="100" />

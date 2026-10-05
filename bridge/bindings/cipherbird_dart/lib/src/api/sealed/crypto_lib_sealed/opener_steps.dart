@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// Sealed-messaging methods on CryptoLib (tier 0=Flagship, 1=Fortress).
-extension CryptoLibSealedOpenerSteps on CryptoLib {
+/// Sealed-messaging methods on CipherBird (tier 0=Flagship, 1=Fortress).
+extension CipherBirdSealedOpenerSteps on CipherBird {
   (Uint8List, bool) _sealedOpenerPull(Pointer<Void> h, Uint8List ct) {
     final pc = _toNative(ct);
     final outFinal = calloc<Int32>();

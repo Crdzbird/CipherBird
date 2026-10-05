@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// A hybrid X25519 + ML-KEM-768 key pair: a shared key that stays secret if
 /// *either* half holds (harvest-now-decrypt-later resistant).
@@ -17,7 +17,7 @@ final class KemKeyPair {
   KemKeyPair._(this._lib, this._pair);
 
   /// A fresh key pair.
-  factory KemKeyPair.generate([CryptoLib? lib]) {
+  factory KemKeyPair.generate([CipherBird? lib]) {
     final l = _easyLib(lib);
     return KemKeyPair._(l, l.hybridKemKeygen());
   }
@@ -26,7 +26,7 @@ final class KemKeyPair {
   factory KemKeyPair.fromBytes({
     required List<int> publicKey,
     required List<int> secretKey,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) => KemKeyPair._(
     _easyLib(lib),
     KeyPairResult(publicKey: publicKey.u8, secretKey: secretKey.u8),
@@ -34,7 +34,7 @@ final class KemKeyPair {
 
   static const _info = 'cryptolib/easy/kem/v1';
 
-  final CryptoLib _lib;
+  final CipherBird _lib;
 
   final KeyPairResult _pair;
 
@@ -42,7 +42,7 @@ final class KemKeyPair {
   /// Send the ciphertext; keep the key.
   static (Uint8List ciphertext, SymmetricKey key) encapsulate(
     List<int> recipientPublicKey, [
-    CryptoLib? lib,
+    CipherBird? lib,
   ]) {
     final l = _easyLib(lib);
     final (ct, ss) = l.hybridKemEncapsulate(recipientPublicKey.u8);
@@ -57,7 +57,7 @@ final class KemKeyPair {
     List<int> recipientPublicKey,
     List<int> plaintext, {
     List<int>? aad,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) {
     final (ct, key) = encapsulate(recipientPublicKey, lib);
     final body = key.encrypt(plaintext, aad: aad);
@@ -74,7 +74,7 @@ final class KemKeyPair {
     List<int> recipientPublicKey,
     String plaintext, {
     String? aad,
-    CryptoLib? lib,
+    CipherBird? lib,
   }) => encryptFor(
     recipientPublicKey,
     plaintext.bytes,

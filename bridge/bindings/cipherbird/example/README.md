@@ -14,7 +14,7 @@ row per check.
 | Flagship sealed messaging | two identities, `sealText` and `openText` |
 
 The whole app is one file, [lib/main.dart](lib/main.dart). It prints
-`CRYPTOLIB_SELFTEST: OK` or `CRYPTOLIB_SELFTEST: FAILED` to the console so
+`CIPHERBIRD_SELFTEST: OK` or `CIPHERBIRD_SELFTEST: FAILED` to the console so
 a headless run can be checked with `adb logcat` or `xcrun simctl launch
 --console`.
 
@@ -30,13 +30,13 @@ library comes with the package, so nothing has to be built or copied first.
 ## Startup
 
 The example shows the recommended startup sequence: initialise the Flutter
-binding, await `CryptoLib.preload()` so the library loads on a worker
+binding, await `CipherBird.preload()` so the library loads on a worker
 isolate, then run the app. Every call after that is synchronous.
 
 ```dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await CryptoLib.preload();
+  await CipherBird.preload();
   runApp(const ExampleApp());
 }
 ```

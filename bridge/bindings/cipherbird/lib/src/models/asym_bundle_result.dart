@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// AsymBundleResult holds X25519 + Ed25519 key pairs.
 final class AsymBundleResult {

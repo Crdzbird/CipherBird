@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Media-derived entropy and entropy-source health.
-extension type EntropyApi(CryptoLib _l) {
+extension type EntropyApi(CipherBird _l) {
   /// Harvest entropy from a file (LavaRand mode).
   Pointer<Void> fromFile(String path) => _l.entropyFromFile(path);
 

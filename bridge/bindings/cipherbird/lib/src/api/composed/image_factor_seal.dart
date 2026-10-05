@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedImageFactorSeal on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedImageFactorSeal on CipherBird {
   /// Seal [plaintext] behind two factors: the OPRF secret [oprfSecretSeed]
   /// (something you know) and the exact [referenceImagePath] (something you
   /// have). The ciphertext is hidden in [coverPath] -> [outputPath].

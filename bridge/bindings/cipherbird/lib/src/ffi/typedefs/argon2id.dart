@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 typedef _Argon2idHashStrC =
     CryptoBufferResult Function(Pointer<Utf8> password, Uint64 ops, Size mem);

@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Symmetric operations.
-extension CryptoLibAes256Gcm on CryptoLib {
+extension CipherBirdAes256Gcm on CipherBird {
   /// AES-256-GCM encrypt.
   Uint8List aes256gcmEncrypt(
     Uint8List plaintext,

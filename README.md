@@ -201,7 +201,7 @@ in Dart, Go, Node, Swift, Java/Kotlin, Python, Ruby, Rust and .NET
 (`make recipe-interop` proves 72 seal->open pairs).
 
 ```dart
-final r = CryptoRecipe.maximumSecurity(lib)
+final r = CipherBirdRecipe.maximumSecurity(lib)
     .withPassphrase('correct horse battery staple')
     .signedBy(id.secretKey, algorithm: SignatureAlgorithm.hybrid)
     .verifiedBy(id.publicKey);
@@ -224,7 +224,7 @@ class BeltAndBraces extends CascadeLayer {          // three ciphers, ONE layer
       layers: [ProtectionLayer.xchacha20Poly1305, ProtectionLayer.aes256Gcm, MyLayer()]);
 }
 ProtectionLayer.register(const BeltAndBraces());
-final env = CryptoRecipe(lib).withKey(key).withLayers([const BeltAndBraces()]).seal(secret);
+final env = CipherBirdRecipe(lib).withKey(key).withLayers([const BeltAndBraces()]).seal(secret);
 ```
 
 What the recipe keeps for itself, whatever you plug in: a layer never chooses
@@ -321,7 +321,7 @@ for the full guide, the comparison with other Dart packages and benchmarks.
    import 'package:cipherbird/cipherbird.dart';
 
    void main() {
-     final lib = CryptoLib.load();
+     final lib = CipherBird.load();
      lib.init();
      final kp  = lib.hybridKemKeygen();
      final (ct, ss) = lib.hybridKemEncapsulate(kp.publicKey);
@@ -411,11 +411,11 @@ library and extracts it at startup.
    `runtimes/<rid>/native/`.
    ```csharp
    using CryptoLibNet;
-   CryptoLib.Init();
-   Console.WriteLine(CryptoLib.Version());                                 // 3.0.0
-   var (pub, sec) = CryptoLib.HybridKemKeygen();
-   var (ct, ss)   = CryptoLib.HybridKemEncapsulate(pub);
-   var ssDec      = CryptoLib.HybridKemDecapsulate(ct, sec);
+   CipherBird.Init();
+   Console.WriteLine(CipherBird.Version());                                 // 3.0.0
+   var (pub, sec) = CipherBird.HybridKemKeygen();
+   var (ct, ss)   = CipherBird.HybridKemEncapsulate(pub);
+   var ssDec      = CipherBird.HybridKemDecapsulate(ct, sec);
    ```
 3. **Run.** `dotnet run -c Release`.
 

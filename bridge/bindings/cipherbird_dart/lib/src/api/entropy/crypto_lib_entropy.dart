@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Entropy operations.
-extension CryptoLibEntropy on CryptoLib {
+extension CipherBirdEntropy on CipherBird {
   /// Harvest entropy from a file (LavaRand mode).
   Pointer<Void> entropyFromFile(String path) {
     final cp = path.toNativeUtf8();

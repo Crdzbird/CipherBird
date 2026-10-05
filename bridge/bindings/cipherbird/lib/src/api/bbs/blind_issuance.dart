@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsBlindIssuance on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsBlindIssuance on CipherBird {
   /// Commit to [committedMessages] (which the signer never learns). Returns
   /// (commitmentWithProof, secretProverBlind).
   (Uint8List, Uint8List) bbsBlindCommit(List<Uint8List> committedMessages) {

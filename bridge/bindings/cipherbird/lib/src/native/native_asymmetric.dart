@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 final class _NativeAsymmetric {
   _NativeAsymmetric(DynamicLibrary lib)

@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// OPRF (RFC 9497) methods on CryptoLib.
-extension CryptoLibOprfEvaluation on CryptoLib {
+/// OPRF (RFC 9497) methods on CipherBird.
+extension CipherBirdOprfEvaluation on CipherBird {
   /// Server: evaluate a blinded element under the secret key.
   Uint8List oprfBlindEvaluate(Uint8List secretKey, Uint8List blindedElement) {
     final s = _toNative(secretKey), b = _toNative(blindedElement);

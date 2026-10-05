@@ -4,7 +4,7 @@ import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   final aad = Uint8List.fromList('suite/v1'.codeUnits);
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
   bool eq(Uint8List a, Uint8List b) =>

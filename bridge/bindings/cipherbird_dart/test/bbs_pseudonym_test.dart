@@ -1,5 +1,5 @@
 // BBS per-verifier pseudonyms + blind issuance — verified against the host dylib.
-// Run with: CRYPTOLIB_DYLIB=<path-to-libcryptolib_c.dylib> flutter test test/bbs_pseudonym_test.dart
+// Run with: CIPHERBIRD_LIBRARY=<path-to-libcryptolib_c.dylib> flutter test test/bbs_pseudonym_test.dart
 import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:test/test.dart';
@@ -22,7 +22,7 @@ bool _eq(Uint8List a, Uint8List b) =>
     }();
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
 
   final sk = _hx(
     '60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc',

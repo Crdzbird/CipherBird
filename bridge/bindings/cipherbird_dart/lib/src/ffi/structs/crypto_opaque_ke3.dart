@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 final class CryptoOpaqueKe3 extends Struct {
   external CryptoBuffer ke3;

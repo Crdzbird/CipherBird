@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// FROST threshold-signature methods on CryptoLib.
-extension CryptoLibFrostVerifyShare on CryptoLib {
+/// FROST threshold-signature methods on CipherBird.
+extension CipherBirdFrostVerifyShare on CipherBird {
   /// Verify one participant's signature share against its public share.
   bool frostVerifyShare(
     int identifier,

@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Asymmetric operations.
-extension CryptoLibBox on CryptoLib {
+extension CipherBirdBox on CipherBird {
   /// Box encrypt: sender to recipient authenticated encryption.
   Uint8List boxEncrypt(
     Uint8List plaintext,

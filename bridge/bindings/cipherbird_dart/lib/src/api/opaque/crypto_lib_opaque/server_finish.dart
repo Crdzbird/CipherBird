@@ -1,7 +1,7 @@
-part of '../../../cryptolib.dart';
+part of '../../../cipher_bird.dart';
 
-/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CryptoLib.
-extension CryptoLibOpaqueServerFinish on CryptoLib {
+/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CipherBird.
+extension CipherBirdOpaqueServerFinish on CipherBird {
   /// Server login step 2: verify KE3 -> the session key (throws on failure).
   Uint8List opaqueServerFinish(Uint8List serverState, Uint8List ke3) {
     final a = _toNative(serverState), b = _toNative(ke3);

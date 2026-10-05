@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Structural validity + detected format of a media file (`cryptolib_stego_inspect`).
 final class CryptoFileInspection extends Struct {

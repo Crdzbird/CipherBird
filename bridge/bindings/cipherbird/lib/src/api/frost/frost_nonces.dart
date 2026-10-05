@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A participant's secret round-1 nonces (never share these).
 final class FrostNonces {

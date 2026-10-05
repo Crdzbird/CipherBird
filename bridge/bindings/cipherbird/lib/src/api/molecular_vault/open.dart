@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// MolecularVault - maximum-assurance layered encryption.
 ///
@@ -6,7 +6,7 @@ part of '../../cryptolib.dart';
 /// outer layer, keyed by Argon2id(passphrase) or a 32-byte full-entropy master
 /// (e.g. from the hybrid KEM). Composition of vetted primitives only - no new
 /// cryptography. Requires the native library built with OpenSSL.
-extension CryptoLibMolecularOpen on CryptoLib {
+extension CipherBirdMolecularOpen on CipherBird {
   /// Open a passphrase-sealed envelope. A wrong passphrase, wrong [aad], or any
   /// tampering throws (fails closed) rather than returning garbage.
   Uint8List molecularOpen(

@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// SP 800-90B style health assessment of a file's raw entropy.
 ///

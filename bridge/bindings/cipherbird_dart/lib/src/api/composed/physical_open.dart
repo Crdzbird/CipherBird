@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Composed seal/open operations on CryptoLib.
-extension CryptoLibComposedPhysicalOpen on CryptoLib {
+/// Composed seal/open operations on CipherBird.
+extension CipherBirdComposedPhysicalOpen on CipherBird {
   /// Recover a [physicalSeal]ed message. Requires the same key media file and
   /// the same [aad].
   Uint8List physicalOpen({

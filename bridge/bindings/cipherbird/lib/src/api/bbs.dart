@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbs on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbs on CipherBird {
   /// KeyGen from key material (>= 32 B) + optional key info. Throws on failure.
   KeyPairResult bbsKeygen(Uint8List keyMaterial, {Uint8List? keyInfo}) {
     final km = _toNative(keyMaterial);
@@ -20,7 +20,7 @@ extension CryptoLibBbs on CryptoLib {
       );
       if (r.publicKey.isEmpty) {
         throw Exception(
-          'cryptolib: bbs keygen failed (key material must be >= 32 bytes)',
+          'cipherbird: bbs keygen failed (key material must be >= 32 bytes)',
         );
       }
       return r;

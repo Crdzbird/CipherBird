@@ -45,8 +45,8 @@ and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads i
 **own** bundled library by default — no C++ source tree, no build step:
 
 - **npm** — `package.json` `files` includes `prebuilds/`; the loader resolves
-  `prebuilds/<platform>-<arch>/` (CRYPTOLIB_DYLIB overrides for dev).
-- **standalone Dart** — a `.pubignore` keeps `native/` in the package; `CryptoLib.load()`
+  `prebuilds/<platform>-<arch>/` (CIPHERBIRD_LIBRARY overrides for dev).
+- **standalone Dart** — a `.pubignore` keeps `native/` in the package; `CipherBird.load()`
   resolves `native/<os>-<arch>/` automatically.
 - **Go** — build with `-tags cryptolib_vendored` to link the module-internal
   `cryptolib/native/libcryptolib_c.a` (+ header). Because `go get` reads the git
@@ -115,7 +115,7 @@ README).
   xcframework as a release asset and switch the manifest to
   `.binaryTarget(url:checksum:)` (compute with `swift package compute-checksum`).
 - **NuGet (.NET):** `cd bridge/bindings/cryptolib-dotnet && dotnet pack -c Release`
-  then `dotnet nuget push bin/Release/CryptoLib.3.0.0.nupkg -k <API_KEY> -s https://api.nuget.org/v3/index.json`.
+  then `dotnet nuget push bin/Release/CipherBird.3.0.0.nupkg -k <API_KEY> -s https://api.nuget.org/v3/index.json`.
 - **Go:** tag the module (`git tag bridge/bindings/go/v3.0.0`). See note below —
   Go needs the native code available at the consumer's build time.
 
@@ -159,7 +159,7 @@ module must carry what the build needs. Two options:
    import "C"
    ```
    The merged static archives already produced for iOS/macOS
-   (`CryptoLib.xcframework/macos-arm64/libcryptolib_c_merged.a`) are exactly the
+   (`CipherBird.xcframework/macos-arm64/libcryptolib_c_merged.a`) are exactly the
    self-contained inputs this needs; the same must be produced per Go target on CI.
 2. **Require a system install** of `libcryptolib_c` + headers (Homebrew/apt) and
    link via `pkg-config`. Simpler module, heavier consumer setup.

@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// Sealed-messaging methods on CryptoLib (tier 0=Flagship, 1=Fortress).
-extension CryptoLibSealed on CryptoLib {
+/// Sealed-messaging methods on CipherBird (tier 0=Flagship, 1=Fortress).
+extension CipherBirdSealed on CipherBird {
   /// Generate a party's recipient (KEM) + sender (signature) keypairs.
   Identity newIdentity(SealedTier tier) {
     final r = _extractKeyPair(

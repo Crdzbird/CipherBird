@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Envelope encryption with revocable device and passphrase slots.
-extension type KeyringApi(CryptoLib _l) {
+extension type KeyringApi(CipherBird _l) {
   /// New keyring with a fresh random master key.
   Pointer<Void> create() => _l.keyringCreate();
 

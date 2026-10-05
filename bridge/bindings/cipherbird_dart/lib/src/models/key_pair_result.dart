@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// KeyPairResult holds a public/secret key pair.
 final class KeyPairResult {

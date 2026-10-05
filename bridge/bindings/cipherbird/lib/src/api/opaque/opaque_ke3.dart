@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// OPAQUE client login message 3 + the session key + export key.
 final class OpaqueKe3 {

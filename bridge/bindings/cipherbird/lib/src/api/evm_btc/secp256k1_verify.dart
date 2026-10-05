@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// EVM / Bitcoin interop: Keccak-256, RIPEMD-160 and secp256k1 ECDSA.
-extension CryptoLibSecp256k1Verify on CryptoLib {
+extension CipherBirdSecp256k1Verify on CipherBird {
   /// Verify a 64-byte [sig] (r‖s) over a 32-byte [digest]. [publicKey] is 33 or
   /// 65 bytes. Low-S enforced (EIP-2 / BIP-62). Returns true if valid.
   bool secp256k1Verify(Uint8List digest, Uint8List sig, Uint8List publicKey) {

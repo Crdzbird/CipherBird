@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,19 +19,20 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeFec on CryptoRecipe {
+extension CipherBirdRecipeFec on CipherBirdRecipe {
   Uint8List _unwrapFec(Uint8List data) {
     if (data.length < 9) {
       return data;
     }
     for (var i = 0; i < 4; i++) {
-      if (data[i] != CryptoRecipe._fecMagic[i]) {
+      if (data[i] != CipherBirdRecipe._fecMagic[i]) {
         return data;
       }
     }
     final scheme = FecScheme.values.firstWhere(
       (s) => s.value == data[4],
-      orElse: () => throw Exception('cryptolib: unknown FEC scheme ${data[4]}'),
+      orElse: () =>
+          throw Exception('cipherbird: unknown FEC scheme ${data[4]}'),
     );
     final originalLen = ByteData.sublistView(data, 5, 9).getUint32(0);
     return _lib.fecDecode(Uint8List.sublistView(data, 9), scheme, originalLen);
@@ -40,7 +41,7 @@ extension CryptoRecipeFec on CryptoRecipe {
   Uint8List _wrapFec(Uint8List envelope) {
     final encoded = _lib.fecEncode(envelope, _fec);
     final out = BytesBuilder()
-      ..add(CryptoRecipe._fecMagic)
+      ..add(CipherBirdRecipe._fecMagic)
       ..addByte(_fec.value);
     final len = ByteData(4)..setUint32(0, envelope.length);
     out

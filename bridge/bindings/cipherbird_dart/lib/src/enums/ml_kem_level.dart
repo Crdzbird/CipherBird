@@ -1,4 +1,4 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// ML-KEM parameter set (FIPS 203) - post-quantum key encapsulation.
 ///

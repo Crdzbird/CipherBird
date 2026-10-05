@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CryptoLib.
-extension CryptoLibBbsProofGen on CryptoLib {
+/// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256) methods on CipherBird.
+extension CipherBirdBbsProofGen on CipherBird {
   /// Derive a selective-disclosure proof. `messages` is the FULL signed vector;
   /// `disclosedIndexes` (0-based) selects which to reveal.
   Uint8List bbsProofGen(

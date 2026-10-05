@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CryptoLib.
-extension CryptoLibOpaque on CryptoLib {
+/// OPAQUE (draft-irtf-cfrg-opaque, OPAQUE-3DH) methods on CipherBird.
+extension CipherBirdOpaque on CipherBird {
   /// Client registration step 1: blind the password -> {blind, request}.
   OprfBlindResult opaqueRegistrationRequest(Uint8List password) {
     final p = _toNative(password);

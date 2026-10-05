@@ -1,10 +1,10 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Heuristic hidden-data probe (`cryptolib_stego_detect_hidden`). Statistical
 /// indicators only - never proof of absence.
 final class CryptoHiddenDataReport extends Struct {
   @Int32()
-  external int cryptolibPayload;
+  external int cipherbirdPayload;
 
   @Double()
   external double lsbChiSquare;

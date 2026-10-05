@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// BLS12-381 signing, verification and aggregation.
-extension type BlsApi(CryptoLib _l) {
+extension type BlsApi(CipherBird _l) {
   KeyPairResult keygen() => _l.blsKeygen();
 
   Uint8List sign(Uint8List msg, Uint8List secretKey) =>

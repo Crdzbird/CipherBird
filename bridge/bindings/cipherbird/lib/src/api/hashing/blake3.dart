@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Hashing operations.
-extension CryptoLibBlake3 on CryptoLib {
+extension CipherBirdBlake3 on CipherBird {
   /// BLAKE3 keyed MAC. [key] must be exactly 32 bytes. [outLen] defaults to 32.
   Uint8List blake3Keyed(Uint8List msg, Uint8List key, {int outLen = 32}) {
     if (key.length != 32) {

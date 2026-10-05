@@ -4,9 +4,9 @@ import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
-  const inline = CryptoLibInlineRunner();
-  const isolate = CryptoLibIsolateRunner(inlineThreshold: 0);
+  final lib = CipherBird.instance;
+  const inline = CipherBirdInlineRunner();
+  const isolate = CipherBirdIsolateRunner(inlineThreshold: 0);
 
   for (final (name, runner) in [('inline', inline), ('isolate', isolate)]) {
     test('passphrase key derives off-thread with the $name runner', () async {
@@ -44,8 +44,8 @@ void main() {
   test(
     'preload warms through a runner and the lazy path still works',
     () async {
-      expect(await CryptoLib.preload(runner: inline), isTrue);
-      expect(await CryptoLib.preload(), isTrue);
+      expect(await CipherBird.preload(runner: inline), isTrue);
+      expect(await CipherBird.preload(), isTrue);
       expect(lib.version(), isNotEmpty);
     },
   );

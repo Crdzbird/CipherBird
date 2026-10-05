@@ -1,7 +1,7 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Hashes, MACs, password hashing and HKDF.
-extension type HashApi(CryptoLib _l) {
+extension type HashApi(CipherBird _l) {
   /// Incremental BLAKE3; pass a 32-byte [key] for keyed (MAC) mode.
   Blake3Hasher blake3Hasher({Uint8List? key}) => _l.blake3Hasher(key: key);
 

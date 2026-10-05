@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// AsymmetricVault operations.
-extension CryptoLibAsymmetricVaultOpen on CryptoLib {
+extension CipherBirdAsymmetricVaultOpen on CipherBird {
   /// Asymmetric vault open: recipient decrypts and verifies.
   Uint8List asymVaultOpen(
     Packet pkt,

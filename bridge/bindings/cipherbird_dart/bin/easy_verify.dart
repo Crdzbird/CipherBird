@@ -90,7 +90,7 @@ _Matcher contains(Object s) => _Pred((v) => (v as dynamic).contains(s) == true);
 const anything = null;
 
 void main(List<String> args) {
-  final lib = CryptoLib.load(args.isNotEmpty ? args[0] : null)..init();
+  final lib = CipherBird.load(args.isNotEmpty ? args[0] : null)..init();
 
   group('bytes & text sugar', () {
     test('utf8 / hex / base64 round-trip', () {

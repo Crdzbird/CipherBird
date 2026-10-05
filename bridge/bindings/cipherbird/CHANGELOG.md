@@ -2,7 +2,7 @@
 
 First release under the name `cipherbird`. The package was previously
 `cryptolib_flutter` (last version 4.3.0); the API, the bundled binaries and
-the wire formats are unchanged. The Dart entry point stays `CryptoLib`, the
+the wire formats are unchanged. The Dart entry point stays `CipherBird`, the
 name of the native library this package binds.
 
 ## 4.3.0
@@ -15,19 +15,19 @@ Package structure and conventions.
   `else` branches and no inline comments; `test/conventions_test.dart`
   enforces it. Native lookups live in per-domain holders resolved lazily; the
   large extensions are split into named chunks (`CryptoLibBbsProofGen`,
-  `CryptoRecipeSealing`, ...) that the barrel re-exports, so every method is
+  `CipherBirdRecipeSealing`, ...) that the barrel re-exports, so every method is
   still reachable from one import.
-* `CryptoLib.preload()` runs through a `CryptoLibRunner`
-  (`CryptoLibIsolateRunner` by default, `CryptoLibInlineRunner` for tests).
+* `CipherBird.preload()` runs through a `CipherBirdRunner`
+  (`CipherBirdIsolateRunner` by default, `CipherBirdInlineRunner` for tests).
   Await it in `main` before `runApp`.
 * Data classes use `const factory` redirects and `final class`.
-* Documentation and strings use plain ASCII; `CryptoRecipe.describe()` joins
+* Documentation and strings use plain ASCII; `CipherBirdRecipe.describe()` joins
   layers with `->`.
 
 ### Added
 
 * `lib.easy.symmetricKeyFromPassphraseAsync`, `hashPasswordAsync` and
-  `verifyPasswordAsync` run Argon2id on a worker through a `CryptoLibRunner`.
+  `verifyPasswordAsync` run Argon2id on a worker through a `CipherBirdRunner`.
 
 ## 4.2.0
 
@@ -51,12 +51,12 @@ Easy mode: developer-friendly sugar on top of the full API.
 * `lib.easy` — factories for the above plus `hashPassword`/`verifyPassword`
   (Argon2id PHC strings), `randomBytes`/`randomHex`/`token`, `sha256Hex`.
 
-Every easy-mode class takes an optional `CryptoLib` and defaults to
-`CryptoLib.instance`. Composition only — no new cryptography.
+Every easy-mode class takes an optional `CipherBird` and defaults to
+`CipherBird.instance`. Composition only — no new cryptography.
 
 ## 4.1.0
 
-Extensible recipes: mix your own encryption into a `CryptoRecipe`.
+Extensible recipes: mix your own encryption into a `CipherBirdRecipe`.
 
 ### Added
 
@@ -67,10 +67,10 @@ Extensible recipes: mix your own encryption into a `CryptoRecipe`.
 * `CascadeLayer` — a layer that is itself a mixture of layers, so several
   ciphers (built-in or custom) become ONE custom layer; cascades nest.
 * `KeySource` (abstract) with `RawKeySource`, `PassphraseKeySource`,
-  `KeyFileSource`; `CryptoRecipe.withKeySource()` accepts your own (token, KMS,
+  `KeyFileSource`; `CipherBirdRecipe.withKeySource()` accepts your own (token, KMS,
   keyring unlock).
 * `SignatureScheme` (abstract) with `Ed25519Signature`, `HybridSignature`;
-  `CryptoRecipe.signedWith()` / `verifiedWith()` accept your own.
+  `CipherBirdRecipe.signedWith()` / `verifiedWith()` accept your own.
 * Guardrails: ids 0–127 are reserved for the library (custom parts must use
   128–255, enforced); a key source must return exactly 32 bytes; a layer's
   `wireName` feeds its HKDF sub-key; the envelope pins the key-source id and
@@ -145,7 +145,7 @@ because the buffer helpers already free those allocations).
   option at every choice, so a maximal KEM can no longer be paired with an
   interactive-cost KDF by accident.
 
-* **`CryptoRecipe`** composes the library's protections instead of exposing them
+* **`CipherBirdRecipe`** composes the library's protections instead of exposing them
   one call at a time:
 
   ```dart

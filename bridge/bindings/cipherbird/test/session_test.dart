@@ -3,7 +3,7 @@ import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
   test('session ratchet roundtrip + turn + transactional', () {
     final pre = lib.generateSessionPrekey();

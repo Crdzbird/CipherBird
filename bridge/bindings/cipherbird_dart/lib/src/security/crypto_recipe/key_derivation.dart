@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// A composable protection pipeline.
 ///
@@ -19,7 +19,7 @@ part of '../../cryptolib.dart';
 /// Every part is replaceable with your own subclass - see [ProtectionLayer],
 /// [KeySource] and [SignatureScheme]. Builder methods return the same
 /// instance, so calls chain.
-extension CryptoRecipeKeyDerivation on CryptoRecipe {
+extension CipherBirdRecipeKeyDerivation on CipherBirdRecipe {
   /// For [verifiedBy]: build the built-in scheme the envelope names, around the
   /// supplied public key. Custom ids resolve to nothing - they need verifiedWith.
   SignatureScheme? _builtinVerifier(int signatureId) {
@@ -40,7 +40,7 @@ extension CryptoRecipeKeyDerivation on CryptoRecipe {
     final root = source.deriveRoot(_lib, salt, ops, mem);
     if (root.length != 32) {
       throw StateError(
-        'cryptolib: key source "${source.label}" produced ${root.length} bytes; the root key must be exactly 32',
+        'cipherbird: key source "${source.label}" produced ${root.length} bytes; the root key must be exactly 32',
       );
     }
     return root;

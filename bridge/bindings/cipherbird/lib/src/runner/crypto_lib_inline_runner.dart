@@ -1,9 +1,9 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
-/// A [CryptoLibRunner] that runs everything on the current isolate.
-final class CryptoLibInlineRunner implements CryptoLibRunner {
+/// A [CipherBirdRunner] that runs everything on the current isolate.
+final class CipherBirdInlineRunner implements CipherBirdRunner {
   /// Creates the inline runner.
-  const CryptoLibInlineRunner();
+  const CipherBirdInlineRunner();
 
   @override
   Future<R> run<M, R>(

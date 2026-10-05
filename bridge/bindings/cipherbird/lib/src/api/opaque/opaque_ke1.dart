@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// OPAQUE client login message 1 + opaque client state.
 final class OpaqueKe1 {

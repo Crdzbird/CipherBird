@@ -1,6 +1,6 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
-extension CryptoLibSlhDsaVerify on CryptoLib {
+extension CipherBirdSlhDsaVerify on CipherBird {
   bool slhDsaVerify(
     Uint8List msg,
     Uint8List sig,

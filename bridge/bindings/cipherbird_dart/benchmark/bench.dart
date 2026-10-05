@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart' as cg;
 import 'package:pointycastle/export.dart' as pc;
 
-final lib = CryptoLib.instance;
+final lib = CipherBird.instance;
 final rng = Random(7);
 Uint8List bytes(int n) => Uint8List.fromList(List.generate(n, (_) => rng.nextInt(256)));
 final mib = bytes(1 << 20);

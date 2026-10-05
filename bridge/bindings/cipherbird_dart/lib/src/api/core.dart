@@ -1,11 +1,11 @@
-part of '../cryptolib.dart';
+part of '../cipher_bird.dart';
 
 /// Core operations.
-extension CryptoLibCore on CryptoLib {
+extension CipherBirdCore on CipherBird {
   /// Initialise libsodium. Call once at app start.
   void init() {
     if (_core.init() != 0) {
-      throw Exception('cryptolib: init failed');
+      throw Exception('cipherbird: init failed');
     }
   }
 

@@ -1,4 +1,4 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Layered vaults: Vault, asymmetric Vault and MolecularVault.
 extension VaultApiMolecularOpenWithKey on VaultApi {

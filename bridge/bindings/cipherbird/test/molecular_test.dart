@@ -1,5 +1,5 @@
 // MolecularVault plugin API — verified against the host dylib.
-// Run: CRYPTOLIB_DYLIB=/abs/build/release/libcryptolib_c.dylib flutter test test/molecular_test.dart
+// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcryptolib_c.dylib flutter test test/molecular_test.dart
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,7 +7,7 @@ import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final lib = CryptoLib.instance;
+  final lib = CipherBird.instance;
   final aad = Uint8List.fromList(utf8.encode('ctx:v1'));
   Uint8List bytes(String s) => Uint8List.fromList(utf8.encode(s));
 

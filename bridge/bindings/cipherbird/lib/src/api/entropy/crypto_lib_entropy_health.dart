@@ -1,7 +1,7 @@
-part of '../../cryptolib.dart';
+part of '../../cipher_bird.dart';
 
 /// Entropy-source quality assessment.
-extension CryptoLibEntropyHealth on CryptoLib {
+extension CipherBirdEntropyHealth on CipherBird {
   /// Assess the entropy health of [path], reading at most [maxBytes].
   ///
   /// Run this before using a media file as a key source; a low

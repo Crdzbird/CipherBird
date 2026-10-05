@@ -1,4 +1,4 @@
-part of 'cryptolib.dart';
+part of 'cipher_bird.dart';
 
 String toHex(Uint8List bytes) {
   return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
