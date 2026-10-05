@@ -10,6 +10,7 @@ build/
 .swiftpm/
 .build/
 example/build/
+playground/
 example/.dart_tool/
 example/ios/Pods/
 example/macos/Pods/

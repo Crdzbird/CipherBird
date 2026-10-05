@@ -87,6 +87,14 @@ Every class exposes its raw bytes and plugs into the composable recipes
 through `key.asKeySource` and `signer.scheme`, so the full API stays one step
 away.
 
+## Playground app
+
+`playground/` is a small Flutter app that consumes the package the way an app
+would: self-test rows at the top, then buttons to encrypt, corrupt and decrypt
+text with the committing AEAD, sign and verify with the hybrid signature,
+encrypt to a hybrid KEM public key, and hash a passphrase with Argon2id on a
+worker. Run it with `flutter run` from that directory.
+
 ## Full API
 
 All 265 native operations are available on `CryptoLib`, flat and grouped:

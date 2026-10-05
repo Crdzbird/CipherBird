@@ -9,6 +9,7 @@ include: package:very_good_analysis/analysis_options.yaml
 analyzer:
   exclude:
     - example/**
+    - playground/**
     - "**/*.g.dart"
     - build/**
     - android/**
