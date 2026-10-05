@@ -1,0 +1,19 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - benchmark/**
+    - build/**
+
+linter:
+  rules:
+    lines_longer_than_80_chars: false
+    public_member_api_docs: false
+    avoid_private_typedef_functions: false
+    avoid_positional_boolean_parameters: false
+    omit_local_variable_types: false
+    avoid_multiple_declarations_per_line: false
+    cascade_invocations: false
+    sort_constructors_first: false
+    prefer_constructors_over_static_methods: false
+    avoid_returning_this: false

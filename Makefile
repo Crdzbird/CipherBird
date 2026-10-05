@@ -124,7 +124,7 @@ go-sealed: lib
 dart-sealed: lib
 	$(call hdr,Dart Flagship/Fortress sealed messaging)
 	@if command -v dart >/dev/null 2>&1; then \
-		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		cd bridge/bindings/cipherbird_dart && dart pub get >/dev/null 2>&1 && \
 		CRYPTOLIB_DYLIB=$(DYLIB) dart run bin/sealed.dart | tail -2; \
 	else echo "dart not found — skipping"; fi
 
@@ -219,7 +219,7 @@ node-noise: lib
 dart-security: lib
 	$(call hdr,Dart security profiles + recipes + extension points)
 	@if command -v dart >/dev/null 2>&1; then \
-		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		cd bridge/bindings/cipherbird_dart && dart pub get >/dev/null 2>&1 && \
 		dart run bin/security_verify.dart $(DYLIB) | tail -1 && \
 		dart run bin/extensibility_verify.dart $(DYLIB) | tail -1 && \
 		dart run bin/easy_verify.dart $(DYLIB) | tail -1; \
@@ -229,7 +229,7 @@ dart-security: lib
 dart-noise: lib
 	$(call hdr,Dart incremental BLAKE3 + Noise XX)
 	@if command -v dart >/dev/null 2>&1; then \
-		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
+		cd bridge/bindings/cipherbird_dart && dart pub get >/dev/null 2>&1 && \
 		dart run bin/noise_verify.dart $(DYLIB) | tail -3; \
 	else echo "dart not found — skipping"; fi
 
@@ -404,7 +404,7 @@ kotlin: lib
 dart: lib
 	$(call hdr,Dart demo)
 	@if command -v dart >/dev/null 2>&1; then \
-		cd bridge/bindings/dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null) && \
+		cd bridge/bindings/cipherbird_dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null) && \
 		dart run bin/demo.dart $(DYLIB); \
 	else echo "dart not found — skipping"; fi
 
@@ -497,7 +497,7 @@ kotlin-showcase: lib
 dart-showcase: lib
 	$(call hdr,Dart full showcase)
 	@if command -v dart >/dev/null 2>&1; then \
-		cd bridge/bindings/dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null) && \
+		cd bridge/bindings/cipherbird_dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null) && \
 		dart run bin/showcase.dart $(DYLIB) | tail -3; \
 	else echo "dart not found — skipping"; fi
 

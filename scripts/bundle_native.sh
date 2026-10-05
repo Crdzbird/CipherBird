@@ -35,7 +35,7 @@ copy "$B/cryptolib-ruby/lib/cryptolib/native/$OS-$ARCH/libcryptolib_c.$EXT" "$DY
 copy "$B/cryptolib-rust/native/$OS-$ARCH/libcryptolib_c.$EXT"             "$DYLIB"
 copy "$B/cryptolib-jvm/native/$OS-$ARCH/libcryptolib_c.$EXT"              "$DYLIB"
 copy "$B/cryptolib-dotnet/runtimes/$RID/native/libcryptolib_c.$EXT"       "$DYLIB"
-copy "$B/dart/native/$OS-$ARCH/libcryptolib_c.$EXT"                       "$DYLIB"  # standalone Dart
+copy "$B/cipherbird_dart/native/$OS-$ARCH/libcryptolib_c.$EXT"                       "$DYLIB"  # standalone Dart
 
 echo "== vendoring Go static archive + header (self-contained go get) =="
 copy "$B/go/cryptolib/native/libcryptolib_c.a" "$STATIC"

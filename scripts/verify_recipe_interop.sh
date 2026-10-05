@@ -12,7 +12,7 @@ PASS=0; FAIL=0
 
 seal() { # $1 = language, $2 = dir
   case "$1" in
-    dart)  (cd bridge/bindings/dart && dart run bin/recipe_interop.dart seal "$2" "$DY") ;;
+    dart)  (cd bridge/bindings/cipherbird_dart && dart run bin/recipe_interop.dart seal "$2" "$DY") ;;
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop seal "$2") ;;
     node)  (cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js seal "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security seal "$2" ;;
@@ -25,7 +25,7 @@ seal() { # $1 = language, $2 = dir
 }
 open_() {
   case "$1" in
-    dart)  (cd bridge/bindings/dart && dart run bin/recipe_interop.dart open "$2" "$DY") ;;
+    dart)  (cd bridge/bindings/cipherbird_dart && dart run bin/recipe_interop.dart open "$2" "$DY") ;;
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop open "$2") ;;
     node)  (cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js open "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security open "$2" ;;

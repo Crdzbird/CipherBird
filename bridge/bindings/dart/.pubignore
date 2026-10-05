@@ -1,9 +1,0 @@
-# pub uses THIS file (not .gitignore) to decide what to publish. The bundled
-# native library under native/<os>-<arch>/ is .gitignore'd to keep binaries out
-# of git, but it MUST ship in the published package — so it is intentionally NOT
-# excluded here. Populate it before publishing with:  make bundle
-#
-# Exclude only dev cruft:
-.dart_tool/
-build/
-*.log

@@ -1,0 +1,13 @@
+name: cipherbird_benchmark
+description: Throughput comparison of cipherbird_dart against pure-Dart cryptography packages.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  cipherbird_dart:
+    path: ../
+  crypto: ^3.0.6
+  cryptography: ^2.7.0
+  pointycastle: ^3.9.1

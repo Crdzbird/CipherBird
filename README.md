@@ -297,7 +297,14 @@ and out-error handling end-to-end.
 > Replace `<org>` with the actual package coordinate when published. Until
 > publication, use the local paths shown for in-repo evaluation.
 
-### Flutter (Dart + native FFI)
+### Flutter and Dart (cipherbird)
+
+Two pub.dev packages wrap this library for Dart: `cipherbird` for Flutter
+apps (binaries bundled for Android, iOS and macOS) and `cipherbird_dart` for
+servers, CLIs and desktop programs (binary bundled for the host). They are
+generated from one source tree and share the API; see
+[bridge/bindings/cipherbird/README.md](bridge/bindings/cipherbird/README.md)
+for the full guide, the comparison with other Dart packages and benchmarks.
 
 1. **Add the plugin.** In your app's `pubspec.yaml`:
    ```yaml

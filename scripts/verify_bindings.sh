@@ -59,7 +59,7 @@ else sk kotlin; fi
 
 echo "═══ Dart ═══"
 if command -v dart >/dev/null 2>&1; then
-  o="$(cd bridge/bindings/dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null 2>&1); dart run bin/demo.dart "$DY" 2>&1)"
+  o="$(cd bridge/bindings/cipherbird_dart && (dart pub get --offline >/dev/null 2>&1 || dart pub get >/dev/null 2>&1); dart run bin/demo.dart "$DY" 2>&1)"
   chk dart "$o" && ok "dart" || no "dart" "$o"
 else sk dart; fi
 
