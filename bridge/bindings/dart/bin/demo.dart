@@ -14,8 +14,7 @@ String hex(Uint8List b) =>
     b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
 
 void main(List<String> args) {
-  final path =
-      args.isNotEmpty ? args[0] : 'build/release/libcryptolib_c.dylib';
+  final path = args.isNotEmpty ? args[0] : 'build/release/libcryptolib_c.dylib';
 
   final lib = CryptoLib.load(path);
   lib.init();
@@ -55,29 +54,37 @@ void main(List<String> args) {
   final pks = [for (final kp in kps) kp.publicKey];
   final aggOk = lib.blsAggregateVerify(msgs, pks, aggSig);
   // Negative: tamper one message → aggregate must fail.
-  final tampered = [...msgs]..[1] = Uint8List.fromList('block#2 FORGED'.codeUnits);
+  final tampered = [...msgs]..[1] =
+      Uint8List.fromList('block#2 FORGED'.codeUnits);
   final aggReject = !lib.blsAggregateVerify(tampered, pks, aggSig);
   stdout.writeln('bls aggregate(${sigs.length}->1) len=${aggSig.length} '
       'verify=$aggOk reject-tampered=$aggReject');
 
   // Committing AEAD (UtC) — ciphertext binds the key; wrong key must fail.
   final caKey = lib.randomBytes(32);
-  final caCt = lib.committingEncrypt(
-      Uint8List.fromList('commit me'.codeUnits), caKey, Uint8List.fromList('ctx'.codeUnits));
-  final caPt = lib.committingDecrypt(caCt, caKey, Uint8List.fromList('ctx'.codeUnits));
+  final caCt = lib.committingEncrypt(Uint8List.fromList('commit me'.codeUnits),
+      caKey, Uint8List.fromList('ctx'.codeUnits));
+  final caPt =
+      lib.committingDecrypt(caCt, caKey, Uint8List.fromList('ctx'.codeUnits));
   var caReject = false;
   try {
-    lib.committingDecrypt(caCt, lib.randomBytes(32), Uint8List.fromList('ctx'.codeUnits));
-  } catch (_) { caReject = true; }
+    lib.committingDecrypt(
+        caCt, lib.randomBytes(32), Uint8List.fromList('ctx'.codeUnits));
+  } catch (_) {
+    caReject = true;
+  }
   stdout.writeln('committing AEAD: roundtrip="${String.fromCharCodes(caPt)}" '
       'reject-wrong-key=$caReject');
 
   // HKDF-SHA256 + HMAC-SHA256.
   final ikm = lib.randomBytes(32);
   final prk = lib.hkdfExtract(ikm, salt: Uint8List.fromList('salt'.codeUnits));
-  final okm = lib.hkdfExpand(prk, info: Uint8List.fromList('app'.codeUnits), outLen: 42);
+  final okm = lib.hkdfExpand(prk,
+      info: Uint8List.fromList('app'.codeUnits), outLen: 42);
   final okm1 = lib.hkdfDerive(ikm,
-      salt: Uint8List.fromList('salt'.codeUnits), info: Uint8List.fromList('app'.codeUnits), outLen: 42);
+      salt: Uint8List.fromList('salt'.codeUnits),
+      info: Uint8List.fromList('app'.codeUnits),
+      outLen: 42);
   final hkdfConsistent = hex(okm) == hex(okm1); // one-shot == extract+expand
   final macMsg = Uint8List.fromList('mac me'.codeUnits);
   final hmac = lib.hmacSha256(macMsg, ikm);
@@ -91,9 +98,10 @@ void main(List<String> args) {
   final hmsg = Uint8List.fromList('sign me'.codeUnits);
   final hsig = lib.hybridSigSign(hmsg, hsk.secretKey);
   final hsigOk = lib.hybridSigVerify(hmsg, hsig, hsk.publicKey);
-  final hsigReject =
-      !lib.hybridSigVerify(Uint8List.fromList('forged'.codeUnits), hsig, hsk.publicKey);
-  stdout.writeln('hybrid sig: len=${hsig.length} verify=$hsigOk reject=$hsigReject');
+  final hsigReject = !lib.hybridSigVerify(
+      Uint8List.fromList('forged'.codeUnits), hsig, hsk.publicKey);
+  stdout.writeln(
+      'hybrid sig: len=${hsig.length} verify=$hsigOk reject=$hsigReject');
 
   // BLS deterministic keygen — same IKM → same key.
   final blsIkm = lib.randomBytes(32);

@@ -37,18 +37,30 @@ void main() {
 
       final key = lib.aead.symKeygen();
       final pt = Uint8List.fromList('grouped api'.codeUnits);
-      expect(lib.aead.xchacha20Decrypt(lib.aead.xchacha20Encrypt(pt, key), key), pt);
+      expect(
+        lib.aead.xchacha20Decrypt(lib.aead.xchacha20Encrypt(pt, key), key),
+        pt,
+      );
     });
 
     test('pq sub-namespaces round-trip with enum levels', () {
       final kp = lib.pq.mlKem.keygen(MlKemLevel.level768);
-      final (ct, ss) = lib.pq.mlKem.encapsulate(kp.publicKey, MlKemLevel.level768);
-      expect(lib.pq.mlKem.decapsulate(ct, kp.secretKey, MlKemLevel.level768), ss);
+      final (ct, ss) = lib.pq.mlKem.encapsulate(
+        kp.publicKey,
+        MlKemLevel.level768,
+      );
+      expect(
+        lib.pq.mlKem.decapsulate(ct, kp.secretKey, MlKemLevel.level768),
+        ss,
+      );
 
       final sk = lib.pq.mlDsa.keygen(MlDsaLevel.level65);
       final msg = Uint8List.fromList('sign me'.codeUnits);
       final sig = lib.pq.mlDsa.sign(msg, sk.secretKey, MlDsaLevel.level65);
-      expect(lib.pq.mlDsa.verify(msg, sig, sk.publicKey, MlDsaLevel.level65), isTrue);
+      expect(
+        lib.pq.mlDsa.verify(msg, sig, sk.publicKey, MlDsaLevel.level65),
+        isTrue,
+      );
     });
 
     test('enums carry their wire encoding and metadata', () {
@@ -57,7 +69,10 @@ void main() {
       expect(MlKemLevel.level768.nistCategory, 3);
       expect(SlhDsaLevel.fast192.fastVariant, isTrue);
       expect(SlhDsaLevel.small192.fastVariant, isFalse);
-      expect(HpkeMode.authPsk.requiresPsk && HpkeMode.authPsk.requiresSenderKey, isTrue);
+      expect(
+        HpkeMode.authPsk.requiresPsk && HpkeMode.authPsk.requiresSenderKey,
+        isTrue,
+      );
       expect(HpkeMode.base.requiresPsk, isFalse);
       expect(SealedTier.fromSuiteId(2), SealedTier.fortress);
     });
@@ -66,10 +81,20 @@ void main() {
   group('previously unbound features', () {
     test('HMAC-DRBG is deterministic for a given seed and reseeds', () {
       final entropy = Uint8List.fromList(List.filled(48, 7));
-      final a = lib.rng.drbg(entropy, personalization: Uint8List.fromList('ctx'.codeUnits));
-      final b = lib.rng.drbg(entropy, personalization: Uint8List.fromList('ctx'.codeUnits));
+      final a = lib.rng.drbg(
+        entropy,
+        personalization: Uint8List.fromList('ctx'.codeUnits),
+      );
+      final b = lib.rng.drbg(
+        entropy,
+        personalization: Uint8List.fromList('ctx'.codeUnits),
+      );
       try {
-        expect(a.generate(32), b.generate(32), reason: 'same seed → same stream');
+        expect(
+          a.generate(32),
+          b.generate(32),
+          reason: 'same seed -> same stream',
+        );
         a.reseed(Uint8List.fromList(List.filled(48, 9)));
         expect(a.generate(32), isNot(b.generate(32)));
       } finally {
@@ -106,7 +131,10 @@ void main() {
       final encoded = lib.composed.fecEncode(data, FecScheme.repetition3);
       expect(encoded.length, greaterThan(data.length));
       encoded[0] ^= 1; // single-bit error inside a triple
-      expect(lib.composed.fecDecode(encoded, FecScheme.repetition3, data.length), data);
+      expect(
+        lib.composed.fecDecode(encoded, FecScheme.repetition3, data.length),
+        data,
+      );
     });
 
     test('carrier inspection reports true format and detects a payload', () {
@@ -158,13 +186,20 @@ void main() {
       final flat = '${dir.path}/flat.ppm';
       File(noisy).writeAsBytesSync(_noisePpm(128, 128, 0xABCD));
       File(flat).writeAsBytesSync(
-        Uint8List.fromList([...'P6\n128 128\n255\n'.codeUnits, ...List.filled(128 * 128 * 3, 0)]),
+        Uint8List.fromList([
+          ...'P6\n128 128\n255\n'.codeUnits,
+          ...List.filled(128 * 128 * 3, 0),
+        ]),
       );
 
       final good = lib.entropy.assessFileHealth(noisy);
       final bad = lib.entropy.assessFileHealth(flat);
       expect(good.minEntropyPerByte, greaterThan(bad.minEntropyPerByte));
-      expect(bad.healthy, isFalse, reason: 'an all-zero file must fail the health tests');
+      expect(
+        bad.healthy,
+        isFalse,
+        reason: 'an all-zero file must fail the health tests',
+      );
     });
 
     test('physical seal needs both the key media and the carrier', () {
@@ -183,7 +218,10 @@ void main() {
         coverPath: cover,
         outputPath: out,
       );
-      expect(lib.composed.physicalOpen(keyMediaPath: keyMedia, stegoPath: out), secret);
+      expect(
+        lib.composed.physicalOpen(keyMediaPath: keyMedia, stegoPath: out),
+        secret,
+      );
       expect(
         () => lib.composed.physicalOpen(keyMediaPath: decoy, stegoPath: out),
         throwsA(anything),

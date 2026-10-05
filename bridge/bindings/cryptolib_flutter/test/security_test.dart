@@ -27,7 +27,8 @@ void main() {
 
   // Keep Argon2id cheap so the suite stays fast; the cost path itself is
   // covered by asserting the profile's own parameters below.
-  CryptoRecipe cheap(CryptoRecipe r) => r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
+  CryptoRecipe cheap(CryptoRecipe r) =>
+      r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
 
   setUpAll(() => dir = Directory.systemTemp.createTempSync('cl_sec_'));
   tearDownAll(() => dir.deleteSync(recursive: true));
@@ -54,8 +55,11 @@ void main() {
         SecurityProfile.balanced.argon2Memory,
         lessThan(SecurityProfile.maximum.argon2Memory),
       );
-      expect(SecurityProfile.maximum.cascade.last, ProtectionLayer.committing,
-          reason: 'the outermost layer must be key-committing');
+      expect(
+        SecurityProfile.maximum.cascade.last,
+        ProtectionLayer.committing,
+        reason: 'the outermost layer must be key-committing',
+      );
     });
 
     test('maximum cascade uses independent cipher families', () {
@@ -68,7 +72,9 @@ void main() {
 
   group('CryptoRecipe round-trips', () {
     test('maximum profile with a passphrase', () {
-      final r = cheap(lib.maximumSecurity().withPassphrase('correct horse battery staple'));
+      final r = cheap(
+        lib.maximumSecurity().withPassphrase('correct horse battery staple'),
+      );
       expect(r.open(r.seal(secret)), secret);
     });
 
@@ -85,16 +91,19 @@ void main() {
       expect(r.open(r.seal(secret)), secret);
     });
 
-    test('the same key file reopens an envelope from a different recipe object', () {
-      // Regression: the non-deterministic keyFromFile mixes in system entropy,
-      // so it would produce a fresh key per call and never reopen its own
-      // envelope. The key-file source must use the reproducible path.
-      final keyFile = '${dir.path}/shared.ppm';
-      File(keyFile).writeAsBytesSync(_noisePpm(96, 96, 0xA11CE));
-      final sealer = lib.recipe().withKeyFile(keyFile);
-      final opener = lib.recipe().withKeyFile(keyFile);
-      expect(opener.open(sealer.seal(secret)), secret);
-    });
+    test(
+      'the same key file reopens an envelope from a different recipe object',
+      () {
+        // Regression: the non-deterministic keyFromFile mixes in system entropy,
+        // so it would produce a fresh key per call and never reopen its own
+        // envelope. The key-file source must use the reproducible path.
+        final keyFile = '${dir.path}/shared.ppm';
+        File(keyFile).writeAsBytesSync(_noisePpm(96, 96, 0xA11CE));
+        final sealer = lib.recipe().withKeyFile(keyFile);
+        final opener = lib.recipe().withKeyFile(keyFile);
+        expect(opener.open(sealer.seal(secret)), secret);
+      },
+    );
 
     test('a different key file does not open it', () {
       final a = '${dir.path}/ka.ppm';
@@ -117,21 +126,33 @@ void main() {
   group('composition', () {
     test('layers stack in the order given and can be extended', () {
       final key = lib.rng.bytes(32);
-      final one = lib.recipe().withKey(key).withLayers([ProtectionLayer.xchacha20Poly1305]);
-      final three = lib.recipe().withKey(key).withLayers([
+      final one = lib.recipe().withKey(key).withLayers([
         ProtectionLayer.xchacha20Poly1305,
-        ProtectionLayer.aes256Gcm,
-      ]).addLayer(ProtectionLayer.committing);
+      ]);
+      final three = lib
+          .recipe()
+          .withKey(key)
+          .withLayers([
+            ProtectionLayer.xchacha20Poly1305,
+            ProtectionLayer.aes256Gcm,
+          ])
+          .addLayer(ProtectionLayer.committing);
 
       final a = one.seal(secret);
       final b = three.seal(secret);
-      expect(b.length, greaterThan(a.length), reason: 'each layer adds its own overhead');
+      expect(
+        b.length,
+        greaterThan(a.length),
+        reason: 'each layer adds its own overhead',
+      );
       expect(one.open(a), secret);
       expect(three.open(b), secret);
     });
 
     test('a MolecularVault can itself be one layer', () {
-      final r = lib.recipe().withKey(lib.rng.bytes(32)).withLayers([ProtectionLayer.molecular]);
+      final r = lib.recipe().withKey(lib.rng.bytes(32)).withLayers([
+        ProtectionLayer.molecular,
+      ]);
       expect(r.open(r.seal(secret)), secret);
     });
 
@@ -175,7 +196,8 @@ void main() {
       expect(
         () => opener.open(sealer.seal(secret)),
         throwsA(isA<StateError>()),
-        reason: 'silently skipping an available signature check would be worse than failing',
+        reason:
+            'silently skipping an available signature check would be worse than failing',
       );
     });
 
@@ -191,11 +213,16 @@ void main() {
       final cover = '${dir.path}/cover.ppm';
       final out = '${dir.path}/carrier.ppm';
       File(cover).writeAsBytesSync(_noisePpm(256, 256, 0x0FF1CE));
-      final r = cheap(lib.maximumSecurity().withPassphrase('a long passphrase here'));
+      final r = cheap(
+        lib.maximumSecurity().withPassphrase('a long passphrase here'),
+      );
       r.sealIntoCarrier(secret, coverPath: cover, outputPath: out);
       expect(r.openFromCarrier(out), secret);
-      expect(lib.stego.inspect(out).format, MediaFormat.ppmImage,
-          reason: 'the carrier must still be a valid image');
+      expect(
+        lib.stego.inspect(out).format,
+        MediaFormat.ppmImage,
+        reason: 'the carrier must still be a valid image',
+      );
     });
   });
 
@@ -242,7 +269,7 @@ void main() {
   test('describe() states the configuration for review', () {
     final text = cheap(lib.maximumSecurity().withPassphrase('x')).describe();
     expect(text, contains('maximum'));
-    expect(text, contains('xchacha20Poly1305 → aes256Gcm → committing'));
+    expect(text, contains('xchacha20Poly1305 -> aes256Gcm -> committing'));
     expect(text, contains('argon2id'));
   });
 }

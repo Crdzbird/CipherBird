@@ -37,8 +37,7 @@ bool eq(Uint8List a, List<int> b) {
 }
 
 void main(List<String> args) {
-  final path =
-      args.isNotEmpty ? args[0] : 'build/release/libcryptolib_c.dylib';
+  final path = args.isNotEmpty ? args[0] : 'build/release/libcryptolib_c.dylib';
   final lib = CryptoLib.load(path);
   lib.init();
   final dir = Directory.systemTemp.createTempSync('cl_p4_');
@@ -102,7 +101,11 @@ void main(List<String> args) {
   // 4. FEC single-flip correction for all three schemes.
   {
     final data = Uint8List.fromList([0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF]);
-    for (final scheme in [FecScheme.repetition3, FecScheme.repetition5, FecScheme.hamming74]) {
+    for (final scheme in [
+      FecScheme.repetition3,
+      FecScheme.repetition5,
+      FecScheme.hamming74
+    ]) {
       final enc = lib.fecEncode(data, scheme);
       enc[0] ^= 0x40; // one bit flip in the first block
       final dec = lib.fecDecode(enc, scheme, data.length);
@@ -115,7 +118,8 @@ void main(List<String> args) {
     final cover = '${dir.path}/a.ppm', stego = '${dir.path}/as.ppm';
     writeNoisePpm(cover, 128, 128, 0x99);
     final insp = lib.stegoInspect(cover);
-    check(insp.parses && insp.extMatches && insp.width == 128, 'inspect valid PPM');
+    check(insp.parses && insp.extMatches && insp.width == 128,
+        'inspect valid PPM');
 
     final d1 = lib.stegoContentDigest(cover);
     File(cover).writeAsBytesSync([0], mode: FileMode.append);
@@ -131,7 +135,9 @@ void main(List<String> args) {
 
   // 6. ImageFactorSeal (C2)
   {
-    final img = '${dir.path}/ref.ppm', cover = '${dir.path}/ifs_cover.ppm', out = '${dir.path}/ifs_out.ppm';
+    final img = '${dir.path}/ref.ppm',
+        cover = '${dir.path}/ifs_cover.ppm',
+        out = '${dir.path}/ifs_out.ppm';
     writeNoisePpm(img, 64, 64, 0xFEED);
     writeNoisePpm(cover, 256, 256, 0xCAFE);
     final seed = Uint8List.fromList(List.filled(32, 0x42));
@@ -139,9 +145,14 @@ void main(List<String> args) {
     lib.imageFactorSeal(seed, img, msg, Uint8List(0), cover, out);
     final got = lib.imageFactorOpen(seed, img, Uint8List(0), out);
     check(eq(got, msg.toList()), 'ImageFactorSeal round-trip');
-    final other = '${dir.path}/ref2.ppm'; writeNoisePpm(other, 64, 64, 0xBEEF);
+    final other = '${dir.path}/ref2.ppm';
+    writeNoisePpm(other, 64, 64, 0xBEEF);
     var threw = false;
-    try { lib.imageFactorOpen(seed, other, Uint8List(0), out); } catch (_) { threw = true; }
+    try {
+      lib.imageFactorOpen(seed, other, Uint8List(0), out);
+    } catch (_) {
+      threw = true;
+    }
     check(threw, 'ImageFactorSeal wrong-image rejected');
   }
 
@@ -152,27 +163,40 @@ void main(List<String> args) {
     final recip = lib.hpkeKeygen();
     final info = Uint8List.fromList('session'.codeUnits);
     final msg = Uint8List.fromList('one session keys both'.codeUnits);
-    final enc = lib.hpkeStegoSeal(recip.publicKey, msg, Uint8List(0), info, cover, out);
-    final got = lib.hpkeStegoOpen(recip.secretKey, enc, Uint8List(0), info, out);
+    final enc =
+        lib.hpkeStegoSeal(recip.publicKey, msg, Uint8List(0), info, cover, out);
+    final got =
+        lib.hpkeStegoOpen(recip.secretKey, enc, Uint8List(0), info, out);
     check(eq(got, msg.toList()), 'HpkeStegoSeal round-trip');
     final mallory = lib.hpkeKeygen();
     var threw = false;
-    try { lib.hpkeStegoOpen(mallory.secretKey, enc, Uint8List(0), info, out); } catch (_) { threw = true; }
+    try {
+      lib.hpkeStegoOpen(mallory.secretKey, enc, Uint8List(0), info, out);
+    } catch (_) {
+      threw = true;
+    }
     check(threw, 'HpkeStegoSeal wrong-recipient rejected');
   }
 
   // 8. HMAC-DRBG handle (A3)
   {
     final seed = Uint8List.fromList(List.filled(32, 0x01));
-    final d1 = lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
+    final d1 =
+        lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
     final a = d1.generate(64);
     final b = d1.generate(64);
     check(!eq(a, b), 'DRBG successive blocks differ');
-    final d2 = lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
+    final d2 =
+        lib.drbgInstantiate(seed, null, Uint8List.fromList('beacon'.codeUnits));
     check(eq(a, d2.generate(64)), 'DRBG reproducible from same seed');
-    d1.close(); d2.close();
+    d1.close();
+    d2.close();
     var threw = false;
-    try { lib.drbgInstantiate(Uint8List.fromList([1, 2, 3])); } catch (_) { threw = true; }
+    try {
+      lib.drbgInstantiate(Uint8List.fromList([1, 2, 3]));
+    } catch (_) {
+      threw = true;
+    }
     check(threw, 'DRBG short-entropy rejected');
   }
 
@@ -180,7 +204,11 @@ void main(List<String> args) {
   {
     final f = lib.fortunaNew();
     var threw = false;
-    try { f.generate(32); } catch (_) { threw = true; }
+    try {
+      f.generate(32);
+    } catch (_) {
+      threw = true;
+    }
     check(threw, 'Fortuna unseeded generate rejected');
     for (var i = 0; i < 40; i++) {
       f.addEntropy(i & 7, Uint8List.fromList(List.filled(16, i)));
@@ -196,18 +224,23 @@ void main(List<String> args) {
     final good = '${dir.path}/good.ppm';
     writeNoisePpm(good, 128, 128, 0x1357);
     final h = lib.assessFileHealth(good);
-    check(h.minEntropyPerByte > 1.0 && h.rctPassed && h.aptPassed && h.healthy(1.0),
+    check(
+        h.minEntropyPerByte > 1.0 &&
+            h.rctPassed &&
+            h.aptPassed &&
+            h.healthy(1.0),
         'assess_file_health: noise carrier healthy');
     final flat = '${dir.path}/flat.ppm';
-    final body = <int>[...'P6\n64 64\n255\n'.codeUnits, ...List.filled(64 * 64 * 3, 0)];
+    final body = <int>[
+      ...'P6\n64 64\n255\n'.codeUnits,
+      ...List.filled(64 * 64 * 3, 0)
+    ];
     File(flat).writeAsBytesSync(body);
     check(!lib.assessFileHealth(flat).healthy(1.0),
         'assess_file_health: constant carrier flagged');
   }
 
   dir.deleteSync(recursive: true);
-  stdout.writeln(_failures == 0
-      ? 'ALL PASS'
-      : '$_failures FAILURE(S)');
+  stdout.writeln(_failures == 0 ? 'ALL PASS' : '$_failures FAILURE(S)');
   exit(_failures == 0 ? 0 : 1);
 }

@@ -1,3 +1,29 @@
+## 0.5.0
+
+Package structure and conventions.
+
+### Changed
+
+* `lib/src` now follows one declaration per file with a 100-line limit, no
+  `else` branches and no inline comments; `test/conventions_test.dart`
+  enforces it. Native lookups live in per-domain holders resolved lazily; the
+  large extensions are split into named chunks (`CryptoLibBbsProofGen`,
+  `CryptoRecipeSealing`, ...) that the barrel re-exports, so every method is
+  still reachable from one import.
+* `CryptoLib.preload()` runs through a `CryptoLibRunner`
+  (`CryptoLibIsolateRunner` by default, `CryptoLibInlineRunner` for tests).
+  Await it in `main` before `runApp`.
+* Data classes use `const factory` redirects and `final class`.
+* Documentation and strings use plain ASCII; `CryptoRecipe.describe()` joins
+  layers with `->`.
+
+### Added
+
+* `lib.easy.symmetricKeyFromPassphraseAsync`, `hashPasswordAsync` and
+  `verifyPasswordAsync` run Argon2id on a worker through a `CryptoLibRunner`.
+* The shared layers (enums, security, easy, runner) mirror the Flutter
+  package file for file; the facade is split the same way.
+
 ## 0.4.0
 
 Easy mode: developer-friendly sugar on top of the full API.

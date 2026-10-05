@@ -1,17 +1,21 @@
-/// CryptoLib for Dart/Flutter — an idiomatic dart:ffi wrapper around the
+/// CryptoLib for Dart/Flutter - an idiomatic dart:ffi wrapper around the
 /// CryptoLib C ABI (libcryptolib_c).
 ///
 /// The native library is bundled per platform (iOS/macOS via the Swift Package,
 /// Android via jniLibs) and resolved automatically; no path or setup is needed.
 ///
 /// ```dart
-/// // Optional warm-up off the UI isolate (fire-and-forget):
-/// CryptoLib.preload();
-/// // Synchronous API — no await required:
-/// final digest = CryptoLib.instance.sha256(utf8.encode('abc'));
+/// Future<void> main() async {
+///   WidgetsFlutterBinding.ensureInitialized();
+///   await CryptoLib.preload();
+///   runApp(const MyApp());
+/// }
+///
+/// final digest = CryptoLib.instance.sha256('abc'.bytes).hex;
 /// ```
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io' show Platform;
@@ -20,446 +24,319 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
-// Raw FFI layer (structs + native signatures) — kept separate from the API.
-part 'ffi/structs.dart';
-part 'ffi/typedefs.dart';
-// Public result/value types.
-part 'models.dart';
-part 'enums.dart';
-part 'facade.dart';
-part 'security.dart';
-part 'easy.dart';
-// Small encoding helpers.
-part 'utils.dart';
-// High-level API, grouped by domain (extensions on CryptoLib).
-part 'api/core.dart';
-part 'api/hashing.dart';
-part 'api/symmetric.dart';
 part 'api/asymmetric.dart';
-part 'api/vault.dart';
-part 'api/keyring.dart';
-part 'api/post_quantum.dart';
-part 'api/bls.dart';
+part 'api/asymmetric/box.dart';
+part 'api/asymmetric/sealed_box.dart';
 part 'api/asymmetric_vault.dart';
-part 'api/entropy.dart';
-part 'api/steganography.dart';
-part 'api/evm_btc.dart';
-part 'api/molecular_vault.dart';
-part 'api/suite.dart';
-part 'api/sealed.dart';
-part 'api/session.dart';
-part 'api/frost.dart';
-part 'api/hpke.dart';
-part 'api/ecvrf.dart';
+part 'api/asymmetric_vault/open.dart';
 part 'api/bbs.dart';
-part 'api/oprf.dart';
-part 'api/opaque.dart';
-part 'api/rng.dart';
+part 'api/bbs/blind_issuance.dart';
+part 'api/bbs/blind_sign_with_nym.dart';
+part 'api/bbs/commit_with_nym.dart';
+part 'api/bbs/proof_gen.dart';
+part 'api/bbs/proof_gen_with_pseudonym.dart';
+part 'api/bbs/proof_verify.dart';
+part 'api/bbs/proof_verify_with_pseudonym.dart';
+part 'api/bbs/pseudonym_secrets.dart';
+part 'api/bbs/scalars.dart';
+part 'api/bbs/sign.dart';
+part 'api/bbs/verify.dart';
+part 'api/bbs/verify_blind_sign.dart';
+part 'api/bls.dart';
+part 'api/bls/aggregate.dart';
 part 'api/composed.dart';
-part 'api/noise.dart';
+part 'api/composed/hpke_stego_open.dart';
+part 'api/composed/hpke_stego_seal.dart';
+part 'api/composed/image_factor_open.dart';
+part 'api/composed/image_factor_seal.dart';
+part 'api/composed/physical_open.dart';
+part 'api/composed/physical_seal.dart';
+part 'api/core.dart';
+part 'api/ecvrf.dart';
+part 'api/ecvrf/verify.dart';
+part 'api/entropy/crypto_lib_entropy.dart';
+part 'api/entropy/crypto_lib_entropy/derivation.dart';
+part 'api/entropy/crypto_lib_entropy/open_from_file.dart';
+part 'api/entropy/crypto_lib_entropy_health.dart';
+part 'api/entropy/health_report.dart';
+part 'api/evm_btc.dart';
+part 'api/evm_btc/secp256k1_verify.dart';
+part 'api/frost/crypto_lib_frost.dart';
+part 'api/frost/crypto_lib_frost/aggregate.dart';
+part 'api/frost/crypto_lib_frost/commit_with_nonces.dart';
+part 'api/frost/crypto_lib_frost/sign.dart';
+part 'api/frost/crypto_lib_frost/verify.dart';
+part 'api/frost/crypto_lib_frost/verify_share.dart';
+part 'api/frost/frost_commitment.dart';
+part 'api/frost/frost_copy.dart';
+part 'api/frost/frost_key_gen.dart';
+part 'api/frost/frost_nonces.dart';
+part 'api/hashing.dart';
+part 'api/hashing/argon2id.dart';
+part 'api/hashing/blake3.dart';
+part 'api/hashing/hkdf.dart';
+part 'api/hashing/hkdf_derive.dart';
+part 'api/hashing/hmac_sha256.dart';
+part 'api/hpke/crypto_lib_hpke.dart';
+part 'api/hpke/crypto_lib_hpke/handles.dart';
+part 'api/hpke/crypto_lib_hpke/recipient_setup.dart';
+part 'api/hpke/crypto_lib_hpke/sender_setup.dart';
+part 'api/hpke/crypto_lib_hpke/single_shot.dart';
+part 'api/hpke/hpke_context.dart';
+part 'api/hpke/hpke_sender.dart';
+part 'api/keyring.dart';
+part 'api/keyring/management.dart';
+part 'api/molecular_vault.dart';
+part 'api/molecular_vault/open.dart';
+part 'api/molecular_vault/open_with_key.dart';
+part 'api/molecular_vault/seal_with_key.dart';
+part 'api/noise/blake3_hasher.dart';
+part 'api/noise/crypto_lib_noise.dart';
+part 'api/noise/noise_x_x.dart';
+part 'api/noise/noise_x_x/transport.dart';
+part 'api/opaque/crypto_lib_opaque.dart';
+part 'api/opaque/crypto_lib_opaque/client_finish.dart';
+part 'api/opaque/crypto_lib_opaque/client_steps.dart';
+part 'api/opaque/crypto_lib_opaque/server_finish.dart';
+part 'api/opaque/crypto_lib_opaque/server_respond.dart';
+part 'api/opaque/opaque_ke1.dart';
+part 'api/opaque/opaque_ke2.dart';
+part 'api/opaque/opaque_ke3.dart';
+part 'api/opaque/opaque_record.dart';
+part 'api/oprf/crypto_lib_oprf.dart';
+part 'api/oprf/crypto_lib_oprf/evaluation.dart';
+part 'api/oprf/oprf_blind_result.dart';
+part 'api/post_quantum.dart';
+part 'api/post_quantum/hybrid_kem.dart';
+part 'api/post_quantum/hybrid_sig.dart';
+part 'api/post_quantum/ml_dsa.dart';
+part 'api/post_quantum/slh_dsa.dart';
+part 'api/post_quantum/slh_dsa_verify.dart';
+part 'api/post_quantum/sntrup_x25519.dart';
+part 'api/rng/crypto_lib_rng.dart';
+part 'api/rng/drbg.dart';
+part 'api/rng/fortuna.dart';
+part 'api/sealed/crypto_lib_sealed.dart';
+part 'api/sealed/crypto_lib_sealed/open.dart';
+part 'api/sealed/crypto_lib_sealed/opener.dart';
+part 'api/sealed/crypto_lib_sealed/opener_steps.dart';
+part 'api/sealed/crypto_lib_sealed/seal.dart';
+part 'api/sealed/crypto_lib_sealed/sealer.dart';
+part 'api/sealed/crypto_lib_sealed/sealer_finish.dart';
+part 'api/sealed/identity.dart';
+part 'api/sealed/sealed_info.dart';
+part 'api/sealed/sealed_stream_opener.dart';
+part 'api/sealed/sealed_stream_sealer.dart';
+part 'api/sealed/sealed_tier.dart';
+part 'api/session/crypto_lib_session.dart';
+part 'api/session/crypto_lib_session/accept.dart';
+part 'api/session/crypto_lib_session/messaging.dart';
+part 'api/session/session.dart';
+part 'api/steganography/crypto_lib_stego.dart';
+part 'api/steganography/crypto_lib_stego_advanced.dart';
+part 'api/steganography/crypto_lib_stego_advanced/encrypted.dart';
+part 'api/steganography/crypto_lib_stego_advanced/inspection.dart';
+part 'api/steganography/stego_file_inspection.dart';
+part 'api/steganography/stego_hidden_data_report.dart';
+part 'api/suite.dart';
+part 'api/suite/file_call.dart';
+part 'api/suite/keyring.dart';
+part 'api/suite/keyring_factor_call.dart';
+part 'api/suite/keyring_passphrase_call.dart';
+part 'api/suite/open_threshold.dart';
+part 'api/suite/seal_threshold.dart';
+part 'api/suite/three_buffer_call.dart';
+part 'api/suite/two_buffer_call.dart';
+part 'api/symmetric.dart';
+part 'api/symmetric/aes256gcm.dart';
+part 'api/symmetric/committing_decrypt.dart';
+part 'api/symmetric/committing_encrypt.dart';
+part 'api/symmetric/secret_stream.dart';
+part 'api/vault.dart';
+part 'api/vault/management.dart';
+part 'core/library_loader.dart';
+part 'core/marshal_buffers.dart';
+part 'core/marshal_lists.dart';
+part 'core/marshal_structs.dart';
+part 'core/warm_up.dart';
+part 'easy/crypto_byte_list.dart';
+part 'easy/crypto_bytes.dart';
+part 'easy/crypto_lib_easy.dart';
+part 'easy/crypto_text.dart';
+part 'easy/easy_api.dart';
+part 'easy/easy_api/async_api.dart';
+part 'easy/easy_api/workers.dart';
+part 'easy/easy_lib.dart';
+part 'easy/identity_text.dart';
+part 'easy/kem_key_pair.dart';
+part 'easy/kem_key_pair/decryption.dart';
+part 'easy/key_pair_text.dart';
+part 'easy/signing_key.dart';
+part 'easy/symmetric_key.dart';
+part 'easy/symmetric_key/encryption.dart';
+part 'easy/verify_key.dart';
+part 'enums/fec_scheme.dart';
+part 'enums/hpke_aead.dart';
+part 'enums/hpke_kdf.dart';
+part 'enums/hpke_mode.dart';
+part 'enums/kdf_preset.dart';
+part 'enums/media_format.dart';
+part 'enums/ml_dsa_level.dart';
+part 'enums/ml_kem_level.dart';
+part 'enums/slh_dsa_hash.dart';
+part 'enums/slh_dsa_level.dart';
+part 'facade/aead_api.dart';
+part 'facade/asym_api.dart';
+part 'facade/bbs_api.dart';
+part 'facade/bbs_api/pseudonyms.dart';
+part 'facade/bbs_api/scalars.dart';
+part 'facade/bls_api.dart';
+part 'facade/chain_api.dart';
+part 'facade/composed_api.dart';
+part 'facade/composed_api/hpke_stego.dart';
+part 'facade/crypto_lib_namespaces.dart';
+part 'facade/ecvrf_api.dart';
+part 'facade/entropy_api.dart';
+part 'facade/frost_api.dart';
+part 'facade/hash_api.dart';
+part 'facade/hpke_api.dart';
+part 'facade/keyring_api.dart';
+part 'facade/noise_api.dart';
+part 'facade/opaque_api.dart';
+part 'facade/oprf_api.dart';
+part 'facade/pq_api.dart';
+part 'facade/pq_hybrid_kem_api.dart';
+part 'facade/pq_hybrid_sig_api.dart';
+part 'facade/pq_ml_dsa_api.dart';
+part 'facade/pq_ml_kem_api.dart';
+part 'facade/pq_slh_dsa_api.dart';
+part 'facade/pq_sntrup_api.dart';
+part 'facade/rng_api.dart';
+part 'facade/sealed_api.dart';
+part 'facade/session_api.dart';
+part 'facade/stego_api.dart';
+part 'facade/suite_api.dart';
+part 'facade/suite_api/passphrase_and_threshold.dart';
+part 'facade/vault_api.dart';
+part 'facade/vault_api/molecular_open_with_key.dart';
+part 'ffi/structs/crypto_asym_bundle.dart';
+part 'ffi/structs/crypto_buffer.dart';
+part 'ffi/structs/crypto_buffer_result.dart';
+part 'ffi/structs/crypto_derived_keys.dart';
+part 'ffi/structs/crypto_entropy_info.dart';
+part 'ffi/structs/crypto_file_inspection.dart';
+part 'ffi/structs/crypto_frost_commit.dart';
+part 'ffi/structs/crypto_frost_key_gen.dart';
+part 'ffi/structs/crypto_health_report.dart';
+part 'ffi/structs/crypto_hidden_data_report.dart';
+part 'ffi/structs/crypto_kem_encaps_result.dart';
+part 'ffi/structs/crypto_key_pair.dart';
+part 'ffi/structs/crypto_opaque_ke1.dart';
+part 'ffi/structs/crypto_opaque_ke2.dart';
+part 'ffi/structs/crypto_opaque_ke3.dart';
+part 'ffi/structs/crypto_opaque_record.dart';
+part 'ffi/structs/crypto_oprf_blind.dart';
+part 'ffi/structs/crypto_packet.dart';
+part 'ffi/structs/crypto_result.dart';
+part 'ffi/structs/crypto_sealed_info.dart';
+part 'ffi/typedefs/argon2id.dart';
+part 'ffi/typedefs/asymmetric_vault.dart';
+part 'ffi/typedefs/bbs_pseudonym.dart';
+part 'ffi/typedefs/box.dart';
+part 'ffi/typedefs/ed25519.dart';
+part 'ffi/typedefs/entropy.dart';
+part 'ffi/typedefs/entropyconvenience.dart';
+part 'ffi/typedefs/hashing.dart';
+part 'ffi/typedefs/init_and_version.dart';
+part 'ffi/typedefs/memoryfree.dart';
+part 'ffi/typedefs/opaque_server.dart';
+part 'ffi/typedefs/random_andutility.dart';
+part 'ffi/typedefs/sealed_box.dart';
+part 'ffi/typedefs/secret_stream.dart';
+part 'ffi/typedefs/steganography.dart';
+part 'ffi/typedefs/symmetricencryption.dart';
+part 'ffi/typedefs/vault.dart';
+part 'ffi/typedefs/x25519.dart';
+part 'models/asym_bundle_result.dart';
+part 'models/derived_keys_result.dart';
+part 'models/entropy_info_result.dart';
+part 'models/key_pair_result.dart';
+part 'models/packet.dart';
+part 'native/native_asymmetric.dart';
+part 'native/native_core.dart';
+part 'native/native_entropy.dart';
+part 'native/native_hashing.dart';
+part 'native/native_stego.dart';
+part 'native/native_symmetric.dart';
+part 'native/native_vault.dart';
+part 'runner/crypto_lib_inline_runner.dart';
+part 'runner/crypto_lib_isolate_runner.dart';
+part 'runner/crypto_lib_runner.dart';
+part 'security/aes256_gcm_layer.dart';
+part 'security/builtin.dart';
+part 'security/cascade_layer.dart';
+part 'security/committing_layer.dart';
+part 'security/crypto_lib_security.dart';
+part 'security/crypto_recipe.dart';
+part 'security/crypto_recipe/builder.dart';
+part 'security/crypto_recipe/fec.dart';
+part 'security/crypto_recipe/header.dart';
+part 'security/crypto_recipe/key_derivation.dart';
+part 'security/crypto_recipe/opening.dart';
+part 'security/crypto_recipe/sealing.dart';
+part 'security/custom_ids.dart';
+part 'security/ed25519_signature.dart';
+part 'security/hybrid_signature.dart';
+part 'security/key_file_source.dart';
+part 'security/key_source.dart';
+part 'security/molecular_layer.dart';
+part 'security/parsed_header.dart';
+part 'security/passphrase_key_source.dart';
+part 'security/protection_layer.dart';
+part 'security/raw_key_source.dart';
+part 'security/security_profile.dart';
+part 'security/signature_algorithm.dart';
+part 'security/signature_scheme.dart';
+part 'security/x_cha_cha20_layer.dart';
+part 'utils.dart';
 
-class CryptoLib {
-  final DynamicLibrary _lib;
+/// Entry point to the native library. Crypto operations live on the domain
+/// extensions and the grouped views (`lib.hash`, `lib.pq`, `lib.easy`).
+final class CryptoLib {
+  CryptoLib._(this._lib);
 
-  // -- Cached function lookups --
-  late final _InitDart _init;
-  late final _VersionDart _version;
-  late final _RandomBytesDart _randomBytes;
-  late final _SecureEqualDart _secureEqual;
-
-  // Memory free. Struct-level frees (keypair/bundle/packet/...) are intentionally
-  // not bound: _copyBuf frees each CryptoBuffer individually, so calling them
-  // would double-free.
-  late final _BufferFreeDart _bufferFree;
-  late final _StrFreeDart _strFree;
-
-  // Hashing
-  late final _Blake2bDart _blake2b;
-  late final _Sha256Dart _sha256;
-  late final _Sha512Dart _sha512;
-  late final _HmacSha512Dart _hmacSha512;
-  late final _HmacSha512VerifyDart _hmacSha512Verify;
-
-  // Argon2id
-  late final _Argon2idHashStrDart _argon2idHashStr;
-  late final _Argon2idVerifyStrDart _argon2idVerifyStr;
-  late final _Argon2idDeriveDart _argon2idDerive;
-
-  // Symmetric
-  late final _SymKeygenDart _symKeygen;
-  late final _XChaCha20EncDart _xchacha20Enc;
-  late final _XChaCha20DecDart _xchacha20Dec;
-  late final _Aes256GcmEncDart _aes256gcmEnc;
-  late final _Aes256GcmDecDart _aes256gcmDec;
-  late final _Aes256GcmAvailableDart _aes256gcmAvailable;
-
-  // SecretStream
-  late final _StreamEncCreateDart _streamEncCreate;
-  late final _StreamEncHeaderDart _streamEncHeader;
-  late final _StreamEncPushDart _streamEncPush;
-  late final _StreamEncFreeDart _streamEncFree;
-  late final _StreamDecCreateDart _streamDecCreate;
-  late final _StreamDecPullDart _streamDecPull;
-  late final _StreamDecFreeDart _streamDecFree;
-
-  // Ed25519
-  late final _Ed25519KeygenDart _ed25519Keygen;
-  late final _Ed25519KeygenFromSeedDart _ed25519KeygenFromSeed;
-  late final _Ed25519SignDart _ed25519Sign;
-  late final _Ed25519VerifyDart _ed25519Verify;
-
-  // X25519
-  late final _X25519KeygenDart _x25519Keygen;
-  late final _X25519SharedSecretDart _x25519SharedSecret;
-
-  // Box
-  late final _BoxKeygenDart _boxKeygen;
-  late final _BoxEncryptDart _boxEncrypt;
-  late final _BoxDecryptDart _boxDecrypt;
-
-  // SealedBox
-  late final _SealedBoxEncryptDart _sealedboxEncrypt;
-  late final _SealedBoxDecryptDart _sealedboxDecrypt;
-
-  // Vault
-  late final _VaultCreateDart _vaultCreate;
-  late final _VaultFromEntropyDart _vaultFromEntropy;
-  late final _VaultSealDart _vaultSeal;
-  late final _VaultSealBoostedDart _vaultSealBoosted;
-  late final _VaultOpenDart _vaultOpen;
-  late final _VaultOpenBoostedDart _vaultOpenBoosted;
-  late final _VaultPublicKeyDart _vaultPublicKey;
-  late final _PacketSerialiseDart _packetSerialise;
-  late final _PacketDeserialiseDart _packetDeserialise;
-  late final _VaultFreeDart _vaultFree;
-
-  // Asymmetric vault
-  late final _AsymBundleGenerateDart _asymBundleGenerate;
-  late final _AsymVaultSealDart _asymVaultSeal;
-  late final _AsymVaultOpenDart _asymVaultOpen;
-
-  // Entropy
-  late final _EntropyFromFileDart _entropyFromFile;
-  late final _EntropyFromFileDart _entropyFromFileDet;
-  late final _EntropyFromFilesDart _entropyFromFiles;
-  late final _EntropyFromFilesDart _entropyFromFilesDet;
-  late final _EntropyDeriveAllDart _entropyDeriveAll;
-  late final _EntropySymKeyDart _entropySymKey;
-  late final _EntropyRawDart _entropyRaw;
-  late final _EntropyBoostDart _entropyBoost;
-  late final _EntropyInfoDart _entropyInfo;
-  late final _EntropyAsymBundleDart _entropyAsymBundle;
-  late final _EntropyRefreshDart _entropyRefresh;
-  late final _EntropyFreeDart _entropyFree;
-
-  // Entropy convenience
-  late final _KeyFromFileDart _keyFromFile;
-  late final _SealFromFileDart _sealFromFile;
-  late final _OpenFromFileDart _openFromFile;
-
-  // Steganography
-  late final _StegoEmbedDart _stegoEmbed;
-  late final _StegoExtractDart _stegoExtract;
-  late final _StegoCapacityDart _stegoCapacity;
-
-  CryptoLib._(this._lib) {
-    // Init & version
-    _init = _lib.lookupFunction<_InitC, _InitDart>('cryptolib_init');
-    _version = _lib.lookupFunction<_VersionC, _VersionDart>('cryptolib_version');
-    _randomBytes = _lib.lookupFunction<_RandomBytesC, _RandomBytesDart>('cryptolib_random_bytes');
-    _secureEqual = _lib.lookupFunction<_SecureEqualC, _SecureEqualDart>('cryptolib_secure_equal');
-
-    // Memory free
-    _bufferFree = _lib.lookupFunction<_BufferFreeC, _BufferFreeDart>('cryptolib_buffer_free');
-    _strFree = _lib.lookupFunction<_StrFreeC, _StrFreeDart>('cryptolib_str_free');
-
-    // Hashing
-    _blake2b = _lib.lookupFunction<_Blake2bC, _Blake2bDart>('cryptolib_blake2b');
-    _sha256 = _lib.lookupFunction<_Sha256C, _Sha256Dart>('cryptolib_sha256');
-    _sha512 = _lib.lookupFunction<_Sha512C, _Sha512Dart>('cryptolib_sha512');
-    _hmacSha512 = _lib.lookupFunction<_HmacSha512C, _HmacSha512Dart>('cryptolib_hmac_sha512');
-    _hmacSha512Verify = _lib.lookupFunction<_HmacSha512VerifyC, _HmacSha512VerifyDart>('cryptolib_hmac_sha512_verify');
-
-    // Argon2id
-    _argon2idHashStr = _lib.lookupFunction<_Argon2idHashStrC, _Argon2idHashStrDart>('cryptolib_argon2id_hash_str');
-    _argon2idVerifyStr = _lib.lookupFunction<_Argon2idVerifyStrC, _Argon2idVerifyStrDart>('cryptolib_argon2id_verify_str');
-    _argon2idDerive = _lib.lookupFunction<_Argon2idDeriveC, _Argon2idDeriveDart>('cryptolib_argon2id_derive');
-
-    // Symmetric
-    _symKeygen = _lib.lookupFunction<_SymKeygenC, _SymKeygenDart>('cryptolib_sym_keygen');
-    _xchacha20Enc = _lib.lookupFunction<_XChaCha20EncC, _XChaCha20EncDart>('cryptolib_xchacha20_encrypt');
-    _xchacha20Dec = _lib.lookupFunction<_XChaCha20DecC, _XChaCha20DecDart>('cryptolib_xchacha20_decrypt');
-    _aes256gcmEnc = _lib.lookupFunction<_Aes256GcmEncC, _Aes256GcmEncDart>('cryptolib_aes256gcm_encrypt');
-    _aes256gcmDec = _lib.lookupFunction<_Aes256GcmDecC, _Aes256GcmDecDart>('cryptolib_aes256gcm_decrypt');
-    _aes256gcmAvailable = _lib.lookupFunction<_Aes256GcmAvailableC, _Aes256GcmAvailableDart>('cryptolib_aes256gcm_available');
-
-    // SecretStream
-    _streamEncCreate = _lib.lookupFunction<_StreamEncCreateC, _StreamEncCreateDart>('cryptolib_stream_enc_create');
-    _streamEncHeader = _lib.lookupFunction<_StreamEncHeaderC, _StreamEncHeaderDart>('cryptolib_stream_enc_header');
-    _streamEncPush = _lib.lookupFunction<_StreamEncPushC, _StreamEncPushDart>('cryptolib_stream_enc_push');
-    _streamEncFree = _lib.lookupFunction<_StreamEncFreeC, _StreamEncFreeDart>('cryptolib_stream_enc_free');
-    _streamDecCreate = _lib.lookupFunction<_StreamDecCreateC, _StreamDecCreateDart>('cryptolib_stream_dec_create');
-    _streamDecPull = _lib.lookupFunction<_StreamDecPullC, _StreamDecPullDart>('cryptolib_stream_dec_pull');
-    _streamDecFree = _lib.lookupFunction<_StreamDecFreeC, _StreamDecFreeDart>('cryptolib_stream_dec_free');
-
-    // Ed25519
-    _ed25519Keygen = _lib.lookupFunction<_Ed25519KeygenC, _Ed25519KeygenDart>('cryptolib_ed25519_keygen');
-    _ed25519KeygenFromSeed = _lib.lookupFunction<_Ed25519KeygenFromSeedC, _Ed25519KeygenFromSeedDart>('cryptolib_ed25519_keygen_from_seed');
-    _ed25519Sign = _lib.lookupFunction<_Ed25519SignC, _Ed25519SignDart>('cryptolib_ed25519_sign');
-    _ed25519Verify = _lib.lookupFunction<_Ed25519VerifyC, _Ed25519VerifyDart>('cryptolib_ed25519_verify');
-
-    // X25519
-    _x25519Keygen = _lib.lookupFunction<_X25519KeygenC, _X25519KeygenDart>('cryptolib_x25519_keygen');
-    _x25519SharedSecret = _lib.lookupFunction<_X25519SharedSecretC, _X25519SharedSecretDart>('cryptolib_x25519_shared_secret');
-
-    // Box
-    _boxKeygen = _lib.lookupFunction<_BoxKeygenC, _BoxKeygenDart>('cryptolib_box_keygen');
-    _boxEncrypt = _lib.lookupFunction<_BoxEncryptC, _BoxEncryptDart>('cryptolib_box_encrypt');
-    _boxDecrypt = _lib.lookupFunction<_BoxDecryptC, _BoxDecryptDart>('cryptolib_box_decrypt');
-
-    // SealedBox
-    _sealedboxEncrypt = _lib.lookupFunction<_SealedBoxEncryptC, _SealedBoxEncryptDart>('cryptolib_sealedbox_encrypt');
-    _sealedboxDecrypt = _lib.lookupFunction<_SealedBoxDecryptC, _SealedBoxDecryptDart>('cryptolib_sealedbox_decrypt');
-
-    // Vault
-    _vaultCreate = _lib.lookupFunction<_VaultCreateC, _VaultCreateDart>('cryptolib_vault_create');
-    _vaultFromEntropy = _lib.lookupFunction<_VaultFromEntropyC, _VaultFromEntropyDart>('cryptolib_vault_from_entropy');
-    _vaultSeal = _lib.lookupFunction<_VaultSealC, _VaultSealDart>('cryptolib_vault_seal');
-    _vaultSealBoosted = _lib.lookupFunction<_VaultSealBoostedC, _VaultSealBoostedDart>('cryptolib_vault_seal_boosted');
-    _vaultOpen = _lib.lookupFunction<_VaultOpenC, _VaultOpenDart>('cryptolib_vault_open');
-    _vaultOpenBoosted = _lib.lookupFunction<_VaultOpenBoostedC, _VaultOpenBoostedDart>('cryptolib_vault_open_boosted');
-    _vaultPublicKey = _lib.lookupFunction<_VaultPublicKeyC, _VaultPublicKeyDart>('cryptolib_vault_public_key');
-    _packetSerialise = _lib.lookupFunction<_PacketSerialiseC, _PacketSerialiseDart>('cryptolib_packet_serialise');
-    _packetDeserialise = _lib.lookupFunction<_PacketDeserialiseC, _PacketDeserialiseDart>('cryptolib_packet_deserialise');
-    _vaultFree = _lib.lookupFunction<_VaultFreeC, _VaultFreeDart>('cryptolib_vault_free');
-
-    // Asymmetric vault
-    _asymBundleGenerate = _lib.lookupFunction<_AsymBundleGenerateC, _AsymBundleGenerateDart>('cryptolib_asym_bundle_generate');
-    _asymVaultSeal = _lib.lookupFunction<_AsymVaultSealC, _AsymVaultSealDart>('cryptolib_asym_vault_seal');
-    _asymVaultOpen = _lib.lookupFunction<_AsymVaultOpenC, _AsymVaultOpenDart>('cryptolib_asym_vault_open');
-
-    // Entropy
-    _entropyFromFile = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cryptolib_entropy_from_file');
-    _entropyFromFileDet = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cryptolib_entropy_from_file_deterministic');
-    _entropyFromFiles = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cryptolib_entropy_from_files');
-    _entropyFromFilesDet = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cryptolib_entropy_from_files_deterministic');
-    _entropyDeriveAll = _lib.lookupFunction<_EntropyDeriveAllC, _EntropyDeriveAllDart>('cryptolib_entropy_derive_all');
-    _entropySymKey = _lib.lookupFunction<_EntropySymKeyC, _EntropySymKeyDart>('cryptolib_entropy_symmetric_key');
-    _entropyRaw = _lib.lookupFunction<_EntropyRawC, _EntropyRawDart>('cryptolib_entropy_raw');
-    _entropyBoost = _lib.lookupFunction<_EntropyBoostC, _EntropyBoostDart>('cryptolib_entropy_boost');
-    _entropyInfo = _lib.lookupFunction<_EntropyInfoC, _EntropyInfoDart>('cryptolib_entropy_info');
-    _entropyAsymBundle = _lib.lookupFunction<_EntropyAsymBundleC, _EntropyAsymBundleDart>('cryptolib_entropy_asym_bundle');
-    _entropyRefresh = _lib.lookupFunction<_EntropyRefreshC, _EntropyRefreshDart>('cryptolib_entropy_refresh');
-    _entropyFree = _lib.lookupFunction<_EntropyFreeC, _EntropyFreeDart>('cryptolib_entropy_free');
-
-    // Entropy convenience
-    _keyFromFile = _lib.lookupFunction<_KeyFromFileC, _KeyFromFileDart>('cryptolib_key_from_file');
-    _sealFromFile = _lib.lookupFunction<_SealFromFileC, _SealFromFileDart>('cryptolib_seal_from_file');
-    _openFromFile = _lib.lookupFunction<_OpenFromFileC, _OpenFromFileDart>('cryptolib_open_from_file');
-
-    // Steganography
-    _stegoEmbed = _lib.lookupFunction<_StegoEmbedC, _StegoEmbedDart>('cryptolib_stego_embed');
-    _stegoExtract = _lib.lookupFunction<_StegoExtractC, _StegoExtractDart>('cryptolib_stego_extract');
-    _stegoCapacity = _lib.lookupFunction<_StegoCapacityC, _StegoCapacityDart>('cryptolib_stego_capacity');
-  }
-
-  /// Load the native library.
-  ///
-  /// Pass an explicit [path] to dlopen a specific file (desktop development).
-  /// With no path, the platform default is used:
-  ///   • iOS     → process image (static archive from the embedded
-  ///               CryptoLib.xcframework is linked into the app binary)
-  ///   • Android → libcryptolib_c.so (bundled in the per-ABI jniLibs folder)
-  ///   • macOS   → libcryptolib_c.dylib (on the loader path)
-  ///   • Linux   → libcryptolib_c.so
-  factory CryptoLib.load([String? path]) {
-    final resolved = (path != null && path.isNotEmpty)
-        ? path
-        // Dev/test override: point at any libcryptolib_c on disk.
-        : Platform.environment['CRYPTOLIB_DYLIB'];
-    final DynamicLibrary lib;
-    if (resolved != null && resolved.isNotEmpty) {
-      lib = DynamicLibrary.open(resolved);
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      // iOS & macOS: the native library ships as an embedded dynamic framework
-      // (CryptoLibC) via the plugin's Swift Package; its symbols are loaded
-      // into the process at launch, so resolve them from the process itself.
-      lib = DynamicLibrary.process();
-    } else if (Platform.isAndroid || Platform.isLinux) {
-      lib = DynamicLibrary.open('libcryptolib_c.so');
-    } else {
-      lib = DynamicLibrary.process();
-    }
-    return CryptoLib._(lib);
-  }
-
-  // ── Preload + lazy synchronous singleton ───────────────────────────────────
-  //
-  // The native library is loaded and initialized lazily on first use of
-  // [instance] — fully synchronous, so crypto calls never require `await`.
-  // [preload] is an OPTIONAL warm-up that does the one-time heavy work (mapping
-  // the shared library + libsodium init) on a background isolate, so the first
-  // call on the UI isolate is effectively free. Calling preload is not
-  // required, and the API works identically whether or not you call it.
+  /// Opens the native library: an explicit [path], else `CRYPTOLIB_DYLIB`,
+  /// else the platform default (process image on Apple platforms, the bundled
+  /// `libcryptolib_c.so` on Android and Linux).
+  factory CryptoLib.load([String? path]) => CryptoLib._(_openLibrary(path));
 
   static CryptoLib? _singleton;
   static bool _initialized = false;
 
-  /// Process-wide instance. On first access the native library is opened and
-  /// initialized **synchronously** (no `await`). If [preload] ran first, the OS
-  /// has already mapped the library and libsodium is already initialized, so
-  /// this is effectively instantaneous.
+  /// Process-wide instance, opened and initialised synchronously on first use.
   static CryptoLib get instance {
-    final s = _singleton ??= CryptoLib.load();
-    if (!_initialized) {
-      s.init(); // cryptolib_init is idempotent → safe even if preload ran it.
-      _initialized = true;
+    final lib = _singleton ??= CryptoLib.load();
+    if (_initialized) {
+      return lib;
     }
-    return s;
+    lib.init();
+    _initialized = true;
+    return lib;
   }
 
-  /// Optionally warm the native library off the UI isolate.
-  ///
-  /// Spawns a short-lived background isolate that opens the shared library
-  /// (mapping it into the process / OS loader cache) and runs the one-time
-  /// libsodium initialization. Because dlopen mapping and libsodium init are
-  /// process-global, this warms the path for the main isolate's later
-  /// synchronous [instance] access.
-  ///
-  /// Call it once near app start (e.g. in `main()`); the returned Future is
-  /// fire-and-forget — you may ignore it or `await` it, but the crypto API
-  /// ([instance]) never requires awaiting it. Safe to call multiple times and
-  /// safe to never call.
-  ///
-  /// Returns true if the warm-up completed, false if it failed (in which case
-  /// the lazy synchronous path still works on first real use).
-  static Future<bool> preload() async {
-    try {
-      return await Isolate.run<bool>(() {
-        // Fresh isolate. DynamicLibrary handles are per-isolate, but the dlopen
-        // mapping and libsodium init they trigger are process-global.
-        final warm = CryptoLib.load();
-        warm.init();
-        // Touch a trivial symbol so lazy lookups resolve here too.
-        warm.version();
-        return true;
-      });
-    } on Object catch (_) {
-      return false;
-    }
-  }
+  /// Warms the native library on a worker so the first [instance] access on
+  /// the UI isolate is instantaneous. Await it before `runApp`. Returns false
+  /// if the warm-up failed; the lazy path still works in that case.
+  static Future<bool> preload({
+    CryptoLibRunner runner = const CryptoLibIsolateRunner(),
+  }) => _warmUp(runner);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  Uint8List _copyBuf(CryptoBuffer buf) {
-    if (buf.data == nullptr || buf.len == 0) return Uint8List(0);
-    final out = Uint8List(buf.len);
-    out.setAll(0, buf.data.asTypedList(buf.len));
-    final ptr = calloc<CryptoBuffer>();
-    ptr.ref.data = buf.data;
-    ptr.ref.len = buf.len;
-    _bufferFree(ptr);
-    calloc.free(ptr);
-    return out;
-  }
-
-  Uint8List _checkBufResult(CryptoBufferResult r) {
-    if (r.error != nullptr) {
-      final msg = r.error.toDartString();
-      _strFree(r.error);
-      throw Exception(msg);
-    }
-    return _copyBuf(r.buf);
-  }
-
-  void _checkResult(CryptoResult r) {
-    if (r.ok != 1) {
-      final msg = r.error != nullptr ? r.error.toDartString() : 'Unknown error';
-      if (r.error != nullptr) _strFree(r.error);
-      throw Exception(msg);
-    }
-    if (r.error != nullptr) _strFree(r.error);
-  }
-
-  Pointer<Uint8> _toNative(Uint8List data) {
-    if (data.isEmpty) return nullptr;
-    final ptr = calloc<Uint8>(data.length);
-    ptr.asTypedList(data.length).setAll(0, data);
-    return ptr;
-  }
-
-  Packet _extractPacket(CryptoPacket cp, Pointer<Pointer<Utf8>> errPtr) {
-    if (errPtr.value != nullptr) {
-      final msg = errPtr.value.toDartString();
-      _strFree(errPtr.value);
-      throw Exception(msg);
-    }
-    return Packet(
-      ciphertext: _copyBuf(cp.ciphertext),
-      signature: _copyBuf(cp.signature),
-      kdfSalt: _copyBuf(cp.kdfSalt),
-    );
-  }
-
-  Pointer<CryptoPacket> _packetToNative(Packet pkt) {
-    final cpkt = calloc<CryptoPacket>();
-    final ct = _toNative(pkt.ciphertext);
-    final sig = _toNative(pkt.signature);
-    final salt = _toNative(pkt.kdfSalt);
-    cpkt.ref.ciphertext.data = ct;
-    cpkt.ref.ciphertext.len = pkt.ciphertext.length;
-    cpkt.ref.signature.data = sig;
-    cpkt.ref.signature.len = pkt.signature.length;
-    cpkt.ref.kdfSalt.data = salt;
-    cpkt.ref.kdfSalt.len = pkt.kdfSalt.length;
-    return cpkt;
-  }
-
-  void _freePacketNative(Pointer<CryptoPacket> cpkt) {
-    if (cpkt.ref.ciphertext.data != nullptr) calloc.free(cpkt.ref.ciphertext.data);
-    if (cpkt.ref.signature.data != nullptr) calloc.free(cpkt.ref.signature.data);
-    if (cpkt.ref.kdfSalt.data != nullptr) calloc.free(cpkt.ref.kdfSalt.data);
-    calloc.free(cpkt);
-  }
-
-  KeyPairResult _extractKeyPair(CryptoKeyPair kp) {
-    return KeyPairResult(
-      publicKey: _copyBuf(kp.publicKey),
-      secretKey: _copyBuf(kp.secretKey),
-    );
-  }
-
-  AsymBundleResult _extractBundle(CryptoAsymBundle ab) {
-    return AsymBundleResult(
-      boxPublic: _copyBuf(ab.boxPublic),
-      boxSecret: _copyBuf(ab.boxSecret),
-      signPublic: _copyBuf(ab.signPublic),
-      signSecret: _copyBuf(ab.signSecret),
-    );
-  }
-
-  /// Marshal a list of byte buffers into the C `const uint8_t* const*` +
-  /// `const size_t*` array pair. Release both (and the element buffers) with
-  /// [_freeNativeList].
-  (Pointer<Pointer<Uint8>>, Pointer<Size>) _toNativeList(List<Uint8List> items) {
-    final n = items.length;
-    final ptrs = calloc<Pointer<Uint8>>(n);
-    final lens = calloc<Size>(n);
-    for (var i = 0; i < n; i++) {
-      final b = items[i];
-      final p = calloc<Uint8>(b.isEmpty ? 1 : b.length);
-      if (b.isNotEmpty) p.asTypedList(b.length).setAll(0, b);
-      ptrs[i] = p;
-      lens[i] = b.length;
-    }
-    return (ptrs, lens);
-  }
-
-  void _freeNativeList(Pointer<Pointer<Uint8>> ptrs, Pointer<Size> lens, int n) {
-    for (var i = 0; i < n; i++) {
-      if (ptrs[i] != nullptr) calloc.free(ptrs[i]);
-    }
-    calloc.free(ptrs);
-    calloc.free(lens);
-  }
+  final DynamicLibrary _lib;
+  late final _NativeCore _core = _NativeCore(_lib);
+  late final _NativeHashing _hashing = _NativeHashing(_lib);
+  late final _NativeSymmetric _symmetric = _NativeSymmetric(_lib);
+  late final _NativeAsymmetric _asymmetric = _NativeAsymmetric(_lib);
+  late final _NativeVault _vault = _NativeVault(_lib);
+  late final _NativeEntropy _entropy = _NativeEntropy(_lib);
+  late final _NativeStego _stego = _NativeStego(_lib);
 }

@@ -9,10 +9,23 @@ void main() {
     test('sealed roundtrip + streaming ${tier.name}', () {
       final alice = lib.newIdentity(tier), bob = lib.newIdentity(tier);
       final aad = B('ctx'), purpose = B('note');
-      final env = bob.seal(B('meet at dawn'), alice.recipientPublic, aad: aad, purpose: purpose);
-      expect(String.fromCharCodes(alice.open(env, bob.senderPublic, aad: aad, purpose: purpose)), 'meet at dawn');
+      final env = bob.seal(
+        B('meet at dawn'),
+        alice.recipientPublic,
+        aad: aad,
+        purpose: purpose,
+      );
+      expect(
+        String.fromCharCodes(
+          alice.open(env, bob.senderPublic, aad: aad, purpose: purpose),
+        ),
+        'meet at dawn',
+      );
       final mal = lib.newIdentity(tier);
-      expect(() => alice.open(env, mal.senderPublic, aad: aad, purpose: purpose), throwsException);
+      expect(
+        () => alice.open(env, mal.senderPublic, aad: aad, purpose: purpose),
+        throwsException,
+      );
       final info = lib.sealedInspect(env)!;
       expect(info.suite, tier);
       expect(lib.sealedAddressedTo(env, alice.recipientPublic), true);
@@ -27,7 +40,10 @@ void main() {
       final (p1, fin1) = op.pull(cf);
       op.finalize(trailer);
       op.close();
-      expect(String.fromCharCodes(p0) + String.fromCharCodes(p1), 'hello world');
+      expect(
+        String.fromCharCodes(p0) + String.fromCharCodes(p1),
+        'hello world',
+      );
       expect(fin0, false);
       expect(fin1, true);
     });

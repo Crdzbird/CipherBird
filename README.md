@@ -1,11 +1,11 @@
 # CryptoLib
 
 > A C++20 cryptography library covering classical, post-quantum, hybrid, and
-> blockchain primitives behind a single C ABI — usable from Flutter, Go, Node,
+> blockchain primitives behind a single C ABI, usable from Flutter, Go, Node,
 > Next.js/React, JVM, Swift, and .NET via auto-loading language packages.
 
 Single include on the C++ side. Language packages bundle the native binary and
-load it automatically — no manual path, no manual setup. Built on vetted
+load it automatically, no manual path, no manual setup. Built on vetted
 upstreams (libsodium, liboqs, blst, OpenSSL libcrypto, BLAKE3, libsecp256k1) and
 wrapped in misuse-resistant high-level constructions (Vault, **MolecularVault**,
 Keyring, hybrid KEM/signatures, committing AEAD, Noise XX). Every binding wraps
@@ -27,17 +27,17 @@ in another.
 | **AEAD (hardened)** | Key/context **committing** AEAD (closes Invisible-Salamanders / partitioning-oracle), **nonce-misuse-resistant** AEAD | UtC CommittingAead (HKDF + XChaCha20-Poly1305), AES-256-GCM-SIV (RFC 8452) |
 | **Asymmetric** | Key exchange, signing, sealed/hybrid boxes | X25519, Ed25519, Box, SealedBox, HybridBox |
 | **Post-quantum** | NIST FIPS 203/204/205 | ML-KEM (512/768/1024), ML-DSA (44/65/87), SLH-DSA (128/192/256, SHA2 + SHAKE) |
-| **Hybrid PQC** | Classical + post-quantum, secure if EITHER survives | X25519 + ML-KEM-768 (KEM) · **X25519 + sntrup761** (NTRU-Prime KEM, a second lattice family) · Ed25519 + ML-DSA-65 (signatures) |
-| **Triple hybrid** | No single cryptanalytic point of failure across three families | **TripleHybridKem** (X25519 + ML-KEM-768 + sntrup761) · **TripleSig** (Ed25519 + ML-DSA-65 + SLH-DSA, adds hash-based) |
-| **Sealed messaging** | One-call authenticated PQ messaging, recipient-bound, streaming | **Flagship** (sntrup761 hybrid + hybrid sig) · **Fortress** (triple KEM + triple sig) — see below |
-| **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`) — vector-validated byte-exact vs `noise-c` |
+| **Hybrid PQC** | Classical + post-quantum, secure if EITHER survives | X25519 + ML-KEM-768 (KEM), **X25519 + sntrup761** (NTRU-Prime KEM, a second lattice family), Ed25519 + ML-DSA-65 (signatures) |
+| **Triple hybrid** | No single cryptanalytic point of failure across three families | **TripleHybridKem** (X25519 + ML-KEM-768 + sntrup761), **TripleSig** (Ed25519 + ML-DSA-65 + SLH-DSA, adds hash-based) |
+| **Sealed messaging** | One-call authenticated PQ messaging, recipient-bound, streaming | **Flagship** (sntrup761 hybrid + hybrid sig), **Fortress** (triple KEM + triple sig), see below |
+| **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`), vector-validated byte-exact vs `noise-c` |
 | **BLS12-381** | Sign / verify / **aggregate** | via blst (aggregate + aggregate-verify) |
-| **BBS anonymous credentials** | Multi-message signatures with **zero-knowledge selective disclosure**, **per-verifier pseudonyms**, and **blind issuance** | BBS (BLS12-381-SHA-256, CFRG drafts) — sign/verify · ZK proof over a chosen subset · unlinkable-yet-per-context pseudonyms · issuer-blind committed attributes — see below |
+| **BBS anonymous credentials** | Multi-message signatures with **zero-knowledge selective disclosure**, **per-verifier pseudonyms**, and **blind issuance** | BBS (BLS12-381-SHA-256, CFRG drafts), sign/verify, ZK proof over a chosen subset, unlinkable-yet-per-context pseudonyms, issuer-blind committed attributes, see below |
 | **EVM / Bitcoin** | Blockchain interop primitives | Keccak-256 (original padding), RIPEMD-160, secp256k1 ECDSA (keygen / pubkey / sign / verify / **ecrecover**, RFC6979 + low-S) via libsecp256k1 |
-| **High-level** | Vault (KDF → integrity → AEAD → signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
-| **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy — framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
+| **High-level** | Vault (KDF to integrity to AEAD to signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
+| **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy, framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
 
-### MolecularVault — maximum-assurance layered encryption
+### MolecularVault, maximum-assurance layered encryption
 
 Composition of vetted primitives (no new cryptography) that raises the
 *practical* cost of decryption to this library's theoretical maximum:
@@ -53,10 +53,10 @@ confusion (key-committing outer layer), and tampering (authenticated, fails
 closed). Its raw-key mode composes with the hybrid X25519+ML-KEM-768 KEM for
 post-quantum (harvest-now-decrypt-later) defense.
 
-### Flagship & Fortress — state-of-the-art sealed messaging
+### Flagship & Fortress, state-of-the-art sealed messaging
 
-Two assurance tiers of one construction — **encapsulate → sign-then-encrypt
-inside a key-committing cascade, recipient-bound, auth-first** — exposed as a
+Two assurance tiers of one construction, **encapsulate to sign-then-encrypt
+inside a key-committing cascade, recipient-bound, auth-first**, exposed as a
 one-call, self-usable messaging layer in every binding (an `Identity` bundles a
 party's recipient-KEM + sender-signature keypairs).
 
@@ -67,35 +67,35 @@ party's recipient-KEM + sender-signature keypairs).
 
 Every message is hybrid-PQ confidential (secure while *any* KEM leg holds),
 hybrid-PQ authentic (forgery needs breaking *all* signature legs), key-committing,
-and **recipient-bound** — a decrypting recipient can't re-forward it as if you'd
-sent it to someone else. Surface per binding: creating (`Identity`) · one-shot
-`seal`/`open` · `StreamSealer`/`StreamOpener` for large data (per-chunk integrity
-now, sender-authenticity at finalize) · `inspect`/`addressedTo` for keyless
+and **recipient-bound**, a decrypting recipient can't re-forward it as if you'd
+sent it to someone else. Surface per binding: creating (`Identity`), one-shot
+`seal`/`open`, `StreamSealer`/`StreamOpener` for large data (per-chunk integrity
+now, sender-authenticity at finalize), `inspect`/`addressedTo` for keyless
 routing. Try it: `make sealed` (Node/Go/Dart/Swift).
 
-Composition only — no new cryptography. Library-native wire format (not a
+Composition only, no new cryptography. Library-native wire format (not a
 standard); static-recipient KEM, so not forward-secret against recipient-key
 compromise (layer a ratchet for live FS).
 
-### BBS — anonymous credentials & selective disclosure
+### BBS, anonymous credentials & selective disclosure
 
 A faithful, byte-exact implementation of the CFRG BBS drafts over BLS12-381-SHA-256
-(via blst), for privacy-preserving credentials — a holder proves a signed
+(via blst), for privacy-preserving credentials, a holder proves a signed
 attribute set while revealing only what a verifier needs.
 
 | Capability | What it enables | Standard |
 |---|---|---|
 | **Sign / verify** | One signature over a vector of messages (attributes) | `draft-irtf-cfrg-bbs-signatures` |
-| **Selective disclosure** | A zero-knowledge proof that reveals a chosen subset of attributes while proving a valid signature covers *all* of them — the core of W3C Verifiable Credentials | same |
-| **Per-verifier pseudonyms** | A holder is **unlinkable across verifiers** yet presents a **stable pseudonym per context** — a verifier recognises the same holder on return visits without any cross-verifier tracking | `draft-irtf-cfrg-bbs-per-verifier-linkability-02` |
+| **Selective disclosure** | A zero-knowledge proof that reveals a chosen subset of attributes while proving a valid signature covers *all* of them, the core of W3C Verifiable Credentials | same |
+| **Per-verifier pseudonyms** | A holder is **unlinkable across verifiers** yet presents a **stable pseudonym per context**, a verifier recognises the same holder on return visits without any cross-verifier tracking | `draft-irtf-cfrg-bbs-per-verifier-linkability-02` |
 | **Blind issuance** | The holder commits to private attributes the **issuer never sees**; the issuer blind-signs over the commitment plus its own attributes | `draft-irtf-cfrg-bbs-blind-signatures-02` |
-| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` → a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets — both guaranteed `< r` so they never silently break a proof | base draft §D.2.3 vector |
+| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` to a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets, both guaranteed `< r` so they never silently break a proof | base draft §D.2.3 vector |
 
 Validated **byte-exact against the drafts' official test vectors** (generators,
 commitment, blind-sign, proof, and `hash_to_scalar`); the pseudonym prover-secret
 paths, where the vectors withhold the secret, are round-trip validated against the
-byte-exact verifier. Exposed in every BBS-carrying binding — **Go, Dart, Flutter,
-Node, Swift**. Composition/standards implementation only — no new cryptography.
+byte-exact verifier. Exposed in every BBS-carrying binding, **Go, Dart, Flutter,
+Node, Swift**. Composition/standards implementation only, no new cryptography.
 
 ```
 Issuer                                   Holder                          Verifier
@@ -114,28 +114,28 @@ Issuer                                   Holder                          Verifie
 
 One header-only C++ core is exposed through a stable C ABI; every language
 binding is a thin wrapper over the **same** `libcryptolib_c`. There is no
-per-language wire format — only the library's format — so ciphertext, packets,
+per-language wire format, only the library's format, so ciphertext, packets,
 signatures and MolecularVault "MVLT" envelopes are byte-identical across
 languages.
 
 ```mermaid
 flowchart TB
   subgraph core["C++20 header-only core — include/cryptolib/*.hpp"]
-    prim["Primitives<br/>AEAD · Ed25519/X25519 · ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381 · secp256k1 · Keccak/RIPEMD/BLAKE3"]
-    hl["Constructions<br/>Vault · MolecularVault · Flagship/Fortress sealed messaging<br/>Keyring · Noise XX · Shamir · media entropy"]
-    safe["Result monad · SecureBuffer (mlock + zeroize) · constant-time"]
+    prim["Primitives<br/>AEAD, Ed25519/X25519, ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381, secp256k1, Keccak/RIPEMD/BLAKE3"]
+    hl["Constructions<br/>Vault, MolecularVault, Flagship/Fortress sealed messaging<br/>Keyring, Noise XX, Shamir, media entropy"]
+    safe["Result monad, SecureBuffer (mlock + zeroize), constant-time"]
   end
-  core --> abi["C ABI — bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c · 127 functions · exception-isolated"]
+  core --> abi["C ABI — bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c, 127 functions, exception-isolated"]
   abi --> ffi{{"FFI boundary (caller's concern)"}}
   ffi --> go["Go<br/>(cgo)"]
   ffi --> dart["Dart /<br/>Flutter"]
-  ffi --> node["Node · Next.js<br/>· React (koffi)"]
+  ffi --> node["Node, Next.js<br/>, React (koffi)"]
   ffi --> jvm["Java /<br/>Kotlin (FFM)"]
   ffi --> swift["Swift<br/>(SPM)"]
   ffi --> net[".NET<br/>(P/Invoke)"]
 ```
 
-**Data flow — a MolecularVault seal** (composition of vetted primitives, each
+**Data flow, a MolecularVault seal** (composition of vetted primitives, each
 layer authenticating, keyed independently):
 
 ```mermaid
@@ -151,18 +151,18 @@ flowchart LR
   k2 --> l2
   l2 --> l3["CommittingAead / UtC<br/>keyed by master"]
   mk --> l3
-  l3 --> env["'MVLT' envelope<br/>salt · params · ciphertext"]
+  l3 --> env["'MVLT' envelope<br/>salt, params, ciphertext"]
 ```
 
-> Swap `passphrase → Argon2id` for a **hybrid X25519+ML-KEM-768** shared secret
+> Swap `passphrase to Argon2id` for a **hybrid X25519+ML-KEM-768** shared secret
 > and the same cascade becomes post-quantum. See the [recipes](#recipes--composition-in-practice).
 
 ---
 
-## Recipes — composition in practice
+## Recipes, composition in practice
 
 The primitives compose. These **runnable** examples snap them together into
-real-world flows — no new cryptography, just vetted parts wired up. The same
+real-world flows, no new cryptography, just vetted parts wired up. The same
 recipes are mirrored across five languages:
 
 ```sh
@@ -175,30 +175,30 @@ make flutter-recipes  # Flutter/Dart (5, via flutter test)
 
 | Recipe | Composition | Demonstrates |
 |---|---|---|
-| **File-as-key vault** | media entropy (deterministic) → master → MolecularVault | "your file is your key" — reproducible, nothing stored |
-| **Post-quantum message** | hybrid X25519+ML-KEM-768 → shared secret → MolecularVault | harvest-now-decrypt-later resistance |
+| **File-as-key vault** | media entropy (deterministic) to master to MolecularVault | "your file is your key", reproducible, nothing stored |
+| **Post-quantum message** | hybrid X25519+ML-KEM-768 to shared secret to MolecularVault | harvest-now-decrypt-later resistance |
 | **Sign-then-seal** | Ed25519+ML-DSA signature carried inside a MolecularVault | authenticity + confidentiality in one envelope |
-| **Threshold vault** | MolecularVault key split 3-of-5 via Shamir | no single custodian can open — or block — the secret |
-| **EVM wallet** | secp256k1 → Keccak-256 address → sign → ecrecover | Ethereum-style signing, end to end |
-| **Keyring-guarded vault** | Keyring (device + passphrase) → MolecularVault master | master key never at rest in plaintext; slots revocable |
-| **Sealed messaging** (`make sealed`) | Flagship / Fortress: hybrid KEM → sign-then-encrypt in a committing cascade, recipient-bound, streaming | one-call authenticated PQ messaging with an `Identity`, both tiers, Node/Go/Dart/Swift |
+| **Threshold vault** | MolecularVault key split 3-of-5 via Shamir | no single custodian can open, or block, the secret |
+| **EVM wallet** | secp256k1 to Keccak-256 address to sign to ecrecover | Ethereum-style signing, end to end |
+| **Keyring-guarded vault** | Keyring (device + passphrase) to MolecularVault master | master key never at rest in plaintext; slots revocable |
+| **Sealed messaging** (`make sealed`) | Flagship / Fortress: hybrid KEM to sign-then-encrypt in a committing cascade, recipient-bound, streaming | one-call authenticated PQ messaging with an `Identity`, both tiers, Node/Go/Dart/Swift |
 
-Source: [`example/recipes.cpp`](example/recipes.cpp) ·
-[Go](bridge/bindings/go/recipes/main.go) ·
-[Node](bridge/bindings/cryptolib-node/recipes.js) ·
-[Swift](bridge/bindings/swift/cli/recipes.swift) ·
+Source: [`example/recipes.cpp`](example/recipes.cpp) ,
+[Go](bridge/bindings/go/recipes/main.go) ,
+[Node](bridge/bindings/cryptolib-node/recipes.js) ,
+[Swift](bridge/bindings/swift/cli/recipes.swift) ,
 [Flutter](bridge/bindings/cryptolib_flutter/test/recipes_test.dart).
-The same envelopes open across languages — a value sealed by the Go recipe opens
+The same envelopes open across languages, a value sealed by the Go recipe opens
 in the Swift recipe and vice-versa, because every binding wraps the same core.
 
 ### Security profiles & composable recipes (all ten bindings)
 
 Every binding also ships a **`SecurityProfile`** (`balanced` / `high` /
-`maximum` — every algorithm parameter moves together) and a **`Recipe`**: a
-composable pipeline *key source → AEAD cascade → optional signature → optional
-FEC → optional stego carrier*. The envelope is one byte-identical wire format
+`maximum`, every algorithm parameter moves together) and a **`Recipe`**: a
+composable pipeline *key source to AEAD cascade to optional signature to optional
+FEC to optional stego carrier*. The envelope is one byte-identical wire format
 in Dart, Go, Node, Swift, Java/Kotlin, Python, Ruby, Rust and .NET
-(`make recipe-interop` proves 72 seal→open pairs).
+(`make recipe-interop` proves 72 seal->open pairs).
 
 ```dart
 final r = CryptoRecipe.maximumSecurity(lib)
@@ -214,9 +214,9 @@ part is a first-class citizen:
 
 | Extension point | Built-ins | Plug in your own |
 |---|---|---|
-| `ProtectionLayer` — one AEAD layer in the cascade | XChaCha20-Poly1305 · AES-256-GCM · key-committing · MolecularVault | subclass, then `ProtectionLayer.register()`; to **mix several ciphers as one layer**, extend `CascadeLayer` |
-| `KeySource` — where the 32-byte root key comes from | raw key · passphrase (Argon2id) · media file | a hardware token, a KMS, a keyring unlock — `withKeySource()` |
-| `SignatureScheme` — how the plaintext is signed | Ed25519 · Ed25519+ML-DSA-65 hybrid | another algorithm — `signedWith()` / `verifiedWith()` |
+| `ProtectionLayer`, one AEAD layer in the cascade | XChaCha20-Poly1305, AES-256-GCM, key-committing, MolecularVault | subclass, then `ProtectionLayer.register()`; to **mix several ciphers as one layer**, extend `CascadeLayer` |
+| `KeySource`, where the 32-byte root key comes from | raw key, passphrase (Argon2id), media file | a hardware token, a KMS, a keyring unlock, `withKeySource()` |
+| `SignatureScheme`, how the plaintext is signed | Ed25519, Ed25519+ML-DSA-65 hybrid | another algorithm, `signedWith()` / `verifiedWith()` |
 
 ```dart
 class BeltAndBraces extends CascadeLayer {          // three ciphers, ONE layer
@@ -230,10 +230,10 @@ final env = CryptoRecipe(lib).withKey(key).withLayers([const BeltAndBraces()]).s
 What the recipe keeps for itself, whatever you plug in: a layer never chooses
 its key (fresh 32-byte HKDF sub-key per layer per envelope, bound to the salt
 and the layer's wire name); no layer can opt out of the authenticated header;
-the order sign → encrypt → correct → conceal is fixed; a key source must return
+the order sign to encrypt to correct to conceal is fixed; a key source must return
 exactly 32 bytes; ids 0–127 are reserved and enforced, so a custom part can
 never shadow a built-in. A custom part opens only where the same id + wire name
-+ algorithm is registered — and because the wire name feeds the key derivation,
++ algorithm is registered, and because the wire name feeds the key derivation,
 a mismatched implementation fails the AEAD tag rather than yielding garbage.
 
 Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,dart}-security`.
@@ -253,12 +253,12 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 | Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model §8) |
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
 | Language coverage | 10 bindings verified end-to-end by running, not just compiling |
-| Self-contained binary | macOS desktop dylib depends only on `/usr/lib/libSystem` + `libc++` — bundled in the npm / JVM / .NET packages |
+| Self-contained binary | macOS desktop dylib depends only on `/usr/lib/libSystem` + `libc++`, bundled in the npm / JVM / .NET packages |
 | Release pipeline | SBOM (syft) + keyless cosign signing + SLSA provenance (CI on `v*` tag) |
 
-The full threat model — assets, AI-assisted adversary, security arguments for
+The full threat model, assets, AI-assisted adversary, security arguments for
 the original compositions (Vault, Keyring, hybrid KEM combiner, committing
-AEAD), zeroization audit — lives in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+AEAD), zeroization audit, lives in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
 **Pending before regulated production:** an external audit of the original
 compositions, and FIPS 140-3 validation if your deployment requires it. The
@@ -270,7 +270,7 @@ primitives themselves come from vetted upstreams.
 
 ---
 
-## License — MIT
+## License, MIT
 
 This project is licensed under the [MIT License](LICENSE).
 
@@ -278,16 +278,16 @@ You're free to **use, modify, distribute, and build commercial products on top
 of it**. The only requirement is to **preserve the copyright notice** and
 credit the author. That's it.
 
-The standard MIT warranty disclaimer applies — provided "as is", no warranty.
+The standard MIT warranty disclaimer applies, provided "as is", no warranty.
 Cryptography is high-stakes; deployments are the operator's responsibility.
 
 ---
 
-## Multi-language usage — step by step
+## Multi-language usage, step by step
 
 The C++ library is exposed through a single C ABI (`bridge/cryptolib_c.h`),
 and every supported language ships an auto-loading package that bundles the
-native binary. Consumers add the dependency and call the API — no path
+native binary. Consumers add the dependency and call the API, no path
 configuration, no manual `.so`/`.dylib` placement.
 
 Each example below shows the **minimum to round-trip the post-quantum hybrid
@@ -382,7 +382,7 @@ library and extracts it at startup.
      ]),
    ]
    ```
-2. **Build.** SPM embeds the `binaryTarget` xcframework automatically — no
+2. **Build.** SPM embeds the `binaryTarget` xcframework automatically, no
    `pod install`, no manual Xcode steps.
 3. **Use.**
    ```swift
@@ -473,20 +473,20 @@ the publish checklist.
 
 ## Documentation
 
-- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — adversary model, security
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), adversary model, security
   arguments for original constructions, zeroization audit, assurance posture
-- [`docs/SELF_CONTAINMENT.md`](docs/SELF_CONTAINMENT.md) — no-ambient-authority
+- [`docs/SELF_CONTAINMENT.md`](docs/SELF_CONTAINMENT.md), no-ambient-authority
   audit, sealed (no-sock/no-dso) static build, dependency-substitution defense
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — candidate primitives for later iterations
-- [`PUBLISHING.md`](PUBLISHING.md) — per-ecosystem packaging + release pipeline
-- `bridge/cryptolib_c.h` — the C ABI surface every binding marshals over
+- [`docs/ROADMAP.md`](docs/ROADMAP.md), candidate primitives for later iterations
+- [`PUBLISHING.md`](PUBLISHING.md), per-ecosystem packaging + release pipeline
+- `bridge/cryptolib_c.h`, the C ABI surface every binding marshals over
 
 ---
 
 ## Contributing
 
 Issues and pull requests welcome. **Do not file vulnerabilities as public
-issues** — email the security contact in `SECURITY.md` (or open a private
+issues**, email the security contact in `SECURITY.md` (or open a private
 report via GitHub Security Advisories). Before submitting code, please ensure
 the test suite still runs clean (`./build/test/cryptolib_tests`) and that
 `scripts/verify_bindings.sh` stays green across all 10 bindings.

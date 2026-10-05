@@ -48,11 +48,13 @@ void main(List<String> args) {
   lib.init();
   final dir = Directory.systemTemp.createTempSync('cl_sec_');
   final secret = Uint8List.fromList('composed protection'.codeUnits);
-  CryptoRecipe cheap(CryptoRecipe r) => r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
+  CryptoRecipe cheap(CryptoRecipe r) =>
+      r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
 
   // ── Grouped API ────────────────────────────────────────────────────────────
-  check(eq(lib.hash.sha256(Uint8List.fromList('abc'.codeUnits)),
-           lib.sha256(Uint8List.fromList('abc'.codeUnits))),
+  check(
+      eq(lib.hash.sha256(Uint8List.fromList('abc'.codeUnits)),
+          lib.sha256(Uint8List.fromList('abc'.codeUnits))),
       'grouped hash.sha256 == flat sha256');
   final kp = lib.pq.mlKem.keygen(MlKemLevel.level768);
   final (ct, ss) = lib.pq.mlKem.encapsulate(kp.publicKey, MlKemLevel.level768);
@@ -62,15 +64,18 @@ void main(List<String> args) {
 
   // ── Enums ──────────────────────────────────────────────────────────────────
   check(MlKemLevel.level1024.nistCategory == 5, 'MlKemLevel metadata');
-  check(SecurityProfile.maximum.mlKem == MlKemLevel.level1024 &&
-        SecurityProfile.maximum.sealedTier == SealedTier.fortress,
+  check(
+      SecurityProfile.maximum.mlKem == MlKemLevel.level1024 &&
+          SecurityProfile.maximum.sealedTier == SealedTier.fortress,
       'maximum profile picks the strongest options');
   check(SecurityProfile.maximum.cascade.last == ProtectionLayer.committing,
       'maximum cascade ends key-committing');
 
   // ── Recipe round-trips ─────────────────────────────────────────────────────
-  final r1 = cheap(lib.maximumSecurity().withPassphrase('correct horse battery staple'));
-  check(eq(r1.open(r1.seal(secret)), secret), 'maximum + passphrase round-trip');
+  final r1 = cheap(
+      lib.maximumSecurity().withPassphrase('correct horse battery staple'));
+  check(
+      eq(r1.open(r1.seal(secret)), secret), 'maximum + passphrase round-trip');
 
   final key = lib.rng.bytes(32);
   final r2 = lib.recipe().withKey(key);
@@ -85,16 +90,20 @@ void main(List<String> args) {
 
   // ── Composition ────────────────────────────────────────────────────────────
   final id = lib.ed25519Keygen();
-  final signed = lib.recipe(SecurityProfile.high)
+  final signed = lib
+      .recipe(SecurityProfile.high)
       .withKey(key)
       .signedBy(id.secretKey)
       .verifiedBy(id.publicKey);
   check(eq(signed.open(signed.seal(secret)), secret), 'signed round-trip');
 
   final impostor = lib.ed25519Keygen();
-  final wrongVerifier = lib.recipe().withKey(key).verifiedBy(impostor.publicKey);
-  final sealedByReal = lib.recipe().withKey(key).signedBy(id.secretKey).seal(secret);
-  check(throws(() => wrongVerifier.open(sealedByReal)), 'wrong signer rejected');
+  final wrongVerifier =
+      lib.recipe().withKey(key).verifiedBy(impostor.publicKey);
+  final sealedByReal =
+      lib.recipe().withKey(key).signedBy(id.secretKey).seal(secret);
+  check(
+      throws(() => wrongVerifier.open(sealedByReal)), 'wrong signer rejected');
   check(throws(() => lib.recipe().withKey(key).open(sealedByReal)),
       'signed envelope refuses to open unverified');
 
@@ -105,10 +114,13 @@ void main(List<String> args) {
 
   final cover = '${dir.path}/cover.ppm', out = '${dir.path}/carrier.ppm';
   File(cover).writeAsBytesSync(noisePpm(256, 256, 0x0FF1CE));
-  final carrierR = cheap(lib.maximumSecurity().withPassphrase('a long passphrase'));
+  final carrierR =
+      cheap(lib.maximumSecurity().withPassphrase('a long passphrase'));
   carrierR.sealIntoCarrier(secret, coverPath: cover, outputPath: out);
-  check(eq(carrierR.openFromCarrier(out), secret), 'pipeline hides itself in a carrier');
-  check(lib.stego.inspect(out).format == MediaFormat.ppmImage, 'carrier is still a valid image');
+  check(eq(carrierR.openFromCarrier(out), secret),
+      'pipeline hides itself in a carrier');
+  check(lib.stego.inspect(out).format == MediaFormat.ppmImage,
+      'carrier is still a valid image');
 
   // ── Fails closed ───────────────────────────────────────────────────────────
   final tamper = lib.recipe(SecurityProfile.high).withKey(key);
@@ -118,12 +130,15 @@ void main(List<String> args) {
 
   final henv = tamper.seal(secret);
   henv[7] = 1; // claim one layer instead of two
-  check(throws(() => tamper.open(henv)), 'tampered header rejected (descriptor is AAD)');
+  check(throws(() => tamper.open(henv)),
+      'tampered header rejected (descriptor is AAD)');
 
-  check(throws(() => cheap(lib.recipe().withPassphrase('wrong'))
+  check(
+      throws(() => cheap(lib.recipe().withPassphrase('wrong'))
           .open(cheap(lib.recipe().withPassphrase('right')).seal(secret))),
       'wrong passphrase rejected');
-  check(throws(() => lib.recipe().withKey(Uint8List(31))), 'short key refused up front');
+  check(throws(() => lib.recipe().withKey(Uint8List(31))),
+      'short key refused up front');
 
   dir.deleteSync(recursive: true);
   stdout.writeln(_failures == 0 ? '\nALL PASS' : '\n$_failures FAILURE(S)');

@@ -44,7 +44,8 @@ void main(List<String> args) {
       final kp = lib.boxKeygen();
       stdout.writeln('${hexOf(kp.publicKey)} ${hexOf(kp.secretKey)}');
     case 'enc':
-      if (args.length != 5) die('enc needs <recipientPubHex> <senderSecHex> <msg>');
+      if (args.length != 5)
+        die('enc needs <recipientPubHex> <senderSecHex> <msg>');
       final ct = lib.boxEncrypt(
         Uint8List.fromList(utf8.encode(args[4])),
         unhex(args[2]),
@@ -52,7 +53,8 @@ void main(List<String> args) {
       );
       stdout.writeln(hexOf(ct));
     case 'dec':
-      if (args.length != 5) die('dec needs <senderPubHex> <recipientSecHex> <ctHex>');
+      if (args.length != 5)
+        die('dec needs <senderPubHex> <recipientSecHex> <ctHex>');
       final pt = lib.boxDecrypt(unhex(args[4]), unhex(args[2]), unhex(args[3]));
       stdout.writeln(utf8.decode(pt));
     default:

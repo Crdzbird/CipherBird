@@ -25,9 +25,11 @@ void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
   final aad = b('thread-42'), purpose = b('secure-note');
 
   // One-shot: Bob seals TO Alice, signed by Bob.
-  final env = bob.seal(b('the eagle lands at dawn'), alice.recipientPublic, aad: aad, purpose: purpose);
+  final env = bob.seal(b('the eagle lands at dawn'), alice.recipientPublic,
+      aad: aad, purpose: purpose);
   final pt = alice.open(env, bob.senderPublic, aad: aad, purpose: purpose);
-  ck('one-shot seal → open round-trips', String.fromCharCodes(pt) == 'the eagle lands at dawn');
+  ck('one-shot seal → open round-trips',
+      String.fromCharCodes(pt) == 'the eagle lands at dawn');
 
   // Auth-first: a forged sender is rejected.
   final mallory = lib.newIdentity(tier);
@@ -43,8 +45,10 @@ void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
   final info = lib.sealedInspect(env)!;
   ck('inspect: suite=${info.suite} streaming=${info.streaming} ct=${info.kemCiphertextLen}B',
       info.suite == (name == 'Fortress' ? 2 : 1) && !info.streaming);
-  ck('addressed to Alice, not Mallory',
-      lib.sealedAddressedTo(env, alice.recipientPublic) && !lib.sealedAddressedTo(env, mallory.recipientPublic));
+  ck(
+      'addressed to Alice, not Mallory',
+      lib.sealedAddressedTo(env, alice.recipientPublic) &&
+          !lib.sealedAddressedTo(env, mallory.recipientPublic));
 
   // Streaming: preamble → chunks → signed trailer.
   final sealer = bob.newStreamSealer(alice.recipientPublic, purpose: purpose);
@@ -57,7 +61,8 @@ void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
   final (lastCt, trailer) = sealer.finalize(b(parts.last));
   sealer.close();
 
-  final opener = alice.newStreamOpener(preamble, bob.senderPublic, purpose: purpose);
+  final opener =
+      alice.newStreamOpener(preamble, bob.senderPublic, purpose: purpose);
   final assembled = BytesBuilder();
   var sawFinal = false;
   for (final ct in wire) {
@@ -67,7 +72,8 @@ void demo(CryptoLib lib, SealedTier tier, String name, String blurb) {
   final (p, isFinal) = opener.pull(lastCt);
   assembled.add(p);
   sawFinal = isFinal;
-  opener.finalize(trailer); // verifies whole-stream signature (throws on tamper)
+  opener
+      .finalize(trailer); // verifies whole-stream signature (throws on tamper)
   opener.close();
   ck('streaming round-trips + trailer verifies',
       String.fromCharCodes(assembled.toBytes()) == parts.join() && sawFinal);
@@ -77,8 +83,10 @@ void main() {
   final lib = CryptoLib.load(Platform.environment['CRYPTOLIB_DYLIB']);
   lib.init();
   print('CryptoLib ${lib.version()} — Flagship / Fortress (Dart)');
-  demo(lib, SealedTier.flagship, 'Flagship', 'X25519+sntrup761 KEM · Ed25519+ML-DSA-65 sig');
-  demo(lib, SealedTier.fortress, 'Fortress', 'triple KEM (+ML-KEM-768) · triple sig (+SLH-DSA)');
+  demo(lib, SealedTier.flagship, 'Flagship',
+      'X25519+sntrup761 KEM · Ed25519+ML-DSA-65 sig');
+  demo(lib, SealedTier.fortress, 'Fortress',
+      'triple KEM (+ML-KEM-768) · triple sig (+SLH-DSA)');
   print('\n$pass passed, $fail failed — sealed ${fail == 0 ? 'OK' : 'FAILED'}');
   exit(fail == 0 ? 0 : 1);
 }

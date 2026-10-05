@@ -7,8 +7,10 @@ import 'dart:typed_data';
 import 'package:cryptolib_dart/cryptolib_ffi.dart';
 
 // Fixed inputs so every language derives identical keys.
-const keyHex = '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
-const skHex = 'd463cb8e5a1b8f2e6c4a90f37d215e08b9c6a4713f2085dcae6b19347c50f2a6';
+const keyHex =
+    '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
+const skHex =
+    'd463cb8e5a1b8f2e6c4a90f37d215e08b9c6a4713f2085dcae6b19347c50f2a6';
 const passphrase = 'interop passphrase';
 const plaintext = 'cross-language recipe envelope';
 
@@ -20,19 +22,33 @@ Uint8List hx(String s) {
   return o;
 }
 
-List<(String, CryptoRecipe)> configs(CryptoLib lib, Uint8List pk, Uint8List sk) => [
+List<(String, CryptoRecipe)> configs(
+        CryptoLib lib, Uint8List pk, Uint8List sk) =>
+    [
       ('balanced', lib.recipe().withKey(hx(keyHex))),
       ('maximum', lib.recipe(SecurityProfile.maximum).withKey(hx(keyHex))),
-      ('signed', lib.recipe(SecurityProfile.high).withKey(hx(keyHex))
-          .signedBy(sk).verifiedBy(pk)),
-      ('passphrase', lib.recipe().withPassphrase(passphrase)
-          .argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024)),
+      (
+        'signed',
+        lib
+            .recipe(SecurityProfile.high)
+            .withKey(hx(keyHex))
+            .signedBy(sk)
+            .verifiedBy(pk)
+      ),
+      (
+        'passphrase',
+        lib
+            .recipe()
+            .withPassphrase(passphrase)
+            .argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024)
+      ),
       ('fec', lib.recipe().withKey(hx(keyHex)).withFec(FecScheme.repetition3)),
     ];
 
 void main(List<String> args) {
   final mode = args[0], dir = args[1];
-  final lib = CryptoLib.load(args.length > 2 ? args[2] : 'build/release/libcryptolib_c.dylib');
+  final lib = CryptoLib.load(
+      args.length > 2 ? args[2] : 'build/release/libcryptolib_c.dylib');
   lib.init();
   final kp = lib.ed25519KeygenFromSeed(hx(skHex));
   final pk = kp.publicKey, sk = kp.secretKey;
@@ -55,6 +71,7 @@ void main(List<String> args) {
       }
     }
   }
-  if (mode == 'seal') stdout.writeln('  dart sealed ${configs(lib, pk, sk).length} envelopes');
+  if (mode == 'seal')
+    stdout.writeln('  dart sealed ${configs(lib, pk, sk).length} envelopes');
   exit(failures == 0 ? 0 : 1);
 }

@@ -17,8 +17,10 @@ void main() {
     expect(v, '3.0.0');
     // A real crypto call, still synchronous — no await anywhere.
     final h = CryptoLib.instance.sha256(Uint8List.fromList('abc'.codeUnits));
-    expect(_hex(h),
-        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(
+      _hex(h),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
   });
 
   test('preload() warms in a background isolate and returns true', () async {

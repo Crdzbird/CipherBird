@@ -15,7 +15,10 @@ void main() {
       expect('abc'.bytes.base64, 'YWJj');
       expect('YWJj'.base64Bytes.text, 'abc');
       expect('YQ'.base64Bytes.text, 'a'); // unpadded input is normalised
-      expect(Uint8List.fromList([0xfb, 0xff]).base64Url, '-_8'); // url-safe, unpadded
+      expect(
+        Uint8List.fromList([0xfb, 0xff]).base64Url,
+        '-_8',
+      ); // url-safe, unpadded
     });
 
     test('constantTimeEquals / concat / wipe / u8', () {
@@ -30,7 +33,10 @@ void main() {
     });
 
     test('sha256Hex and KeyPairText', () {
-      expect(lib.easy.sha256Hex('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+      expect(
+        lib.easy.sha256Hex('abc'),
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      );
       final kp = lib.ed25519Keygen();
       expect(kp.publicHex, kp.publicKey.hex);
       expect(kp.secretHex.length, 128);
@@ -43,7 +49,10 @@ void main() {
       final ct = key.encrypt('meet at dawn'.bytes, aad: 'ctx'.bytes);
       expect(key.decrypt(ct, aad: 'ctx'.bytes).text, 'meet at dawn');
       expect(() => key.decrypt(ct, aad: 'other'.bytes), throwsA(anything));
-      expect(() => SymmetricKey.generate().decrypt(ct, aad: 'ctx'.bytes), throwsA(anything));
+      expect(
+        () => SymmetricKey.generate().decrypt(ct, aad: 'ctx'.bytes),
+        throwsA(anything),
+      );
       final box = key.encryptText('hello', aad: 'h');
       expect(key.decryptText(box, aad: 'h'), 'hello');
     });
@@ -59,11 +68,19 @@ void main() {
 
     test('passphrase is deterministic per salt and cheap cost is honoured', () {
       final salt = lib.easy.randomBytes(16);
-      SymmetricKey mk(String p) => SymmetricKey.fromPassphrase(p, salt: salt, ops: 1, memoryBytes: 8 * 1024 * 1024);
+      SymmetricKey mk(String p) => SymmetricKey.fromPassphrase(
+        p,
+        salt: salt,
+        ops: 1,
+        memoryBytes: 8 * 1024 * 1024,
+      );
       final ct = mk('correct horse').encryptText('secret');
       expect(mk('correct horse').decryptText(ct), 'secret');
       expect(() => mk('wrong horse').decryptText(ct), throwsA(anything));
-      expect(() => SymmetricKey.fromPassphrase('p', salt: Uint8List(8)), throwsArgumentError);
+      expect(
+        () => SymmetricKey.fromPassphrase('p', salt: Uint8List(8)),
+        throwsArgumentError,
+      );
     });
 
     test('derive gives independent, stable sub-keys', () {
@@ -86,7 +103,10 @@ void main() {
   });
 
   group('SigningKey / VerifyKey', () {
-    for (final algo in [SignatureAlgorithm.ed25519, SignatureAlgorithm.hybrid]) {
+    for (final algo in [
+      SignatureAlgorithm.ed25519,
+      SignatureAlgorithm.hybrid,
+    ]) {
       test('$algo sign / verify, text form, hex reload', () {
         final key = SigningKey.generate(algorithm: algo);
         final sig = key.sign('msg'.bytes);
@@ -94,22 +114,53 @@ void main() {
         expect(key.verify('msh'.bytes, sig), isFalse);
         final vk = VerifyKey.fromHex(key.publicKey.hex, algorithm: algo);
         expect(vk.verifyText('release', key.signText('release')), isTrue);
-        expect(vk.verifyText('release', SigningKey.generate(algorithm: algo).signText('release')), isFalse);
-        final reloaded = SigningKey.fromBytes(secretKey: key.secretKey, publicKey: key.publicKey, algorithm: algo);
-        expect(key.verifyKey.verify('m'.bytes, reloaded.sign('m'.bytes)), isTrue);
+        expect(
+          vk.verifyText(
+            'release',
+            SigningKey.generate(algorithm: algo).signText('release'),
+          ),
+          isFalse,
+        );
+        final reloaded = SigningKey.fromBytes(
+          secretKey: key.secretKey,
+          publicKey: key.publicKey,
+          algorithm: algo,
+        );
+        expect(
+          key.verifyKey.verify('m'.bytes, reloaded.sign('m'.bytes)),
+          isTrue,
+        );
       });
     }
 
     test('none is refused', () {
-      expect(() => SigningKey.generate(algorithm: SignatureAlgorithm.none), throwsArgumentError);
+      expect(
+        () => SigningKey.generate(algorithm: SignatureAlgorithm.none),
+        throwsArgumentError,
+      );
     });
 
     test('scheme plugs into a recipe', () {
       final key = SigningKey.generate(algorithm: SignatureAlgorithm.hybrid);
       final k = SymmetricKey.generate();
-      final env = lib.recipe().withKey(k.bytes).signedWith(key.scheme).seal('r'.bytes);
-      expect(lib.recipe().withKey(k.bytes).verifiedWith(key.verifyKey.scheme).open(env).text, 'r');
-      expect(lib.recipe().withKey(k.bytes).verifiedBy(key.publicKey).open(env).text, 'r');
+      final env = lib
+          .recipe()
+          .withKey(k.bytes)
+          .signedWith(key.scheme)
+          .seal('r'.bytes);
+      expect(
+        lib
+            .recipe()
+            .withKey(k.bytes)
+            .verifiedWith(key.verifyKey.scheme)
+            .open(env)
+            .text,
+        'r',
+      );
+      expect(
+        lib.recipe().withKey(k.bytes).verifiedBy(key.publicKey).open(env).text,
+        'r',
+      );
     });
   });
 
@@ -123,10 +174,17 @@ void main() {
 
     test('one-call public-key encryption, bytes and text, with aad', () {
       final me = KemKeyPair.generate();
-      final blob = KemKeyPair.encryptFor(me.publicKey, 'for your eyes'.bytes, aad: 'a'.bytes);
+      final blob = KemKeyPair.encryptFor(
+        me.publicKey,
+        'for your eyes'.bytes,
+        aad: 'a'.bytes,
+      );
       expect(me.decrypt(blob, aad: 'a'.bytes).text, 'for your eyes');
       expect(() => me.decrypt(blob, aad: 'b'.bytes), throwsA(anything));
-      expect(() => KemKeyPair.generate().decrypt(blob, aad: 'a'.bytes), throwsA(anything));
+      expect(
+        () => KemKeyPair.generate().decrypt(blob, aad: 'a'.bytes),
+        throwsA(anything),
+      );
       final text = KemKeyPair.encryptTextFor(me.publicKey, 'hi');
       expect(me.decryptText(text), 'hi');
       final tampered = Uint8List.fromList(blob)..[blob.length - 1] ^= 1;
@@ -137,7 +195,10 @@ void main() {
     test('reloads from bytes', () {
       final me = KemKeyPair.generate();
       final blob = KemKeyPair.encryptFor(me.publicKey, 'x'.bytes);
-      final again = KemKeyPair.fromBytes(publicKey: me.publicKey, secretKey: me.secretKey);
+      final again = KemKeyPair.fromBytes(
+        publicKey: me.publicKey,
+        secretKey: me.secretKey,
+      );
       expect(again.decrypt(blob).text, 'x');
     });
   });
@@ -160,10 +221,21 @@ void main() {
     });
 
     test('identity text sugar', () {
-      final alice = lib.easy.identity(SealedTier.fortress), bob = lib.easy.identity(SealedTier.fortress);
-      final env = bob.sealText('meet at dawn', to: alice.recipientPublic, purpose: 'note');
-      expect(alice.openText(env, from: bob.senderPublic, purpose: 'note'), 'meet at dawn');
-      expect(() => alice.openText(env, from: bob.senderPublic, purpose: 'other'), throwsA(anything));
+      final alice = lib.easy.identity(SealedTier.fortress),
+          bob = lib.easy.identity(SealedTier.fortress);
+      final env = bob.sealText(
+        'meet at dawn',
+        to: alice.recipientPublic,
+        purpose: 'note',
+      );
+      expect(
+        alice.openText(env, from: bob.senderPublic, purpose: 'note'),
+        'meet at dawn',
+      );
+      expect(
+        () => alice.openText(env, from: bob.senderPublic, purpose: 'other'),
+        throwsA(anything),
+      );
     });
   });
 }
