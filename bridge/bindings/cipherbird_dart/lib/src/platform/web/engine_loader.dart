@@ -25,7 +25,10 @@ Future<void> prepareEngine(String? library) async {
   Object? lastError;
   for (final url in candidates) {
     try {
-      WebEngine._current = WebEngine._(await _instantiate(url));
+      final absolute = Uri.base.resolve(url).toString();
+      final base = absolute.substring(0, absolute.lastIndexOf('/') + 1);
+      WebEngine._current = WebEngine._(await _instantiate(absolute), base);
+      await EngineWorker.start();
       return;
     } on Object catch (error) {
       lastError = error;

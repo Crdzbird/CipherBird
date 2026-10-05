@@ -2,10 +2,13 @@ part of 'web_platform.dart';
 
 /// The loaded WebAssembly engine: one per page, created by [prepareEngine].
 final class WebEngine {
-  WebEngine._(this.module) : memory = HeapMemory(module);
+  WebEngine._(this.module, this.base) : memory = HeapMemory(module);
 
   /// The Emscripten module.
   final EngineModule module;
+
+  /// Absolute URL of the directory the engine was loaded from.
+  final String base;
 
   /// Live heap access.
   final HeapMemory memory;

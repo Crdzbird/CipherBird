@@ -22,6 +22,7 @@ import 'dart:typed_data';
 import 'package:cipherbird_dart/src/platform/native/native_platform.dart'
     if (dart.library.js_interop) 'package:cipherbird_dart/src/platform/web/web_platform.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_inline_runner.dart';
+import 'package:cipherbird_dart/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
 
 export 'package:cipherbird_dart/src/platform/native/native_platform.dart'
@@ -50,6 +51,8 @@ export 'package:cipherbird_dart/src/platform/native/native_platform.dart'
         CipherBirdSealedInfo;
 export 'package:cipherbird_dart/src/runner/cipher_bird_inline_runner.dart'
     show CipherBirdInlineRunner;
+export 'package:cipherbird_dart/src/runner/cipher_bird_job.dart'
+    show CipherBirdJob;
 export 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart'
     show CipherBirdRunner;
 
@@ -197,7 +200,9 @@ part 'easy/crypto_bytes.dart';
 part 'easy/crypto_text.dart';
 part 'easy/easy_api.dart';
 part 'easy/easy_api/async_api.dart';
-part 'easy/easy_api/workers.dart';
+part 'easy/easy_api/jobs/argon2_derive_job.dart';
+part 'easy/easy_api/jobs/argon2_hash_job.dart';
+part 'easy/easy_api/jobs/argon2_verify_job.dart';
 part 'easy/easy_lib.dart';
 part 'easy/identity_text.dart';
 part 'easy/kem_key_pair.dart';

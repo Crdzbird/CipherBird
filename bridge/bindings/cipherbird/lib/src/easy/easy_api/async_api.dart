@@ -2,9 +2,10 @@ part of '../../cipher_bird.dart';
 
 /// Off-thread variants of the slow easy-mode operations (Argon2id).
 ///
-/// Each call runs on `runner`; the default spawns a background isolate so a
-/// 64 MiB passphrase stretch never blocks the UI. Pass
-/// [CipherBirdInlineRunner] in tests.
+/// Each call runs its job on `runner`: the default moves it to a background
+/// isolate natively and to a web worker in the browser, so a 64 MiB
+/// passphrase stretch never blocks the UI. Pass [CipherBirdInlineRunner] in
+/// tests.
 extension EasyApiAsync on EasyApi {
   /// [SymmetricKey.fromPassphrase] on a worker.
   Future<SymmetricKey> symmetricKeyFromPassphraseAsync(
@@ -21,9 +22,12 @@ extension EasyApiAsync on EasyApi {
       );
     }
     final key = await runner.run(
-      _derivePassphraseInWorker,
-      (passphrase, salt, profile.argon2Ops, profile.argon2Memory),
-      cost: profile.argon2Memory,
+      Argon2DeriveJob(
+        passphrase,
+        salt,
+        ops: profile.argon2Ops,
+        memory: profile.argon2Memory,
+      ),
     );
     return SymmetricKey.fromBytes(key, _l);
   }
@@ -33,16 +37,12 @@ extension EasyApiAsync on EasyApi {
     String password, {
     SecurityProfile profile = SecurityProfile.balanced,
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
-  }) => runner.run(
-    _hashPasswordInWorker,
-    (password, profile.argon2Ops, profile.argon2Memory),
-    cost: profile.argon2Memory,
-  );
+  }) => runner.run(Argon2HashJob(password, profile: profile));
 
   /// [verifyPassword] on a worker.
   Future<bool> verifyPasswordAsync(
     String password,
     String phcHash, {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
-  }) => runner.run(_verifyPasswordInWorker, (password, phcHash), cost: 1 << 30);
+  }) => runner.run(Argon2VerifyJob(password, phcHash));
 }

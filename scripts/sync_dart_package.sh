@@ -13,9 +13,10 @@ cp -R "$SRC/lib/src" "$DST/lib/src"
 find "$DST/lib/src" -name '*.dart' -exec sed -i '' "s#package:cipherbird/src/#package:cipherbird_dart/src/#g" {} +
 sed -i '' "s/const String _packageName = 'cipherbird';/const String _packageName = 'cipherbird_dart';/" \
   "$DST/lib/src/platform/web/engine_loader.dart"
+(cd "$DST" && dart format lib test > /dev/null)
 rm -rf "$DST/lib/assets"
 mkdir -p "$DST/lib/assets"
-cp "$SRC/assets/cipherbird.js" "$SRC/assets/cipherbird.wasm" "$DST/lib/assets/"
+cp "$SRC/assets/cipherbird.js" "$SRC/assets/cipherbird.wasm" "$SRC/assets/cipherbird_worker.js" "$DST/lib/assets/"
 sed 's/^library;$/library;/' "$SRC/lib/cipherbird.dart" > "$DST/lib/cipherbird_dart.dart"
 for t in "$SRC"/test/*_test.dart; do
   sed -e "s#package:flutter_test/flutter_test.dart#package:test/test.dart#" \

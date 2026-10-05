@@ -14,6 +14,9 @@ export 'src/cipher_bird.dart'
     show
         AeadApi,
         Aes256GcmLayer,
+        Argon2DeriveJob,
+        Argon2HashJob,
+        Argon2VerifyJob,
         AsymApi,
         AsymBundleResult,
         BbsApi,
@@ -94,6 +97,7 @@ export 'src/cipher_bird.dart'
         CipherBirdHybridSig,
         CipherBirdInlineRunner,
         CipherBirdIsolateRunner,
+        CipherBirdJob,
         CipherBirdKemEncapsResult,
         CipherBirdKeyPair,
         CipherBirdKeyring,
@@ -255,5 +259,4 @@ export 'src/cipher_bird.dart'
         VaultApiMolecularOpenWithKey,
         VerifyKey,
         XChaCha20Layer,
-        fromHex,
-        toHex;
+        fromHex;

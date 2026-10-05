@@ -9,6 +9,7 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:cipherbird_dart/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
 import 'package:ffi/ffi.dart';
 

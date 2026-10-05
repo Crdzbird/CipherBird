@@ -10,6 +10,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:cipherbird_dart/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
 import 'package:meta/meta.dart';
 
@@ -20,6 +21,7 @@ part 'double_type.dart';
 part 'dynamic_library.dart';
 part 'engine_loader.dart';
 part 'engine_module.dart';
+part 'engine_worker.dart';
 part 'heap_memory.dart';
 part 'int32.dart';
 part 'local_memory.dart';
