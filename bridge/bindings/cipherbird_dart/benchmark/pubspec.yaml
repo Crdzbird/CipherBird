@@ -11,3 +11,7 @@ dependencies:
   crypto: ^3.0.6
   cryptography: ^2.7.0
   pointycastle: ^3.9.1
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^9.0.0

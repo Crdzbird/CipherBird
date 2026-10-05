@@ -6,10 +6,18 @@ Dart API runs in the browser under both `flutter build web` and
 `flutter build web --wasm`, with byte-compatible envelopes, signatures and
 keys. `CipherBird.preload()` loads the engine and is required on the web; it
 takes an optional `library` location (a file path natively, the URL of
-`cipherbird.js` on the web). File-path APIs are unavailable in the browser
-and `CipherBirdIsolateRunner` runs inline there. AES-256-GCM gained a
-portable OpenSSL path for CPUs without AES instructions, byte-identical to
-the hardware path.
+`cipherbird.js` on the web). File-path APIs are unavailable in the browser.
+AES-256-GCM gained a portable OpenSSL path for CPUs without AES
+instructions, byte-identical to the hardware path.
+
+Off-thread work is now described by `CipherBirdJob`, plain data a runner can
+copy into an isolate or post to a worker. `CipherBirdRunner.run` takes a job
+instead of a function and a message, and the three Argon2id jobs behind the
+asynchronous easy-mode helpers are public (`Argon2DeriveJob`,
+`Argon2HashJob`, `Argon2VerifyJob`). In the browser
+`CipherBirdIsolateRunner` runs jobs in a web worker shipped as
+`assets/cipherbird_worker.js`, so password hashing no longer blocks the
+page.
 
 ## 1.0.0
 
