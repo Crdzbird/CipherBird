@@ -187,7 +187,7 @@ Source: [`example/recipes.cpp`](example/recipes.cpp) ,
 [Go](bridge/bindings/go/recipes/main.go) ,
 [Node](bridge/bindings/cryptolib-node/recipes.js) ,
 [Swift](bridge/bindings/swift/cli/recipes.swift) ,
-[Flutter](bridge/bindings/cryptolib_flutter/test/recipes_test.dart).
+[Flutter](bridge/bindings/cipherbird/test/recipes_test.dart).
 The same envelopes open across languages, a value sealed by the Go recipe opens
 in the Swift recipe and vice-versa, because every binding wraps the same core.
 
@@ -302,16 +302,16 @@ and out-error handling end-to-end.
 1. **Add the plugin.** In your app's `pubspec.yaml`:
    ```yaml
    dependencies:
-     cryptolib_flutter:
-       # After publication on pub.dev: cryptolib_flutter: ^3.0.0
+     cipherbird:
+       # After publication on pub.dev: cipherbird: ^1.0.0
        # During evaluation, depend on the path:
-       path: ../path/to/bridge/bindings/cryptolib_flutter
+       path: ../path/to/bridge/bindings/cipherbird
    ```
 2. **Get dependencies.** `flutter pub get`.
 3. **Import + call.** The loader picks `DynamicLibrary.process()` on iOS, the
    bundled `.so` on Android, and the system `.dylib` on macOS automatically.
    ```dart
-   import 'package:cryptolib_flutter/cryptolib_flutter.dart';
+   import 'package:cipherbird/cipherbird.dart';
 
    void main() {
      final lib = CryptoLib.load();

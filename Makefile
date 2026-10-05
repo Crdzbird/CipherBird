@@ -335,7 +335,7 @@ flutter-consumer:
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
 	@if command -v flutter >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib_flutter && \
+		cd bridge/bindings/cipherbird && \
 		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart test/easy_test.dart | tail -2; \
 	else echo "flutter not found — skipping"; fi
 

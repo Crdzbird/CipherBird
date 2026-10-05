@@ -14,7 +14,7 @@ run with your own accounts/credentials.
 
 | Ecosystem | Package | How it auto-loads | Local verification |
 |---|---|---|---|
-| **Flutter** | `bridge/bindings/cryptolib_flutter` | xcframework via podspec (iOS/macOS), `.so` in `jniLibs` (Android); loader picks `process()`/soname | ✅ Pixel 7 + iOS sim |
+| **Flutter** | `bridge/bindings/cipherbird` | xcframework via podspec (iOS/macOS), `.so` in `jniLibs` (Android); loader picks `process()`/soname | ✅ Pixel 7 + iOS sim |
 | **Node** | `bridge/bindings/cryptolib-node` | binary in `prebuilds/<plat>-<arch>/`, resolved relative to package | ✅ `npm test` |
 | **JVM** (Java/Kotlin) | `bridge/bindings/cryptolib-jvm` | binary in JAR under `/native/<os>-<arch>/`, extracted to temp + `SymbolLookup` | ✅ `java -jar` |
 | **Swift** (SPM) | `bridge/bindings/swift` | `binaryTarget` xcframework (SPM embeds automatically) | ✅ macOS slice links + runs |
@@ -94,7 +94,7 @@ README).
 > These are deliberately left for you to run — publishing is irreversible and
 > needs registry credentials this repo does not (and should not) hold.
 
-- **pub.dev (Flutter):** `cd bridge/bindings/cryptolib_flutter && flutter pub publish`
+- **pub.dev (Flutter):** `cd bridge/bindings/cipherbird && flutter pub publish`
   (`--dry-run` first; the archive must list `libcryptolib_c.so` ×2 and the
   `CryptoLibC` framework binaries, ~28 MB compressed). The prebuilt binaries
   are **committed** for this package and re-included via its `.pubignore`;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prove cryptolib_flutter works for a pub.dev CONSUMER before publishing.
+# Prove cipherbird works for a pub.dev CONSUMER before publishing.
 #
 # Builds the exact archive that would be published (git HEAD contents of the
 # plugin, symlinks materialised the way pub does, .pubignore applied), serves
@@ -16,19 +16,19 @@ set -euo pipefail
 DEVICE="${1:?device id required (see: flutter devices)}"
 PORT="${2:-8765}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLUGIN=bridge/bindings/cryptolib_flutter
+PLUGIN=bridge/bindings/cipherbird
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cl_pubconsumer.XXXXXX")"
 VERSION="$(sed -n 's/^version: //p' "$ROOT/$PLUGIN/pubspec.yaml")"
 HOST_KEY="localhost%58$PORT"
-echo "══ cryptolib_flutter $VERSION → consumer test on $DEVICE (work dir $WORK)"
+echo "══ cipherbird $VERSION → consumer test on $DEVICE (work dir $WORK)"
 
 # 1. Archive exactly what git HEAD holds for the plugin, symlinks materialised.
 mkdir -p "$WORK/stage" "$WORK/pkg" "$WORK/serve"
 git -C "$ROOT" archive HEAD "$PLUGIN" | tar -x -C "$WORK/stage"
 cp -RL "$WORK/stage/$PLUGIN/." "$WORK/pkg/"
 ( cd "$WORK/pkg" && grep -vE '^(#|!|$)' .pubignore | xargs rm -rf 2>/dev/null || true
-  COPYFILE_DISABLE=1 tar -czf "$WORK/serve/cryptolib_flutter-$VERSION.tar.gz" . )
-echo "   archive: $(du -h "$WORK/serve/cryptolib_flutter-$VERSION.tar.gz" | cut -f1)"
+  COPYFILE_DISABLE=1 tar -czf "$WORK/serve/cipherbird-$VERSION.tar.gz" . )
+echo "   archive: $(du -h "$WORK/serve/cipherbird-$VERSION.tar.gz" | cut -f1)"
 
 # 2. Minimal pub-protocol server (GET /api/packages/<name> + the archive).
 cat > "$WORK/pubserver.py" <<PY
@@ -38,9 +38,9 @@ PUBSPEC=yaml.safe_load(open("$WORK/pkg/pubspec.yaml"))
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self,*a,**k): super().__init__(*a,directory=ROOT,**k)
     def do_GET(self):
-        if self.path.startswith('/api/packages/cryptolib_flutter'):
-            v={"version":VER,"archive_url":f"http://localhost:{PORT}/cryptolib_flutter-{VER}.tar.gz","pubspec":PUBSPEC}
-            body=json.dumps({"name":"cryptolib_flutter","latest":v,"versions":[v]}).encode()
+        if self.path.startswith('/api/packages/cipherbird'):
+            v={"version":VER,"archive_url":f"http://localhost:{PORT}/cipherbird-{VER}.tar.gz","pubspec":PUBSPEC}
+            body=json.dumps({"name":"cipherbird","latest":v,"versions":[v]}).encode()
             self.send_response(200); self.send_header('Content-Type','application/vnd.pub.v2+json')
             self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body); return
         super().do_GET()
@@ -58,15 +58,15 @@ sleep 1
 APP="$WORK/consumer_app"
 python3 - "$APP/pubspec.yaml" "$PORT" "$VERSION" <<'PY'
 import sys; p,port,ver=sys.argv[1:]; s=open(p).read()
-s=s.replace("dependencies:\n  flutter:\n    sdk: flutter\n",f"dependencies:\n  flutter:\n    sdk: flutter\n  cryptolib_flutter:\n    hosted: http://localhost:{port}\n    version: ^{ver}\n",1)
+s=s.replace("dependencies:\n  flutter:\n    sdk: flutter\n",f"dependencies:\n  flutter:\n    sdk: flutter\n  cipherbird:\n    hosted: http://localhost:{port}\n    version: ^{ver}\n",1)
 s=s.replace("dev_dependencies:\n  flutter_test:\n    sdk: flutter\n","dev_dependencies:\n  flutter_test:\n    sdk: flutter\n  integration_test:\n    sdk: flutter\n",1)
 open(p,'w').write(s)
 PY
 rm -rf "$HOME/.pub-cache/hosted/$HOST_KEY" "$HOME/.pub-cache/hosted-hashes/$HOST_KEY"
 ( cd "$APP" && flutter pub get >/dev/null )
-CACHED="$HOME/.pub-cache/hosted/$HOST_KEY/cryptolib_flutter-$VERSION"
+CACHED="$HOME/.pub-cache/hosted/$HOST_KEY/cipherbird-$VERSION"
 [[ -f "$CACHED/android/src/main/jniLibs/arm64-v8a/libcryptolib_c.so" ]] || { echo "✗ installed package has no Android binary"; exit 1; }
-[[ -d "$CACHED/ios/cryptolib_flutter/CryptoLibC.xcframework" ]] || { echo "✗ installed package has no iOS xcframework"; exit 1; }
+[[ -d "$CACHED/ios/cipherbird/CryptoLibC.xcframework" ]] || { echo "✗ installed package has no iOS xcframework"; exit 1; }
 echo "   installed from hosted source into $CACHED ($(du -sh "$CACHED" | cut -f1))"
 
 # 4. The package's own test suite, run on the device from the installed copy.
