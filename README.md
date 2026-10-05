@@ -2,7 +2,7 @@
 
 [![cipherbird on pub.dev](https://img.shields.io/pub/v/cipherbird.svg?label=cipherbird)](https://pub.dev/packages/cipherbird)
 [![cipherbird_dart on pub.dev](https://img.shields.io/pub/v/cipherbird_dart.svg?label=cipherbird_dart)](https://pub.dev/packages/cipherbird_dart)
-[![Release v1.0.0](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0)
+[![Release v1.1.0](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.0)
 [![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20macOS%20%7C%20Web-blue.svg)](bridge/bindings/cipherbird/README.md#web)
 
@@ -36,8 +36,8 @@ by how your project is built.
 | [cipherbird](https://pub.dev/packages/cipherbird) | Flutter apps on Android, iOS, macOS and the web. The engine is bundled per platform, as WebAssembly for the browser, and the plugin loads it on startup. | `flutter pub add cipherbird` |
 | [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | Plain Dart on the command line, servers and the web. No Flutter dependency, the engine ships inside the package, including the WebAssembly build. | `dart pub add cipherbird_dart` |
 
-Both packages are at version 1.0.0, matching the
-[v1.0.0](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0) tag of
+Both packages are at version 1.1.0, matching the
+[v1.1.0](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.0) tag of
 this repository. Each package README explains the choice in detail:
 [cipherbird](bridge/bindings/cipherbird/README.md) and
 [cipherbird_dart](bridge/bindings/cipherbird_dart/README.md).
