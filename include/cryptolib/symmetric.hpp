@@ -13,6 +13,11 @@
 
 #include "types.hpp"
 #include <sodium.h>
+#ifdef CRYPTOLIB_HAS_OPENSSL
+#include <openssl/evp.h>
+#include <cstring>
+#include <memory>
+#endif
 #include <string_view>
 
 namespace crypto::symmetric {
@@ -107,7 +112,19 @@ public:
     static constexpr std::size_t MAC_BYTES   = crypto_aead_aes256gcm_ABYTES;    // 16
 
     [[nodiscard]] static bool is_available() noexcept {
+        return hardware_available() || portable_available();
+    }
+
+    [[nodiscard]] static bool hardware_available() noexcept {
         return crypto_aead_aes256gcm_is_available() != 0;
+    }
+
+    [[nodiscard]] static constexpr bool portable_available() noexcept {
+#ifdef CRYPTOLIB_HAS_OPENSSL
+        return true;
+#else
+        return false;
+#endif
     }
 
     [[nodiscard]] static SecureBuffer generate_key() {
@@ -120,8 +137,8 @@ public:
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
-        if (!is_available())
-            return Result<SecureBuffer>::err("AES-256-GCM: not available on this CPU");
+        if (!hardware_available())
+            return encrypt_portable(plaintext, key, aad);
         if (key.size() != KEY_BYTES)
             return Result<SecureBuffer>::err("AES-256-GCM: invalid key");
         SecureBuffer out(NONCE_BYTES + plaintext.size() + MAC_BYTES);
@@ -141,8 +158,8 @@ public:
     decrypt(std::span<const uint8_t> ciphertext_with_nonce,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
-        if (!is_available())
-            return Result<SecureBuffer>::err("AES-256-GCM: not available on this CPU");
+        if (!hardware_available())
+            return decrypt_portable(ciphertext_with_nonce, key, aad);
         if (key.size() != KEY_BYTES)
             return Result<SecureBuffer>::err("AES-256-GCM: invalid key");
         if (ciphertext_with_nonce.size() < NONCE_BYTES + MAC_BYTES)
@@ -161,6 +178,91 @@ public:
         out.resize(static_cast<std::size_t>(pt_len));
         return Result<SecureBuffer>::ok(std::move(out));
     }
+
+    /// The OpenSSL EVP path. Used automatically where libsodium's AES-GCM is
+    /// unavailable (CPUs without AES instructions, WebAssembly). Output is
+    /// byte-interchangeable with the hardware path: [ nonce(12) | ciphertext | MAC(16) ].
+    [[nodiscard]] static Result<SecureBuffer>
+    encrypt_portable(std::span<const uint8_t> plaintext,
+                     std::span<const uint8_t> key,
+                     std::span<const uint8_t> aad = {}) {
+        if (!portable_available())
+            return Result<SecureBuffer>::err("AES-256-GCM: not available on this CPU");
+        if (key.size() != KEY_BYTES)
+            return Result<SecureBuffer>::err("AES-256-GCM: invalid key");
+        SecureBuffer out(NONCE_BYTES + plaintext.size() + MAC_BYTES);
+        randombytes_buf(out.data(), NONCE_BYTES);
+        return evp_gcm(true, key, std::span<const uint8_t>(out.data(), NONCE_BYTES), aad,
+                       plaintext, std::move(out));
+    }
+
+    /// The OpenSSL EVP path for [decrypt]; see [encrypt_portable].
+    [[nodiscard]] static Result<SecureBuffer>
+    decrypt_portable(std::span<const uint8_t> ciphertext_with_nonce,
+                     std::span<const uint8_t> key,
+                     std::span<const uint8_t> aad = {}) {
+        if (!portable_available())
+            return Result<SecureBuffer>::err("AES-256-GCM: not available on this CPU");
+        if (key.size() != KEY_BYTES)
+            return Result<SecureBuffer>::err("AES-256-GCM: invalid key");
+        if (ciphertext_with_nonce.size() < NONCE_BYTES + MAC_BYTES)
+            return Result<SecureBuffer>::err("AES-256-GCM: ciphertext too short");
+        SecureBuffer out(ciphertext_with_nonce.size() - NONCE_BYTES - MAC_BYTES);
+        return evp_gcm(false, key, ciphertext_with_nonce.first(NONCE_BYTES), aad,
+                       ciphertext_with_nonce.subspan(NONCE_BYTES), std::move(out));
+    }
+
+private:
+#ifdef CRYPTOLIB_HAS_OPENSSL
+    static Result<SecureBuffer> evp_gcm(bool encrypt, std::span<const uint8_t> key,
+                                        std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
+                                        std::span<const uint8_t> in, SecureBuffer out) {
+        struct CipherFree { void operator()(EVP_CIPHER* c) const { if (c) EVP_CIPHER_free(c); } };
+        struct CtxFree { void operator()(EVP_CIPHER_CTX* c) const { if (c) EVP_CIPHER_CTX_free(c); } };
+        std::unique_ptr<EVP_CIPHER, CipherFree> cipher{ EVP_CIPHER_fetch(nullptr, "AES-256-GCM", nullptr) };
+        std::unique_ptr<EVP_CIPHER_CTX, CtxFree> ctx{ EVP_CIPHER_CTX_new() };
+        if (!cipher || !ctx)
+            return Result<SecureBuffer>::err("AES-256-GCM: OpenSSL init failed");
+        int len = 0;
+        if (encrypt) {
+            uint8_t* body = out.data() + NONCE_BYTES;
+            if (EVP_EncryptInit_ex2(ctx.get(), cipher.get(), nullptr, nullptr, nullptr) != 1 ||
+                EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(NONCE_BYTES), nullptr) != 1 ||
+                EVP_EncryptInit_ex2(ctx.get(), nullptr, key.data(), nonce.data(), nullptr) != 1)
+                return Result<SecureBuffer>::err("AES-256-GCM: encryption failed");
+            if (!aad.empty() && EVP_EncryptUpdate(ctx.get(), nullptr, &len, aad.data(), static_cast<int>(aad.size())) != 1)
+                return Result<SecureBuffer>::err("AES-256-GCM: encryption failed");
+            if (!in.empty() && EVP_EncryptUpdate(ctx.get(), body, &len, in.data(), static_cast<int>(in.size())) != 1)
+                return Result<SecureBuffer>::err("AES-256-GCM: encryption failed");
+            int final_len = 0;
+            if (EVP_EncryptFinal_ex(ctx.get(), body + in.size(), &final_len) != 1 ||
+                EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_GET_TAG, static_cast<int>(MAC_BYTES), body + in.size()) != 1)
+                return Result<SecureBuffer>::err("AES-256-GCM: encryption failed");
+            return Result<SecureBuffer>::ok(std::move(out));
+        }
+        const std::size_t ct_len = in.size() - MAC_BYTES;
+        if (EVP_DecryptInit_ex2(ctx.get(), cipher.get(), nullptr, nullptr, nullptr) != 1 ||
+            EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(NONCE_BYTES), nullptr) != 1 ||
+            EVP_DecryptInit_ex2(ctx.get(), nullptr, key.data(), nonce.data(), nullptr) != 1)
+            return Result<SecureBuffer>::err("AES-256-GCM: decryption failed (tampered?)");
+        if (!aad.empty() && EVP_DecryptUpdate(ctx.get(), nullptr, &len, aad.data(), static_cast<int>(aad.size())) != 1)
+            return Result<SecureBuffer>::err("AES-256-GCM: decryption failed (tampered?)");
+        if (ct_len > 0 && EVP_DecryptUpdate(ctx.get(), out.data(), &len, in.data(), static_cast<int>(ct_len)) != 1)
+            return Result<SecureBuffer>::err("AES-256-GCM: decryption failed (tampered?)");
+        uint8_t tag[MAC_BYTES];
+        std::memcpy(tag, in.data() + ct_len, MAC_BYTES);
+        int final_len = 0;
+        if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_TAG, static_cast<int>(MAC_BYTES), tag) != 1 ||
+            EVP_DecryptFinal_ex(ctx.get(), out.data() + len, &final_len) != 1)
+            return Result<SecureBuffer>::err("AES-256-GCM: decryption failed (tampered?)");
+        return Result<SecureBuffer>::ok(std::move(out));
+    }
+#else
+    static Result<SecureBuffer> evp_gcm(bool, std::span<const uint8_t>, std::span<const uint8_t>,
+                                        std::span<const uint8_t>, std::span<const uint8_t>, SecureBuffer) {
+        return Result<SecureBuffer>::err("AES-256-GCM: not available on this CPU");
+    }
+#endif
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

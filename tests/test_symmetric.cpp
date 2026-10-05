@@ -101,3 +101,30 @@ void run_tests_symmetric() {
     RUN("sym/aesgcm/wrong-key-fails");
     RUN("sym/secretstream/round-trip");
 }
+
+TEST("sym/aes-gcm/portable-path-interchangeable") {
+    REQUIRE(AES::portable_available());
+    auto key = AES::generate_key();
+    auto ct_portable = AES::encrypt_portable(sv2sp("portable in"), key.span(), sv2sp("aad"));
+    REQUIRE(ct_portable.is_ok());
+    CHECK(ct_portable.value().size() == 12 + 11 + 16);
+    auto pt = AES::decrypt(ct_portable.value().span(), key.span(), sv2sp("aad"));
+    REQUIRE(pt.is_ok());
+    CHECK(pt.value().to_string() == "portable in");
+    auto ct = AES::encrypt(sv2sp("hardware in"), key.span(), sv2sp("aad"));
+    REQUIRE(ct.is_ok());
+    auto pt2 = AES::decrypt_portable(ct.value().span(), key.span(), sv2sp("aad"));
+    REQUIRE(pt2.is_ok());
+    CHECK(pt2.value().to_string() == "hardware in");
+    auto bad = AES::decrypt_portable(ct.value().span(), key.span(), sv2sp("other"));
+    CHECK_ERR(bad);
+    std::vector<uint8_t> tampered(ct_portable.value().span().begin(),
+                                  ct_portable.value().span().end());
+    tampered[12] ^= 1;
+    CHECK_ERR(AES::decrypt_portable(tampered, key.span(), sv2sp("aad")));
+    auto empty = AES::encrypt_portable({}, key.span());
+    REQUIRE(empty.is_ok());
+    auto empty_pt = AES::decrypt(empty.value().span(), key.span());
+    REQUIRE(empty_pt.is_ok());
+    CHECK(empty_pt.value().size() == 0);
+}
