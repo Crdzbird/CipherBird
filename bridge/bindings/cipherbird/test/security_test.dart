@@ -20,7 +20,8 @@ Uint8List _noisePpm(int w, int h, int seed) {
   return Uint8List.fromList([...head, ...body]);
 }
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
   final secret = _b('the treaty text nobody may read');
   late Directory dir;
@@ -30,8 +31,17 @@ void main() {
   CipherBirdRecipe cheap(CipherBirdRecipe r) =>
       r.argon2Cost(ops: 1, memoryBytes: 8 * 1024 * 1024);
 
-  setUpAll(() => dir = Directory.systemTemp.createTempSync('cl_sec_'));
-  tearDownAll(() => dir.deleteSync(recursive: true));
+  const isWeb = bool.fromEnvironment('dart.library.js_interop');
+  setUpAll(() {
+    if (!isWeb) {
+      dir = Directory.systemTemp.createTempSync('cl_sec_');
+    }
+  });
+  tearDownAll(() {
+    if (!isWeb) {
+      dir.deleteSync(recursive: true);
+    }
+  });
 
   group('SecurityProfile', () {
     test('maximum picks the strongest option at every choice', () {
@@ -84,7 +94,7 @@ void main() {
       expect(r.open(r.seal(secret)), secret);
     });
 
-    test('a media file as the key', () {
+    test('a media file as the key', testOn: 'vm', () {
       final keyFile = '${dir.path}/key.ppm';
       File(keyFile).writeAsBytesSync(_noisePpm(96, 96, 0x5EED));
       final r = lib.recipe(SecurityProfile.high).withKeyFile(keyFile);
@@ -93,6 +103,7 @@ void main() {
 
     test(
       'the same key file reopens an envelope from a different recipe object',
+      testOn: 'vm',
       () {
         // Regression: the non-deterministic keyFromFile mixes in system entropy,
         // so it would produce a fresh key per call and never reopen its own
@@ -105,7 +116,7 @@ void main() {
       },
     );
 
-    test('a different key file does not open it', () {
+    test('a different key file does not open it', testOn: 'vm', () {
       final a = '${dir.path}/ka.ppm';
       final b = '${dir.path}/kb.ppm';
       File(a).writeAsBytesSync(_noisePpm(96, 96, 0xAAAA));
@@ -209,7 +220,7 @@ void main() {
       expect(r.open(env), secret);
     });
 
-    test('the whole pipeline can hide itself in a carrier', () {
+    test('the whole pipeline can hide itself in a carrier', testOn: 'vm', () {
       final cover = '${dir.path}/cover.ppm';
       final out = '${dir.path}/carrier.ppm';
       File(cover).writeAsBytesSync(_noisePpm(256, 256, 0x0FF1CE));

@@ -21,7 +21,8 @@ bool _eq(Uint8List a, Uint8List b) =>
       return true;
     }();
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
 
   final sk = _hx(

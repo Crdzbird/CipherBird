@@ -35,9 +35,9 @@ expose the same classes and methods and run the same test suite.
 | | cipherbird_dart | cipherbird |
 |---|---|---|
 | Depends on | `ffi` only | Flutter SDK, `ffi` |
-| Engine binaries | host slot under `native/<os>-<arch>/`, macOS on Apple silicon in this release | Android arm64-v8a and x86_64, iOS device and simulator, macOS |
-| How the engine is found | the package's `native/` directory via `.dart_tool/package_config.json`, the current directory or the script location | the process image on iOS and macOS, `jniLibs` on Android |
-| Download size | about 5 MB | about 28 MB |
+| Engine binaries | host slot under `native/<os>-<arch>/`, macOS on Apple silicon in this release, and WebAssembly for the web | Android arm64-v8a and x86_64, iOS device and simulator, macOS, and WebAssembly for the web |
+| How the engine is found | the package's `native/` directory via `.dart_tool/package_config.json`, the current directory or the script location; the package asset on the web | the process image on iOS and macOS, `jniLibs` on Android, the package asset on the web |
+| Download size | about 9 MB | about 32 MB |
 | API, wire formats, tests | identical | identical |
 
 ## Install
@@ -49,6 +49,7 @@ dart pub add cipherbird_dart
 | Platform | Status |
 |---|---|
 | macOS, Apple silicon | library bundled under `native/darwin-arm64` |
+| Web (dart2js and dart2wasm) | WebAssembly engine bundled under `lib/assets` |
 | Linux x64, Windows x64, Intel macOS | not bundled in this release; build the library from the repository and point `CIPHERBIRD_LIBRARY` at it |
 
 No setup call is needed. `CipherBird.load()` resolves the library in this
@@ -61,6 +62,28 @@ library file with the binary.
 
 `CipherBird.preload()` warms the library on a worker isolate and is optional;
 the first use of `CipherBird.instance` does the same work synchronously.
+
+## Web
+
+The package also runs in the browser, compiled with either `dart compile js`
+or `dart compile wasm`. The engine ships inside the package as
+`lib/assets/cipherbird.js` and `lib/assets/cipherbird.wasm` (about 4 MB),
+served by `webdev` and `dart test -p chrome` under
+`packages/cipherbird_dart/assets/`. Load it before the first use:
+
+```dart
+Future<void> main() async {
+  await CipherBird.preload();
+  final digest = CipherBird.instance.sha256('abc'.bytes).hex;
+}
+```
+
+For a deployment that does not serve `packages/`, copy the two files next to
+the app and pass their location: `CipherBird.preload(library:
+'/engine/cipherbird.js')`. In the browser there are no isolates (the runner
+executes inline), no file-path APIs, and AES-256-GCM uses OpenSSL's portable
+implementation with byte-identical output. Everything else, including every
+envelope and key format, matches the native build.
 
 ## Quick start
 

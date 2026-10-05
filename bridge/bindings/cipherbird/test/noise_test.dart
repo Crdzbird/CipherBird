@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 Uint8List b(String s) => Uint8List.fromList(s.codeUnits);
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
 
   test('Noise XX: handshake, mutual auth, transport, fail-closed', () {

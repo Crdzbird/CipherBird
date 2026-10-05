@@ -17,12 +17,41 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
-import 'package:ffi/ffi.dart';
+import 'package:cipherbird_dart/src/platform/native/native_platform.dart'
+    if (dart.library.js_interop) 'package:cipherbird_dart/src/platform/web/web_platform.dart';
+import 'package:cipherbird_dart/src/runner/cipher_bird_inline_runner.dart';
+import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
+
+export 'package:cipherbird_dart/src/platform/native/native_platform.dart'
+    if (dart.library.js_interop) 'package:cipherbird_dart/src/platform/web/web_platform.dart'
+    show
+        CipherBirdAsymBundle,
+        CipherBirdBuffer,
+        CipherBirdBufferResult,
+        CipherBirdDerivedKeys,
+        CipherBirdEntropyInfo,
+        CipherBirdFileInspection,
+        CipherBirdFrostCommit,
+        CipherBirdFrostKeyGen,
+        CipherBirdHealthReport,
+        CipherBirdHiddenDataReport,
+        CipherBirdIsolateRunner,
+        CipherBirdKemEncapsResult,
+        CipherBirdKeyPair,
+        CipherBirdOpaqueKe1,
+        CipherBirdOpaqueKe2,
+        CipherBirdOpaqueKe3,
+        CipherBirdOpaqueRecord,
+        CipherBirdOprfBlind,
+        CipherBirdPacket,
+        CipherBirdResult,
+        CipherBirdSealedInfo;
+export 'package:cipherbird_dart/src/runner/cipher_bird_inline_runner.dart'
+    show CipherBirdInlineRunner;
+export 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart'
+    show CipherBirdRunner;
 
 part 'api/asymmetric.dart';
 part 'api/asymmetric/box.dart';
@@ -158,8 +187,6 @@ part 'api/symmetric/committing_encrypt.dart';
 part 'api/symmetric/secret_stream.dart';
 part 'api/vault.dart';
 part 'api/vault/management.dart';
-part 'core/bundled_library.dart';
-part 'core/library_loader.dart';
 part 'core/marshal_buffers.dart';
 part 'core/marshal_lists.dart';
 part 'core/marshal_structs.dart';
@@ -224,26 +251,6 @@ part 'facade/suite_api.dart';
 part 'facade/suite_api/passphrase_and_threshold.dart';
 part 'facade/vault_api.dart';
 part 'facade/vault_api/molecular_open_with_key.dart';
-part 'ffi/structs/cipher_bird_asym_bundle.dart';
-part 'ffi/structs/cipher_bird_buffer.dart';
-part 'ffi/structs/cipher_bird_buffer_result.dart';
-part 'ffi/structs/cipher_bird_derived_keys.dart';
-part 'ffi/structs/cipher_bird_entropy_info.dart';
-part 'ffi/structs/cipher_bird_file_inspection.dart';
-part 'ffi/structs/cipher_bird_frost_commit.dart';
-part 'ffi/structs/cipher_bird_frost_key_gen.dart';
-part 'ffi/structs/cipher_bird_health_report.dart';
-part 'ffi/structs/cipher_bird_hidden_data_report.dart';
-part 'ffi/structs/cipher_bird_kem_encaps_result.dart';
-part 'ffi/structs/cipher_bird_key_pair.dart';
-part 'ffi/structs/cipher_bird_opaque_ke1.dart';
-part 'ffi/structs/cipher_bird_opaque_ke2.dart';
-part 'ffi/structs/cipher_bird_opaque_ke3.dart';
-part 'ffi/structs/cipher_bird_opaque_record.dart';
-part 'ffi/structs/cipher_bird_oprf_blind.dart';
-part 'ffi/structs/cipher_bird_packet.dart';
-part 'ffi/structs/cipher_bird_result.dart';
-part 'ffi/structs/cipher_bird_sealed_info.dart';
 part 'ffi/typedefs/argon2id.dart';
 part 'ffi/typedefs/asymmetric_vault.dart';
 part 'ffi/typedefs/bbs_pseudonym.dart';
@@ -274,9 +281,6 @@ part 'native/native_hashing.dart';
 part 'native/native_stego.dart';
 part 'native/native_symmetric.dart';
 part 'native/native_vault.dart';
-part 'runner/cipher_bird_inline_runner.dart';
-part 'runner/cipher_bird_isolate_runner.dart';
-part 'runner/cipher_bird_runner.dart';
 part 'security/aes256_gcm_layer.dart';
 part 'security/builtin.dart';
 part 'security/cascade_layer.dart';
@@ -313,7 +317,8 @@ final class CipherBird {
   /// Opens the native library: an explicit [path], else `CRYPTOLIB_DYLIB`,
   /// else the platform default (process image on Apple platforms, the bundled
   /// `libcipherbird.so` on Android and Linux).
-  factory CipherBird.load([String? path]) => CipherBird._(_openLibrary(path));
+  factory CipherBird.load([String? path]) =>
+      CipherBird._(openEngineLibrary(path));
 
   static CipherBird? _singleton;
   static bool _initialized = false;
@@ -329,12 +334,19 @@ final class CipherBird {
     return lib;
   }
 
-  /// Warms the native library on a worker so the first [instance] access on
-  /// the UI isolate is instantaneous. Await it before `runApp`. Returns false
-  /// if the warm-up failed; the lazy path still works in that case.
+  /// Warms the engine so the first [instance] access on the UI isolate is
+  /// instantaneous. Await it before `runApp`. On the web this is where the
+  /// WebAssembly engine is fetched and instantiated, so it is required there;
+  /// [library] overrides the engine location (a file path natively, the URL of
+  /// `cipherbird.js` on the web). Returns false if the warm-up failed; the
+  /// lazy path still works natively in that case.
   static Future<bool> preload({
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
-  }) => _warmUp(runner);
+    String? library,
+  }) async {
+    await prepareEngine(library);
+    return _warmUp(runner, library);
+  }
 
   final DynamicLibrary _lib;
   late final _NativeCore _core = _NativeCore(_lib);

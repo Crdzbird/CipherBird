@@ -1,6 +1,6 @@
 name: cipherbird
 description: "Native cryptography for Flutter over dart:ffi: hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys, engine bundled."
-version: 1.0.0
+version: 1.1.0
 homepage: https://github.com/Crdzbird/CipherBird
 repository: https://github.com/Crdzbird/CipherBird
 documentation: https://github.com/Crdzbird/CipherBird/blob/main/bridge/bindings/cipherbird/README.md
@@ -16,6 +16,7 @@ platforms:
   android:
   ios:
   macos:
+  web:
 
 environment:
   sdk: ^3.12.0
@@ -26,6 +27,9 @@ dependencies:
   ffi: ^2.1.3
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  meta: ^1.16.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0
@@ -54,3 +58,11 @@ flutter:
         ffiPlugin: true
       macos:
         ffiPlugin: true
+      web:
+        # Pure Dart on the web: the engine is the WebAssembly build shipped
+        # under assets/, fetched and instantiated by CipherBird.preload().
+        pluginClass: CipherBirdWeb
+        fileName: cipherbird_web.dart
+  assets:
+    - assets/cipherbird.js
+    - assets/cipherbird.wasm

@@ -110,7 +110,8 @@ class FakeEd25519 extends SignatureScheme {
   bool verify(CipherBird lib, Uint8List m, Uint8List s) => true;
 }
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
   final secret = b('the treaty text nobody may read');
   Uint8List key() => lib.rng.bytes(32);

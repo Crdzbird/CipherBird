@@ -2,7 +2,8 @@ import 'dart:typed_data';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
   test('session ratchet roundtrip + turn + transactional', () {

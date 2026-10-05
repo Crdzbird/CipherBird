@@ -1,0 +1,68 @@
+part of '../web_platform.dart';
+
+final Map<String, Function> _registry33 = {
+  'cryptolib_bbs_proof_verify_with_pseudonym':
+      (
+        Pointer<NativeType> pk,
+        int pkLen,
+        Pointer<NativeType> proof,
+        int proofLen,
+        Pointer<NativeType> header,
+        int headerLen,
+        Pointer<NativeType> ph,
+        int phLen,
+        Pointer<NativeType> contextId,
+        int ctxLen,
+        Pointer<NativeType> pseudonym,
+        int nymLen,
+        int L,
+        int lengthNymVector,
+        Pointer<NativeType> disclosedMsgs,
+        Pointer<NativeType> disclosedLens,
+        int disclosedCount,
+        Pointer<NativeType> disclosedIndexes,
+        int indexesCount,
+      ) => WebEngine.current.callInt(
+        '_cbw_cryptolib_bbs_proof_verify_with_pseudonym',
+        [
+          pk.address.toJS,
+          pkLen.toJS,
+          proof.address.toJS,
+          proofLen.toJS,
+          header.address.toJS,
+          headerLen.toJS,
+          ph.address.toJS,
+          phLen.toJS,
+          contextId.address.toJS,
+          ctxLen.toJS,
+          pseudonym.address.toJS,
+          nymLen.toJS,
+          (L % 4294967296).toJS,
+          (L ~/ 4294967296).toJS,
+          (lengthNymVector % 4294967296).toJS,
+          (lengthNymVector ~/ 4294967296).toJS,
+          disclosedMsgs.address.toJS,
+          disclosedLens.address.toJS,
+          disclosedCount.toJS,
+          disclosedIndexes.address.toJS,
+          indexesCount.toJS,
+        ],
+      ),
+  'cryptolib_bbs_blind_commit':
+      (
+        Pointer<NativeType> committedMsgs,
+        Pointer<NativeType> committedLens,
+        int committedCount,
+        Pointer<NativeType> secretProverBlind,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_bbs_blind_commit',
+        [
+          committedMsgs.address.toJS,
+          committedLens.address.toJS,
+          committedCount.toJS,
+          secretProverBlind.address.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+};

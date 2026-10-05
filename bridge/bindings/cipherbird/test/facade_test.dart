@@ -19,12 +19,22 @@ Uint8List _noisePpm(int w, int h, int seed) {
   return Uint8List.fromList([...head, ...body]);
 }
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
   late Directory dir;
 
-  setUpAll(() => dir = Directory.systemTemp.createTempSync('cl_facade_'));
-  tearDownAll(() => dir.deleteSync(recursive: true));
+  const isWeb = bool.fromEnvironment('dart.library.js_interop');
+  setUpAll(() {
+    if (!isWeb) {
+      dir = Directory.systemTemp.createTempSync('cl_facade_');
+    }
+  });
+  tearDownAll(() {
+    if (!isWeb) {
+      dir.deleteSync(recursive: true);
+    }
+  });
 
   group('grouped namespaces', () {
     test('hash + aead reachable through their groups', () {
@@ -137,96 +147,116 @@ void main() {
       );
     });
 
-    test('carrier inspection reports true format and detects a payload', () {
-      final cover = '${dir.path}/cover.ppm';
-      final out = '${dir.path}/stego.ppm';
-      File(cover).writeAsBytesSync(_noisePpm(128, 128, 0xC0FFEE));
+    test(
+      'carrier inspection reports true format and detects a payload',
+      testOn: 'vm',
+      () {
+        final cover = '${dir.path}/cover.ppm';
+        final out = '${dir.path}/stego.ppm';
+        File(cover).writeAsBytesSync(_noisePpm(128, 128, 0xC0FFEE));
 
-      final info = lib.stego.inspect(cover);
-      expect(info.parses, isTrue);
-      expect(info.format, MediaFormat.ppmImage);
-      expect(info.extensionMatches, isTrue);
-      expect(info.width, 128);
-      expect(info.height, 128);
+        final info = lib.stego.inspect(cover);
+        expect(info.parses, isTrue);
+        expect(info.format, MediaFormat.ppmImage);
+        expect(info.extensionMatches, isTrue);
+        expect(info.width, 128);
+        expect(info.height, 128);
 
-      // Unkeyed payload is discoverable; the keyed one is not trivially so.
-      lib.stegoEmbed(cover, Uint8List.fromList('plain'.codeUnits), out);
-      expect(lib.stego.detectHidden(out).cipherbirdPayload, isTrue);
-    });
+        // Unkeyed payload is discoverable; the keyed one is not trivially so.
+        lib.stegoEmbed(cover, Uint8List.fromList('plain'.codeUnits), out);
+        expect(lib.stego.detectHidden(out).cipherbirdPayload, isTrue);
+      },
+    );
 
-    test('keyed and encrypted stego round-trip; wrong key fails closed', () {
-      final cover = '${dir.path}/c2.ppm';
-      final k1 = '${dir.path}/k1.ppm';
-      final e1 = '${dir.path}/e1.ppm';
-      File(cover).writeAsBytesSync(_noisePpm(128, 128, 0xBEEF));
-      final key = Uint8List.fromList(List.filled(32, 0x5a));
-      final wrong = Uint8List.fromList(List.filled(32, 0x99));
-      final payload = Uint8List.fromList('keyed payload'.codeUnits);
+    test(
+      'keyed and encrypted stego round-trip; wrong key fails closed',
+      testOn: 'vm',
+      () {
+        final cover = '${dir.path}/c2.ppm';
+        final k1 = '${dir.path}/k1.ppm';
+        final e1 = '${dir.path}/e1.ppm';
+        File(cover).writeAsBytesSync(_noisePpm(128, 128, 0xBEEF));
+        final key = Uint8List.fromList(List.filled(32, 0x5a));
+        final wrong = Uint8List.fromList(List.filled(32, 0x99));
+        final payload = Uint8List.fromList('keyed payload'.codeUnits);
 
-      lib.stego.embedKeyed(cover, payload, k1, key);
-      expect(lib.stego.extractKeyed(k1, key), payload);
-      expect(() => lib.stego.extractKeyed(k1, wrong), throwsA(anything));
+        lib.stego.embedKeyed(cover, payload, k1, key);
+        expect(lib.stego.extractKeyed(k1, key), payload);
+        expect(() => lib.stego.extractKeyed(k1, wrong), throwsA(anything));
 
-      lib.stego.embedEncrypted(cover, payload, e1, key);
-      expect(lib.stego.extractDecrypt(e1, key), payload);
-      expect(() => lib.stego.extractDecrypt(e1, wrong), throwsA(anything));
-    });
+        lib.stego.embedEncrypted(cover, payload, e1, key);
+        expect(lib.stego.extractDecrypt(e1, key), payload);
+        expect(() => lib.stego.extractDecrypt(e1, wrong), throwsA(anything));
+      },
+    );
 
-    test('content digest ignores the container, tracks the samples', () {
-      final a = '${dir.path}/d1.ppm';
-      final b = '${dir.path}/d2.ppm';
-      final bytes = _noisePpm(64, 64, 0x1234);
-      File(a).writeAsBytesSync(bytes);
-      File(b).writeAsBytesSync(bytes);
-      expect(lib.stego.contentDigest(a), lib.stego.contentDigest(b));
-    });
+    test(
+      'content digest ignores the container, tracks the samples',
+      testOn: 'vm',
+      () {
+        final a = '${dir.path}/d1.ppm';
+        final b = '${dir.path}/d2.ppm';
+        final bytes = _noisePpm(64, 64, 0x1234);
+        File(a).writeAsBytesSync(bytes);
+        File(b).writeAsBytesSync(bytes);
+        expect(lib.stego.contentDigest(a), lib.stego.contentDigest(b));
+      },
+    );
 
-    test('entropy health separates a noisy source from a flat one', () {
-      final noisy = '${dir.path}/noisy.ppm';
-      final flat = '${dir.path}/flat.ppm';
-      File(noisy).writeAsBytesSync(_noisePpm(128, 128, 0xABCD));
-      File(flat).writeAsBytesSync(
-        Uint8List.fromList([
-          ...'P6\n128 128\n255\n'.codeUnits,
-          ...List.filled(128 * 128 * 3, 0),
-        ]),
-      );
+    test(
+      'entropy health separates a noisy source from a flat one',
+      testOn: 'vm',
+      () {
+        final noisy = '${dir.path}/noisy.ppm';
+        final flat = '${dir.path}/flat.ppm';
+        File(noisy).writeAsBytesSync(_noisePpm(128, 128, 0xABCD));
+        File(flat).writeAsBytesSync(
+          Uint8List.fromList([
+            ...'P6\n128 128\n255\n'.codeUnits,
+            ...List.filled(128 * 128 * 3, 0),
+          ]),
+        );
 
-      final good = lib.entropy.assessFileHealth(noisy);
-      final bad = lib.entropy.assessFileHealth(flat);
-      expect(good.minEntropyPerByte, greaterThan(bad.minEntropyPerByte));
-      expect(
-        bad.healthy,
-        isFalse,
-        reason: 'an all-zero file must fail the health tests',
-      );
-    });
+        final good = lib.entropy.assessFileHealth(noisy);
+        final bad = lib.entropy.assessFileHealth(flat);
+        expect(good.minEntropyPerByte, greaterThan(bad.minEntropyPerByte));
+        expect(
+          bad.healthy,
+          isFalse,
+          reason: 'an all-zero file must fail the health tests',
+        );
+      },
+    );
 
-    test('physical seal needs both the key media and the carrier', () {
-      final keyMedia = '${dir.path}/key.ppm';
-      final cover = '${dir.path}/pcover.ppm';
-      final out = '${dir.path}/psealed.ppm';
-      final decoy = '${dir.path}/decoy.ppm';
-      File(keyMedia).writeAsBytesSync(_noisePpm(96, 96, 0x5EED));
-      File(cover).writeAsBytesSync(_noisePpm(160, 160, 0x0FF1CE));
-      File(decoy).writeAsBytesSync(_noisePpm(96, 96, 0xDEC0DE));
+    test(
+      'physical seal needs both the key media and the carrier',
+      testOn: 'vm',
+      () {
+        final keyMedia = '${dir.path}/key.ppm';
+        final cover = '${dir.path}/pcover.ppm';
+        final out = '${dir.path}/psealed.ppm';
+        final decoy = '${dir.path}/decoy.ppm';
+        File(keyMedia).writeAsBytesSync(_noisePpm(96, 96, 0x5EED));
+        File(cover).writeAsBytesSync(_noisePpm(160, 160, 0x0FF1CE));
+        File(decoy).writeAsBytesSync(_noisePpm(96, 96, 0xDEC0DE));
 
-      final secret = Uint8List.fromList('two files required'.codeUnits);
-      lib.composed.physicalSeal(
-        keyMediaPath: keyMedia,
-        plaintext: secret,
-        coverPath: cover,
-        outputPath: out,
-      );
-      expect(
-        lib.composed.physicalOpen(keyMediaPath: keyMedia, stegoPath: out),
-        secret,
-      );
-      expect(
-        () => lib.composed.physicalOpen(keyMediaPath: decoy, stegoPath: out),
-        throwsA(anything),
-        reason: 'a different key file must not open it',
-      );
-    });
+        final secret = Uint8List.fromList('two files required'.codeUnits);
+        lib.composed.physicalSeal(
+          keyMediaPath: keyMedia,
+          plaintext: secret,
+          coverPath: cover,
+          outputPath: out,
+        );
+        expect(
+          lib.composed.physicalOpen(keyMediaPath: keyMedia, stegoPath: out),
+          secret,
+        );
+        expect(
+          () => lib.composed.physicalOpen(keyMediaPath: decoy, stegoPath: out),
+          throwsA(anything),
+          reason: 'a different key file must not open it',
+        );
+      },
+    );
   });
 }

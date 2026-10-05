@@ -11,7 +11,8 @@ import 'dart:typed_data';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
   final aad = Uint8List.fromList('recipe/v1'.codeUnits);
   Uint8List B(String s) => Uint8List.fromList(s.codeUnits);
@@ -24,30 +25,41 @@ void main() {
   }
 
   // 1. File-as-key vault: deterministic media entropy -> master -> MolecularVault.
-  test('recipe 1 · file-as-key vault (media entropy -> MolecularVault)', () {
-    final tmp = File(
-      '${Directory.systemTemp.path}/cipherbird_recipe_key.bin',
-    );
-    tmp.writeAsBytesSync(
-      Uint8List.fromList(List.generate(4096, (i) => (i * 37 + 11) & 0xff)),
-    );
-    try {
-      final e1 = lib.entropyFromFileDeterministic(tmp.path);
-      final master = lib.entropyDeriveAll(e1).vaultMasterKey;
-      lib.entropyFree(e1);
-      final env = lib.molecularSealWithKey(B('launch codes'), master, aad: aad);
-
-      final e2 = lib.entropyFromFileDeterministic(tmp.path);
-      final master2 = lib.entropyDeriveAll(e2).vaultMasterKey;
-      lib.entropyFree(e2);
-      expect(
-        eq(lib.molecularOpenWithKey(env, master2, aad: aad), B('launch codes')),
-        isTrue,
+  test(
+    'recipe 1 · file-as-key vault (media entropy -> MolecularVault)',
+    testOn: 'vm',
+    () {
+      final tmp = File(
+        '${Directory.systemTemp.path}/cipherbird_recipe_key.bin',
       );
-    } finally {
-      tmp.deleteSync();
-    }
-  });
+      tmp.writeAsBytesSync(
+        Uint8List.fromList(List.generate(4096, (i) => (i * 37 + 11) & 0xff)),
+      );
+      try {
+        final e1 = lib.entropyFromFileDeterministic(tmp.path);
+        final master = lib.entropyDeriveAll(e1).vaultMasterKey;
+        lib.entropyFree(e1);
+        final env = lib.molecularSealWithKey(
+          B('launch codes'),
+          master,
+          aad: aad,
+        );
+
+        final e2 = lib.entropyFromFileDeterministic(tmp.path);
+        final master2 = lib.entropyDeriveAll(e2).vaultMasterKey;
+        lib.entropyFree(e2);
+        expect(
+          eq(
+            lib.molecularOpenWithKey(env, master2, aad: aad),
+            B('launch codes'),
+          ),
+          isTrue,
+        );
+      } finally {
+        tmp.deleteSync();
+      }
+    },
+  );
 
   // 2. Post-quantum message: hybrid KEM shared secret -> MolecularVault.
   test('recipe 2 · post-quantum message (hybrid KEM -> MolecularVault)', () {

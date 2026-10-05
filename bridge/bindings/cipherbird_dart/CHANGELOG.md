@@ -1,3 +1,13 @@
+## 1.1.0
+
+Web support. The engine is compiled to WebAssembly and bundled under
+`lib/assets/`; the same API runs in the browser with `dart compile js` or
+`dart compile wasm`, with byte-compatible envelopes, signatures and keys.
+`CipherBird.preload()` loads the engine and is required on the web; it takes
+an optional `library` location. File-path APIs are unavailable in the browser
+and the isolate runner executes inline there. AES-256-GCM gained a portable
+OpenSSL path for CPUs without AES instructions.
+
 ## 1.0.0
 
 First release. `cipherbird_dart` is the plain-Dart twin of the `cipherbird`

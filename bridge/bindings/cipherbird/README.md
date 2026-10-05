@@ -40,11 +40,11 @@ program.
 | | cipherbird | cipherbird_dart |
 |---|---|---|
 | Depends on | Flutter SDK, `ffi` | `ffi` only |
-| Engine binaries | bundled per platform: Android arm64-v8a and x86_64, iOS device and simulator, macOS | bundled for the host under `native/<os>-<arch>/`, macOS on Apple silicon in this release |
-| How the engine is found | the process image on iOS and macOS, `libcipherbird.so` from `jniLibs` on Android | the package's `native/` directory, located through the program's package configuration |
-| Startup | `await CipherBird.preload()` before `runApp`, or lazy on first use | lazy on first use, `preload` optional |
+| Engine binaries | bundled per platform: Android arm64-v8a and x86_64, iOS device and simulator, macOS, and WebAssembly for the web | bundled for the host under `native/<os>-<arch>/`, macOS on Apple silicon in this release, and WebAssembly for the web |
+| How the engine is found | the process image on iOS and macOS, `libcipherbird.so` from `jniLibs` on Android, the package asset on the web | the package's `native/` directory, located through the program's package configuration; the package asset on the web |
+| Startup | `await CipherBird.preload()` before `runApp`, or lazy on first use; required on the web | lazy on first use, `preload` optional; required on the web |
 | Build integration | Flutter's plugin tooling, nothing to configure | none needed; `dart run`, `dart test` and `dart compile exe` (pass the library path) |
-| Download size | about 28 MB | about 5 MB |
+| Download size | about 32 MB | about 9 MB |
 | API, wire formats, tests | identical | identical |
 
 ## Install
@@ -255,6 +255,46 @@ final phc = await lib.easy.hashPasswordAsync('hunter2');
 Everything else is fast enough to call on the UI isolate; the figures below
 say how fast.
 
+## Web
+
+The same package runs in the browser. The engine is compiled to WebAssembly
+with Emscripten and ships inside the package as `assets/cipherbird.js` and
+`assets/cipherbird.wasm`, about 4 MB, fetched once when the app starts. The
+Dart API is identical; the only change is that the engine must be loaded
+before the first use, because fetching and instantiating WebAssembly is
+asynchronous:
+
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CipherBird.preload();
+  runApp(const MyApp());
+}
+```
+
+`preload` finds the engine at the package asset path. Pass
+`library: 'https://cdn.example.com/engine/cipherbird.js'` to serve it from
+somewhere else (the `.wasm` file is fetched from the same directory), or set
+the `CIPHERBIRD_LIBRARY` compile-time define. Both `flutter build web` and
+`flutter build web --wasm` are supported; the test suite runs under both.
+
+What differs in the browser:
+
+- Envelopes, signatures and keys are byte-compatible with every other
+  platform. A message sealed in the browser opens on a phone or a server and
+  the other way round.
+- There are no isolates. `CipherBirdIsolateRunner` runs its task on the
+  calling thread, so the asynchronous Argon2id helpers still return futures
+  but do the work on the main thread. Keep Argon2id parameters moderate in
+  the browser or run the call inside your own web worker.
+- APIs that take a file path (media entropy from a file, key files, suite
+  calls with a file, steganography carriers on disk) are unavailable; the
+  browser has no filesystem. The in-memory variants of the same operations
+  work.
+- AES-256-GCM uses OpenSSL's portable implementation because WebAssembly has
+  no AES instructions. Output is byte-identical to the hardware path.
+- 64-bit integer parameters are exact up to 2^53.
+
 ## How it compares
 
 The pub.dev packages below each cover part of the same job. The first table
@@ -354,6 +394,13 @@ split into named chunks such as `CipherBirdHybridKem` or
 `CipherBirdRecipeSealing`, all re-exported by the barrel. The pure-Dart package
 is generated from this one with `scripts/sync_dart_package.sh`.
 
+`lib/src/platform/native` holds dart:ffi, the library loader and the isolate
+runner; `lib/src/platform/web` holds the same surface over the WebAssembly
+engine (pointers, allocation, struct views and the symbol registry, the last
+two generated from the C header by `scripts/web/gen_dart.py`). The root
+library picks one with a conditional import, so the API layer is written
+once.
+
 ## Maintaining the binaries
 
 The prebuilt binaries are committed and published with the package. They go
@@ -378,6 +425,15 @@ this package's tests on a device:
 grep -c '^CRYPTO_API' bridge/cryptolib_c.h
 nm -gU ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird | grep -c ' T _cryptolib_'
 make flutter-consumer DEVICE=macos
+```
+
+The WebAssembly engine is rebuilt with Emscripten from the same sources and
+bundled into both packages:
+
+```bash
+make web-engine
+make web-bundle
+make flutter-web-test
 ```
 
 The iOS simulator slice is arm64 only. A generic

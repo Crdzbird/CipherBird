@@ -1,3 +1,16 @@
+## 1.1.0
+
+Web support. The engine is compiled to WebAssembly with Emscripten and
+bundled as `assets/cipherbird.js` and `assets/cipherbird.wasm`; the same
+Dart API runs in the browser under both `flutter build web` and
+`flutter build web --wasm`, with byte-compatible envelopes, signatures and
+keys. `CipherBird.preload()` loads the engine and is required on the web; it
+takes an optional `library` location (a file path natively, the URL of
+`cipherbird.js` on the web). File-path APIs are unavailable in the browser
+and `CipherBirdIsolateRunner` runs inline there. AES-256-GCM gained a
+portable OpenSSL path for CPUs without AES instructions, byte-identical to
+the hardware path.
+
 ## 1.0.0
 
 First release under the name `cipherbird`. The package was previously

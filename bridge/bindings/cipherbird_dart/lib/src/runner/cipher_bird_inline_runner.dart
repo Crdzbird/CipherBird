@@ -1,4 +1,6 @@
-part of '../cipher_bird.dart';
+import 'dart:async';
+
+import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
 
 /// A [CipherBirdRunner] that runs everything on the current isolate.
 final class CipherBirdInlineRunner implements CipherBirdRunner {

@@ -10,7 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 String _hex(Uint8List b) =>
     b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   test('synchronous API works with NO preload (lazy self-init)', () {
     // First touch of `instance` must open + init the lib synchronously.
     final v = CipherBird.instance.version();

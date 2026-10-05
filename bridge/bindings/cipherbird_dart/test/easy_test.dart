@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:test/test.dart';
 
-void main() {
+Future<void> main() async {
+  await CipherBird.preload(runner: const CipherBirdInlineRunner());
   final lib = CipherBird.instance;
 
   group('bytes & text sugar', () {

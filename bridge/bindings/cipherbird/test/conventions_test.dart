@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const scanRoot = 'lib/src';
   const maxLines = 100;
-  const lineLimitExempt = {'lib/src/cipher_bird.dart'};
+  const lineLimitExempt = {
+    'lib/src/cipher_bird.dart',
+    'lib/src/platform/native/native_platform.dart',
+    'lib/src/platform/web/web_platform.dart',
+  };
   final classPattern = RegExp(
     r'^\s*(final |abstract final |abstract interface |sealed |base |abstract )*class\s',
   );

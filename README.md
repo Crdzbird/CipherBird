@@ -6,8 +6,9 @@
 [![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > A C++20 cryptography library covering classical, post-quantum, hybrid, and
-> blockchain primitives behind a single C ABI, usable from Flutter, Go, Node,
-> Next.js/React, JVM, Swift, and .NET via auto-loading language packages.
+> blockchain primitives behind a single C ABI, usable from Flutter, Dart on
+> the web, Go, Node, Next.js/React, JVM, Swift, and .NET via auto-loading
+> language packages.
 
 Single include on the C++ side. Language packages bundle the native binary and
 load it automatically, no manual path, no manual setup. Built on vetted
@@ -31,8 +32,8 @@ by how your project is built.
 
 | Package | For | Install |
 |---|---|---|
-| [cipherbird](https://pub.dev/packages/cipherbird) | Flutter apps on Android, iOS and macOS. The engine is bundled per platform and the plugin loads it on startup. | `flutter pub add cipherbird` |
-| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | Plain Dart on the command line and servers. No Flutter dependency, the engine ships inside the package. | `dart pub add cipherbird_dart` |
+| [cipherbird](https://pub.dev/packages/cipherbird) | Flutter apps on Android, iOS, macOS and the web. The engine is bundled per platform, as WebAssembly for the browser, and the plugin loads it on startup. | `flutter pub add cipherbird` |
+| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | Plain Dart on the command line, servers and the web. No Flutter dependency, the engine ships inside the package, including the WebAssembly build. | `dart pub add cipherbird_dart` |
 
 Both packages are at version 1.0.0, matching the
 [v1.0.0](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0) tag of
@@ -113,7 +114,7 @@ attribute set while revealing only what a verifier needs.
 | **Selective disclosure** | A zero-knowledge proof that reveals a chosen subset of attributes while proving a valid signature covers *all* of them, the core of W3C Verifiable Credentials | same |
 | **Per-verifier pseudonyms** | A holder is **unlinkable across verifiers** yet presents a **stable pseudonym per context**, a verifier recognises the same holder on return visits without any cross-verifier tracking | `draft-irtf-cfrg-bbs-per-verifier-linkability-02` |
 | **Blind issuance** | The holder commits to private attributes the **issuer never sees**; the issuer blind-signs over the commitment plus its own attributes | `draft-irtf-cfrg-bbs-blind-signatures-02` |
-| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` to a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets, both guaranteed `< r` so they never silently break a proof | base draft Âsection D.2.3 vector |
+| **Canonical-scalar helper** | `hash_to_scalar(member_secret, dst)` to a stable, deterministic per-holder pseudonym seed; `random_scalar()` for fresh secrets, both guaranteed `< r` so they never silently break a proof | base draft section D.2.3 vector |
 
 Validated **byte-exact against the drafts' official test vectors** (generators,
 commitment, blind-sign, proof, and `hash_to_scalar`); the pseudonym prover-secret
