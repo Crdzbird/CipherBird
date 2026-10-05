@@ -1,7 +1,22 @@
 name: cryptolib_flutter
 description: "CryptoLib for Flutter — hashing, AEAD, asymmetric, vaults, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring via dart:ffi. The native library is bundled per platform and loaded automatically."
 version: 4.1.0
-homepage: https://example.com/cryptolib
+homepage: https://github.com/Crdzbird/CryptoLib
+repository: https://github.com/Crdzbird/CryptoLib
+issue_tracker: https://github.com/Crdzbird/CryptoLib/issues
+documentation: https://github.com/Crdzbird/CryptoLib/blob/main/bridge/bindings/cryptolib_flutter/README.md
+topics:
+  - cryptography
+  - encryption
+  - post-quantum
+  - ffi
+  - security
+# Platforms with a bundled native binary. Linux, Windows and web are not
+# supported by this release (no prebuilt library is shipped for them).
+platforms:
+  android:
+  ios:
+  macos:
 
 environment:
   sdk: ^3.12.0

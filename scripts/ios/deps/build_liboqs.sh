@@ -42,7 +42,7 @@ esac
 # OQS_MINIMAL_BUILD takes liboqs *build identifiers* (e.g. KEM_ml_kem_768),
 # NOT runtime names (ML-KEM-768). The latter match nothing and silently
 # produce a liboqs with every algorithm disabled.
-ALGS="KEM_ml_kem_512;KEM_ml_kem_768;KEM_ml_kem_1024"
+ALGS="KEM_ml_kem_512;KEM_ml_kem_768;KEM_ml_kem_1024;KEM_ntruprime_sntrup761"
 ALGS+=";SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87"
 # SLH-DSA 'pure' variants (both SHA2 and SHAKE, levels 128/192/256, s+f)
 for hash in sha2 shake; do

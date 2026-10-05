@@ -62,7 +62,7 @@ slice_arches() {
 slice_min_version() {
     case "$1" in
         iphoneos|iphonesimulator)  echo "15.0" ;;
-        macosx)                    echo "14.0" ;;
+        macosx)                    echo "12.0" ;;
         *)                         die "Unknown slice: $1" ;;
     esac
 }

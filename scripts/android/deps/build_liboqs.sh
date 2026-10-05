@@ -23,7 +23,7 @@ extract_to "$ARCHIVE" "$WORK/src"
 # OQS_MINIMAL_BUILD takes liboqs *build identifiers* (e.g. KEM_ml_kem_768),
 # NOT the runtime algorithm names (ML-KEM-768). Using the latter silently
 # matches nothing and produces a liboqs with every algorithm disabled.
-ALGS="KEM_ml_kem_512;KEM_ml_kem_768;KEM_ml_kem_1024;SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87"
+ALGS="KEM_ml_kem_512;KEM_ml_kem_768;KEM_ml_kem_1024;KEM_ntruprime_sntrup761;SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87"
 for hash in sha2 shake; do
     for lvl in 128s 128f 192s 192f 256s 256f; do
         ALGS+=";SIG_slh_dsa_pure_${hash}_${lvl}"

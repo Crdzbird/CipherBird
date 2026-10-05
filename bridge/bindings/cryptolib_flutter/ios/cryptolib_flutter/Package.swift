@@ -11,7 +11,7 @@ import PackageDescription
 let package = Package(
     name: "cryptolib_flutter",
     platforms: [
-        .iOS("13.0"),
+        .iOS("15.0"),  // the bundled CryptoLibC binary is built with -miphoneos-version-min=15.0,
     ],
     products: [
         // Flutter's generated package references the product by its hyphenated

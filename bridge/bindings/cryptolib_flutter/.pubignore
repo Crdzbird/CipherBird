@@ -1,0 +1,28 @@
+# pub uses THIS file (instead of .gitignore) to decide what goes in the package.
+# The prebuilt native library (android/src/main/jniLibs/**/libcryptolib_c.so and
+# ios|macos/cryptolib_flutter/CryptoLibC.xcframework) MUST ship, so it is
+# deliberately NOT excluded here. Exclude only dev cruft.
+.dart_tool/
+build/
+*.log
+*.iml
+.idea/
+.swiftpm/
+.build/
+example/build/
+example/.dart_tool/
+example/ios/Pods/
+example/macos/Pods/
+example/android/.gradle/
+*.dSYM/
+
+# The root .gitignore drops *.so and CryptoLibC.xcframework/ for every other
+# binding; re-include them here (pub consults this file instead of the
+# .gitignore in this directory, so the negations must live here too).
+!android/src/main/jniLibs/
+!android/src/main/jniLibs/**
+!android/src/main/jniLibs/**/*.so
+!ios/cryptolib_flutter/CryptoLibC.xcframework/
+!ios/cryptolib_flutter/CryptoLibC.xcframework/**
+!macos/cryptolib_flutter/CryptoLibC.xcframework/
+!macos/cryptolib_flutter/CryptoLibC.xcframework/**

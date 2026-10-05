@@ -322,6 +322,14 @@ swift-ecvrf: lib
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_ecvrf | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
+# Prove the Flutter package works for a pub.dev consumer: serves the exact
+# publish archive from a local pub server, installs it as a HOSTED dependency
+# in a fresh app, runs the package's test suite on DEVICE (flutter devices).
+.PHONY: flutter-consumer
+flutter-consumer:
+	$(call hdr,Flutter pub.dev consumer test on $(or $(DEVICE),macos))
+	@bash scripts/verify_pub_consumer.sh $(or $(DEVICE),macos)
+
 .PHONY: flutter-recipes
 flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))

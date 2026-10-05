@@ -20,6 +20,15 @@ Extensible recipes: mix your own encryption into a `CryptoRecipe`.
   `wireName` feeds its HKDF sub-key; the envelope pins the key-source id and
   the signature-scheme id.
 
+### Packaging
+
+* First pub.dev-ready release: the prebuilt native binaries (Android
+  arm64-v8a + x86_64 `.so`, iOS device + simulator and macOS `CryptoLibC`
+  frameworks) are committed and included in the published archive, rebuilt
+  against the current 265-function C ABI. Real `LICENSE` (MIT, credit to the
+  author required), repository links, declared platforms (Android, iOS 15+,
+  macOS 12+ on Apple silicon).
+
 ### Changed
 
 * `verifiedBy(pk)` no longer takes an `algorithm` argument — the envelope

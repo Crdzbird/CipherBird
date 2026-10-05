@@ -94,9 +94,17 @@ README).
 > These are deliberately left for you to run — publishing is irreversible and
 > needs registry credentials this repo does not (and should not) hold.
 
-- **pub.dev (Flutter):** set `homepage`/`repository` + a real `LICENSE`, then
-  `cd bridge/bindings/cryptolib_flutter && flutter pub publish`. Requires a
-  pub.dev account linked to your Google identity.
+- **pub.dev (Flutter):** `cd bridge/bindings/cryptolib_flutter && flutter pub publish`
+  (`--dry-run` first; the archive must list `libcryptolib_c.so` ×2 and the
+  `CryptoLibC` framework binaries, ~28 MB compressed). The prebuilt binaries
+  are **committed** for this package and re-included via its `.pubignore`;
+  rebuild them after any C ABI change (README → "Updating the bundled
+  binaries") or the eager symbol lookup fails at load. Requires a pub.dev
+  account linked to your Google identity.
+  **Consumer proof before publishing:** `make flutter-consumer DEVICE=<id>`
+  (`scripts/verify_pub_consumer.sh`) installs the exact archive as a hosted
+  package in a fresh app and runs the package's 79-test suite on that device;
+  run it for macOS, an iOS simulator and an Android device.
 - **npm:** `cd bridge/bindings/cryptolib-node && npm publish --access public`.
   Requires `npm login`. Consider scoping as `@yourorg/cryptolib`.
 - **Maven Central (JVM):** wrap `cryptolib-jvm` in a Gradle/Maven build, then

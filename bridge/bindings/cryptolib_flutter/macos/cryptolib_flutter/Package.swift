@@ -10,7 +10,7 @@ import PackageDescription
 let package = Package(
     name: "cryptolib_flutter",
     platforms: [
-        .macOS("10.15"),
+        .macOS("12.0"),  // the bundled CryptoLibC binary is built with -mmacosx-version-min=12.0,
     ],
     products: [
         .library(name: "cryptolib-flutter", targets: ["cryptolib_flutter"]),

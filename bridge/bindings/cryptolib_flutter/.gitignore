@@ -31,3 +31,16 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# ── Prebuilt native binaries ARE version-controlled for this package ─────────
+# The root .gitignore drops *.so and CryptoLibC.xcframework/ everywhere else;
+# the Flutter plugin is published from this tree and consumers get the binary
+# from pub.dev, so the blobs must be committed. Rebuild with `make android` /
+# `make ios` after any C ABI change (see README "Updating the bundled binaries").
+!android/src/main/jniLibs/
+!android/src/main/jniLibs/**
+!android/src/main/jniLibs/**/*.so
+!ios/cryptolib_flutter/CryptoLibC.xcframework/
+!ios/cryptolib_flutter/CryptoLibC.xcframework/**
+!macos/cryptolib_flutter/CryptoLibC.xcframework/
+!macos/cryptolib_flutter/CryptoLibC.xcframework/**
