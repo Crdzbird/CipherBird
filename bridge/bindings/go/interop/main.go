@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 func die(msg string) {

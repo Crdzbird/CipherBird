@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 func must[T any](v T, err error) T {

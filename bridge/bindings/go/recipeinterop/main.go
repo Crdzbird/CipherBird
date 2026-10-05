@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 // Fixed inputs so every language derives identical keys.

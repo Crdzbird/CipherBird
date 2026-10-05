@@ -11,7 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 // The library must be initialised once before use. Init is safe to call more

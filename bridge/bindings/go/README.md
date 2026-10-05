@@ -8,7 +8,7 @@ revocable keyring, media-derived entropy, and **EVM/Bitcoin** primitives
 (Keccak-256, RIPEMD-160, secp256k1 ECDSA).
 
 ```go
-import "github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+import "github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 ```
 
 > Uses **cgo**. You need `CGO_ENABLED=1` (the default) and a built copy of the
@@ -19,7 +19,7 @@ import "github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
 ## Install
 
 ```sh
-go get github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib
+go get github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib
 ```
 
 ## Prerequisites — build the native library
@@ -110,7 +110,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 func main() {

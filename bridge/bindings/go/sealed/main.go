@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	cl "github.com/Crdzbird/CryptoLib/bridge/bindings/go/cryptolib"
+	cl "github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
 )
 
 var pass, fail int
