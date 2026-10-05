@@ -1,4 +1,0 @@
-framework module CryptoLibC {
-    header "cryptolib_c.h"
-    export *
-}

@@ -1,10 +1,10 @@
 part of '../../cipher_bird.dart';
 
-typedef _AsymBundleGenerateC = CryptoAsymBundle Function();
-typedef _AsymBundleGenerateDart = CryptoAsymBundle Function();
+typedef _AsymBundleGenerateC = CipherBirdAsymBundle Function();
+typedef _AsymBundleGenerateDart = CipherBirdAsymBundle Function();
 typedef _AsymVaultSealC =
-    CryptoPacket Function(
-      Pointer<CryptoAsymBundle> sender,
+    CipherBirdPacket Function(
+      Pointer<CipherBirdAsymBundle> sender,
       Pointer<Uint8> recipientBoxPub,
       Size rpubLen,
       Pointer<Uint8> pt,
@@ -13,8 +13,8 @@ typedef _AsymVaultSealC =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _AsymVaultSealDart =
-    CryptoPacket Function(
-      Pointer<CryptoAsymBundle> sender,
+    CipherBirdPacket Function(
+      Pointer<CipherBirdAsymBundle> sender,
       Pointer<Uint8> recipientBoxPub,
       int rpubLen,
       Pointer<Uint8> pt,
@@ -23,17 +23,17 @@ typedef _AsymVaultSealDart =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _AsymVaultOpenC =
-    CryptoBufferResult Function(
-      Pointer<CryptoPacket> pkt,
-      Pointer<CryptoAsymBundle> recipient,
+    CipherBirdBufferResult Function(
+      Pointer<CipherBirdPacket> pkt,
+      Pointer<CipherBirdAsymBundle> recipient,
       Pointer<Uint8> senderSignPub,
       Size spubLen,
       Pointer<Utf8> aad,
     );
 typedef _AsymVaultOpenDart =
-    CryptoBufferResult Function(
-      Pointer<CryptoPacket> pkt,
-      Pointer<CryptoAsymBundle> recipient,
+    CipherBirdBufferResult Function(
+      Pointer<CipherBirdPacket> pkt,
+      Pointer<CipherBirdAsymBundle> recipient,
       Pointer<Uint8> senderSignPub,
       int spubLen,
       Pointer<Utf8> aad,

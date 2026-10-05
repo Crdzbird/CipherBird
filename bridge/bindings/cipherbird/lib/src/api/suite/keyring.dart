@@ -69,8 +69,8 @@ extension CipherBirdSuiteKeyring on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_suite_evm_address')(pk, secp256k1PublicKey.length),
       );
     } finally {

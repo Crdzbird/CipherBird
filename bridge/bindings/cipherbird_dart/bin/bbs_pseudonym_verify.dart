@@ -1,5 +1,5 @@
 // Verifies the BBS per-verifier pseudonym / blind-issuance bindings via dart:ffi.
-//   dart run bin/bbs_pseudonym_verify.dart [path-to-libcryptolib_c.dylib]
+//   dart run bin/bbs_pseudonym_verify.dart [path-to-libcipherbird.dylib]
 // Exits non-zero on any failure.
 import 'dart:io';
 import 'dart:typed_data';

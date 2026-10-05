@@ -13,7 +13,7 @@ extension CipherBirdAsymmetricVault on CipherBird {
     Uint8List plaintext,
     String aad,
   ) {
-    final csender = calloc<CryptoAsymBundle>();
+    final csender = calloc<CipherBirdAsymBundle>();
     final sbp = _toNative(sender.boxPublic);
     final sbs = _toNative(sender.boxSecret);
     final ssp = _toNative(sender.signPublic);

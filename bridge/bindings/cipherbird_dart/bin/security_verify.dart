@@ -1,6 +1,6 @@
 // Verifies the grouped API, the algorithm enums, and the composable
 // SecurityProfile / CipherBirdRecipe pipeline.
-//   dart run bin/security_verify.dart [path-to-libcryptolib_c.dylib]
+//   dart run bin/security_verify.dart [path-to-libcipherbird.dylib]
 import 'dart:io';
 import 'dart:typed_data';
 

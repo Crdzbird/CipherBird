@@ -11,7 +11,7 @@ DynamicLibrary _openLibrary(String? path) {
     return DynamicLibrary.open(resolved);
   }
   if (Platform.isAndroid || Platform.isLinux) {
-    return DynamicLibrary.open('libcryptolib_c.so');
+    return DynamicLibrary.open('libcipherbird.so');
   }
   return DynamicLibrary.process();
 }

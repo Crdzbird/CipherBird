@@ -1,5 +1,5 @@
 // Incremental BLAKE3 + Noise XX through dart:ffi.
-//   dart run bin/noise_verify.dart [path-to-libcryptolib_c.dylib]
+//   dart run bin/noise_verify.dart [path-to-libcipherbird.dylib]
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';

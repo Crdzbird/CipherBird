@@ -9,12 +9,12 @@ extension CipherBirdHybridKem on CipherBird {
     try {
       final r = _lib
           .lookupFunction<
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               Size,
               Pointer<Pointer<Utf8>>,
             ),
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               int,
               Pointer<Pointer<Utf8>>,
@@ -37,13 +37,18 @@ extension CipherBirdHybridKem on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_hybrid_kem_decapsulate')(
           cp,
           ciphertext.length,

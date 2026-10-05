@@ -13,14 +13,14 @@ extension CipherBirdBbsPseudonymSecrets on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             int,
@@ -54,14 +54,14 @@ extension CipherBirdBbsPseudonymSecrets on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Pointer<Uint8>>,

@@ -2,7 +2,7 @@
 //
 // Two assurance tiers of one construction: encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first.
-//   CRYPTOLIB_DYLIB=../../build/release/libcryptolib_c.dylib dart run bin/sealed.dart
+//   CRYPTOLIB_DYLIB=../../build/release/libcipherbird.dylib dart run bin/sealed.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';

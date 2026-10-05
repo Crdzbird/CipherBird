@@ -1,5 +1,5 @@
 // BBS per-verifier pseudonyms + blind issuance — verified against the host dylib.
-// Run with: CIPHERBIRD_LIBRARY=<path-to-libcryptolib_c.dylib> flutter test test/bbs_pseudonym_test.dart
+// Run with: CIPHERBIRD_LIBRARY=<path-to-libcipherbird.dylib> flutter test test/bbs_pseudonym_test.dart
 import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:test/test.dart';

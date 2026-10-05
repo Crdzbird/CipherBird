@@ -23,7 +23,7 @@ extension CipherBirdComposedPhysicalSeal on CipherBird {
     try {
       _checkResult(
         _lib.lookupFunction<
-          CryptoResult Function(
+          CipherBirdResult Function(
             Pointer<Utf8>,
             Pointer<Uint8>,
             Size,
@@ -32,7 +32,7 @@ extension CipherBirdComposedPhysicalSeal on CipherBird {
             Pointer<Utf8>,
             Pointer<Utf8>,
           ),
-          CryptoResult Function(
+          CipherBirdResult Function(
             Pointer<Utf8>,
             Pointer<Uint8>,
             int,

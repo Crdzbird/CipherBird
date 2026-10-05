@@ -10,14 +10,14 @@ extension CipherBirdHkdf on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,
@@ -50,13 +50,18 @@ extension CipherBirdHkdf on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length),
       );
     } finally {

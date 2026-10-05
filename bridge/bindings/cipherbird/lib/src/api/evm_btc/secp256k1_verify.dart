@@ -63,8 +63,8 @@ extension CipherBirdSecp256k1Verify on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>),
-          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>),
+          CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>)
         >('cryptolib_secp256k1_recover')(dp, sp),
       );
     } finally {

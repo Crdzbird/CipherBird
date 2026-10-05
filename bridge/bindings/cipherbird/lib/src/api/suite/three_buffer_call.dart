@@ -21,7 +21,7 @@ extension CipherBirdSuiteThreeBufferCall on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -31,7 +31,7 @@ extension CipherBirdSuiteThreeBufferCall on CipherBird {
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

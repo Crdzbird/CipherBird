@@ -1,7 +1,7 @@
 part of '../cipher_bird.dart';
 
 /// Bytes -> text conversions and the two byte helpers every app ends up writing.
-extension CryptoBytes on Uint8List {
+extension CipherBirdBytes on Uint8List {
   /// Lowercase hex, no prefix.
   String get hex => toHex(this);
 

@@ -12,12 +12,12 @@ extension CipherBirdBlsAggregate on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             int,

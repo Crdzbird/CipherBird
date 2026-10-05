@@ -45,7 +45,10 @@ extension CipherBirdHybridSig on CipherBird {
   }
 
   KeyPairResult hybridSigKeygen() => _extractKeyPair(
-    _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+    _lib.lookupFunction<
+      CipherBirdKeyPair Function(),
+      CipherBirdKeyPair Function()
+    >(
       'cryptolib_hybrid_sig_keygen',
     )(),
   );
@@ -55,13 +58,18 @@ extension CipherBirdHybridSig on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length),
       );
     } finally {

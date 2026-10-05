@@ -10,13 +10,18 @@ extension CipherBirdBbsScalars on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_bbs_hash_to_scalar')(m, msg.length, d, dst.length),
       );
     } finally {
@@ -33,8 +38,8 @@ extension CipherBirdBbsScalars on CipherBird {
   Uint8List bbsRandomScalar() {
     return _checkBufResult(
       _lib.lookupFunction<
-        CryptoBufferResult Function(),
-        CryptoBufferResult Function()
+        CipherBirdBufferResult Function(),
+        CipherBirdBufferResult Function()
       >('cryptolib_bbs_random_scalar')(),
     );
   }

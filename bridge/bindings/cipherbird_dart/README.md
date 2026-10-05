@@ -1,7 +1,7 @@
 # cipherbird_dart
 
 Native cryptography for Dart on the server, in command-line tools and in
-desktop programs. CipherBird binds the CryptoLib C++ engine through
+desktop programs. CipherBird binds its native C++ engine through
 `dart:ffi` and ships the compiled library inside the package for the host
 platform, so a program gets hashing, authenticated encryption, public-key
 cryptography, post-quantum algorithms, hybrid key agreement, sealed
@@ -197,7 +197,7 @@ cross-language recipe interop.
 
 ## Engine
 
-The engine is the CryptoLib C++ library: a header-only C++20 core with a
+The engine is a header-only C++20 core with a
 pure C ABI of 265 functions, bindings for ten languages, known-answer tests
 from the official sources, and a cross-language conformance harness. Its
 repository holds the build, the tests, the benchmark and the design notes.

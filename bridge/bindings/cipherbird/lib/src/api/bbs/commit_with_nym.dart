@@ -10,27 +10,27 @@ extension CipherBirdBbsCommitWithNym on CipherBird {
   ) {
     final (cm, cl) = _toNativeList(committedMessages);
     final (pm, pl) = _toNativeList(proverNyms);
-    final spb = calloc<CryptoBuffer>();
+    final spb = calloc<CipherBirdBuffer>();
     try {
       final cwp = _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
-            Pointer<CryptoBuffer>,
+            Pointer<CipherBirdBuffer>,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             int,
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             int,
-            Pointer<CryptoBuffer>,
+            Pointer<CipherBirdBuffer>,
           )
         >('cryptolib_bbs_commit_with_nym')(
           cm,

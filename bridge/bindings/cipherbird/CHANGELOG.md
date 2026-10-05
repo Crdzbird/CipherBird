@@ -14,7 +14,7 @@ Package structure and conventions.
 * `lib/src` now follows one declaration per file with a 100-line limit, no
   `else` branches and no inline comments; `test/conventions_test.dart`
   enforces it. Native lookups live in per-domain holders resolved lazily; the
-  large extensions are split into named chunks (`CryptoLibBbsProofGen`,
+  large extensions are split into named chunks (`CipherBirdBbsProofGen`,
   `CipherBirdRecipeSealing`, ...) that the barrel re-exports, so every method is
   still reachable from one import.
 * `CipherBird.preload()` runs through a `CipherBirdRunner`
@@ -79,7 +79,7 @@ Extensible recipes: mix your own encryption into a `CipherBirdRecipe`.
 ### Packaging
 
 * First pub.dev-ready release: the prebuilt native binaries (Android
-  arm64-v8a + x86_64 `.so`, iOS device + simulator and macOS `CryptoLibC`
+  arm64-v8a + x86_64 `.so`, iOS device + simulator and macOS `CipherBird`
   frameworks) are committed and included in the published archive, rebuilt
   against the current 265-function C ABI. Real `LICENSE` (MIT, credit to the
   author required), repository links, declared platforms (Android, iOS 15+,

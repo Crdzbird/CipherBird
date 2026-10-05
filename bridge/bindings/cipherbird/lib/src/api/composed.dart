@@ -9,8 +9,8 @@ extension CipherBirdComposed on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size, Int32),
-          CryptoBufferResult Function(Pointer<Uint8>, int, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
         >('cryptolib_fec_encode')(d, data.length, scheme.value),
       );
     } finally {
@@ -27,8 +27,8 @@ extension CipherBirdComposed on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size, Int32, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, int, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int, int, int)
         >('cryptolib_fec_decode')(d, data.length, scheme.value, originalLength),
       );
     } finally {

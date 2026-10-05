@@ -1,5 +1,5 @@
 // MolecularVault plugin API — verified against the host dylib.
-// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcryptolib_c.dylib flutter test test/molecular_test.dart
+// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcipherbird.dylib flutter test test/molecular_test.dart
 import 'dart:convert';
 import 'dart:typed_data';
 

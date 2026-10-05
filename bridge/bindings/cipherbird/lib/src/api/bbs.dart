@@ -9,8 +9,13 @@ extension CipherBirdBbs on CipherBird {
     try {
       final r = _extractKeyPair(
         _lib.lookupFunction<
-          CryptoKeyPair Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdKeyPair Function(
+            Pointer<Uint8>,
+            Size,
+            Pointer<Uint8>,
+            Size,
+          ),
+          CipherBirdKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
         >('cryptolib_bbs_keygen')(
           km,
           keyMaterial.length,
@@ -36,8 +41,8 @@ extension CipherBirdBbs on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_bbs_sk_to_pk')(p, secretKey.length),
       );
     } finally {

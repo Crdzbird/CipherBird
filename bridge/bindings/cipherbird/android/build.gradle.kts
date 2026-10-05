@@ -1,6 +1,6 @@
-// CryptoLib Flutter plugin — Android module (Kotlin DSL).
+// CipherBird Flutter plugin — Android module (Kotlin DSL).
 //
-// FFI plugin: the prebuilt libcryptolib_c.so ships per-ABI under
+// FFI plugin: the prebuilt libcipherbird.so ships per-ABI under
 // src/main/jniLibs/<abi>/ and the Android Gradle Plugin packages it into the
 // host app's APK. The only Kotlin code is CipherbirdStartup, a manifest-
 // registered ContentProvider that warms the native library off the main thread

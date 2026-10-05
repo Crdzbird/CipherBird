@@ -1,5 +1,5 @@
 name: cipherbird_dart
-description: "CipherBird for Dart (servers, CLIs, desktop): the same CryptoLib binding as the cipherbird Flutter plugin, with the native library bundled for the host platform. Hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys."
+description: "CipherBird for Dart (servers, CLIs, desktop): the same native engine binding as the cipherbird Flutter plugin, with the native library bundled for the host platform. Hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys."
 version: 1.0.0
 homepage: https://github.com/Crdzbird/CryptoLib
 repository: https://github.com/Crdzbird/CryptoLib

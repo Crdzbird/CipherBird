@@ -1,7 +1,7 @@
 part of '../../cipher_bird.dart';
 
 typedef _OpaqueServerRespondC =
-    CryptoOpaqueKe2 Function(
+    CipherBirdOpaqueKe2 Function(
       Pointer<Uint8>,
       Size,
       Pointer<Uint8>,
@@ -22,7 +22,7 @@ typedef _OpaqueServerRespondC =
       Size,
     );
 typedef _OpaqueServerRespondDart =
-    CryptoOpaqueKe2 Function(
+    CipherBirdOpaqueKe2 Function(
       Pointer<Uint8>,
       int,
       Pointer<Uint8>,

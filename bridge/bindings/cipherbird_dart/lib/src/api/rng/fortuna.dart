@@ -32,8 +32,8 @@ final class Fortuna {
   /// Generate [numBytes]. Throws if the pool has never reseeded.
   Uint8List generate(int numBytes) => _lib._checkBufResult(
     _lib._lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>, Size),
-      CryptoBufferResult Function(Pointer<Void>, int)
+      CipherBirdBufferResult Function(Pointer<Void>, Size),
+      CipherBirdBufferResult Function(Pointer<Void>, int)
     >('cryptolib_fortuna_generate')(_h, numBytes),
   );
 

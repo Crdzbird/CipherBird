@@ -51,8 +51,8 @@ extension CipherBirdKeyring on CipherBird {
   /// Serialise the envelope blob (no plaintext key).
   Uint8List keyringSerialise(Pointer<Void> kr) => _checkBufResult(
     _lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>),
-      CryptoBufferResult Function(Pointer<Void>)
+      CipherBirdBufferResult Function(Pointer<Void>),
+      CipherBirdBufferResult Function(Pointer<Void>)
     >('cryptolib_keyring_serialise')(kr),
   );
 
@@ -79,8 +79,8 @@ extension CipherBirdKeyring on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
         >('cryptolib_keyring_unlock_with_device')(kr, p, factor.length),
       );
     } finally {

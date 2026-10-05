@@ -7,13 +7,18 @@ extension CipherBirdSntrupX25519 on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_sntrup_x25519_decapsulate')(
           cp,
           ciphertext.length,
@@ -28,7 +33,10 @@ extension CipherBirdSntrupX25519 on CipherBird {
   }
 
   KeyPairResult sntrupX25519Keygen() => _extractKeyPair(
-    _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+    _lib.lookupFunction<
+      CipherBirdKeyPair Function(),
+      CipherBirdKeyPair Function()
+    >(
       'cryptolib_sntrup_x25519_keygen',
     )(),
   );
@@ -40,12 +48,12 @@ extension CipherBirdSntrupX25519 on CipherBird {
     try {
       final r = _lib
           .lookupFunction<
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               Size,
               Pointer<Pointer<Utf8>>,
             ),
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               int,
               Pointer<Pointer<Utf8>>,

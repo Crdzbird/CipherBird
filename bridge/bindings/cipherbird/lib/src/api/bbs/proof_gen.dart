@@ -21,7 +21,7 @@ extension CipherBirdBbsProofGen on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -36,7 +36,7 @@ extension CipherBirdBbsProofGen on CipherBird {
             Pointer<Uint64>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

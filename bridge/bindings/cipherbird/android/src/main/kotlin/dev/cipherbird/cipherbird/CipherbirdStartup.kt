@@ -7,7 +7,7 @@ import android.net.Uri
 import kotlin.concurrent.thread
 
 /**
- * Auto-registered startup hook for the CryptoLib FFI plugin.
+ * Auto-registered startup hook for the CipherBird FFI plugin.
  *
  * This is an `ffiPlugin` (no method channel / plugin class), so there is no
  * natural place for native code to run at launch. Android instantiates
@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
  * place to warm the native library off the main thread.
  *
  * [System.loadLibrary] performs a process-global `dlopen`, so by the time Dart
- * calls `DynamicLibrary.open("libcryptolib_c.so")` the library is already
+ * calls `DynamicLibrary.open("libcipherbird.so")` the library is already
  * mapped and the first crypto call pays no load cost. The warm-up runs on a
  * background daemon thread so it never blocks startup, and is best-effort: if
  * it fails, the Dart-side lazy load still works on first use.
@@ -24,8 +24,8 @@ import kotlin.concurrent.thread
 class CipherbirdStartup : ContentProvider() {
 
     override fun onCreate(): Boolean {
-        thread(name = "cryptolib-preload", isDaemon = true) {
-            runCatching { System.loadLibrary("cryptolib_c") }
+        thread(name = "cipherbird-preload", isDaemon = true) {
+            runCatching { System.loadLibrary("cipherbird") }
         }
         return true
     }

@@ -22,7 +22,7 @@ extension CipherBirdSuiteKeyringPassphraseCall on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Void>,
@@ -30,7 +30,7 @@ extension CipherBirdSuiteKeyringPassphraseCall on CipherBird {
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Void>,

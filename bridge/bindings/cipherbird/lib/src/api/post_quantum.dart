@@ -4,8 +4,8 @@ part of '../cipher_bird.dart';
 extension CipherBirdPostQuantum on CipherBird {
   KeyPairResult mlKemKeygen(MlKemLevel level) => _extractKeyPair(
     _lib.lookupFunction<
-      CryptoKeyPair Function(Int32),
-      CryptoKeyPair Function(int)
+      CipherBirdKeyPair Function(Int32),
+      CipherBirdKeyPair Function(int)
     >('cryptolib_ml_kem_keygen')(level.value),
   );
 
@@ -19,13 +19,13 @@ extension CipherBirdPostQuantum on CipherBird {
     try {
       final r = _lib
           .lookupFunction<
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               Size,
               Int32,
               Pointer<Pointer<Utf8>>,
             ),
-            CryptoKemEncapsResult Function(
+            CipherBirdKemEncapsResult Function(
               Pointer<Uint8>,
               int,
               int,
@@ -55,14 +55,14 @@ extension CipherBirdPostQuantum on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
             Int32,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,
@@ -84,7 +84,10 @@ extension CipherBirdPostQuantum on CipherBird {
   }
 
   KeyPairResult hybridKemKeygen() => _extractKeyPair(
-    _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+    _lib.lookupFunction<
+      CipherBirdKeyPair Function(),
+      CipherBirdKeyPair Function()
+    >(
       'cryptolib_hybrid_kem_keygen',
     )(),
   );

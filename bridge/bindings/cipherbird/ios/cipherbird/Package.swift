@@ -1,8 +1,8 @@
 // swift-tools-version: 5.9
-// CryptoLib Flutter plugin — Swift Package Manager manifest (iOS).
+// CipherBird Flutter plugin — Swift Package Manager manifest (iOS).
 //
-// FFI plugin: the CryptoLibC binary target is a self-contained DYNAMIC framework
-// wrapping the prebuilt CryptoLib native library (libsodium / liboqs / blst /
+// FFI plugin: the CipherBird binary target is a self-contained DYNAMIC framework
+// wrapping the prebuilt native engine (libsodium / liboqs / blst /
 // OpenSSL / secp256k1 / BLAKE3 statically inside). Declaring it as a dependency
 // of this target makes Swift Package Manager link and embed it into the host
 // app; Dart then resolves the C ABI at runtime via dart:ffi.
@@ -11,7 +11,7 @@ import PackageDescription
 let package = Package(
     name: "cipherbird",
     platforms: [
-        .iOS("15.0"),  // the bundled CryptoLibC binary is built with -miphoneos-version-min=15.0,
+        .iOS("15.0"),  // the bundled CipherBird binary is built with -miphoneos-version-min=15.0,
     ],
     products: [
         // Flutter's generated package references the product by its hyphenated
@@ -21,12 +21,12 @@ let package = Package(
     dependencies: [],
     targets: [
         .binaryTarget(
-            name: "CryptoLibC",
-            path: "CryptoLibC.xcframework"
+            name: "CipherBird",
+            path: "CipherBird.xcframework"
         ),
         .target(
             name: "cipherbird",
-            dependencies: ["CryptoLibC"]
+            dependencies: ["CipherBird"]
         ),
     ]
 )

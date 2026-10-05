@@ -65,8 +65,8 @@ PY
 rm -rf "$HOME/.pub-cache/hosted/$HOST_KEY" "$HOME/.pub-cache/hosted-hashes/$HOST_KEY"
 ( cd "$APP" && flutter pub get >/dev/null )
 CACHED="$HOME/.pub-cache/hosted/$HOST_KEY/cipherbird-$VERSION"
-[[ -f "$CACHED/android/src/main/jniLibs/arm64-v8a/libcryptolib_c.so" ]] || { echo "✗ installed package has no Android binary"; exit 1; }
-[[ -d "$CACHED/ios/cipherbird/CryptoLibC.xcframework" ]] || { echo "✗ installed package has no iOS xcframework"; exit 1; }
+[[ -f "$CACHED/android/src/main/jniLibs/arm64-v8a/libcipherbird.so" ]] || { echo "✗ installed package has no Android binary"; exit 1; }
+[[ -d "$CACHED/ios/cipherbird/CipherBird.xcframework" ]] || { echo "✗ installed package has no iOS xcframework"; exit 1; }
 echo "   installed from hosted source into $CACHED ($(du -sh "$CACHED" | cut -f1))"
 
 # 4. The package's own test suite, run on the device from the installed copy.

@@ -9,8 +9,8 @@ extension CipherBirdEvmBtc on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_keccak256')(pm, msg.length),
       );
     } finally {
@@ -24,8 +24,8 @@ extension CipherBirdEvmBtc on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_ripemd160')(pm, msg.length),
       );
     } finally {
@@ -35,7 +35,10 @@ extension CipherBirdEvmBtc on CipherBird {
 
   /// secp256k1 keypair: secretKey(32) + publicKey(65 uncompressed, 0x04‖X‖Y).
   KeyPairResult secp256k1Keygen() => _extractKeyPair(
-    _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+    _lib.lookupFunction<
+      CipherBirdKeyPair Function(),
+      CipherBirdKeyPair Function()
+    >(
       'cryptolib_secp256k1_keygen',
     )(),
   );
@@ -47,8 +50,8 @@ extension CipherBirdEvmBtc on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size, Int32),
-          CryptoBufferResult Function(Pointer<Uint8>, int, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
         >('cryptolib_secp256k1_pubkey')(
           sp,
           secretKey.length,
@@ -73,8 +76,8 @@ extension CipherBirdEvmBtc on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, int)
         >('cryptolib_secp256k1_sign')(dp, sp, secretKey.length),
       );
     } finally {

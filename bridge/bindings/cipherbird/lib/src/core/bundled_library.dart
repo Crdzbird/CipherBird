@@ -34,10 +34,10 @@ String? _nativeSlot() {
 }
 
 String _libraryFileName() => Platform.isMacOS
-    ? 'libcryptolib_c.dylib'
+    ? 'libcipherbird.dylib'
     : Platform.isWindows
-    ? 'cryptolib_c.dll'
-    : 'libcryptolib_c.so';
+    ? 'cipherbird.dll'
+    : 'libcipherbird.so';
 
 List<String> _packageRootsFromConfig() {
   final config = File(

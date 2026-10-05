@@ -3,7 +3,7 @@
 // Reuses the same bindings the Flutter plugin uses (lib/cryptolib_ffi.dart).
 // Run (see Makefile target `dart`):
 //   dart pub get
-//   dart run bin/demo.dart <path-to-libcryptolib_c.dylib>
+//   dart run bin/demo.dart <path-to-libcipherbird.dylib>
 
 import 'dart:io';
 import 'dart:typed_data';

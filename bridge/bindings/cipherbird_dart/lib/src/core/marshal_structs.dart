@@ -1,7 +1,7 @@
 part of '../cipher_bird.dart';
 
 extension _MarshalStructs on CipherBird {
-  Packet _extractPacket(CryptoPacket cp, Pointer<Pointer<Utf8>> errPtr) {
+  Packet _extractPacket(CipherBirdPacket cp, Pointer<Pointer<Utf8>> errPtr) {
     if (errPtr.value != nullptr) {
       final msg = errPtr.value.toDartString();
       _core.strFree(errPtr.value);
@@ -14,8 +14,8 @@ extension _MarshalStructs on CipherBird {
     );
   }
 
-  Pointer<CryptoPacket> _packetToNative(Packet pkt) {
-    final cpkt = calloc<CryptoPacket>();
+  Pointer<CipherBirdPacket> _packetToNative(Packet pkt) {
+    final cpkt = calloc<CipherBirdPacket>();
     final ct = _toNative(pkt.ciphertext);
     final sig = _toNative(pkt.signature);
     final salt = _toNative(pkt.kdfSalt);
@@ -28,7 +28,7 @@ extension _MarshalStructs on CipherBird {
     return cpkt;
   }
 
-  void _freePacketNative(Pointer<CryptoPacket> cpkt) {
+  void _freePacketNative(Pointer<CipherBirdPacket> cpkt) {
     if (cpkt.ref.ciphertext.data != nullptr) {
       calloc.free(cpkt.ref.ciphertext.data);
     }
@@ -41,14 +41,14 @@ extension _MarshalStructs on CipherBird {
     calloc.free(cpkt);
   }
 
-  KeyPairResult _extractKeyPair(CryptoKeyPair kp) {
+  KeyPairResult _extractKeyPair(CipherBirdKeyPair kp) {
     return KeyPairResult(
       publicKey: _copyBuf(kp.publicKey),
       secretKey: _copyBuf(kp.secretKey),
     );
   }
 
-  AsymBundleResult _extractBundle(CryptoAsymBundle ab) {
+  AsymBundleResult _extractBundle(CipherBirdAsymBundle ab) {
     return AsymBundleResult(
       boxPublic: _copyBuf(ab.boxPublic),
       boxSecret: _copyBuf(ab.boxSecret),

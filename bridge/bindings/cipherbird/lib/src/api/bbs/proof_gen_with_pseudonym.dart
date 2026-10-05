@@ -28,7 +28,7 @@ extension CipherBirdBbsProofGenWithPseudonym on CipherBird {
     final (nm, nl) = _toNativeList(nymSecrets);
     final si = _bbsU64(disclosedSignerIndexes),
         ci = _bbsU64(disclosedCommittedIndexes);
-    final nymOut = calloc<CryptoBuffer>();
+    final nymOut = calloc<CipherBirdBuffer>();
     try {
       final proof = _checkBufResult(
         _lib.lookupFunction<_BbsProofGenWithNymC, _BbsProofGenWithNymDart>(

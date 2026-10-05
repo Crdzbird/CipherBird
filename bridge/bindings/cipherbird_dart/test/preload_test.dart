@@ -1,7 +1,7 @@
 // Verifies the preload + lazy-synchronous-singleton contract.
 //
 // Run on the host (loads the desktop dylib via the CIPHERBIRD_LIBRARY override):
-//   CIPHERBIRD_LIBRARY=/path/to/libcryptolib_c.dylib flutter test
+//   CIPHERBIRD_LIBRARY=/path/to/libcipherbird.dylib flutter test
 import 'dart:typed_data';
 
 import 'package:cipherbird_dart/cipherbird_dart.dart';

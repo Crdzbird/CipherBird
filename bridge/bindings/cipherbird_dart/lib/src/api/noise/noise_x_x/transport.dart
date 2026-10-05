@@ -43,7 +43,7 @@ extension NoiseXXTransport on NoiseXX {
     try {
       return _lib._checkBufResult(
         _lib._lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Void>,
             Uint64,
             Pointer<Uint8>,
@@ -51,7 +51,7 @@ extension NoiseXXTransport on NoiseXX {
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Void>,
             int,
             Pointer<Uint8>,

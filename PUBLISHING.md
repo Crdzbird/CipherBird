@@ -67,7 +67,7 @@ blst, OpenSSL, BLAKE3) so it runs on a machine without them installed.
   dependencies are `/usr/lib/libc++` and `/usr/lib/libSystem`:
   ```
   bash scripts/build_selfcontained.sh
-  otool -L build/selfcontained/libcryptolib_c.dylib   # → only /usr/lib/*
+  otool -L build/selfcontained/libcipherbird.dylib   # → only /usr/lib/*
   ```
   This is the binary the npm / JVM / .NET bundles now ship (verified: all three
   package smokes pass against it, and `SHA256SUMS` shows they are byte-identical).
@@ -95,8 +95,8 @@ README).
 > needs registry credentials this repo does not (and should not) hold.
 
 - **pub.dev (Flutter):** `cd bridge/bindings/cipherbird && flutter pub publish`
-  (`--dry-run` first; the archive must list `libcryptolib_c.so` ×2 and the
-  `CryptoLibC` framework binaries, ~28 MB compressed). The prebuilt binaries
+  (`--dry-run` first; the archive must list `libcipherbird.so` ×2 and the
+  `CipherBird` framework binaries, ~28 MB compressed). The prebuilt binaries
   are **committed** for this package and re-included via its `.pubignore`;
   rebuild them after any C ABI change (README → "Updating the bundled
   binaries") or the eager symbol lookup fails at load. Requires a pub.dev

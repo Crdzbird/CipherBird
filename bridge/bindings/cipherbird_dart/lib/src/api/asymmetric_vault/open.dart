@@ -11,7 +11,7 @@ extension CipherBirdAsymmetricVaultOpen on CipherBird {
   ) {
     final cpkt = _packetToNative(pkt);
 
-    final crecip = calloc<CryptoAsymBundle>();
+    final crecip = calloc<CipherBirdAsymBundle>();
     final rbp = _toNative(recipient.boxPublic);
     final rbs = _toNative(recipient.boxSecret);
     final rsp = _toNative(recipient.signPublic);

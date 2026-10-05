@@ -1,5 +1,5 @@
 // Verifies the Phase 1-4 stego/FEC bindings through dart:ffi.
-//   dart run bin/phase4_verify.dart [path-to-libcryptolib_c.dylib]
+//   dart run bin/phase4_verify.dart [path-to-libcipherbird.dylib]
 // Exits non-zero on any failure.
 import 'dart:io';
 import 'dart:typed_data';

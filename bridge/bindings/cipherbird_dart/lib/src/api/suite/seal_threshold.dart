@@ -21,27 +21,27 @@ extension CipherBirdSuiteSealThreshold on CipherBird {
   }) {
     final pp = _toNative(plaintext);
     final pa = (aad != null && aad.isNotEmpty) ? _toNative(aad) : nullptr;
-    final outShares = calloc<CryptoBuffer>();
+    final outShares = calloc<CipherBirdBuffer>();
     try {
       final r = _lib
           .lookupFunction<
-            CryptoBufferResult Function(
+            CipherBirdBufferResult Function(
               Pointer<Uint8>,
               Size,
               Uint8,
               Uint8,
               Pointer<Uint8>,
               Size,
-              Pointer<CryptoBuffer>,
+              Pointer<CipherBirdBuffer>,
             ),
-            CryptoBufferResult Function(
+            CipherBirdBufferResult Function(
               Pointer<Uint8>,
               int,
               int,
               int,
               Pointer<Uint8>,
               int,
-              Pointer<CryptoBuffer>,
+              Pointer<CipherBirdBuffer>,
             )
           >(
             'cryptolib_suite_seal_threshold',

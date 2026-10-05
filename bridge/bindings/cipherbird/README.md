@@ -1,6 +1,6 @@
 # cipherbird
 
-Native cryptography for Flutter. CipherBird binds the CryptoLib C++ engine
+Native cryptography for Flutter. CipherBird binds its native C++ engine
 through `dart:ffi` and ships the compiled library inside the package, so an
 app gets hashing, authenticated encryption, public-key cryptography,
 post-quantum algorithms, hybrid key agreement, sealed messaging, a secure
@@ -32,8 +32,8 @@ flutter pub add cipherbird
 ```
 
 Nothing else is required. The native library is vendored per platform: a
-dynamic `CryptoLibC` framework through Swift Package Manager on iOS and
-macOS, and `libcryptolib_c.so` under `jniLibs` on Android. libsodium,
+dynamic `CipherBird` framework through Swift Package Manager on iOS and
+macOS, and `libcipherbird.so` under `jniLibs` on Android. libsodium,
 liboqs, OpenSSL libcrypto, blst, secp256k1 and BLAKE3 are linked into it
 statically, so no system library is needed.
 
@@ -297,7 +297,7 @@ built the same way:
 
 | Build | Empty Flutter app | With cipherbird | Added |
 |---|---|---|---|
-| macOS release `.app`, Apple silicon | 37 MB | 46 MB | 9 MB (the `CryptoLibC` framework is 8 MB) |
+| macOS release `.app`, Apple silicon | 37 MB | 46 MB | 9 MB (the `CipherBird` framework is 8 MB) |
 | Android release APK, arm64 only | 14.8 MB | 30.1 MB | 15.3 MB |
 
 The added size is the native library: libsodium, liboqs with every parameter
@@ -306,7 +306,7 @@ linked into one binary per platform.
 
 ## Interoperability
 
-Every CryptoLib binding (Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust,
+Every binding of the same engine (Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust,
 .NET and the two Dart packages) wraps the same C ABI and uses the library's
 own wire formats. Vaults, sealed envelopes, recipes and keyrings move between
 languages unchanged. The repository seals five recipe configurations in each
@@ -340,12 +340,12 @@ a stale binary fails at load. Rebuild from the repository root:
 
 ```bash
 bash scripts/android/build_all.sh arm64-v8a x86_64
-cp build/android/arm64-v8a/libcryptolib_c.so android/src/main/jniLibs/arm64-v8a/
-cp build/android/x86_64/libcryptolib_c.so android/src/main/jniLibs/x86_64/
+cp build/android/arm64-v8a/libcipherbird.so android/src/main/jniLibs/arm64-v8a/
+cp build/android/x86_64/libcipherbird.so android/src/main/jniLibs/x86_64/
 make ios
-rm -rf ios/cipherbird/CryptoLibC.xcframework macos/cipherbird/CryptoLibC.xcframework
-cp -R CipherBird.xcframework ios/cipherbird/CryptoLibC.xcframework
-cp -R CipherBird.xcframework macos/cipherbird/CryptoLibC.xcframework
+rm -rf ios/cipherbird/CipherBird.xcframework macos/cipherbird/CipherBird.xcframework
+cp -R CipherBird.xcframework ios/cipherbird/CipherBird.xcframework
+cp -R CipherBird.xcframework macos/cipherbird/CipherBird.xcframework
 ```
 
 Then check the symbol count against the header, and run the consumer proof,
@@ -354,7 +354,7 @@ this package's tests on a device:
 
 ```bash
 grep -c '^CRYPTO_API' bridge/cryptolib_c.h
-nm -gU ios/cipherbird/CryptoLibC.xcframework/ios-arm64/CryptoLibC.framework/CryptoLibC | grep -c ' T _cryptolib_'
+nm -gU ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird | grep -c ' T _cryptolib_'
 make flutter-consumer DEVICE=macos
 ```
 
@@ -364,7 +364,7 @@ architecture for the simulator in the consuming app or add a universal slice.
 
 ## Engine
 
-The engine is the CryptoLib C++ library: a header-only C++20 core with a
+The engine is a header-only C++20 core with a
 pure C ABI of 265 functions, bindings for ten languages, a custom test runner
 with known-answer tests from the official sources, and a cross-language
 conformance harness. Its repository holds the build, the tests, the

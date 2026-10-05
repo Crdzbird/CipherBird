@@ -13,7 +13,7 @@ typedef _VaultFromEntropyC =
 typedef _VaultFromEntropyDart =
     Pointer<Void> Function(Pointer<Void> entropy, int kdfPreset);
 typedef _VaultSealC =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Void> vault,
       Pointer<Uint8> pt,
       Size ptLen,
@@ -21,7 +21,7 @@ typedef _VaultSealC =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _VaultSealDart =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Void> vault,
       Pointer<Uint8> pt,
       int ptLen,
@@ -29,7 +29,7 @@ typedef _VaultSealDart =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _VaultSealBoostedC =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Void> vault,
       Pointer<Uint8> pt,
       Size ptLen,
@@ -38,7 +38,7 @@ typedef _VaultSealBoostedC =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _VaultSealBoostedDart =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Void> vault,
       Pointer<Uint8> pt,
       int ptLen,
@@ -47,45 +47,46 @@ typedef _VaultSealBoostedDart =
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _VaultOpenC =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Void> vault,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
     );
 typedef _VaultOpenDart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Void> vault,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
     );
 typedef _VaultOpenBoostedC =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Void> vault,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
       Pointer<Void> boost,
     );
 typedef _VaultOpenBoostedDart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Void> vault,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
       Pointer<Void> boost,
     );
-typedef _VaultPublicKeyC = CryptoBufferResult Function(Pointer<Void> vault);
-typedef _VaultPublicKeyDart = CryptoBufferResult Function(Pointer<Void> vault);
+typedef _VaultPublicKeyC = CipherBirdBufferResult Function(Pointer<Void> vault);
+typedef _VaultPublicKeyDart =
+    CipherBirdBufferResult Function(Pointer<Void> vault);
 typedef _PacketSerialiseC =
-    CryptoBufferResult Function(Pointer<CryptoPacket> pkt);
+    CipherBirdBufferResult Function(Pointer<CipherBirdPacket> pkt);
 typedef _PacketSerialiseDart =
-    CryptoBufferResult Function(Pointer<CryptoPacket> pkt);
+    CipherBirdBufferResult Function(Pointer<CipherBirdPacket> pkt);
 typedef _PacketDeserialiseC =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Uint8> data,
       Size len,
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _PacketDeserialiseDart =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Uint8> data,
       int len,
       Pointer<Pointer<Utf8>> outError,

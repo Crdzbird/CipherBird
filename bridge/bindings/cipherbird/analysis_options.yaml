@@ -35,7 +35,7 @@ linter:
     cascade_invocations: false
     # Cached lookup fields are declared before the binding constructor.
     sort_constructors_first: false
-    # `CryptoLib.instance` is a cached singleton getter, not a factory.
+    # `CipherBird.instance` is a cached singleton getter, not a factory.
     prefer_constructors_over_static_methods: false
     # Builders (CryptoRecipe) return `this` so calls chain.
     avoid_returning_this: false

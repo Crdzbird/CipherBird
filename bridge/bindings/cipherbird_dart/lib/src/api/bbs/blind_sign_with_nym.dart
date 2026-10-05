@@ -21,7 +21,7 @@ extension CipherBirdBbsBlindSignWithNym on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -37,7 +37,7 @@ extension CipherBirdBbsBlindSignWithNym on CipherBird {
             Size,
             Uint64,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

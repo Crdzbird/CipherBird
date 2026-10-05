@@ -24,7 +24,7 @@ extension CipherBirdComposedImageFactorSeal on CipherBird {
     try {
       _checkResult(
         _lib.lookupFunction<
-          CryptoResult Function(
+          CipherBirdResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Utf8>,
@@ -35,7 +35,7 @@ extension CipherBirdComposedImageFactorSeal on CipherBird {
             Pointer<Utf8>,
             Pointer<Utf8>,
           ),
-          CryptoResult Function(
+          CipherBirdResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Utf8>,

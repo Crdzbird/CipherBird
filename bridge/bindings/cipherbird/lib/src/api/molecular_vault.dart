@@ -24,7 +24,7 @@ extension CipherBirdMolecular on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Utf8>,
@@ -33,7 +33,7 @@ extension CipherBirdMolecular on CipherBird {
             Uint64,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Utf8>,

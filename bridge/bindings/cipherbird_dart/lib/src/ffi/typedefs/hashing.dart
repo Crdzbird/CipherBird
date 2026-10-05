@@ -1,34 +1,36 @@
 part of '../../cipher_bird.dart';
 
 typedef _Blake2bC =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8> msg,
       Size msgLen,
       Pointer<Uint8> key,
       Size keyLen,
     );
 typedef _Blake2bDart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8> msg,
       int msgLen,
       Pointer<Uint8> key,
       int keyLen,
     );
-typedef _Sha256C = CryptoBufferResult Function(Pointer<Uint8> msg, Size msgLen);
+typedef _Sha256C =
+    CipherBirdBufferResult Function(Pointer<Uint8> msg, Size msgLen);
 typedef _Sha256Dart =
-    CryptoBufferResult Function(Pointer<Uint8> msg, int msgLen);
-typedef _Sha512C = CryptoBufferResult Function(Pointer<Uint8> msg, Size msgLen);
+    CipherBirdBufferResult Function(Pointer<Uint8> msg, int msgLen);
+typedef _Sha512C =
+    CipherBirdBufferResult Function(Pointer<Uint8> msg, Size msgLen);
 typedef _Sha512Dart =
-    CryptoBufferResult Function(Pointer<Uint8> msg, int msgLen);
+    CipherBirdBufferResult Function(Pointer<Uint8> msg, int msgLen);
 typedef _HmacSha512C =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8> msg,
       Size msgLen,
       Pointer<Uint8> key,
       Size keyLen,
     );
 typedef _HmacSha512Dart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8> msg,
       int msgLen,
       Pointer<Uint8> key,

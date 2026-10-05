@@ -3,7 +3,7 @@
   <application>
     <!--
       Startup hook: Android instantiates this ContentProvider very early in app
-      launch, so its onCreate() warms libcryptolib_c on a background thread
+      launch, so its onCreate() warms libcipherbird on a background thread
       before the first Dart FFI call. authorities uses ${applicationId} so it is
       unique per host app. Not exported; never queried.
     -->

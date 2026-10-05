@@ -32,8 +32,8 @@ final class Blake3Hasher {
   /// output. The hasher accepts no further updates afterwards.
   Uint8List finalize({int outLen = 0}) => _lib._checkBufResult(
     _lib._lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>, Size),
-      CryptoBufferResult Function(Pointer<Void>, int)
+      CipherBirdBufferResult Function(Pointer<Void>, Size),
+      CipherBirdBufferResult Function(Pointer<Void>, int)
     >('cryptolib_blake3_hasher_finalize')(_h, outLen),
   );
 

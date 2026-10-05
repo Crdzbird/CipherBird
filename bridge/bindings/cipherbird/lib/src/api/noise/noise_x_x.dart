@@ -19,14 +19,14 @@ final class NoiseXX {
     try {
       return _lib._checkBufResult(
         _lib._lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Void>,
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Void>,
             Pointer<Uint8>,
             int,
@@ -50,8 +50,8 @@ final class NoiseXX {
     try {
       return _lib._checkBufResult(
         _lib._lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
         >(sym)(_h, p, data?.length ?? 0),
       );
     } finally {
@@ -80,8 +80,8 @@ final class NoiseXX {
   /// 32-byte channel-binding value both sides agree on after the handshake.
   Uint8List get handshakeHash => _lib._checkBufResult(
     _lib._lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>),
-      CryptoBufferResult Function(Pointer<Void>)
+      CipherBirdBufferResult Function(Pointer<Void>),
+      CipherBirdBufferResult Function(Pointer<Void>)
     >('cryptolib_noise_handshake_hash')(_h),
   );
 
@@ -89,8 +89,8 @@ final class NoiseXX {
   /// stop an active MITM.
   Uint8List get remoteStatic => _lib._checkBufResult(
     _lib._lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>),
-      CryptoBufferResult Function(Pointer<Void>)
+      CipherBirdBufferResult Function(Pointer<Void>),
+      CipherBirdBufferResult Function(Pointer<Void>)
     >('cryptolib_noise_remote_static')(_h),
   );
 }

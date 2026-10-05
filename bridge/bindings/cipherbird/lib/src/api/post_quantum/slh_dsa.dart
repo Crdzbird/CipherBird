@@ -5,8 +5,8 @@ extension CipherBirdSlhDsa on CipherBird {
   KeyPairResult slhDsaKeygen(SlhDsaLevel level, SlhDsaHash hash) =>
       _extractKeyPair(
         _lib.lookupFunction<
-          CryptoKeyPair Function(Int32, Int32),
-          CryptoKeyPair Function(int, int)
+          CipherBirdKeyPair Function(Int32, Int32),
+          CipherBirdKeyPair Function(int, int)
         >('cryptolib_slh_dsa_keygen')(level.value, hash.value),
       );
 
@@ -20,7 +20,7 @@ extension CipherBirdSlhDsa on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -28,7 +28,7 @@ extension CipherBirdSlhDsa on CipherBird {
             Int32,
             Int32,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

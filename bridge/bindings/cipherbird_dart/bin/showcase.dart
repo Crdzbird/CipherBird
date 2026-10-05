@@ -1,5 +1,5 @@
 // CipherBird Dart — FULL showcase of every capability family via dart:ffi.
-//   dart pub get && dart run bin/showcase.dart <path-to-libcryptolib_c.dylib>
+//   dart pub get && dart run bin/showcase.dart <path-to-libcipherbird.dylib>
 
 import 'dart:io';
 import 'dart:typed_data';

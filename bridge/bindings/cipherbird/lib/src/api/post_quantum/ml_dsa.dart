@@ -48,8 +48,8 @@ extension CipherBirdMlDsa on CipherBird {
 
   KeyPairResult mlDsaKeygen(MlDsaLevel level) => _extractKeyPair(
     _lib.lookupFunction<
-      CryptoKeyPair Function(Int32),
-      CryptoKeyPair Function(int)
+      CipherBirdKeyPair Function(Int32),
+      CipherBirdKeyPair Function(int)
     >('cryptolib_ml_dsa_keygen')(level.value),
   );
 
@@ -58,14 +58,14 @@ extension CipherBirdMlDsa on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
             Int32,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

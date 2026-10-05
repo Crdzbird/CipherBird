@@ -1,6 +1,6 @@
 # pub uses THIS file (instead of .gitignore) to decide what goes in the package.
-# The prebuilt native library (android/src/main/jniLibs/**/libcryptolib_c.so and
-# ios|macos/cipherbird/CryptoLibC.xcframework) MUST ship, so it is
+# The prebuilt native library (android/src/main/jniLibs/**/libcipherbird.so and
+# ios|macos/cipherbird/CipherBird.xcframework) MUST ship, so it is
 # deliberately NOT excluded here. Exclude only dev cruft.
 .dart_tool/
 build/
@@ -17,13 +17,13 @@ example/macos/Pods/
 example/android/.gradle/
 *.dSYM/
 
-# The root .gitignore drops *.so and CryptoLibC.xcframework/ for every other
+# The root .gitignore drops *.so and CipherBird.xcframework/ for every other
 # binding; re-include them here (pub consults this file instead of the
 # .gitignore in this directory, so the negations must live here too).
 !android/src/main/jniLibs/
 !android/src/main/jniLibs/**
 !android/src/main/jniLibs/**/*.so
-!ios/cipherbird/CryptoLibC.xcframework/
-!ios/cipherbird/CryptoLibC.xcframework/**
-!macos/cipherbird/CryptoLibC.xcframework/
-!macos/cipherbird/CryptoLibC.xcframework/**
+!ios/cipherbird/CipherBird.xcframework/
+!ios/cipherbird/CipherBird.xcframework/**
+!macos/cipherbird/CipherBird.xcframework/
+!macos/cipherbird/CipherBird.xcframework/**

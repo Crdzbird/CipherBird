@@ -15,7 +15,7 @@ extension CipherBirdHkdfDerive on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -24,7 +24,7 @@ extension CipherBirdHkdfDerive on CipherBird {
             Size,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

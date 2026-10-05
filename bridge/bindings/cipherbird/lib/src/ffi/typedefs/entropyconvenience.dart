@@ -1,30 +1,30 @@
 part of '../../cipher_bird.dart';
 
-typedef _KeyFromFileC = CryptoBufferResult Function(Pointer<Utf8> path);
-typedef _KeyFromFileDart = CryptoBufferResult Function(Pointer<Utf8> path);
+typedef _KeyFromFileC = CipherBirdBufferResult Function(Pointer<Utf8> path);
+typedef _KeyFromFileDart = CipherBirdBufferResult Function(Pointer<Utf8> path);
 typedef _SealFromFileC =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Utf8> path,
       Pointer<Utf8> pt,
       Pointer<Utf8> aad,
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _SealFromFileDart =
-    CryptoPacket Function(
+    CipherBirdPacket Function(
       Pointer<Utf8> path,
       Pointer<Utf8> pt,
       Pointer<Utf8> aad,
       Pointer<Pointer<Utf8>> outError,
     );
 typedef _OpenFromFileC =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Utf8> path,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
     );
 typedef _OpenFromFileDart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Utf8> path,
-      Pointer<CryptoPacket> pkt,
+      Pointer<CipherBirdPacket> pkt,
       Pointer<Utf8> aad,
     );

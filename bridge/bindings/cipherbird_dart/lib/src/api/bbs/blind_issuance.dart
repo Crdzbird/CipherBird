@@ -6,21 +6,21 @@ extension CipherBirdBbsBlindIssuance on CipherBird {
   /// (commitmentWithProof, secretProverBlind).
   (Uint8List, Uint8List) bbsBlindCommit(List<Uint8List> committedMessages) {
     final (cm, cl) = _toNativeList(committedMessages);
-    final spb = calloc<CryptoBuffer>();
+    final spb = calloc<CipherBirdBuffer>();
     try {
       final cwp = _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             Size,
-            Pointer<CryptoBuffer>,
+            Pointer<CipherBirdBuffer>,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Pointer<Uint8>>,
             Pointer<Size>,
             int,
-            Pointer<CryptoBuffer>,
+            Pointer<CipherBirdBuffer>,
           )
         >('cryptolib_bbs_blind_commit')(cm, cl, committedMessages.length, spb),
       );
@@ -47,7 +47,7 @@ extension CipherBirdBbsBlindIssuance on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
@@ -60,7 +60,7 @@ extension CipherBirdBbsBlindIssuance on CipherBird {
             Pointer<Size>,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,

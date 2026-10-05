@@ -8,8 +8,8 @@ extension CipherBirdKeyringManagement on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Utf8>),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Utf8>)
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Utf8>),
+          CipherBirdBufferResult Function(Pointer<Void>, Pointer<Utf8>)
         >('cryptolib_keyring_unlock_with_passphrase')(kr, cpw),
       );
     } finally {

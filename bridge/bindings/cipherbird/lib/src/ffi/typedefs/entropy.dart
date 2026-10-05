@@ -16,20 +16,26 @@ typedef _EntropyFromFilesDart =
       int count,
       Pointer<Pointer<Utf8>> outError,
     );
-typedef _EntropyDeriveAllC = CryptoDerivedKeys Function(Pointer<Void> h);
-typedef _EntropyDeriveAllDart = CryptoDerivedKeys Function(Pointer<Void> h);
-typedef _EntropySymKeyC = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropySymKeyDart = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropyRawC = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropyRawDart = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropyBoostC = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropyBoostDart = CryptoBufferResult Function(Pointer<Void> h);
-typedef _EntropyInfoC = CryptoEntropyInfo Function(Pointer<Void> h);
-typedef _EntropyInfoDart = CryptoEntropyInfo Function(Pointer<Void> h);
+typedef _EntropyDeriveAllC = CipherBirdDerivedKeys Function(Pointer<Void> h);
+typedef _EntropyDeriveAllDart = CipherBirdDerivedKeys Function(Pointer<Void> h);
+typedef _EntropySymKeyC = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropySymKeyDart = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropyRawC = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropyRawDart = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropyBoostC = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropyBoostDart = CipherBirdBufferResult Function(Pointer<Void> h);
+typedef _EntropyInfoC = CipherBirdEntropyInfo Function(Pointer<Void> h);
+typedef _EntropyInfoDart = CipherBirdEntropyInfo Function(Pointer<Void> h);
 typedef _EntropyAsymBundleC =
-    CryptoAsymBundle Function(Pointer<Void> h, Pointer<Pointer<Utf8>> outError);
+    CipherBirdAsymBundle Function(
+      Pointer<Void> h,
+      Pointer<Pointer<Utf8>> outError,
+    );
 typedef _EntropyAsymBundleDart =
-    CryptoAsymBundle Function(Pointer<Void> h, Pointer<Pointer<Utf8>> outError);
+    CipherBirdAsymBundle Function(
+      Pointer<Void> h,
+      Pointer<Pointer<Utf8>> outError,
+    );
 typedef _EntropyRefreshC = Void Function(Pointer<Void> h);
 typedef _EntropyRefreshDart = void Function(Pointer<Void> h);
 typedef _EntropyFreeC = Void Function(Pointer<Void> h);

@@ -21,7 +21,7 @@ if [[ ${#SLICES[@]} -eq 0 ]]; then
     SLICES=(iphoneos iphonesimulator macosx)
 fi
 
-FW_NAME="CryptoLibC"
+FW_NAME="${FW_NAME:-CryptoLibC}"
 
 slice_supported_platform() {
     case "$1" in

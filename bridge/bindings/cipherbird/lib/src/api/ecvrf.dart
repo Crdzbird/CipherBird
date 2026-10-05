@@ -4,7 +4,10 @@ part of '../cipher_bird.dart';
 extension CipherBirdEcvrf on CipherBird {
   /// ECVRF key pair (pk 32 B, sk = 32-byte seed).
   KeyPairResult ecvrfKeygen() => _extractKeyPair(
-    _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
+    _lib.lookupFunction<
+      CipherBirdKeyPair Function(),
+      CipherBirdKeyPair Function()
+    >(
       'cryptolib_ecvrf_keygen',
     )(),
   );
@@ -15,8 +18,8 @@ extension CipherBirdEcvrf on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_ecvrf_public_key')(p, secretKey.length),
       );
     } finally {
@@ -30,13 +33,18 @@ extension CipherBirdEcvrf on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(
+            Pointer<Uint8>,
+            int,
+            Pointer<Uint8>,
+            int,
+          )
         >('cryptolib_ecvrf_prove')(ps, secretKey.length, pa, alpha.length),
       );
     } finally {
@@ -51,8 +59,8 @@ extension CipherBirdEcvrf on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int)
         >('cryptolib_ecvrf_proof_to_hash')(p, proof.length),
       );
     } finally {

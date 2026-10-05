@@ -1,7 +1,7 @@
 part of '../../cipher_bird.dart';
 
 typedef _BbsProofGenWithNymC =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8>,
       Size,
       Pointer<Uint8>,
@@ -27,10 +27,10 @@ typedef _BbsProofGenWithNymC =
       Size,
       Pointer<Uint64>,
       Size,
-      Pointer<CryptoBuffer>,
+      Pointer<CipherBirdBuffer>,
     );
 typedef _BbsProofGenWithNymDart =
-    CryptoBufferResult Function(
+    CipherBirdBufferResult Function(
       Pointer<Uint8>,
       int,
       Pointer<Uint8>,
@@ -56,5 +56,5 @@ typedef _BbsProofGenWithNymDart =
       int,
       Pointer<Uint64>,
       int,
-      Pointer<CryptoBuffer>,
+      Pointer<CipherBirdBuffer>,
     );

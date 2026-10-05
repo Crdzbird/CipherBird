@@ -15,13 +15,13 @@ extension CipherBirdComposedPhysicalOpen on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Utf8>,
             Pointer<Uint8>,
             Size,
             Pointer<Utf8>,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Utf8>,
             Pointer<Uint8>,
             int,

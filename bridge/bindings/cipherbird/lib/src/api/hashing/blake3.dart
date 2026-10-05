@@ -14,14 +14,14 @@ extension CipherBirdBlake3 on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Uint8>,
             Size,
             Size,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Uint8>,
@@ -49,13 +49,18 @@ extension CipherBirdBlake3 on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Utf8>,
             Pointer<Uint8>,
             Size,
             Size,
           ),
-          CryptoBufferResult Function(Pointer<Utf8>, Pointer<Uint8>, int, int)
+          CipherBirdBufferResult Function(
+            Pointer<Utf8>,
+            Pointer<Uint8>,
+            int,
+            int,
+          )
         >('cryptolib_blake3_derive_key')(cc, pk, ikm.length, outLen),
       );
     } finally {
@@ -73,8 +78,8 @@ extension CipherBirdBlake3 on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(Pointer<Uint8>, Size, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, int)
+          CipherBirdBufferResult Function(Pointer<Uint8>, Size, Size),
+          CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
         >('cryptolib_blake3')(pm, msg.length, outLen),
       );
     } finally {

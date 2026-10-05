@@ -385,7 +385,7 @@ library and extracts it at startup.
    ],
    targets: [
      .target(name: "YourApp", dependencies: [
-       .product(name: "CryptoLibC", package: "CryptoLib"),
+       .product(name: "CipherBird", package: "CryptoLib"),
      ]),
    ]
    ```
@@ -393,7 +393,7 @@ library and extracts it at startup.
    `pod install`, no manual Xcode steps.
 3. **Use.**
    ```swift
-   import CryptoLibC
+   import CipherBird
    guard cryptolib_init() == 0 else { exit(1) }
    let v = String(cString: cryptolib_version())                            // "3.0.0"
    let kp = cryptolib_hybrid_kem_keygen()
@@ -426,7 +426,7 @@ links against a locally-built dylib; for portable distribution, use the
 vendored merged static archive (see `PUBLISHING.md`).
 
 1. **Build the native library** (one-time): `make lib` (produces
-   `build/release/libcryptolib_c.dylib`).
+   `build/release/libcipherbird.dylib`).
 2. **Run the example:**
    ```bash
    cd bridge/bindings/go

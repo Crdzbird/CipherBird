@@ -17,7 +17,7 @@ extension CipherBirdComposedImageFactorOpen on CipherBird {
     try {
       return _checkBufResult(
         _lib.lookupFunction<
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             Size,
             Pointer<Utf8>,
@@ -25,7 +25,7 @@ extension CipherBirdComposedImageFactorOpen on CipherBird {
             Size,
             Pointer<Utf8>,
           ),
-          CryptoBufferResult Function(
+          CipherBirdBufferResult Function(
             Pointer<Uint8>,
             int,
             Pointer<Utf8>,

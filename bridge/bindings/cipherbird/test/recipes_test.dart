@@ -1,7 +1,7 @@
 // CipherBird recipes — composition in practice, verified against the host dylib.
 //
 // Real-world flows that snap primitives together (no new crypto, just wiring).
-// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcryptolib_c.dylib flutter test test/recipes_test.dart
+// Run: CIPHERBIRD_LIBRARY=/abs/build/release/libcipherbird.dylib flutter test test/recipes_test.dart
 //
 // (Shamir threshold splitting is C++-only — not in the C ABI — so this mirrors
 // the other five recipes; see example/recipes.cpp for all six.)

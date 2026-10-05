@@ -1,7 +1,7 @@
 part of '../cipher_bird.dart';
 
 /// Text -> bytes conversions. `'hello'.bytes`, `'ab12'.hexBytes`, `'aGk='.base64Bytes`.
-extension CryptoText on String {
+extension CipherBirdText on String {
   /// UTF-8 bytes of this string.
   Uint8List get bytes => Uint8List.fromList(utf8.encode(this));
 
