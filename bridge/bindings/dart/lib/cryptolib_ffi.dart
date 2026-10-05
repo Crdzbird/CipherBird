@@ -10,6 +10,7 @@
 /// ```
 library cryptolib_ffi;
 
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
@@ -18,6 +19,7 @@ import 'package:ffi/ffi.dart';
 part 'src/enums.dart';
 part 'src/facade.dart';
 part 'src/security.dart';
+part 'src/easy.dart';
 
 // =============================================================================
 // C struct bindings
@@ -1319,6 +1321,21 @@ class CryptoLib {
     _fortunaReseed = _lib.lookupFunction<_FortunaReseedC, _FortunaReseedDart>('cryptolib_fortuna_reseed');
     _fortunaCount = _lib.lookupFunction<_FortunaCountC, _FortunaCountDart>('cryptolib_fortuna_reseed_count');
     _fortunaFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cryptolib_fortuna_free');
+  }
+
+  static CryptoLib? _singleton;
+  static bool _initialized = false;
+
+  /// Process-wide instance, loaded and initialised lazily on first use (same
+  /// resolution order as [CryptoLib.load] with no path). The easy-mode classes
+  /// ([SymmetricKey], [SigningKey], [KemKeyPair]) default to it.
+  static CryptoLib get instance {
+    final s = _singleton ??= CryptoLib.load();
+    if (!_initialized) {
+      s.init();
+      _initialized = true;
+    }
+    return s;
   }
 
   /// Load the native library. Resolution order:

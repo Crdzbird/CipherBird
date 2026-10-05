@@ -12,6 +12,7 @@
 /// ```
 library;
 
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io' show Platform;
 import 'dart:isolate';
@@ -27,6 +28,7 @@ part 'models.dart';
 part 'enums.dart';
 part 'facade.dart';
 part 'security.dart';
+part 'easy.dart';
 // Small encoding helpers.
 part 'utils.dart';
 // High-level API, grouped by domain (extensions on CryptoLib).

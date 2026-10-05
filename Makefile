@@ -221,7 +221,8 @@ dart-security: lib
 	@if command -v dart >/dev/null 2>&1; then \
 		cd bridge/bindings/dart && dart pub get >/dev/null 2>&1 && \
 		dart run bin/security_verify.dart $(DYLIB) | tail -1 && \
-		dart run bin/extensibility_verify.dart $(DYLIB) | tail -1; \
+		dart run bin/extensibility_verify.dart $(DYLIB) | tail -1 && \
+		dart run bin/easy_verify.dart $(DYLIB) | tail -1; \
 	else echo "dart not found — skipping"; fi
 
 .PHONY: dart-noise
@@ -335,7 +336,7 @@ flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
 	@if command -v flutter >/dev/null 2>&1; then \
 		cd bridge/bindings/cryptolib_flutter && \
-		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart | tail -2; \
+		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart test/easy_test.dart | tail -2; \
 	else echo "flutter not found — skipping"; fi
 
 # ── Go (cgo) ─────────────────────────────────────────────────────────────────

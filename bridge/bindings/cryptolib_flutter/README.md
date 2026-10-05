@@ -10,6 +10,45 @@ path, no manual setup. iOS/macOS vendor the prebuilt `CryptoLibC.xcframework`
 secp256k1 and BLAKE3 are statically inside); Android ships `libcryptolib_c.so`
 in `jniLibs`. The package is about 28 MB compressed for that reason.
 
+## Quick start (easy mode)
+
+The safe choices are already made for you. Text in, text out, no byte plumbing:
+
+```dart
+import 'package:cryptolib_flutter/cryptolib_flutter.dart';
+
+// Symmetric — key-committing AEAD, Argon2id for passphrases, HKDF sub-keys.
+final key = SymmetricKey.generate();
+final box = key.encryptText('meet at dawn');          // base64
+final back = key.decryptText(box);                    // 'meet at dawn'
+final salt = CryptoLib.instance.easy.randomBytes(16); // store next to the data
+final fromPass = SymmetricKey.fromPassphrase('correct horse battery staple', salt: salt);
+final dbKey = key.derive('database');                 // independent sub-key
+
+// Signatures — Ed25519, or the post-quantum hybrid with one argument.
+final signer = SigningKey.generate(algorithm: SignatureAlgorithm.hybrid);
+final sig = signer.signText('release 4.2.0');
+final ok = VerifyKey.fromHex(signer.publicKey.hex, algorithm: SignatureAlgorithm.hybrid)
+    .verifyText('release 4.2.0', sig);
+
+// Public-key encryption — hybrid X25519+ML-KEM-768, one call each way.
+final me = KemKeyPair.generate();
+final blob = KemKeyPair.encryptTextFor(me.publicKey, 'for your eyes only');
+final plain = me.decryptText(blob);
+
+// Passwords, tokens, bytes.
+final lib = CryptoLib.instance;
+final phc = lib.easy.hashPassword('hunter2');         // store this
+final good = lib.easy.verifyPassword('hunter2', phc);
+final sessionId = lib.easy.token();                   // URL-safe, 32 bytes of entropy
+final digest = lib.sha256('abc'.bytes).hex;           // 'ba7816bf…'
+```
+
+Every class exposes its raw bytes (`key.bytes`, `signer.secretKey`, …) and plugs
+into the composable recipes (`key.asKeySource`, `signer.scheme`), so you can
+drop down to the full 265-operation API — `lib.hash`, `lib.aead`, `lib.pq`,
+`lib.sealed`, `lib.recipe()` — whenever you need more.
+
 ## Usage
 
 ```dart

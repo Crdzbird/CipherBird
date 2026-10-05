@@ -1,3 +1,30 @@
+## 0.4.0
+
+Easy mode: developer-friendly sugar on top of the full API.
+
+### Added
+
+* Bytes/text extensions: `'text'.bytes`, `'ab12'.hexBytes`, `'…'.base64Bytes`,
+  `bytes.hex` / `.base64` / `.base64Url` / `.text`, `bytes.constantTimeEquals()`,
+  `bytes.concat()`, `bytes.wipe()`, `List<int>.u8`, `KeyPairResult.publicHex`.
+* `SymmetricKey` — 32-byte key with key-committing AEAD encryption,
+  `encryptText`/`decryptText`, Argon2id `fromPassphrase(salt:)`, HKDF
+  `derive(purpose)`, hex/base64 (de)serialisation, `asKeySource` for recipes,
+  `destroy()`.
+* `SigningKey` / `VerifyKey` — Ed25519 or the Ed25519+ML-DSA-65 hybrid behind
+  one `algorithm:` argument; `signText`/`verifyText`; `scheme` for recipes.
+* `KemKeyPair` — hybrid X25519+ML-KEM-768 `encapsulate`/`decapsulate` to a
+  `SymmetricKey`, and one-call public-key encryption `encryptFor`/`decrypt`
+  (`encryptTextFor`/`decryptText`).
+* `Identity.sealText` / `openText` for the Flagship/Fortress sealed messaging.
+* `lib.easy` — factories for the above plus `hashPassword`/`verifyPassword`
+  (Argon2id PHC strings), `randomBytes`/`randomHex`/`token`, `sha256Hex`.
+* `CryptoLib.instance` — process-wide lazily loaded instance, matching the
+  Flutter plugin, so the easy-mode classes work without passing a library.
+
+Every easy-mode class takes an optional `CryptoLib` and defaults to
+`CryptoLib.instance`. Composition only — no new cryptography.
+
 ## 0.3.0
 
 Extensible recipes: mix your own encryption into a `CryptoRecipe`.
