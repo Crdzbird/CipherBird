@@ -1,9 +1,10 @@
 # cipherbird_dart
 
-Native cryptography for Dart on the server, in command-line tools and in
-desktop programs. CipherBird binds its native C++ engine through
-`dart:ffi` and ships the compiled library inside the package for the host
-platform, so a program gets hashing, authenticated encryption, public-key
+Native cryptography for Dart on the server, in command-line tools, in
+desktop programs and in the browser. CipherBird binds its native C++ engine
+through `dart:ffi`, or through a WebAssembly build of the same engine on the
+web, and ships the compiled library inside the package for the host platform
+and for the browser, so a program gets hashing, authenticated encryption, public-key
 cryptography, post-quantum algorithms, hybrid key agreement, sealed
 messaging, a secure channel, password hashing, vaults, a keyring, anonymous
 credentials, threshold signatures and steganography from one dependency. It

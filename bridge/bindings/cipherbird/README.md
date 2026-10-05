@@ -1,8 +1,9 @@
 # cipherbird
 
-Native cryptography for Flutter. CipherBird binds its native C++ engine
-through `dart:ffi` and ships the compiled library inside the package, so an
-app gets hashing, authenticated encryption, public-key cryptography,
+Native cryptography for Flutter on Android, iOS, macOS and the web.
+CipherBird binds its native C++ engine through `dart:ffi`, or through a
+WebAssembly build of the same engine in the browser, and ships the compiled
+library for every platform inside the package, so an app gets hashing, authenticated encryption, public-key cryptography,
 post-quantum algorithms, hybrid key agreement, sealed messaging, a secure
 channel, password hashing, vaults, a keyring, anonymous credentials,
 threshold signatures and steganography from one dependency, with no platform
@@ -20,10 +21,12 @@ channels and no setup. The Dart API carries the package name: `CipherBird`, `Cip
 | Storage | vaults, MolecularVault, keyring with device and passphrase slots | |
 | Media | media entropy, DRBG, Fortuna, steganography, forward error correction | |
 
-Supported platforms: Android, iOS and macOS. The same code is published for
-plain Dart as [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) for
-servers, command-line tools and desktop programs; both packages are generated
-from one source tree and expose the same API.
+Supported platforms: Android, iOS, macOS and the web, with the same API and
+byte-compatible output on all four. The same code is published for plain
+Dart as [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) for
+servers, command-line tools, desktop programs and browser apps built with
+`dart compile`; both packages are generated from one source tree and expose
+the same API.
 
 ## Flutter or Dart?
 
@@ -53,20 +56,23 @@ program.
 flutter pub add cipherbird
 ```
 
-Nothing else is required. The native library is vendored per platform: a
-dynamic `CipherBird` framework through Swift Package Manager on iOS and
-macOS, and `libcipherbird.so` under `jniLibs` on Android. libsodium,
-liboqs, OpenSSL libcrypto, blst, secp256k1 and BLAKE3 are linked into it
-statically, so no system library is needed.
+Nothing else is required. The engine is vendored per platform: a dynamic
+`CipherBird` framework through Swift Package Manager on iOS and macOS,
+`libcipherbird.so` under `jniLibs` on Android, and a WebAssembly build
+under `assets/` for the web. libsodium, liboqs, OpenSSL libcrypto, blst,
+secp256k1 and BLAKE3 are linked into it statically, so no system library is
+needed.
 
 | Platform | Minimum |
 |---|---|
 | Android | API 24, arm64-v8a and x86_64 |
 | iOS | 15.0, arm64 device and arm64 simulator |
 | macOS | 12.0, Apple silicon, Swift Package Manager |
+| Web | any browser with WebAssembly; `flutter build web` and `flutter build web --wasm`; see [Web](#web) |
 
 Call `CipherBird.preload()` once at startup. It loads and initialises the
-library on a background isolate; every later call is synchronous:
+library on a background isolate, and on the web it fetches and instantiates
+the WebAssembly engine; every later call is synchronous:
 
 ```dart
 Future<void> main() async {
@@ -76,8 +82,9 @@ Future<void> main() async {
 }
 ```
 
-Skipping `preload` is allowed: the first use of `CipherBird.instance` does the
-same work synchronously.
+Skipping `preload` is allowed natively: the first use of
+`CipherBird.instance` does the same work synchronously. On the web it is
+required, because the engine can only be fetched asynchronously.
 
 ## Quick start
 

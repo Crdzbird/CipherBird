@@ -4,6 +4,7 @@
 [![cipherbird_dart on pub.dev](https://img.shields.io/pub/v/cipherbird_dart.svg?label=cipherbird_dart)](https://pub.dev/packages/cipherbird_dart)
 [![Release v1.0.0](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.0.0)
 [![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20macOS%20%7C%20Web-blue.svg)](bridge/bindings/cipherbird/README.md#web)
 
 > A C++20 cryptography library covering classical, post-quantum, hybrid, and
 > blockchain primitives behind a single C ABI, usable from Flutter, Dart on
@@ -325,9 +326,10 @@ and out-error handling end-to-end.
 ### Flutter and Dart (cipherbird)
 
 Two pub.dev packages wrap this library for Dart: `cipherbird` for Flutter
-apps (binaries bundled for Android, iOS and macOS) and `cipherbird_dart` for
-servers, CLIs and desktop programs (binary bundled for the host). They are
-generated from one source tree and share the API; see
+apps (binaries bundled for Android, iOS and macOS, plus a WebAssembly build
+for the web) and `cipherbird_dart` for servers, CLIs, desktop programs and
+browser apps (binary bundled for the host, WebAssembly for the web). They
+are generated from one source tree and share the API; see
 [bridge/bindings/cipherbird/README.md](bridge/bindings/cipherbird/README.md)
 for the full guide, the comparison with other Dart packages and benchmarks.
 
