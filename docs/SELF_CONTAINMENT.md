@@ -70,7 +70,8 @@ The engine reaches OpenSSL only through the EVP cipher API (AES-256-GCM-SIV in
 the vault cascade) and liboqs reaches it for AES, SHA-2 and SHA-3. Every other
 algorithm family and subsystem (EC, DH, DSA, legacy ciphers and digests, CMS,
 OCSP, CT, TS, CMP, SRP, HTTP, engines, loadable modules, error strings) is
-configured out through the list in `scripts/lib_openssl_trim.txt`, which the
+configured out (CMAC stays: OpenSSL's configure cascades `no-cmac` into
+`no-siv`, which takes AES-GCM-SIV with it) through the list in `scripts/lib_openssl_trim.txt`, which the
 Linux sealed build and the Android and iOS dependency builds all read. liboqs is
 built with `OQS_MINIMAL_BUILD` restricted to ML-KEM, ML-DSA, SLH-DSA and
 sntrup761 on every platform (the Linux archive script used to build every
