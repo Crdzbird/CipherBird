@@ -38,6 +38,7 @@ openssl_target() {
         -D__ANDROID_API__="$ANDROID_API" \
         no-shared no-dso no-hw no-engine no-tests no-apps no-docs \
         no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib \
+        $(cat "$_SDIR/../../lib_openssl_trim.txt") \
         --prefix="$WORK/install" \
         > "$WORK/configure.log" 2>&1 || { tail -40 "$WORK/configure.log"; die "configure failed"; }
     make -j"$(sysctl -n hw.ncpu)" build_libs > "$WORK/make.log" 2>&1 \

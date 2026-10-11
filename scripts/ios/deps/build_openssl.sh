@@ -60,6 +60,7 @@ for arch in "${ARCHES[@]}"; do
         ./Configure "$target" \
             no-shared no-dso no-hw no-engine no-tests no-apps no-docs \
             no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib \
+        $(cat "$_SDIR/../../lib_openssl_trim.txt") \
             --prefix="$work/install" \
             > "$work/configure.log" 2>&1 || { tail -40 "$work/configure.log"; die "openssl configure failed"; }
 

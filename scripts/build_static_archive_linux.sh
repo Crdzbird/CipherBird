@@ -55,8 +55,17 @@ OQS_A="$DEPS/lib/liboqs.a"
 if [ ! -f "$OQS_A" ]; then
     rm -rf "$HOST/liboqs-src"
     git clone --depth 1 -b "$LIBOQS_VERSION" https://github.com/open-quantum-safe/liboqs "$HOST/liboqs-src"
+    # Only the algorithms the engine exposes, as on Android and iOS. The list
+    # takes liboqs build identifiers (KEM_ml_kem_768), not runtime names.
+    ALGS="KEM_ml_kem_512;KEM_ml_kem_768;KEM_ml_kem_1024;KEM_ntruprime_sntrup761;SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87"
+    for hash in sha2 shake; do
+        for lvl in 128s 128f 192s 192f 256s 256f; do
+            ALGS+=";SIG_slh_dsa_pure_${hash}_${lvl}"
+        done
+    done
     cmake -S "$HOST/liboqs-src" -B "$HOST/liboqs-build" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DOQS_BUILD_ONLY_LIB=ON \
+        -DOQS_DIST_BUILD=ON -DOQS_MINIMAL_BUILD="$ALGS" \
         $PIC -DCMAKE_INSTALL_PREFIX="$DEPS" >/dev/null
     cmake --build "$HOST/liboqs-build" >/dev/null
     cmake --install "$HOST/liboqs-build" >/dev/null
@@ -74,7 +83,9 @@ if [ ! -f "$BLST_A" ]; then
     cp "$HOST/blst-src/bindings/blst.h" "$HOST/blst-src/bindings/blst_aux.h" "$DEPS/include/blst/"
 fi
 
-# 5. libsecp256k1 WITH the recovery module (distro package omits it).
+# 5. libsecp256k1 WITH the recovery module (distro package omits it). The
+#    ecmult window of 12 keeps the precomputed table at 128 KiB instead of the
+#    1 MiB default, a few percent of verification speed for a shipped engine.
 SECP_A="$DEPS/lib/libsecp256k1.a"
 if [ ! -f "$SECP_A" ]; then
     rm -rf "$HOST/secp-src"
@@ -82,6 +93,7 @@ if [ ! -f "$SECP_A" ]; then
     cmake -S "$HOST/secp-src" -B "$HOST/secp-build" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF $PIC \
         -DSECP256K1_ENABLE_MODULE_RECOVERY=ON \
+        -DSECP256K1_ECMULT_WINDOW_SIZE=12 -DSECP256K1_ECMULT_GEN_KB=22 \
         -DSECP256K1_BUILD_BENCHMARK=OFF -DSECP256K1_BUILD_TESTS=OFF \
         -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF -DSECP256K1_BUILD_CTIME_TESTS=OFF \
         -DSECP256K1_BUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX="$DEPS" >/dev/null

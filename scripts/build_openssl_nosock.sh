@@ -13,6 +13,11 @@
 # the prebuilt liboqs.a (which uses OpenSSL EVP for AES/SHA). Version + hash are
 # pinned for supply-chain integrity; override with OPENSSL_VER / OPENSSL_SHA256.
 #
+# The engine reaches OpenSSL only through the EVP cipher API (AES-256-GCM-SIV)
+# and liboqs through EVP AES, SHA-2 and SHA-3, so every other algorithm family
+# and subsystem is configured out as well; the list lives in
+# scripts/lib_openssl_trim.txt and is shared with the Android and iOS builds.
+#
 # Output: build/host-deps/openssl-nosock/lib/libcrypto.a
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -41,7 +46,9 @@ tar xzf "$TARBALL" -C "$DEPS"
 
 echo "== configuring (no-sock no-dso, static libcrypto only) =="
 ( cd "$SRC"
+  # shellcheck disable=SC2046
   ./Configure no-shared no-sock no-dso no-tests no-apps no-docs no-quic \
+      $(cat "$ROOT/scripts/lib_openssl_trim.txt") \
       --prefix="$OUT" --openssldir="$OUT/ssl" >/dev/null
   echo "== building libcrypto.a (build_libs: generates headers first) =="
   # build_libs is the canonical target for just the libraries; it runs the

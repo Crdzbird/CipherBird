@@ -64,6 +64,21 @@ references; a binary linked fully against the sealed static archive runs
 correctly and **passes the hard audit with no networking, exec, or dlopen
 symbols** (only a benign `getenv` from OpenSSL config-reading remains, watch-listed).
 
+### Trimmed libcrypto and liboqs (shipped engine size)
+
+The engine reaches OpenSSL only through the EVP cipher API (AES-256-GCM-SIV in
+the vault cascade) and liboqs reaches it for AES, SHA-2 and SHA-3. Every other
+algorithm family and subsystem (EC, DH, DSA, legacy ciphers and digests, CMS,
+OCSP, CT, TS, CMP, SRP, HTTP, engines, loadable modules, error strings) is
+configured out through the list in `scripts/lib_openssl_trim.txt`, which the
+Linux sealed build and the Android and iOS dependency builds all read. liboqs is
+built with `OQS_MINIMAL_BUILD` restricted to ML-KEM, ML-DSA, SLH-DSA and
+sntrup761 on every platform (the Linux archive script used to build every
+algorithm). libsecp256k1 uses an ecmult window of 12 and a 22 KiB generator
+table, which trades a few percent of verification speed for a 128 KiB table in
+place of the 1 MiB default. Together these roughly halve the text of a
+self-contained engine; Android arm64 went from 9.0 MB to about 6 MB.
+
 ## Trade-off
 
 Static linking means **you own patching**: a CVE in a bundled dependency requires

@@ -39,6 +39,7 @@ extract_to "$ARCHIVE" "$WORK/src"
         --prefix="$WORK/install" \
         --disable-shared --enable-static \
         --enable-module-recovery \
+        --with-ecmult-window=12 --with-ecmult-gen-kb=22 \
         --disable-benchmark \
         --disable-tests \
         --disable-exhaustive-tests \
