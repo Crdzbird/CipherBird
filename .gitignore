@@ -24,6 +24,7 @@ bridge/bindings/cryptolib-wasm/dist/
 
 # Per-binding vendored prebuilt native directories
 bridge/bindings/*/native/
+bridge/bindings/go/cryptolib/native/
 bridge/bindings/*/prebuilds/
 bridge/bindings/*/out/
 bridge/bindings/cryptolib-python/cryptolib/_native/
