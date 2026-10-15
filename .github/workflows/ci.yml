@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install deps (LLVM clang for libFuzzer)
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm lld
       - name: Build blst from source (pinned)
         run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run fuzz targets (time-boxed)
@@ -76,7 +76,7 @@ jobs:
           CXX: /opt/homebrew/opt/llvm/bin/clang++
         run: |
           cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
-            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
           cmake --build build/fuzz
           for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_stego build/fuzz/fuzz_diff_aead; do
             [ -x "$fz" ] && "$fz" -max_total_time=60 -print_final_stats=1 || true
