@@ -1,3 +1,24 @@
+## 1.1.1
+
+Engine hardening and smaller binaries; no API or wire-format change.
+
+- Vault packets whose signature is not 64 bytes are rejected before
+  verification, in packet parsing and in the symmetric and asymmetric vault
+  open paths; a short signature previously reached the verifier and could
+  crash the process. The asymmetric vault also checks the sender, recipient
+  and secret key lengths on seal and open.
+- Length arithmetic in the suite, session and Flagship parsers is done in
+  `size_t`, so a signature or ciphertext length near 2^32 can no longer wrap
+  a bounds check. The suite requires the exact hybrid signature size.
+  Regression tests cover both findings and the related short-input cases.
+- Both bundled engines are rebuilt. The WebAssembly engine (4.4 MB) uses
+  libsodium 1.0.22 and OpenSSL 3.5.9 (3.5 LTS) with OpenSSL trimmed to the
+  EVP ciphers the engine uses. The macOS library comes from the host
+  toolchain with libsodium 1.0.22, liboqs 0.16.0 and the sealed OpenSSL
+  3.6.3 build.
+- The C ABI is unchanged at 265 functions and the generated web shim is
+  identical to 1.1.0.
+
 ## 1.1.0
 
 Web support. The engine is compiled to WebAssembly and bundled under

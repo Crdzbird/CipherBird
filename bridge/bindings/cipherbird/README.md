@@ -47,7 +47,7 @@ program.
 | How the engine is found | the process image on iOS and macOS, `libcipherbird.so` from `jniLibs` on Android, the package asset on the web | the package's `native/` directory, located through the program's package configuration; the package asset on the web |
 | Startup | `await CipherBird.preload()` before `runApp`, or lazy on first use; required on the web | lazy on first use, `preload` optional; required on the web |
 | Build integration | Flutter's plugin tooling, nothing to configure | none needed; `dart run`, `dart test` and `dart compile exe` (pass the library path) |
-| Download size | about 32 MB | about 9 MB |
+| Download size | about 17 MB | about 7 MB |
 | API, wire formats, tests | identical | identical |
 
 ## Install

@@ -38,7 +38,7 @@ expose the same classes and methods and run the same test suite.
 | Depends on | `ffi` only | Flutter SDK, `ffi` |
 | Engine binaries | host slot under `native/<os>-<arch>/`, macOS on Apple silicon in this release, and WebAssembly for the web | Android arm64-v8a and x86_64, iOS device and simulator, macOS, and WebAssembly for the web |
 | How the engine is found | the package's `native/` directory via `.dart_tool/package_config.json`, the current directory or the script location; the package asset on the web | the process image on iOS and macOS, `jniLibs` on Android, the package asset on the web |
-| Download size | about 9 MB | about 32 MB |
+| Download size | about 7 MB | about 17 MB |
 | API, wire formats, tests | identical | identical |
 
 ## Install
