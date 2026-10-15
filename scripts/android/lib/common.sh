@@ -102,11 +102,14 @@ fetch_tarball() {
     # Fall back to the shared iOS source cache if a copy is already there
     local ios_cache="$REPO_ROOT/third_party/ios/src/$name"
     if [[ -f "$ios_cache" && ! -f "$archive" ]]; then
-        cp "$ios_cache" "$archive"
+        cp "$ios_cache" "$archive.part"
+        mv "$archive.part" "$archive"
     fi
     if [[ ! -f "$archive" ]]; then
         log "Downloading $name..."
-        curl -fL --progress-bar -o "$archive" "$url"
+        curl -fL --progress-bar -o "$archive.part" "$url" \
+            || { rm -f "$archive.part"; die "download failed: $url"; }
+        mv "$archive.part" "$archive"
     fi
     echo "$archive"
 }

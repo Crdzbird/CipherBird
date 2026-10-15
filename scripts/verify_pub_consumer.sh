@@ -2,29 +2,38 @@
 # Prove cipherbird works for a pub.dev CONSUMER before publishing.
 #
 # Builds the exact archive that would be published (git HEAD contents of the
-# plugin, symlinks materialised the way pub does, .pubignore applied), serves
+# plugin, or the working tree with SOURCE=worktree, symlinks materialised the way pub does, .pubignore applied), serves
 # it from a local pub-protocol server, creates a fresh `flutter create` app
 # that depends on it as a HOSTED package (not a path dependency — pub's real
 # download/extract path is exercised), copies the package's own test suite
 # into an integration test, and runs it on the requested device.
 #
-# Usage: scripts/verify_pub_consumer.sh <flutter device id | macos> [port]
+# Usage: [SOURCE=head|worktree] scripts/verify_pub_consumer.sh <flutter device id | macos> [port]
 #   scripts/verify_pub_consumer.sh macos
 #   scripts/verify_pub_consumer.sh 526C44E8-...   # iOS simulator UDID
 #   scripts/verify_pub_consumer.sh 29131FDH3006NV # attached Android device
+#   SOURCE=worktree scripts/verify_pub_consumer.sh macos  # uncommitted blobs
 set -euo pipefail
 DEVICE="${1:?device id required (see: flutter devices)}"
 PORT="${2:-8765}"
+SOURCE="${SOURCE:-head}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN=bridge/bindings/cipherbird
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cl_pubconsumer.XXXXXX")"
 VERSION="$(sed -n 's/^version: //p' "$ROOT/$PLUGIN/pubspec.yaml")"
 HOST_KEY="localhost%58$PORT"
-echo "══ cipherbird $VERSION → consumer test on $DEVICE (work dir $WORK)"
+echo "══ cipherbird $VERSION → consumer test on $DEVICE from $SOURCE (work dir $WORK)"
 
-# 1. Archive exactly what git HEAD holds for the plugin, symlinks materialised.
+# 1. Archive the plugin from git HEAD (default) or the working tree (tracked
+#    and untracked-but-not-ignored files), symlinks materialised.
 mkdir -p "$WORK/stage" "$WORK/pkg" "$WORK/serve"
-git -C "$ROOT" archive HEAD "$PLUGIN" | tar -x -C "$WORK/stage"
+case "$SOURCE" in
+    head)     git -C "$ROOT" archive HEAD "$PLUGIN" | tar -x -C "$WORK/stage" ;;
+    worktree) ( cd "$ROOT" && git ls-files -z --cached --others --exclude-standard -- "$PLUGIN" \
+                  | while IFS= read -r -d '' f; do [[ ! -e "$f" && ! -L "$f" ]] || printf '%s\0' "$f"; done \
+                  | tar -cf - --null -T - ) | tar -x -C "$WORK/stage" ;;
+    *)        echo "error: SOURCE must be head or worktree (got $SOURCE)"; exit 1 ;;
+esac
 cp -RL "$WORK/stage/$PLUGIN/." "$WORK/pkg/"
 ( cd "$WORK/pkg" && grep -vE '^(#|!|$)' .pubignore | xargs rm -rf 2>/dev/null || true
   COPYFILE_DISABLE=1 tar -czf "$WORK/serve/cipherbird-$VERSION.tar.gz" . )
@@ -50,7 +59,7 @@ PY
 python3 -c "import yaml" 2>/dev/null || { echo "needs PyYAML: pip3 install pyyaml"; exit 1; }
 if lsof -ti:"$PORT" >/dev/null 2>&1; then echo "✗ port $PORT is already in use (pass another port as the 2nd argument)"; exit 1; fi
 python3 "$WORK/pubserver.py" & SERVER=$!
-trap 'kill $SERVER 2>/dev/null; wait $SERVER 2>/dev/null; rm -rf "$HOME/.pub-cache/hosted/$HOST_KEY" "$HOME/.pub-cache/hosted-hashes/$HOST_KEY"' EXIT
+trap 'kill $SERVER 2>/dev/null; wait $SERVER 2>/dev/null || true; rm -rf "$HOME/.pub-cache/hosted/$HOST_KEY" "$HOME/.pub-cache/hosted-hashes/$HOST_KEY"' EXIT
 sleep 1
 
 # 3. Fresh consumer app depending on the HOSTED package.
@@ -73,11 +82,12 @@ echo "   installed from hosted source into $CACHED ($(du -sh "$CACHED" | cut -f1
 mkdir -p "$APP/integration_test/suites"
 cp "$CACHED"/test/*_test.dart "$APP/integration_test/suites/"
 python3 - "$APP/integration_test" <<'PY'
-import os,sys; d=sys.argv[1]
+import os,re,sys; d=sys.argv[1]
 fs=sorted(f for f in os.listdir(f"{d}/suites") if f.endswith('_test.dart'))
+isasync=lambda f: re.search(r"^Future<void>\s+main\(\)\s+async\b", open(f"{d}/suites/{f}").read(), re.M)
 imp="\n".join(f"import 'suites/{f}' as {f[:-5]};" for f in fs)
-grp="\n".join(f"  group('{f[:-10]}', {f[:-5]}.main);" for f in fs)
-open(f"{d}/all_test.dart","w").write("import 'package:flutter_test/flutter_test.dart';\nimport 'package:integration_test/integration_test.dart';\n"+imp+"\n\nvoid main() {\n  IntegrationTestWidgetsFlutterBinding.ensureInitialized();\n"+grp+"\n}\n")
+run="\n".join(f"  await {f[:-5]}.main();" if isasync(f) else f"  group('{f[:-10]}', {f[:-5]}.main);" for f in fs)
+open(f"{d}/all_test.dart","w").write("import 'package:flutter_test/flutter_test.dart';\nimport 'package:integration_test/integration_test.dart';\n"+imp+"\n\nFuture<void> main() async {\n  IntegrationTestWidgetsFlutterBinding.ensureInitialized();\n"+run+"\n}\n")
 PY
 cd "$APP"
 if flutter test integration_test/all_test.dart -d "$DEVICE" 2>&1 | tee "$WORK/test.log" | grep -qE "All tests passed"; then

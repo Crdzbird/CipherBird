@@ -124,7 +124,9 @@ fetch_tarball() {
     local archive="$SRC_DIR/$name"
     if [[ ! -f "$archive" ]]; then
         log "Downloading $name..."
-        curl -fL --progress-bar -o "$archive" "$url"
+        curl -fL --progress-bar -o "$archive.part" "$url" \
+            || { rm -f "$archive.part"; die "download failed: $url"; }
+        mv "$archive.part" "$archive"
     fi
     echo "$archive"
 }

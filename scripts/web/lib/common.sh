@@ -1,10 +1,11 @@
 # Shared helpers for the WebAssembly (Emscripten) build of the engine.
-# Sources are the same tarballs the Android and iOS builds use.
+# Sources are the same tarballs the Android and iOS builds use, kept in a
+# web-only directory so parallel Android and web builds never share a download.
 
 set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../../.." && pwd )"
-SRC_DIR="$REPO_ROOT/third_party/android/src"
+SRC_DIR="$REPO_ROOT/third_party/web/src"
 DEPS_ROOT="$REPO_ROOT/third_party/web"
 BUILD_ROOT="$REPO_ROOT/build/web"
 PREFIX="$DEPS_ROOT/wasm32"
@@ -31,11 +32,14 @@ fetch_tarball() {
     local archive="$SRC_DIR/$name"
     local ios_cache="$REPO_ROOT/third_party/ios/src/$name"
     if [[ -f "$ios_cache" && ! -f "$archive" ]]; then
-        cp "$ios_cache" "$archive"
+        cp "$ios_cache" "$archive.part"
+        mv "$archive.part" "$archive"
     fi
     if [[ ! -f "$archive" ]]; then
         log "Downloading $name"
-        curl -fL --progress-bar -o "$archive" "$url"
+        curl -fL --progress-bar -o "$archive.part" "$url" \
+            || { rm -f "$archive.part"; die "download failed: $url"; }
+        mv "$archive.part" "$archive"
     fi
     echo "$archive"
 }
