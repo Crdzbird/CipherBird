@@ -270,17 +270,17 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 
 | Discipline | Status |
 |---|---|
-| Test suite | **317 / 317 passing** (custom zero-dependency runner) |
+| Test suite | **495 / 495 passing** locally on macOS arm64 (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test) |
 | Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
-| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (Linux CI) |
+| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCRYPTOLIB_CT_VALGRIND=ON`, run manually on Linux; no CI job yet) |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |
 | Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model section 8) |
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
 | Language coverage | 10 bindings verified end-to-end by running, not just compiling |
 | Self-contained binary | macOS desktop dylib depends only on `/usr/lib/libSystem` + `libc++`, bundled in the npm / JVM / .NET packages |
-| Release pipeline | SBOM (syft) + keyless cosign signing + SLSA provenance (CI on `v*` tag) |
+| Release pipeline | SBOM (syft) + keyless cosign signing + SLSA provenance, defined in `.github/workflows/release.yml` for `v*` tags (not yet exercised on a tag) |
 
 The full threat model, assets, AI-assisted adversary, security arguments for
 the original compositions (Vault, Keyring, hybrid KEM combiner, committing
@@ -519,7 +519,7 @@ the publish checklist.
 ## Contributing
 
 Issues and pull requests welcome. **Do not file vulnerabilities as public
-issues**, email the security contact in `SECURITY.md` (or open a private
-report via GitHub Security Advisories). Before submitting code, please ensure
+issues**; report them privately via GitHub Security Advisories on this
+repository. Before submitting code, please ensure
 the test suite still runs clean (`./build/test/cryptolib_tests`) and that
 `scripts/verify_bindings.sh` stays green across all 10 bindings.

@@ -16,9 +16,9 @@ BUILD_ROOT="$REPO_ROOT/build/ios"
 mkdir -p "$SRC_DIR" "$DEPS_ROOT" "$BUILD_ROOT"
 
 # Version pins — change here to upgrade a dependency
-LIBSODIUM_VERSION="1.0.20"
+LIBSODIUM_VERSION="1.0.22"
 BLAKE3_VERSION="1.5.4"
-OPENSSL_VERSION="3.3.2"
+OPENSSL_VERSION="3.5.9"
 # liboqs 0.13+ introduced the FIPS 203/204/205 naming (ML-KEM, ML-DSA, SLH-DSA)
 # that pq.hpp uses. 0.12 still uses the pre-standardization names.
 LIBOQS_VERSION="0.15.0"

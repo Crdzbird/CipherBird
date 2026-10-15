@@ -6,7 +6,8 @@ on:
   pull_request:
 
 # macOS-arm64 mirrors the known-good local build. Deps: Homebrew formulae +
-# blst built from source (not a formula). Linux coverage would need the deps
+# blst built from a pinned tag (not a formula) by scripts/ci/install_blst.sh,
+# which installs the headers under include/blst/ to match <blst/blst.h>. Linux coverage would need the deps
 # built from source (see scripts/) — tracked separately.
 jobs:
   test:
@@ -16,12 +17,8 @@ jobs:
       - name: Install deps
         run: |
           brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
-      - name: Build blst from source
-        run: |
-          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
-          (cd /tmp/blst && ./build.sh)
-          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
-          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Configure + build tests
         run: |
           cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -36,12 +33,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
-      - name: Build blst from source
-        run: |
-          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
-          (cd /tmp/blst && ./build.sh)
-          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
-          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run under ASan/UBSan
         run: |
           cmake -S . -B build/asan -G Ninja -DCRYPTOLIB_SANITIZE=ON \
@@ -55,12 +48,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
-      - name: Build blst from source
-        run: |
-          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
-          (cd /tmp/blst && ./build.sh)
-          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
-          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run under ThreadSanitizer
         run: |
           cmake -S . -B build/tsan -G Ninja -DCRYPTOLIB_TSAN=ON \
@@ -79,12 +68,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps (LLVM clang for libFuzzer)
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm
-      - name: Build blst from source
-        run: |
-          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
-          (cd /tmp/blst && ./build.sh)
-          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
-          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run fuzz targets (time-boxed)
         env:
           CC: /opt/homebrew/opt/llvm/bin/clang
@@ -106,12 +91,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 node
-      - name: Build blst from source
-        run: |
-          git clone --depth 1 https://github.com/supranational/blst.git /tmp/blst
-          (cd /tmp/blst && ./build.sh)
-          sudo cp /tmp/blst/libblst.a /opt/homebrew/lib/
-          sudo cp /tmp/blst/bindings/blst.h /tmp/blst/bindings/blst_aux.h /opt/homebrew/include/
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build C ABI bridge
         run: |
           cmake -S . -B build/bridge -G Ninja -DCMAKE_BUILD_TYPE=Release \

@@ -177,8 +177,8 @@ public:
 
         auto s = inner.value().span();
         if (s.size() < 4) return Result<SecureBuffer>::err("Flagship: inner truncated");
-        const uint32_t sig_len = get_u32(s.data());
-        if (s.size() < 4u + sig_len) return Result<SecureBuffer>::err("Flagship: inner truncated");
+        const std::size_t sig_len = get_u32(s.data());
+        if (sig_len > s.size() - 4) return Result<SecureBuffer>::err("Flagship: inner truncated");
         auto sig = s.subspan(4, sig_len);
         auto pt  = s.subspan(4 + sig_len);
 
@@ -315,8 +315,8 @@ public:
             if (trailer.size() < HDR ||
                 sodium_memcmp(trailer.data(), MAGIC_TRAILER.data(), 4) != 0)
                 return Result<void>::err("Flagship: bad stream trailer");
-            const uint32_t sig_len = get_u32(trailer.data() + 4);
-            if (trailer.size() < HDR + sig_len)
+            const std::size_t sig_len = get_u32(trailer.data() + 4);
+            if (sig_len > trailer.size() - HDR)
                 return Result<void>::err("Flagship: stream trailer truncated");
             auto sig = trailer.subspan(HDR, sig_len);
 
@@ -405,8 +405,8 @@ private:
         if (out.version != VERSION) return Result<void>::err("Flagship: unsupported version");
         out.suite = env[5];
         std::memcpy(out.fp.data(), env.data() + 6, FP_BYTES);
-        const uint32_t ct_len = get_u32(env.data() + 6 + FP_BYTES);
-        if (env.size() < HEAD_FIXED + ct_len) return Result<void>::err("Flagship: envelope truncated");
+        const std::size_t ct_len = get_u32(env.data() + 6 + FP_BYTES);
+        if (ct_len > env.size() - HEAD_FIXED) return Result<void>::err("Flagship: envelope truncated");
         out.kem_ct  = env.subspan(HEAD_FIXED, ct_len);
         out.head_len = HEAD_FIXED + ct_len;
         return Result<void>::ok();

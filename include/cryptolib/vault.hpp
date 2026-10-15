@@ -260,13 +260,16 @@ public:
         // ── L4: Ed25519 verify — reject forgeries immediately ────────────
         if (verifier_public_key.size() != crypto_sign_PUBLICKEYBYTES)
             return Result<SecureBuffer>::err("Invalid public key length");
+        if (packet.signature.size() != SIG_BYTES)
+            return Result<SecureBuffer>::err(
+                "Vault: decryption failed - invalid packet");
 
         if (crypto_sign_verify_detached(
                 packet.signature.data(),
                 packet.ciphertext.data(), packet.ciphertext.size(),
                 verifier_public_key.data()) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         // ── L1: Argon2id — re-derive the same cipher key + MAC key ───────
         auto derived = derive_keys(packet.kdf_salt.span(), extra_entropy);
@@ -276,7 +279,7 @@ public:
 
         // ── L3: XChaCha20 — decrypt [plaintext ‖ integrity_tag] ──────────
         if (packet.ciphertext.size() <= NONCE_BYTES + AEAD_MAC_BYTES)
-            return Result<SecureBuffer>::err("Vault: decryption failed — invalid packet");
+            return Result<SecureBuffer>::err("Vault: decryption failed - invalid packet");
 
         const uint8_t* nonce_ptr = packet.ciphertext.data();
         const uint8_t* ct_ptr    = packet.ciphertext.data() + NONCE_BYTES;
@@ -292,13 +295,13 @@ public:
                 aad.empty() ? nullptr : aad.data(), aad.size(),
                 nonce_ptr, cipher_key.data()) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         inner.resize(static_cast<std::size_t>(pt_len));
 
         // Split inner back into plaintext and integrity tag
         if (inner.size() < INTEGRITY_BYTES)
-            return Result<SecureBuffer>::err("Vault: decryption failed — invalid packet");
+            return Result<SecureBuffer>::err("Vault: decryption failed - invalid packet");
 
         const std::size_t pt_size = inner.size() - INTEGRITY_BYTES;
         const uint8_t*    pt_data = inner.data();
@@ -317,7 +320,7 @@ public:
 
         if (sodium_memcmp(expected_tag.data(), tag_data, INTEGRITY_BYTES) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         // All layers passed — return the plaintext
         SecureBuffer plaintext(pt_data, pt_size);
@@ -518,6 +521,11 @@ public:
          std::span<const uint8_t>  aad            = {},
          std::span<const uint8_t>  extra_entropy  = {}) {
 
+        if (recipient_box_public.size() != crypto_box_PUBLICKEYBYTES)
+            return Result<EncryptedPacket>::err("Invalid recipient public key length");
+        if (sender.box_secret.size() != crypto_box_SECRETKEYBYTES)
+            return Result<EncryptedPacket>::err("Invalid sender secret key length");
+
         // ── L1: Derive a MAC key from the X25519 shared secret ────────────
         //   shared_secret = X25519(sender_secret, recipient_public)
         //   mac_key       = BLAKE2b(shared_secret [‖ extra_entropy])
@@ -619,6 +627,11 @@ public:
         // changing the ECDH input.
         if (sender_sign_public.size() != crypto_sign_PUBLICKEYBYTES)
             return Result<SecureBuffer>::err("Invalid sign public key");
+        if (packet.signature.size() != SIG_BYTES ||
+            sender_box_public.size() != crypto_box_PUBLICKEYBYTES ||
+            recipient.box_secret.size() != crypto_box_SECRETKEYBYTES)
+            return Result<SecureBuffer>::err(
+                "Vault: decryption failed - invalid packet");
 
         SecureBuffer signed_msg(packet.ciphertext.size() + sender_box_public.size());
         std::memcpy(signed_msg.data(), packet.ciphertext.data(), packet.ciphertext.size());
@@ -630,7 +643,7 @@ public:
                 signed_msg.data(), signed_msg.size(),
                 sender_sign_public.data()) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         // ── L1: Re-derive MAC key (must mirror seal()) ────────────────────
         SecureBuffer shared(crypto_scalarmult_BYTES);
@@ -655,7 +668,7 @@ public:
 
         // ── L2: Box decrypt ───────────────────────────────────────────────
         if (packet.ciphertext.size() <= BOX_NONCE_BYTES + BOX_MAC_BYTES)
-            return Result<SecureBuffer>::err("Vault: decryption failed — invalid packet");
+            return Result<SecureBuffer>::err("Vault: decryption failed - invalid packet");
 
         const uint8_t* nonce_ptr = packet.ciphertext.data();
         const uint8_t* ct_ptr    = packet.ciphertext.data() + BOX_NONCE_BYTES;
@@ -669,11 +682,11 @@ public:
                 sender_box_public.data(),
                 recipient.box_secret.data()) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         // ── L1: Verify BLAKE2b integrity tag ──────────────────────────────
         if (inner.size() < INTEGRITY_BYTES)
-            return Result<SecureBuffer>::err("Vault: decryption failed — invalid packet");
+            return Result<SecureBuffer>::err("Vault: decryption failed - invalid packet");
 
         const std::size_t pt_size = inner.size() - INTEGRITY_BYTES;
         const uint8_t*    pt_data = inner.data();
@@ -691,7 +704,7 @@ public:
 
         if (sodium_memcmp(expected_tag.data(), tag_data, INTEGRITY_BYTES) != 0)
             return Result<SecureBuffer>::err(
-                "Vault: decryption failed — invalid packet");
+                "Vault: decryption failed - invalid packet");
 
         SecureBuffer plaintext(pt_data, pt_size);
         return Result<SecureBuffer>::ok(std::move(plaintext));

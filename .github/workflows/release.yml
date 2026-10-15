@@ -15,18 +15,25 @@ jobs:
   build:
     runs-on: macos-14
     outputs:
-      digest: ${{ steps.hash.outputs.digest }}
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - uses: actions/checkout@v4
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build self-contained desktop binary
         run: bash scripts/build_selfcontained.sh build/release-artifacts
+      # SHA256SUMS lists each artifact by its bare file name, in sha256sum
+      # format. The SLSA generator's base64-subjects input is that exact text,
+      # base64-encoded, so every listed artifact becomes a provenance subject.
       - name: Checksums
         id: hash
+        working-directory: build/release-artifacts
         run: |
-          bash scripts/release/checksums.sh build/release-artifacts/SHA256SUMS
-          echo "digest=$(shasum -a 256 build/release-artifacts/SHA256SUMS | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          shasum -a 256 libcryptolib_c.dylib > SHA256SUMS
+          cat SHA256SUMS
+          echo "hashes=$(base64 < SHA256SUMS | tr -d '\n')" >> "$GITHUB_OUTPUT"
       - name: SBOM (syft)
         uses: anchore/sbom-action@v0
         with:
@@ -57,5 +64,5 @@ jobs:
       contents: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
     with:
-      base64-subjects: ${{ needs.build.outputs.digest }}
+      base64-subjects: ${{ needs.build.outputs.hashes }}
       upload-assets: true

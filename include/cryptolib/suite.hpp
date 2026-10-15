@@ -145,8 +145,12 @@ public:
 
         auto s = inner.value().span();
         if (s.size() < 4) return Result<SecureBuffer>::err("Suite: signed envelope truncated");
-        const uint32_t sig_len = get_u32_le(s.data());
-        if (s.size() < 4u + sig_len)
+        auto sizes = pq::HybridSig::sizes();
+        if (sizes.is_err()) return Result<SecureBuffer>::err(sizes.error().message);
+        const std::size_t sig_len = get_u32_le(s.data());
+        if (sig_len != sizes.value().signature)
+            return Result<SecureBuffer>::err("Suite: invalid signature length");
+        if (sig_len > s.size() - 4)
             return Result<SecureBuffer>::err("Suite: signed envelope truncated");
         auto sig = s.subspan(4, sig_len);
         auto pt  = s.subspan(4 + sig_len);
@@ -307,8 +311,8 @@ private:
             return Result<void>::err("Suite: bad magic (wrong envelope type)");
         if (env[4] != VERSION) return Result<void>::err("Suite: unsupported version");
         out_suite_id = env[5];
-        const uint32_t ct_len = get_u32_le(env.data() + 6);
-        if (env.size() < HDR + ct_len) return Result<void>::err("Suite: envelope truncated");
+        const std::size_t ct_len = get_u32_le(env.data() + 6);
+        if (ct_len > env.size() - HDR) return Result<void>::err("Suite: envelope truncated");
         kem_ct = env.subspan(HDR, ct_len);
         inner  = env.subspan(HDR + ct_len);
         return Result<void>::ok();

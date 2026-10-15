@@ -359,7 +359,7 @@ private:
     };
     [[nodiscard]] static Result<void> parse_header(std::span<const uint8_t> m, Header& out) {
         std::size_t off = 0;
-        auto need = [&](std::size_t k) { return m.size() >= off + k; };
+        auto need = [&](std::size_t k) { return off <= m.size() && k <= m.size() - off; };
         if (!need(5) || std::memcmp(m.data(), MAGIC.data(), 4) != 0)
             return Result<void>::err("Session: bad magic");
         if (m[4] != VERSION) return Result<void>::err("Session: unsupported version");

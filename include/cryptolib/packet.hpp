@@ -83,6 +83,8 @@ struct EncryptedPacket {
         if (p >= end)
             return Result<EncryptedPacket>::err("Truncated signature length");
         std::size_t sig_len = *p++;
+        if (sig_len != crypto_sign_BYTES)
+            return Result<EncryptedPacket>::err("Invalid signature length");
         if (static_cast<std::size_t>(end - p) < sig_len)
             return Result<EncryptedPacket>::err("Truncated signature");
         SecureBuffer sig(p, sig_len); p += sig_len;
