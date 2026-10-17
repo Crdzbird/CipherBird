@@ -29,41 +29,21 @@ library comes with the package, so nothing has to be built or copied first.
 
 ## Startup
 
-The example needs no startup call. It runs the app at once and gates the
-first use of the engine on `CipherBird.ready`, which completes immediately
-on Android, iOS and macOS and once the WebAssembly engine is compiled in the
-browser, where the plugin registration has already started the download:
+One await at startup, the same on every platform:
 
 ```dart
-import 'package:cipherbird/cipherbird.dart';
-import 'package:flutter/material.dart';
-
-void main() => runApp(const MyApp());
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    home: Scaffold(
-      body: FutureBuilder<void>(
-        future: CipherBird.ready,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final digest = CipherBird.instance.easy.sha256Hex('abc');
-          return Center(child: Text(digest));
-        },
-      ),
-    ),
-  );
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CipherBird.preload();
+  runApp(const ExampleApp());
 }
 ```
 
-Every call after that is synchronous. `await CipherBird.preload()` still
-works for apps that call it: it loads the engine on the web and returns at
-once elsewhere.
+On Android, iOS and macOS the call returns immediately; the library opens
+synchronously on first use. In the browser the plugin registration has
+already started downloading the WebAssembly engine before `main` runs, so the
+await only covers whatever download time is left. Every call after it is
+synchronous.
 
 For an app to play with rather than a self-test, see the playground in the
 package repository, which adds buttons to encrypt, corrupt and decrypt text,

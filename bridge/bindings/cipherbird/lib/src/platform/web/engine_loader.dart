@@ -66,11 +66,14 @@ Future<void> _load(String? library) async {
   throw StateError('cipherbird: could not load the engine: $lastError');
 }
 
+JSFunction? get _loadedFactory =>
+    globalContext.getProperty<JSFunction?>('createCipherBird'.toJS);
+
 Future<EngineModule> _instantiate(String url) async {
-  await _injectScript(url);
-  final factory = globalContext.getProperty<JSFunction?>(
-    'createCipherBird'.toJS,
-  );
+  if (_loadedFactory == null) {
+    await _injectScript(url);
+  }
+  final factory = _loadedFactory;
   if (factory == null) {
     throw StateError('cipherbird: $url did not define createCipherBird');
   }

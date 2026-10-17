@@ -61,9 +61,9 @@ loader path. A compiled executable (`dart compile exe`) has no package
 configuration next to it, so pass the path or set the variable and ship the
 library file with the binary.
 
-`CipherBird.preload()` returns immediately natively and is kept for apps
-that already call it; the first use of `CipherBird.instance` opens the
-library synchronously.
+`CipherBird.preload()` returns immediately on native platforms; the first
+use of `CipherBird.instance` opens the library synchronously. In the browser
+it is the one await that fetches and compiles the engine.
 
 ## Web
 
@@ -72,16 +72,19 @@ or `dart compile wasm`. The engine ships inside the package as
 `lib/assets/cipherbird.js` and `lib/assets/cipherbird.wasm` (about 4 MB),
 served by `webdev` and `dart test -p chrome` under
 `packages/cipherbird_dart/assets/`. Browsers compile a module of that size
-asynchronously, so await `CipherBird.ready` once before the first
-synchronous use (plain Dart has no plugin registration to start the load
-early, so the first `ready` starts it):
+asynchronously, so await `CipherBird.preload()` once before the first use
+(`CipherBird.ready` is the same future for code that runs later):
 
 ```dart
 Future<void> main() async {
-  await CipherBird.ready;
+  await CipherBird.preload();
   final digest = CipherBird.instance.sha256('abc'.bytes).hex;
 }
 ```
+
+A `<script src="packages/cipherbird_dart/assets/cipherbird.js" defer>` tag
+in the page starts the download before the Dart code runs; the package
+reuses a script the page already loaded.
 
 For a deployment that does not serve `packages/`, copy the two files next to
 the app and pass their location: `CipherBird.preload(library:

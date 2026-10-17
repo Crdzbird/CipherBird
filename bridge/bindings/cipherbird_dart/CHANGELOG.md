@@ -16,10 +16,11 @@ Engine hardening and smaller binaries; no API or wire-format change.
   EVP ciphers the engine uses. The macOS library comes from the host
   toolchain with libsodium 1.0.22, liboqs 0.16.0 and the sealed OpenSSL
   3.6.3 build.
-- `CipherBird.ready` completes when the engine is usable: immediately on
-  native platforms, after the WebAssembly engine is compiled on the web.
-  Concurrent loads are shared. `preload` returns immediately on native
-  platforms and is kept for apps that already call it.
+- `await CipherBird.preload()` is now cheap everywhere: immediate on native
+  platforms, the one engine load in the browser, where a `<script>` tag for
+  `cipherbird.js` in the page starts the download earlier and is reused.
+  Concurrent loads are shared. `CipherBird.ready` is the same future for code
+  that runs after `main`.
 - The C ABI is unchanged at 265 functions and the generated web shim is
   identical to 1.1.0.
 

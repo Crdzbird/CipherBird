@@ -1,7 +1,11 @@
 import 'package:cipherbird/cipherbird.dart';
 import 'package:flutter/material.dart';
 
-void main() => runApp(const ExampleApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CipherBird.preload();
+  runApp(const ExampleApp());
+}
 
 final class ExampleApp extends StatelessWidget {
   const ExampleApp({super.key});
@@ -42,42 +46,33 @@ final class ExampleApp extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    home: Scaffold(
-      appBar: AppBar(title: const Text('cipherbird')),
-      body: FutureBuilder<void>(
-        future: CipherBird.ready,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('CipherBird failed: ${snapshot.error}'));
-          }
-          final results = _checks();
-          final allOk = results.every((r) => r.$2);
-          debugPrint('CIPHERBIRD_SELFTEST: ${allOk ? 'OK' : 'FAILED'}');
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Text(
-                allOk ? 'CipherBird loaded' : 'CipherBird failed',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: allOk ? Colors.green : Colors.red,
-                ),
+  Widget build(BuildContext context) {
+    final results = _checks();
+    final allOk = results.every((r) => r.$2);
+    debugPrint('CIPHERBIRD_SELFTEST: ${allOk ? 'OK' : 'FAILED'}');
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('cipherbird')),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              allOk ? 'CipherBird loaded' : 'CipherBird failed',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: allOk ? Colors.green : Colors.red,
               ),
-              const SizedBox(height: 16),
-              for (final (label, ok) in results)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text('${ok ? 'pass' : 'fail'}  $label'),
-                ),
-            ],
-          );
-        },
+            ),
+            const SizedBox(height: 16),
+            for (final (label, ok) in results)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text('${ok ? 'pass' : 'fail'}  $label'),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

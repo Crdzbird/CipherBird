@@ -3,20 +3,18 @@
 ///
 /// The engine is bundled per platform (iOS and macOS via the Swift Package,
 /// Android via jniLibs, WebAssembly for the web) and resolved automatically;
-/// no path or startup call is needed. The first use of [CipherBird.instance]
-/// opens the library. In the browser the engine is compiled asynchronously,
-/// so gate the first use on [CipherBird.ready]:
+/// no path is needed. One await at startup covers every platform: it returns
+/// at once natively and, in the browser, joins the engine download that the
+/// plugin registration started before `main`.
 ///
 /// ```dart
-/// Widget build(BuildContext context) => FutureBuilder<void>(
-///   future: CipherBird.ready,
-///   builder: (context, snapshot) {
-///     if (snapshot.connectionState != ConnectionState.done) {
-///       return const CircularProgressIndicator();
-///     }
-///     return Text(CipherBird.instance.easy.sha256Hex('abc'));
-///   },
-/// );
+/// Future<void> main() async {
+///   WidgetsFlutterBinding.ensureInitialized();
+///   await CipherBird.preload();
+///   runApp(const MyApp());
+/// }
+///
+/// final digest = CipherBird.instance.sha256('abc'.bytes).hex;
 /// ```
 library;
 
@@ -343,17 +341,17 @@ final class CipherBird {
     return lib;
   }
 
-  /// Completes when the engine is usable. Natively this is immediate: the
-  /// library opens synchronously on first use. On the web it starts, or
-  /// joins, the fetch and compilation of the WebAssembly engine, which the
-  /// Flutter plugin registration kicks off before `main` runs. Gate the first
-  /// synchronous use on it, for example with a `FutureBuilder`.
+  /// The same readiness as [preload], for code that runs after `main` and
+  /// only needs to wait: completes at once natively, and in the browser once
+  /// the WebAssembly engine is compiled.
   static Future<void> get ready => prepareEngine(null);
 
-  /// Kept for apps that call it at startup. On the web it loads the engine
-  /// like [ready] does, with [library] overriding the URL of `cipherbird.js`;
-  /// on every other platform it returns at once, because the library opens
-  /// synchronously on first use. [runner] is accepted for source
+  /// The one startup call. Await it once in `main` before `runApp`. Natively
+  /// it returns immediately, because the library opens synchronously on first
+  /// use. In the browser it joins the fetch and compilation of the
+  /// WebAssembly engine that the plugin registration started before `main`,
+  /// so the wait is only whatever download time is left; [library] overrides
+  /// the URL of `cipherbird.js`. [runner] is accepted for source
   /// compatibility and unused. Returns true.
   static Future<bool> preload({
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),

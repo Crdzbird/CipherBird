@@ -19,13 +19,14 @@ Engine hardening and smaller binaries; no API or wire-format change.
   WebAssembly engine is 4.4 MB.
 - The C ABI is unchanged at 265 functions and the generated web shim is
   identical to 1.1.0.
-- `await CipherBird.preload()` is no longer needed on the web. Flutter's
-  plugin registration starts fetching and compiling the engine before `main`
-  runs, and the new `CipherBird.ready` future completes when it is usable, so
-  the first synchronous call can be gated with a `FutureBuilder` instead.
-  Concurrent loads are shared. Natively `ready` completes at once, and
-  `preload` returns immediately instead of warming the library on an
-  isolate; it is kept for apps that already call it.
+- `await CipherBird.preload()` is now cheap everywhere. Natively it returns
+  immediately instead of warming the library on an isolate; the library
+  opens synchronously on first use. In the browser Flutter's plugin
+  registration starts fetching and compiling the engine before `main` runs,
+  so `preload` only joins a download already in flight, and a
+  `<script>` tag for `cipherbird.js` in `index.html` starts it earlier still.
+  Concurrent loads are shared. `CipherBird.ready` is the same future for code
+  that runs after `main`.
 
 ## 1.1.0
 

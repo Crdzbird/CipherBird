@@ -70,42 +70,22 @@ needed.
 | macOS | 12.0, Apple silicon, Swift Package Manager |
 | Web | any browser with WebAssembly; `flutter build web` and `flutter build web --wasm`; see [Web](#web) |
 
-No startup call is needed. Natively the first use of `CipherBird.instance`
-opens and initialises the library synchronously. On the web the engine
-starts downloading when Flutter registers the plugin, before `main` runs;
-gate the first use on `CipherBird.ready`, which completes once the
-WebAssembly engine is compiled and is immediate everywhere else:
+One await at startup, the same on every platform:
 
 ```dart
-import 'package:cipherbird/cipherbird.dart';
-import 'package:flutter/material.dart';
-
-void main() => runApp(const MyApp());
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    home: Scaffold(
-      body: FutureBuilder<void>(
-        future: CipherBird.ready,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final digest = CipherBird.instance.easy.sha256Hex('abc');
-          return Center(child: Text(digest));
-        },
-      ),
-    ),
-  );
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CipherBird.preload();
+  runApp(const MyApp());
 }
 ```
 
-`CipherBird.preload()` is kept for apps that already call it at startup. On
-the web it loads the engine exactly as `ready` does; on every other platform
-it returns immediately, so leaving it in place costs nothing.
+On Android, iOS and macOS the call returns immediately: the library opens
+synchronously on first use, so skipping it is also fine there. In the
+browser the plugin registration starts downloading the WebAssembly engine
+before `main` runs, and `preload` joins that download, so the await covers
+only whatever transfer time is left. Code that runs later and only needs to
+wait can await `CipherBird.ready`, the same future.
 
 ## Quick start
 
@@ -299,19 +279,23 @@ say how fast.
 The same package runs in the browser. The engine is compiled to WebAssembly
 with Emscripten and ships inside the package as `assets/cipherbird.js` and
 `assets/cipherbird.wasm`, about 4 MB, fetched once when the app starts. The
-Dart API is identical. Browsers only compile a module of that size
-asynchronously, so the engine cannot be ready at the very first line of
-`main`; the plugin registration starts the download before `main` runs, and
-`CipherBird.ready` tells you when the engine is usable. Gate the first
-synchronous call on it, typically with a `FutureBuilder` around the widget
-that needs cryptography; the rest of the app renders meanwhile.
+Dart API and the startup call are identical. Browsers only compile a module
+of that size asynchronously, so `await CipherBird.preload()` in `main` is
+where that happens; the plugin registration has already started the download
+by then, so the await is short. To start it even earlier, in parallel with
+Flutter's own bootstrap, add the engine script to `web/index.html` and the
+package reuses it instead of loading its own:
+
+```html
+<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+```
 
 The engine is found at the package asset path. To serve it from somewhere
 else, call `CipherBird.preload(library:
 'https://cdn.example.com/engine/cipherbird.js')` (the `.wasm` file is fetched
 from the same directory) or set the `CIPHERBIRD_LIBRARY` compile-time
-define. Both `flutter build web` and
-`flutter build web --wasm` are supported; the test suite runs under both.
+define. Both `flutter build web` and `flutter build web --wasm` are
+supported; the test suite runs under both.
 
 What differs in the browser:
 
