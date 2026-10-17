@@ -9,6 +9,9 @@ List<String> engineCandidates() => [
   'packages/$_packageName/assets/cipherbird.js',
 ];
 
+/// The WebAssembly engine must be fetched and compiled before first use.
+const bool engineLoadsAsynchronously = true;
+
 Future<void>? _inFlight;
 
 /// Loads and instantiates the WebAssembly engine once. [library] is the URL

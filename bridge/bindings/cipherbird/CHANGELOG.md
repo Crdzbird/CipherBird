@@ -23,7 +23,9 @@ Engine hardening and smaller binaries; no API or wire-format change.
   plugin registration starts fetching and compiling the engine before `main`
   runs, and the new `CipherBird.ready` future completes when it is usable, so
   the first synchronous call can be gated with a `FutureBuilder` instead.
-  Concurrent loads are shared. Natively `ready` completes at once.
+  Concurrent loads are shared. Natively `ready` completes at once, and
+  `preload` returns immediately instead of warming the library on an
+  isolate; it is kept for apps that already call it.
 
 ## 1.1.0
 

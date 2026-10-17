@@ -18,5 +18,8 @@ DynamicLibrary openEngineLibrary(String? path) {
   return DynamicLibrary.process();
 }
 
+/// The native library opens synchronously, so nothing loads ahead of time.
+const bool engineLoadsAsynchronously = false;
+
 /// Nothing to prepare on native platforms: the library opens synchronously.
 Future<void> prepareEngine(String? library) async {}

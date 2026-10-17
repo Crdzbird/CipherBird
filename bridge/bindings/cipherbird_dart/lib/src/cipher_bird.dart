@@ -193,7 +193,6 @@ part 'api/vault/management.dart';
 part 'core/marshal_buffers.dart';
 part 'core/marshal_lists.dart';
 part 'core/marshal_structs.dart';
-part 'core/warm_up.dart';
 part 'easy/cipher_bird_easy.dart';
 part 'easy/crypto_byte_list.dart';
 part 'easy/crypto_bytes.dart';
@@ -346,18 +345,20 @@ final class CipherBird {
   /// synchronous use on it, for example with a `FutureBuilder`.
   static Future<void> get ready => prepareEngine(null);
 
-  /// Warms the engine so the first [instance] access on the UI isolate is
-  /// instantaneous. Optional everywhere: natively the first use opens the
-  /// library synchronously, and on the web [ready] is the lighter gate.
-  /// [library] overrides the engine location (a file path natively, the URL of
-  /// `cipherbird.js` on the web). Returns false if the warm-up failed; the
-  /// lazy path still works natively in that case.
+  /// Kept for apps that call it at startup. On the web it loads the engine
+  /// like [ready] does, with [library] overriding the URL of `cipherbird.js`;
+  /// on every other platform it returns at once, because the library opens
+  /// synchronously on first use. [runner] is accepted for source
+  /// compatibility and unused. Returns true.
   static Future<bool> preload({
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
     String? library,
   }) async {
+    if (!engineLoadsAsynchronously) {
+      return true;
+    }
     await prepareEngine(library);
-    return _warmUp(runner, library);
+    return true;
   }
 
   final DynamicLibrary _lib;

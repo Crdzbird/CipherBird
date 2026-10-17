@@ -33,7 +33,7 @@ Future<void> main() async {
     },
   );
 
-  test('preload() warms in a background isolate and returns true', () async {
+  test('preload() is accepted everywhere and returns true', () async {
     final ok = await CipherBird.preload();
     expect(ok, isTrue);
   });

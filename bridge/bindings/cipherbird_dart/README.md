@@ -61,8 +61,9 @@ loader path. A compiled executable (`dart compile exe`) has no package
 configuration next to it, so pass the path or set the variable and ship the
 library file with the binary.
 
-`CipherBird.preload()` warms the library on a worker isolate and is optional;
-the first use of `CipherBird.instance` does the same work synchronously.
+`CipherBird.preload()` returns immediately natively and is kept for apps
+that already call it; the first use of `CipherBird.instance` opens the
+library synchronously.
 
 ## Web
 

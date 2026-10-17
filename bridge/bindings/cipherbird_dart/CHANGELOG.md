@@ -18,7 +18,8 @@ Engine hardening and smaller binaries; no API or wire-format change.
   3.6.3 build.
 - `CipherBird.ready` completes when the engine is usable: immediately on
   native platforms, after the WebAssembly engine is compiled on the web.
-  Concurrent loads are shared.
+  Concurrent loads are shared. `preload` returns immediately on native
+  platforms and is kept for apps that already call it.
 - The C ABI is unchanged at 265 functions and the generated web shim is
   identical to 1.1.0.
 

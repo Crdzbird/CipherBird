@@ -86,16 +86,9 @@ FutureBuilder<void>(
 )
 ```
 
-`CipherBird.preload()` remains available for apps that prefer to warm the
-library on a background isolate before the first frame:
-
-```dart
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await CipherBird.preload();
-  runApp(const MyApp());
-}
-```
+`CipherBird.preload()` is kept for apps that already call it at startup. On
+the web it loads the engine exactly as `ready` does; on every other platform
+it returns immediately, so leaving it in place costs nothing.
 
 ## Quick start
 
