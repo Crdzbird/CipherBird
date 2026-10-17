@@ -339,9 +339,16 @@ final class CipherBird {
     return lib;
   }
 
+  /// Completes when the engine is usable. Natively this is immediate: the
+  /// library opens synchronously on first use. On the web it starts, or
+  /// joins, the fetch and compilation of the WebAssembly engine, which the
+  /// Flutter plugin registration kicks off before `main` runs. Gate the first
+  /// synchronous use on it, for example with a `FutureBuilder`.
+  static Future<void> get ready => prepareEngine(null);
+
   /// Warms the engine so the first [instance] access on the UI isolate is
-  /// instantaneous. Await it before `runApp`. On the web this is where the
-  /// WebAssembly engine is fetched and instantiated, so it is required there;
+  /// instantaneous. Optional everywhere: natively the first use opens the
+  /// library synchronously, and on the web [ready] is the lighter gate.
   /// [library] overrides the engine location (a file path natively, the URL of
   /// `cipherbird.js` on the web). Returns false if the warm-up failed; the
   /// lazy path still works natively in that case.

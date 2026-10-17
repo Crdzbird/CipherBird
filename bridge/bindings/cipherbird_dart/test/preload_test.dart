@@ -24,6 +24,15 @@ Future<void> main() async {
     );
   });
 
+  test(
+    'ready completes, is idempotent and gates the synchronous API',
+    () async {
+      await CipherBird.ready;
+      await Future.wait([CipherBird.ready, CipherBird.ready]);
+      expect(CipherBird.instance.version(), '3.0.0');
+    },
+  );
+
   test('preload() warms in a background isolate and returns true', () async {
     final ok = await CipherBird.preload();
     expect(ok, isTrue);

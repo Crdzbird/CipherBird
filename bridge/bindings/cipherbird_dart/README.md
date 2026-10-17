@@ -70,11 +70,14 @@ The package also runs in the browser, compiled with either `dart compile js`
 or `dart compile wasm`. The engine ships inside the package as
 `lib/assets/cipherbird.js` and `lib/assets/cipherbird.wasm` (about 4 MB),
 served by `webdev` and `dart test -p chrome` under
-`packages/cipherbird_dart/assets/`. Load it before the first use:
+`packages/cipherbird_dart/assets/`. Browsers compile a module of that size
+asynchronously, so await `CipherBird.ready` once before the first
+synchronous use (plain Dart has no plugin registration to start the load
+early, so the first `ready` starts it):
 
 ```dart
 Future<void> main() async {
-  await CipherBird.preload();
+  await CipherBird.ready;
   final digest = CipherBird.instance.sha256('abc'.bytes).hex;
 }
 ```

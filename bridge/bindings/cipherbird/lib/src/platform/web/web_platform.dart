@@ -29,6 +29,7 @@ part 'memory.dart';
 part 'native_type.dart';
 part 'pointer.dart';
 part 'pointer_extensions.dart';
+part 'script_injection.dart';
 part 'size.dart';
 part 'size_of.dart';
 part 'struct.dart';

@@ -21,7 +21,7 @@ final class WebEngine {
     if (engine == null) {
       throw StateError(
         'cipherbird: the WebAssembly engine is not loaded; '
-        'await CipherBird.preload() before the first use on the web',
+        'await CipherBird.ready before the first use on the web',
       );
     }
     return engine;

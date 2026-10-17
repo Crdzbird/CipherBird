@@ -9,13 +9,39 @@ List<String> engineCandidates() => [
   'packages/$_packageName/assets/cipherbird.js',
 ];
 
+Future<void>? _inFlight;
+
 /// Loads and instantiates the WebAssembly engine once. [library] is the URL
 /// of `cipherbird.js` (its `.wasm` sits next to it); the `CIPHERBIRD_LIBRARY`
 /// compile-time define and the package asset paths are tried otherwise.
+/// Concurrent callers share one load; a caller with an explicit [library]
+/// retries with it only if the shared load failed.
 Future<void> prepareEngine(String? library) async {
   if (WebEngine.isLoaded) {
     return;
   }
+  final shared = _inFlight;
+  if (shared != null) {
+    try {
+      await shared;
+      return;
+    } on Object catch (_) {
+      if (library == null || library.isEmpty) {
+        rethrow;
+      }
+    }
+  }
+  final load = _load(library);
+  _inFlight = load;
+  try {
+    await load;
+  } on Object catch (_) {
+    _inFlight = null;
+    rethrow;
+  }
+}
+
+Future<void> _load(String? library) async {
   const defined = String.fromEnvironment('CIPHERBIRD_LIBRARY');
   final candidates = [
     if (library != null && library.isNotEmpty) library,
@@ -53,24 +79,4 @@ Future<EngineModule> _instantiate(String url) async {
     throw StateError('cipherbird: createCipherBird returned nothing');
   }
   return EngineModule._(await (promise as JSPromise<JSObject>).toDart);
-}
-
-Future<void> _injectScript(String url) {
-  final completer = Completer<void>();
-  final document = globalContext.getProperty<JSObject>('document'.toJS);
-  final script = document.callMethod<JSObject>(
-    'createElement'.toJS,
-    'script'.toJS,
-  );
-  script['src'] = url.toJS;
-  script['onload'] = (JSAny? event) {
-    completer.complete();
-  }.toJS;
-  script['onerror'] = ((JSAny? event) {
-    completer.completeError(StateError('cipherbird: failed to fetch $url'));
-  }).toJS;
-  document
-      .getProperty<JSObject>('head'.toJS)
-      .callMethod<JSAny?>('appendChild'.toJS, script);
-  return completer.future;
 }
