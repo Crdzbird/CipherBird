@@ -45,7 +45,7 @@ program.
 | Depends on | Flutter SDK, `ffi` | `ffi` only |
 | Engine binaries | bundled per platform: Android arm64-v8a and x86_64, iOS device and simulator, macOS, and WebAssembly for the web | bundled for the host under `native/<os>-<arch>/`, macOS on Apple silicon in this release, and WebAssembly for the web |
 | How the engine is found | the process image on iOS and macOS, `libcipherbird.so` from `jniLibs` on Android, the package asset on the web | the package's `native/` directory, located through the program's package configuration; the package asset on the web |
-| Startup | `await CipherBird.preload()` before `runApp`, or lazy on first use; required on the web | lazy on first use, `preload` optional; required on the web |
+| Startup | none; lazy on first use, and on the web the engine starts loading at plugin registration, gate the first use on `CipherBird.ready` | none; lazy on first use, on the web await `CipherBird.ready` once |
 | Build integration | Flutter's plugin tooling, nothing to configure | none needed; `dart run`, `dart test` and `dart compile exe` (pass the library path) |
 | Download size | about 17 MB | about 7 MB |
 | API, wire formats, tests | identical | identical |
@@ -304,7 +304,7 @@ What differs in the browser:
 - There are no isolates, so `CipherBirdIsolateRunner` uses a web worker
   instead: `assets/cipherbird_worker.js` loads a second copy of the engine
   and runs the Argon2id jobs behind the asynchronous helpers off the main
-  thread. The worker is spawned through a blob during `preload`, which a
+  thread. The worker is spawned through a blob when the engine loads, which a
   strict Content Security Policy must allow (`worker-src blob:`).
 - APIs that take a file path (media entropy from a file, key files, suite
   calls with a file, steganography carriers on disk) are unavailable; the

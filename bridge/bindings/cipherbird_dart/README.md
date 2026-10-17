@@ -87,7 +87,8 @@ For a deployment that does not serve `packages/`, copy the two files next to
 the app and pass their location: `CipherBird.preload(library:
 '/engine/cipherbird.js')`. In the browser there are no isolates, so
 `CipherBirdIsolateRunner` runs the Argon2id jobs behind the asynchronous
-helpers in a web worker (`cipherbird_worker.js`, spawned during `preload`)
+helpers in a web worker (`cipherbird_worker.js`, spawned when the engine
+loads)
 instead; there are no file-path APIs, and AES-256-GCM uses OpenSSL's
 portable implementation with byte-identical output. Everything else,
 including every envelope and key format, matches the native build.

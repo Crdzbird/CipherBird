@@ -1,17 +1,21 @@
 /// CipherBird for Dart/Flutter - an idiomatic dart:ffi wrapper around the
 /// native engine's C ABI.
 ///
-/// The native library is bundled per platform (iOS/macOS via the Swift Package,
-/// Android via jniLibs) and resolved automatically; no path or setup is needed.
+/// The engine is bundled per platform (iOS and macOS via the Swift Package,
+/// Android via jniLibs, WebAssembly for the web) and resolved automatically;
+/// no path or startup call is needed. The first use of [CipherBird.instance]
+/// opens the library. In the browser the engine is compiled asynchronously,
+/// so gate the first use on [CipherBird.ready]:
 ///
 /// ```dart
-/// Future<void> main() async {
-///   WidgetsFlutterBinding.ensureInitialized();
-///   await CipherBird.preload();
-///   runApp(const MyApp());
-/// }
-///
 /// final digest = CipherBird.instance.sha256('abc'.bytes).hex;
+///
+/// FutureBuilder<void>(
+///   future: CipherBird.ready,
+///   builder: (context, snapshot) => snapshot.connectionState == ConnectionState.done
+///       ? Text(CipherBird.instance.easy.sha256Hex('abc'))
+///       : const CircularProgressIndicator(),
+/// )
 /// ```
 library;
 

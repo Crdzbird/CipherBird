@@ -1,11 +1,13 @@
-/// CipherBird for Flutter — public API.
+/// CipherBird for Flutter, public API.
 ///
-/// `CipherBird` is the entry point. The native library loads lazily on first use;
-/// call `CipherBird.preload()` once at app start to warm it off the UI isolate.
+/// `CipherBird` is the entry point. The engine loads lazily on first use; in
+/// the browser it starts loading at plugin registration and `CipherBird.ready`
+/// completes when it is usable. `CipherBird.preload()` is kept for apps that
+/// already call it.
 ///
 /// The crypto operations live on domain extensions of `CipherBird` (hashing,
 /// symmetric, asymmetric, vault, keyring, post-quantum, BLS, asymmetric vault,
-/// media entropy, steganography) — all are re-exported here, so a single
+/// media entropy, steganography), all re-exported here, so a single
 /// `import 'package:cipherbird/cipherbird.dart';` brings the full
 /// surface into scope. The raw FFI structs/typedefs stay internal.
 library;

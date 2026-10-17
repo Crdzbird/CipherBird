@@ -29,17 +29,26 @@ library comes with the package, so nothing has to be built or copied first.
 
 ## Startup
 
-The example shows the recommended startup sequence: initialise the Flutter
-binding, await `CipherBird.preload()` so the library loads on a worker
-isolate, then run the app. Every call after that is synchronous.
+The example needs no startup call. It runs the app at once and gates the
+first use of the engine on `CipherBird.ready`, which completes immediately
+on Android, iOS and macOS and once the WebAssembly engine is compiled in the
+browser, where the plugin registration has already started the download:
 
 ```dart
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await CipherBird.preload();
-  runApp(const ExampleApp());
-}
+void main() => runApp(const ExampleApp());
+
+FutureBuilder<void>(
+  future: CipherBird.ready,
+  builder: (context, snapshot) =>
+      snapshot.connectionState == ConnectionState.done
+          ? ResultsList(_checks())
+          : const CircularProgressIndicator(),
+)
 ```
+
+Every call after that is synchronous. `await CipherBird.preload()` still
+works for apps that call it: it loads the engine on the web and returns at
+once elsewhere.
 
 For an app to play with rather than a self-test, see the playground in the
 package repository, which adds buttons to encrypt, corrupt and decrypt text,
