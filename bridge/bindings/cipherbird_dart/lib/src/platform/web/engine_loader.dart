@@ -20,7 +20,7 @@ Future<void>? _inFlight;
 /// Concurrent callers share one load; a caller with an explicit [library]
 /// retries with it only if the shared load failed.
 Future<void> prepareEngine(String? library) async {
-  if (WebEngine.isLoaded) {
+  if (WebEngine.isLoaded || adoptPageEngine()) {
     return;
   }
   final shared = _inFlight;
@@ -45,6 +45,15 @@ Future<void> prepareEngine(String? library) async {
 }
 
 Future<void> _load(String? library) async {
+  final booting = globalContext.getProperty<JSPromise<JSObject>?>(
+    'cipherbirdEnginePromise'.toJS,
+  );
+  if (booting != null && (library == null || library.isEmpty)) {
+    await booting.toDart;
+    if (adoptPageEngine()) {
+      return;
+    }
+  }
   const defined = String.fromEnvironment('CIPHERBIRD_LIBRARY');
   final candidates = [
     if (library != null && library.isNotEmpty) library,

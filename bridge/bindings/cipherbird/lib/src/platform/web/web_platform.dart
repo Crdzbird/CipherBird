@@ -27,6 +27,7 @@ part 'int32.dart';
 part 'local_memory.dart';
 part 'memory.dart';
 part 'native_type.dart';
+part 'page_engine.dart';
 part 'pointer.dart';
 part 'pointer_extensions.dart';
 part 'script_injection.dart';

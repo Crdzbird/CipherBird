@@ -44,9 +44,9 @@ by how your project is built.
 Each tag carries the version of both packages it was cut from, so a git
 dependency on a tag and a pub.dev dependency on the same version resolve to
 the same code. Startup is one `await CipherBird.preload()` in `main`,
-immediate natively; on the web a `<script>` tag for the engine in
-`web/index.html` lets it download alongside Flutter's bootstrap, see the
-package README. Each package README explains the choice in detail:
+immediate natively; on the web two `<script>` tags in `web/index.html` boot
+the engine during Flutter's bootstrap so the await can be dropped there too,
+see the package README. Each package README explains the choice in detail:
 [cipherbird](bridge/bindings/cipherbird/README.md) and
 [cipherbird_dart](bridge/bindings/cipherbird_dart/README.md).
 

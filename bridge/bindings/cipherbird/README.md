@@ -87,13 +87,24 @@ before `main` runs, and `preload` joins that download, so the await covers
 only whatever transfer time is left. Code that runs later and only needs to
 wait can await `CipherBird.ready`, the same future.
 
-On the web, start the download earlier still, in parallel with Flutter's own
-bootstrap, by adding the engine script to `web/index.html`; the package
-reuses it instead of loading its own:
+On the web the await can be removed entirely. Add the two engine scripts to
+`web/index.html`:
 
 ```html
 <script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+<script src="assets/packages/cipherbird/assets/cipherbird_boot.js" defer></script>
 ```
+
+The first script downloads the engine in parallel with Flutter's own
+bootstrap; the second instantiates it as soon as it arrives. Flutter's
+bootstrap takes longer than the engine does, so by the time `main` runs the
+engine is already instantiated and the package adopts it synchronously:
+`CipherBird.instance` works with no await, exactly as on native platforms,
+and `await CipherBird.preload()` returns at once if you keep it. The await is
+only needed when neither script is in the page, or on a slow connection as a
+safety net: if the engine is still downloading when the first use happens,
+`preload` waits for it, while a direct `CipherBird.instance` throws a
+`StateError` that says to await it.
 
 ## Quick start
 
@@ -287,16 +298,16 @@ say how fast.
 The same package runs in the browser. The engine is compiled to WebAssembly
 with Emscripten and ships inside the package as `assets/cipherbird.js` and
 `assets/cipherbird.wasm`, about 4 MB, fetched once when the app starts. The
-Dart API and the startup call are identical. Browsers only compile a module
-of that size asynchronously, so `await CipherBird.preload()` in `main` is
-where that happens; the plugin registration has already started the download
-by then, so the await is short. To start it even earlier, in parallel with
-Flutter's own bootstrap, add the engine script to `web/index.html` and the
-package reuses it instead of loading its own:
+Dart API is identical. Browsers only compile a module of that size
+asynchronously, so there are two ways to run:
 
-```html
-<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
-```
+- **With the two script tags in `web/index.html`** (see Install), the page
+  downloads and instantiates the engine while Flutter bootstraps, the
+  package adopts the finished engine synchronously, and no await is needed:
+  `CipherBird.instance` works from the first line of `main`.
+- **Without them**, the plugin registration starts the download before
+  `main` and `await CipherBird.preload()` in `main` waits for it; the await
+  is required in this setup.
 
 The engine is found at the package asset path. To serve it from somewhere
 else, call `CipherBird.preload(library:

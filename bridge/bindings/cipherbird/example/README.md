@@ -43,12 +43,14 @@ On Android, iOS and macOS the call returns immediately; the library opens
 synchronously on first use. In the browser the plugin registration has
 already started downloading the WebAssembly engine before `main` runs, so the
 await only covers whatever download time is left. The example's
-`web/index.html` also includes the engine script, which starts that
-download in parallel with Flutter's own bootstrap and is reused by the
-package:
+`web/index.html` includes the two engine scripts, which download and
+instantiate the engine while Flutter bootstraps; with them the package
+adopts the finished engine synchronously and the await in `main` returns at
+once, so it could be dropped on the web as well:
 
 ```html
 <script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+<script src="assets/packages/cipherbird/assets/cipherbird_boot.js" defer></script>
 ```
 
 Every call after it is synchronous.

@@ -63,9 +63,9 @@ library file with the binary.
 
 `CipherBird.preload()` returns immediately on native platforms; the first
 use of `CipherBird.instance` opens the library synchronously. In the browser
-it is the one await that fetches and compiles the engine; a
-`<script src="packages/cipherbird_dart/assets/cipherbird.js" defer>` tag in
-the page starts that download before the Dart code runs and is reused.
+it is the one await that fetches and compiles the engine, unless the page
+boots the engine itself with the two script tags described under Web, in
+which case the package adopts it synchronously and no await is needed.
 
 ## Web
 
@@ -84,9 +84,16 @@ Future<void> main() async {
 }
 ```
 
-A `<script src="packages/cipherbird_dart/assets/cipherbird.js" defer>` tag
-in the page starts the download before the Dart code runs; the package
-reuses a script the page already loaded.
+To drop the await, let the page download and instantiate the engine before
+the Dart code runs; the package adopts the finished engine synchronously:
+
+```html
+<script src="packages/cipherbird_dart/assets/cipherbird.js" defer></script>
+<script src="packages/cipherbird_dart/assets/cipherbird_boot.js" defer></script>
+```
+
+Keep the await where the first use may run before those scripts finish; it
+returns at once when the engine is already there.
 
 For a deployment that does not serve `packages/`, copy the two files next to
 the app and pass their location: `CipherBird.preload(library:

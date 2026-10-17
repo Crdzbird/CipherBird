@@ -23,9 +23,11 @@ Engine hardening and smaller binaries; no API or wire-format change.
   immediately instead of warming the library on an isolate; the library
   opens synchronously on first use. In the browser Flutter's plugin
   registration starts fetching and compiling the engine before `main` runs,
-  so `preload` only joins a download already in flight, and a
-  `<script>` tag for `cipherbird.js` in `index.html` starts it earlier still.
-  Concurrent loads are shared. `CipherBird.ready` is the same future for code
+  so `preload` only joins a download already in flight. With the
+  `cipherbird.js` and new `cipherbird_boot.js` script tags in `index.html`
+  the page instantiates the engine during Flutter's bootstrap and the
+  package adopts it synchronously, so the await can be dropped on the web as
+  well. Concurrent loads are shared. `CipherBird.ready` is the same future for code
   that runs after `main`.
 
 ## 1.1.0

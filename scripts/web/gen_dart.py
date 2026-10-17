@@ -15,7 +15,7 @@ RESERVED = {'in', 'is', 'as', 'if', 'do', 'for', 'new', 'var', 'this', 'with', '
 HANDWRITTEN = [
     'allocator', 'array', 'cipher_bird_isolate_runner', 'double_type', 'dynamic_library',
     'engine_loader', 'engine_module', 'engine_worker', 'heap_memory', 'int32', 'local_memory', 'memory',
-    'native_type', 'pointer', 'pointer_extensions', 'script_injection', 'size', 'size_of', 'struct', 'uint16',
+    'native_type', 'page_engine', 'pointer', 'pointer_extensions', 'script_injection', 'size', 'size_of', 'struct', 'uint16',
     'uint64', 'uint8', 'utf8', 'utf8_extensions', 'void_type', 'web_engine',
 ]
 

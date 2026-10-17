@@ -16,7 +16,7 @@ sed -i '' "s/const String _packageName = 'cipherbird';/const String _packageName
 (cd "$DST" && dart format lib test > /dev/null)
 rm -rf "$DST/lib/assets"
 mkdir -p "$DST/lib/assets"
-cp "$SRC/assets/cipherbird.js" "$SRC/assets/cipherbird.wasm" "$SRC/assets/cipherbird_worker.js" "$DST/lib/assets/"
+cp "$SRC/assets/cipherbird.js" "$SRC/assets/cipherbird.wasm" "$SRC/assets/cipherbird_worker.js" "$SRC/assets/cipherbird_boot.js" "$DST/lib/assets/"
 sed 's/^library;$/library;/' "$SRC/lib/cipherbird.dart" > "$DST/lib/cipherbird_dart.dart"
 for t in "$SRC"/test/*_test.dart; do
   sed -e "s#package:flutter_test/flutter_test.dart#package:test/test.dart#" \

@@ -67,3 +67,4 @@ flutter:
     - assets/cipherbird.js
     - assets/cipherbird.wasm
     - assets/cipherbird_worker.js
+    - assets/cipherbird_boot.js

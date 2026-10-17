@@ -17,8 +17,9 @@ Engine hardening and smaller binaries; no API or wire-format change.
   toolchain with libsodium 1.0.22, liboqs 0.16.0 and the sealed OpenSSL
   3.6.3 build.
 - `await CipherBird.preload()` is now cheap everywhere: immediate on native
-  platforms, the one engine load in the browser, where a `<script>` tag for
-  `cipherbird.js` in the page starts the download earlier and is reused.
+  platforms, the one engine load in the browser, where the `cipherbird.js`
+  and new `cipherbird_boot.js` script tags let the page boot the engine
+  first so the package adopts it synchronously and no await is needed.
   Concurrent loads are shared. `CipherBird.ready` is the same future for code
   that runs after `main`.
 - The C ABI is unchanged at 265 functions and the generated web shim is
