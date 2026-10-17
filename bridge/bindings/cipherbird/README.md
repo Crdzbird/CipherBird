@@ -87,8 +87,15 @@ before `main` runs, and `preload` joins that download, so the await covers
 only whatever transfer time is left. Code that runs later and only needs to
 wait can await `CipherBird.ready`, the same future.
 
-On the web the await can be removed entirely. Add the two engine scripts to
-`web/index.html`:
+On the web the await can be removed entirely. Run this once from the app
+root and it adds the two engine scripts to `web/index.html` (idempotent;
+`--remove` takes them out again):
+
+```bash
+dart run cipherbird:web_setup
+```
+
+The tags it inserts, if you prefer to add them by hand:
 
 ```html
 <script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>

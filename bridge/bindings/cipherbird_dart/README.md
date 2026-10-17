@@ -85,7 +85,9 @@ Future<void> main() async {
 ```
 
 To drop the await, let the page download and instantiate the engine before
-the Dart code runs; the package adopts the finished engine synchronously:
+the Dart code runs; the package adopts the finished engine synchronously.
+`dart run cipherbird_dart:web_setup` inserts the tags into `web/index.html`,
+or add them by hand:
 
 ```html
 <script src="packages/cipherbird_dart/assets/cipherbird.js" defer></script>

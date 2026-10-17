@@ -27,7 +27,8 @@ Engine hardening and smaller binaries; no API or wire-format change.
   `cipherbird.js` and new `cipherbird_boot.js` script tags in `index.html`
   the page instantiates the engine during Flutter's bootstrap and the
   package adopts it synchronously, so the await can be dropped on the web as
-  well. Concurrent loads are shared. `CipherBird.ready` is the same future for code
+  well; `dart run cipherbird:web_setup` adds the tags to `web/index.html`.
+  Concurrent loads are shared. `CipherBird.ready` is the same future for code
   that runs after `main`.
 
 ## 1.1.0

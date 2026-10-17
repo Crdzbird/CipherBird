@@ -19,7 +19,8 @@ Engine hardening and smaller binaries; no API or wire-format change.
 - `await CipherBird.preload()` is now cheap everywhere: immediate on native
   platforms, the one engine load in the browser, where the `cipherbird.js`
   and new `cipherbird_boot.js` script tags let the page boot the engine
-  first so the package adopts it synchronously and no await is needed.
+  first so the package adopts it synchronously and no await is needed;
+  `dart run cipherbird_dart:web_setup` inserts them into `web/index.html`.
   Concurrent loads are shared. `CipherBird.ready` is the same future for code
   that runs after `main`.
 - The C ABI is unchanged at 265 functions and the generated web shim is
