@@ -8,14 +8,15 @@
 /// so gate the first use on [CipherBird.ready]:
 ///
 /// ```dart
-/// final digest = CipherBird.instance.sha256('abc'.bytes).hex;
-///
-/// FutureBuilder<void>(
+/// Widget build(BuildContext context) => FutureBuilder<void>(
 ///   future: CipherBird.ready,
-///   builder: (context, snapshot) => snapshot.connectionState == ConnectionState.done
-///       ? Text(CipherBird.instance.easy.sha256Hex('abc'))
-///       : const CircularProgressIndicator(),
-/// )
+///   builder: (context, snapshot) {
+///     if (snapshot.connectionState != ConnectionState.done) {
+///       return const CircularProgressIndicator();
+///     }
+///     return Text(CipherBird.instance.easy.sha256Hex('abc'));
+///   },
+/// );
 /// ```
 library;
 

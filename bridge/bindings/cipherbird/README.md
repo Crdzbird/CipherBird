@@ -77,13 +77,30 @@ gate the first use on `CipherBird.ready`, which completes once the
 WebAssembly engine is compiled and is immediate everywhere else:
 
 ```dart
-FutureBuilder<void>(
-  future: CipherBird.ready,
-  builder: (context, snapshot) =>
-      snapshot.connectionState == ConnectionState.done
-          ? Text(CipherBird.instance.easy.sha256Hex('abc'))
-          : const CircularProgressIndicator(),
-)
+import 'package:cipherbird/cipherbird.dart';
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: Scaffold(
+      body: FutureBuilder<void>(
+        future: CipherBird.ready,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final digest = CipherBird.instance.easy.sha256Hex('abc');
+          return Center(child: Text(digest));
+        },
+      ),
+    ),
+  );
+}
 ```
 
 `CipherBird.preload()` is kept for apps that already call it at startup. On

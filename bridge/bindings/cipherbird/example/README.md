@@ -35,15 +35,30 @@ on Android, iOS and macOS and once the WebAssembly engine is compiled in the
 browser, where the plugin registration has already started the download:
 
 ```dart
-void main() => runApp(const ExampleApp());
+import 'package:cipherbird/cipherbird.dart';
+import 'package:flutter/material.dart';
 
-FutureBuilder<void>(
-  future: CipherBird.ready,
-  builder: (context, snapshot) =>
-      snapshot.connectionState == ConnectionState.done
-          ? ResultsList(_checks())
-          : const CircularProgressIndicator(),
-)
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: Scaffold(
+      body: FutureBuilder<void>(
+        future: CipherBird.ready,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final digest = CipherBird.instance.easy.sha256Hex('abc');
+          return Center(child: Text(digest));
+        },
+      ),
+    ),
+  );
+}
 ```
 
 Every call after that is synchronous. `await CipherBird.preload()` still
