@@ -87,6 +87,14 @@ before `main` runs, and `preload` joins that download, so the await covers
 only whatever transfer time is left. Code that runs later and only needs to
 wait can await `CipherBird.ready`, the same future.
 
+On the web, start the download earlier still, in parallel with Flutter's own
+bootstrap, by adding the engine script to `web/index.html`; the package
+reuses it instead of loading its own:
+
+```html
+<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+```
+
 ## Quick start
 
 ```dart

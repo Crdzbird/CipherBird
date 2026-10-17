@@ -5,7 +5,10 @@
 /// Android via jniLibs, WebAssembly for the web) and resolved automatically;
 /// no path is needed. One await at startup covers every platform: it returns
 /// at once natively and, in the browser, joins the engine download that the
-/// plugin registration started before `main`.
+/// plugin registration started before `main`. On the web, a
+/// `<script src="assets/packages/cipherbird/assets/cipherbird.js" defer>` tag
+/// in `web/index.html` starts that download in parallel with Flutter's own
+/// bootstrap and is reused by the package.
 ///
 /// ```dart
 /// Future<void> main() async {
@@ -342,7 +345,8 @@ final class CipherBird {
 
   /// The same readiness as [preload], for code that runs after `main` and
   /// only needs to wait: completes at once natively, and in the browser once
-  /// the WebAssembly engine is compiled.
+  /// the WebAssembly engine is compiled. The `web/index.html` script tag
+  /// described on [preload] shortens this wait too.
   static Future<void> get ready => prepareEngine(null);
 
   /// The one startup call. Await it once in `main` before `runApp`. Natively
@@ -350,8 +354,15 @@ final class CipherBird {
   /// use. In the browser it joins the fetch and compilation of the
   /// WebAssembly engine that the plugin registration started before `main`,
   /// so the wait is only whatever download time is left; [library] overrides
-  /// the URL of `cipherbird.js`. [runner] is accepted for source
-  /// compatibility and unused. Returns true.
+  /// the URL of `cipherbird.js`. To start that download even earlier, in
+  /// parallel with Flutter's own bootstrap, add the engine script to
+  /// `web/index.html` and this call reuses it instead of loading its own:
+  ///
+  /// ```html
+  /// <script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+  /// ```
+  ///
+  /// [runner] is accepted for source compatibility and unused. Returns true.
   static Future<bool> preload({
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
     String? library,

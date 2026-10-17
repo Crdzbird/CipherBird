@@ -2,7 +2,9 @@
 ///
 /// `CipherBird` is the entry point. Await `CipherBird.preload()` once in
 /// `main`: it returns at once natively and, in the browser, joins the engine
-/// download that plugin registration started before `main`.
+/// download that plugin registration started before `main`. A `<script>` tag
+/// for `assets/packages/cipherbird/assets/cipherbird.js` in `web/index.html`
+/// starts that download earlier still, alongside Flutter's own bootstrap.
 ///
 /// The crypto operations live on domain extensions of `CipherBird` (hashing,
 /// symmetric, asymmetric, vault, keyring, post-quantum, BLS, asymmetric vault,

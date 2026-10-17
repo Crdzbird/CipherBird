@@ -43,7 +43,10 @@ by how your project is built.
 
 Each tag carries the version of both packages it was cut from, so a git
 dependency on a tag and a pub.dev dependency on the same version resolve to
-the same code. Each package README explains the choice in detail:
+the same code. Startup is one `await CipherBird.preload()` in `main`,
+immediate natively; on the web a `<script>` tag for the engine in
+`web/index.html` lets it download alongside Flutter's bootstrap, see the
+package README. Each package README explains the choice in detail:
 [cipherbird](bridge/bindings/cipherbird/README.md) and
 [cipherbird_dart](bridge/bindings/cipherbird_dart/README.md).
 

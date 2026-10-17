@@ -63,7 +63,9 @@ library file with the binary.
 
 `CipherBird.preload()` returns immediately on native platforms; the first
 use of `CipherBird.instance` opens the library synchronously. In the browser
-it is the one await that fetches and compiles the engine.
+it is the one await that fetches and compiles the engine; a
+`<script src="packages/cipherbird_dart/assets/cipherbird.js" defer>` tag in
+the page starts that download before the Dart code runs and is reused.
 
 ## Web
 

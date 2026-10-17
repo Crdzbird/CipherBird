@@ -42,8 +42,16 @@ Future<void> main() async {
 On Android, iOS and macOS the call returns immediately; the library opens
 synchronously on first use. In the browser the plugin registration has
 already started downloading the WebAssembly engine before `main` runs, so the
-await only covers whatever download time is left. Every call after it is
-synchronous.
+await only covers whatever download time is left. The example's
+`web/index.html` also includes the engine script, which starts that
+download in parallel with Flutter's own bootstrap and is reused by the
+package:
+
+```html
+<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
+```
+
+Every call after it is synchronous.
 
 For an app to play with rather than a self-test, see the playground in the
 package repository, which adds buttons to encrypt, corrupt and decrypt text,
