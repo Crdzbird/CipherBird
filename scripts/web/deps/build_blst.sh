@@ -4,13 +4,7 @@ source "$_SDIR/../lib/common.sh"
 if is_built blst; then ok "blst already built"; exit 0; fi
 log "Building blst (portable, no assembly) for wasm32"
 BLST_SRC="$SRC_DIR/blst"
-if [[ ! -d "$BLST_SRC" ]]; then
-    if [[ -d "$REPO_ROOT/third_party/ios/src/blst" ]]; then
-        cp -R "$REPO_ROOT/third_party/ios/src/blst" "$BLST_SRC"
-    else
-        git clone --depth 1 https://github.com/supranational/blst.git "$BLST_SRC" >/dev/null 2>&1
-    fi
-fi
+fetch_blst_pinned "$BLST_SRC" || die "could not fetch blst $BLST_TAG"
 WORK="$BUILD_ROOT/deps/blst"
 rm -rf "$WORK"; mkdir -p "$WORK" "$PREFIX/include/blst"
 cp "$BLST_SRC/bindings/blst.h" "$BLST_SRC/bindings/blst_aux.h" "$PREFIX/include/blst/"

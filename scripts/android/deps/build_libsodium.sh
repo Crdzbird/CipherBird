@@ -38,7 +38,7 @@ extract_to "$ARCHIVE" "$WORK/src"
         --disable-shared --enable-static \
         --disable-soname-versions \
         > "$WORK/configure.log" 2>&1 || { tail -40 "$WORK/configure.log"; die "configure failed"; }
-    make -j"$(sysctl -n hw.ncpu)" > "$WORK/make.log" 2>&1 \
+    make -j"$JOBS" > "$WORK/make.log" 2>&1 \
         || { tail -40 "$WORK/make.log"; die "make failed"; }
     make install > "$WORK/install.log" 2>&1
 )

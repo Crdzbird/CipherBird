@@ -45,7 +45,7 @@ extract_to "$ARCHIVE" "$WORK/src"
         --disable-exhaustive-tests \
         --with-pic \
         > "$WORK/configure.log" 2>&1 || { tail -60 "$WORK/configure.log"; die "configure failed"; }
-    make -j"$(sysctl -n hw.ncpu)" > "$WORK/make.log" 2>&1 \
+    make -j"$JOBS" > "$WORK/make.log" 2>&1 \
         || { tail -60 "$WORK/make.log"; die "make failed"; }
     make install > "$WORK/install.log" 2>&1
 )

@@ -10,6 +10,7 @@ DEPS_ROOT="$REPO_ROOT/third_party/web"
 BUILD_ROOT="$REPO_ROOT/build/web"
 PREFIX="$DEPS_ROOT/wasm32"
 mkdir -p "$SRC_DIR" "$PREFIX/lib" "$PREFIX/include" "$BUILD_ROOT"
+source "$REPO_ROOT/scripts/lib/toolchain_pins.sh"
 
 LIBSODIUM_VERSION="1.0.22"
 BLAKE3_VERSION="1.5.4"
@@ -23,6 +24,7 @@ ok()   { printf "ok  %s\n" "$*" >&2; }
 die()  { printf "err %s\n" "$*" >&2; exit 1; }
 
 command -v emcc >/dev/null 2>&1 || die "emcc not found; install emscripten (brew install emscripten)"
+require_emscripten_version || die "pin EMSCRIPTEN_VERSION in scripts/lib/toolchain_pins.sh or install that release"
 
 is_built()   { [[ -f "$PREFIX/.$1.built" ]]; }
 mark_built() { touch "$PREFIX/.$1.built"; }
@@ -41,6 +43,7 @@ fetch_tarball() {
             || { rm -f "$archive.part"; die "download failed: $url"; }
         mv "$archive.part" "$archive"
     fi
+    verify_source_sha256 "$archive" || { rm -f "$archive"; die "refusing to build from an unverified $name"; }
     echo "$archive"
 }
 

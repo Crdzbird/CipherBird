@@ -19,10 +19,7 @@ fi
 log "Building blst for $SLICE"
 
 BLST_SRC="$SRC_DIR/blst"
-if [[ ! -d "$BLST_SRC" ]]; then
-    log "Cloning blst (shallow)..."
-    git clone --depth 1 https://github.com/supranational/blst.git "$BLST_SRC" >/dev/null 2>&1
-fi
+fetch_blst_pinned "$BLST_SRC" || die "could not fetch blst $BLST_TAG"
 
 PREFIX="$(slice_prefix "$SLICE")"
 WORK_BASE="$BUILD_ROOT/deps/blst/$SLICE"

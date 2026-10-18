@@ -29,7 +29,7 @@ cmake -B "$BUILD/cmake" -S "$REPO_ROOT" -G Ninja \
     > "$BUILD/cmake.log" 2>&1 || { tail -60 "$BUILD/cmake.log"; die "cmake failed"; }
 
 log "Building libcryptolib_c.so for Android/$ABI"
-cmake --build "$BUILD/cmake" --target cryptolib_c -j"$(sysctl -n hw.ncpu)" \
+cmake --build "$BUILD/cmake" --target cryptolib_c -j"$JOBS" \
     > "$BUILD/build.log" 2>&1 || { tail -60 "$BUILD/build.log"; die "build failed"; }
 
 SO="$BUILD/cmake/libcryptolib_c.so"

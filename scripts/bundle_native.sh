@@ -15,10 +15,10 @@ cd "$ROOT"
 B=bridge/bindings
 HDR=bridge/cryptolib_c.h
 
-echo "== building self-contained dylib + merged static archive =="
-bash scripts/build_selfcontained.sh  >/dev/null
+echo "== building the pinned desktop dylib + merged static archive =="
+bash scripts/macos/build_dylib.sh >/dev/null
 bash scripts/build_static_archive.sh >/dev/null
-DYLIB=build/selfcontained/libcryptolib_c.dylib
+DYLIB=build/desktop/libcryptolib_c.dylib
 STATIC=build/static/libcryptolib_c.a
 
 # Host platform → the folder names each ecosystem expects.

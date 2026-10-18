@@ -10,15 +10,7 @@ if is_built "$ABI" "blst"; then ok "blst already built for $ABI"; exit 0; fi
 log "Building blst for Android/$ABI"
 
 BLST_SRC="$SRC_DIR/blst"
-IOS_BLST_SRC="$REPO_ROOT/third_party/ios/src/blst"
-if [[ ! -d "$BLST_SRC" ]]; then
-    if [[ -d "$IOS_BLST_SRC" ]]; then
-        cp -R "$IOS_BLST_SRC" "$BLST_SRC"
-    else
-        log "Cloning blst..."
-        git clone --depth 1 https://github.com/supranational/blst.git "$BLST_SRC" >/dev/null 2>&1
-    fi
-fi
+fetch_blst_pinned "$BLST_SRC" || die "could not fetch blst $BLST_TAG"
 
 PREFIX="$(abi_prefix "$ABI")"
 WORK="$BUILD_ROOT/deps/blst/$ABI"

@@ -47,7 +47,7 @@ cmake -S "$WORK/src" -B "$WORK/build" -G Ninja \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     > "$WORK/cmake.log" 2>&1 || { tail -60 "$WORK/cmake.log"; die "cmake failed"; }
 
-cmake --build "$WORK/build" --target install -j"$(sysctl -n hw.ncpu)" \
+cmake --build "$WORK/build" --target install -j"$JOBS" \
     > "$WORK/build.log" 2>&1 || { tail -60 "$WORK/build.log"; die "build failed"; }
 
 mark_built "$ABI" "liboqs"

@@ -41,7 +41,7 @@ openssl_target() {
         $(cat "$_SDIR/../../lib_openssl_trim.txt") \
         --prefix="$WORK/install" \
         > "$WORK/configure.log" 2>&1 || { tail -40 "$WORK/configure.log"; die "configure failed"; }
-    make -j"$(sysctl -n hw.ncpu)" build_libs > "$WORK/make.log" 2>&1 \
+    make -j"$JOBS" build_libs > "$WORK/make.log" 2>&1 \
         || { tail -80 "$WORK/make.log"; die "build failed"; }
     make install_dev > "$WORK/install.log" 2>&1
 )

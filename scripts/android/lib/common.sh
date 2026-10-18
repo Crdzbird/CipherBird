@@ -10,6 +10,7 @@ REPO_ROOT="$( cd "$SCRIPT_DIR/../../.." && pwd )"
 SRC_DIR="$REPO_ROOT/third_party/android/src"
 DEPS_ROOT="$REPO_ROOT/third_party/android"
 BUILD_ROOT="$REPO_ROOT/build/android"
+source "$REPO_ROOT/scripts/lib/toolchain_pins.sh"
 mkdir -p "$SRC_DIR" "$DEPS_ROOT" "$BUILD_ROOT"
 
 # Version pins (kept in sync with iOS scripts)
@@ -27,12 +28,14 @@ ANDROID_API="24"
 # locations for the newest r25-or-greater install.
 if [[ -n "${ANDROID_NDK_ROOT:-}" ]]; then
     NDK="$ANDROID_NDK_ROOT"
-elif [[ -d "$HOME/Library/Android/sdk/ndk" ]]; then
-    NDK="$(ls -d "$HOME"/Library/Android/sdk/ndk/*/ 2>/dev/null | sort -V | tail -1 | sed 's:/$::')"
-elif [[ -d "/opt/homebrew/share/android-commandlinetools/ndk" ]]; then
-    NDK="$(ls -d /opt/homebrew/share/android-commandlinetools/ndk/*/ 2>/dev/null | sort -V | tail -1 | sed 's:/$::')"
+elif [[ -d "$HOME/Library/Android/sdk/ndk/$ANDROID_NDK_VERSION" ]]; then
+    NDK="$HOME/Library/Android/sdk/ndk/$ANDROID_NDK_VERSION"
+elif [[ -d "/opt/homebrew/share/android-commandlinetools/ndk/$ANDROID_NDK_VERSION" ]]; then
+    NDK="/opt/homebrew/share/android-commandlinetools/ndk/$ANDROID_NDK_VERSION"
+elif [[ -d "${ANDROID_HOME:-/nonexistent}/ndk/$ANDROID_NDK_VERSION" ]]; then
+    NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
 else
-    echo "ERROR: Android NDK not found. Set ANDROID_NDK_ROOT." >&2
+    echo "ERROR: Android NDK $ANDROID_NDK_VERSION not found. Install it or set ANDROID_NDK_ROOT." >&2
     exit 1
 fi
 
@@ -40,6 +43,7 @@ fi
     || { echo "ERROR: NDK at $NDK lacks android.toolchain.cmake" >&2; exit 1; }
 
 # Host tag (where the NDK binaries actually run)
+JOBS="$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 HOST_ARCH="$(uname -m)"
 case "$(uname -s)-$HOST_ARCH" in
     Darwin-*)   NDK_HOST_TAG="darwin-x86_64" ;;  # universal2 bin in modern NDKs
@@ -111,6 +115,7 @@ fetch_tarball() {
             || { rm -f "$archive.part"; die "download failed: $url"; }
         mv "$archive.part" "$archive"
     fi
+    verify_source_sha256 "$archive" || { rm -f "$archive"; die "refusing to build from an unverified $name"; }
     echo "$archive"
 }
 

@@ -10,6 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/../../.." && pwd )"
 SRC_DIR="$REPO_ROOT/third_party/ios/src"
+source "$REPO_ROOT/scripts/lib/toolchain_pins.sh"
 DEPS_ROOT="$REPO_ROOT/third_party/ios"
 BUILD_ROOT="$REPO_ROOT/build/ios"
 
@@ -128,6 +129,7 @@ fetch_tarball() {
             || { rm -f "$archive.part"; die "download failed: $url"; }
         mv "$archive.part" "$archive"
     fi
+    verify_source_sha256 "$archive" || { rm -f "$archive"; die "refusing to build from an unverified $name"; }
     echo "$archive"
 }
 
