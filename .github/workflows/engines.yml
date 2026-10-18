@@ -1,0 +1,125 @@
+name: Engines
+
+# Builds every shipped native engine from hash-pinned sources on GitHub
+# runners and attests each one, so the binaries in the repository can be
+# verified with gh attestation verify. Import a run's output with
+# scripts/release/import_engines.sh <run-id>.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "include/**"
+      - "bridge/cryptolib_c.cpp"
+      - "bridge/cryptolib_c.h"
+      - "scripts/ios/**"
+      - "scripts/android/**"
+      - "scripts/web/**"
+      - "scripts/macos/**"
+      - "scripts/lib/**"
+      - "third_party/*/src/*.tar.gz"
+      - ".github/workflows/engines.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  apple:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install build tools
+        run: brew install cmake ninja
+      - name: Build the iOS, simulator and macOS slices
+        run: FW_NAME=CipherBird bash scripts/ios/build_all.sh
+      - name: Build the desktop dylib from the same pinned set
+        run: bash scripts/macos/build_dylib.sh
+      - name: Collect
+        run: |
+          mkdir -p out/apple out/desktop
+          cp -R CryptoLib.xcframework out/apple/CipherBird.xcframework
+          cp build/desktop/libcryptolib_c.dylib out/desktop/
+          for f in out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird \
+                   out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird \
+                   out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird \
+                   out/desktop/libcryptolib_c.dylib; do
+            test "$(nm -gU "$f" | grep -c ' T _cryptolib_')" = "$(grep -c '^CRYPTO_API' bridge/cryptolib_c.h)"
+          done
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: |
+            out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird
+            out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird
+            out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird
+            out/desktop/libcryptolib_c.dylib
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: engine-apple
+          path: out/apple
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: engine-desktop
+          path: out/desktop
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build autoconf automake libtool
+      - name: Pinned NDK
+        id: ndk
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779
+        with:
+          ndk-version: r30
+          add-to-path: false
+      - name: Build arm64-v8a and x86_64
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        run: bash scripts/android/build_all.sh arm64-v8a x86_64
+      - name: Collect
+        run: |
+          mkdir -p out/arm64-v8a out/x86_64
+          cp build/android/arm64-v8a/libcryptolib_c.so out/arm64-v8a/libcipherbird.so
+          cp build/android/x86_64/libcryptolib_c.so out/x86_64/libcipherbird.so
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: |
+            out/arm64-v8a/libcipherbird.so
+            out/x86_64/libcipherbird.so
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: engine-android
+          path: out
+
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build autoconf automake libtool nodejs
+      - name: Pinned Emscripten
+        uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984
+        with:
+          version: 6.0.9
+      - name: Build the WebAssembly engine
+        run: bash scripts/web/build_all.sh
+      - name: Collect
+        run: |
+          mkdir -p out
+          cp build/web/dist/cipherbird.js build/web/dist/cipherbird.wasm out/
+          test "$(grep -o '_cbw_cryptolib_[a-z0-9_]*' out/cipherbird.js | sort -u | wc -l)" = "$(grep -c '^CRYPTO_API' bridge/cryptolib_c.h)"
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: |
+            out/cipherbird.js
+            out/cipherbird.wasm
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: engine-web
+          path: out

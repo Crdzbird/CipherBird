@@ -1,0 +1,23 @@
+CipherBird / CryptoLib
+Copyright (c) Luis Alfonso Cardoza (Crdzbird)
+
+This project is licensed under the MIT License (see LICENSE). The shipped
+engines statically link the following third-party components, each under its
+own license, reproduced in the referenced files or upstream repositories:
+
+- libsodium 1.0.22, ISC License, https://github.com/jedisct1/libsodium
+- OpenSSL 3.5.9 (libcrypto), Apache License 2.0,
+  https://github.com/openssl/openssl
+- liboqs 0.15.0, MIT License, https://github.com/open-quantum-safe/liboqs
+  (selected algorithm implementations carry CC0, Apache-2.0 or public-domain
+  notices; see the liboqs source tree)
+- blst v0.3.17, Apache License 2.0, https://github.com/supranational/blst
+- BLAKE3 1.5.4 (C implementation), CC0 1.0 or Apache License 2.0,
+  https://github.com/BLAKE3-team/BLAKE3
+- libsecp256k1 0.7.1, MIT License, https://github.com/bitcoin-core/secp256k1
+- stb_image 2.30, MIT License or public domain, https://github.com/nothings/stb
+- dr_flac 0.13.3, MIT No Attribution or public domain,
+  https://github.com/mackron/dr_libs
+
+For the Apache License 2.0 components, this NOTICE file is the attribution
+required by section 4(d) of that license.

@@ -44,9 +44,9 @@ by how your project is built.
 Each tag carries the version of both packages it was cut from, so a git
 dependency on a tag and a pub.dev dependency on the same version resolve to
 the same code. Startup is one `await CipherBird.preload()` in `main`,
-immediate natively; on the web two `<script>` tags in `web/index.html` boot
-the engine during Flutter's bootstrap so the await can be dropped there too,
-see the package README. Each package README explains the choice in detail:
+immediate natively; on the web `dart run cipherbird:web_setup` adds the
+engine tag with its integrity digest, and an opt-in boot tag plus build
+define lets the await be dropped there too, see the package README. Each package README explains the choice in detail:
 [cipherbird](bridge/bindings/cipherbird/README.md) and
 [cipherbird_dart](bridge/bindings/cipherbird_dart/README.md).
 
@@ -288,7 +288,7 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
 | Language coverage | 10 bindings verified end-to-end by running, not just compiling |
 | Self-contained binary | macOS desktop dylib depends only on `/usr/lib/libSystem` + `libc++`, bundled in the npm / JVM / .NET packages |
-| Release pipeline | SBOM (syft) + keyless cosign signing + SLSA provenance, defined in `.github/workflows/release.yml` for `v*` tags (not yet exercised on a tag) |
+| Release pipeline | every shipped engine is built in CI from hash-pinned sources (`.github/workflows/engines.yml`) with build provenance attestations; `release.yml` runs on `v*` tags only after CI is green for that commit, verifies the attestation of every committed binary, and attaches the binaries, SBOM, checksums and signature to the release |
 
 The full threat model, assets, AI-assisted adversary, security arguments for
 the original compositions (Vault, Keyring, hybrid KEM combiner, committing
@@ -487,7 +487,7 @@ vendored merged static archive (see `PUBLISHING.md`).
 # Native dependencies (macOS)
 brew install cmake ninja libsodium liboqs blake3 openssl@3
 
-# Build + run the C++ test suite (382 cases, ASan-clean)
+# Build + run the C++ test suite (500 cases, ASan and UBSan clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
 cmake --build build/test --target cryptolib_tests
@@ -527,7 +527,7 @@ the publish checklist.
 ## Contributing
 
 Issues and pull requests welcome. **Do not file vulnerabilities as public
-issues**; report them privately via GitHub Security Advisories on this
-repository. Before submitting code, please ensure
+issues**: use the private reporting route and response targets in
+[SECURITY.md](SECURITY.md). Before submitting code, please ensure
 the test suite still runs clean (`./build/test/cryptolib_tests`) and that
 `scripts/verify_bindings.sh` stays green across all 10 bindings.

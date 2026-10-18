@@ -1,68 +1,93 @@
 name: Release
 
-# Tag-triggered supply-chain pipeline: build self-contained artifacts, generate
-# an SBOM, checksum + keyless-sign them (cosign/OIDC), emit SLSA provenance, and
-# attach everything to a GitHub Release. Requires the repo on GitHub.
+# Tag-triggered release. Runs only for a commit whose CI run is green,
+# verifies that every binary a consumer receives carries a build provenance
+# attestation from the Engines workflow, then attaches those binaries, an
+# SBOM, checksums and a keyless signature to the GitHub release.
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write     # create the release
-  id-token: write     # keyless cosign + SLSA provenance (OIDC)
+  contents: write
+  id-token: write
+  attestations: read
+  actions: read
 
 jobs:
-  build:
-    runs-on: macos-14
+  gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Require a green CI run for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$GITHUB_SHA" \
+            --json conclusion,status --jq 'map(select(.status=="completed")) | .[0].conclusion // "missing"')"
+          echo "CI for $GITHUB_SHA: $conclusion"
+          test "$conclusion" = "success"
+      - name: Require an attestation for every shipped binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release/verify_attestations.sh
+
+  publish:
+    needs: [gate]
+    runs-on: ubuntu-24.04
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install deps
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
-      - name: Build blst from source (pinned)
-        run: bash scripts/ci/install_blst.sh /opt/homebrew
-      - name: Build self-contained desktop binary
-        run: bash scripts/build_selfcontained.sh build/release-artifacts
-      # SHA256SUMS lists each artifact by its bare file name, in sha256sum
-      # format. The SLSA generator's base64-subjects input is that exact text,
-      # base64-encoded, so every listed artifact becomes a provenance subject.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Stage the shipped binaries under release names
+        run: |
+          mkdir -p dist
+          cp bridge/bindings/cipherbird/android/src/main/jniLibs/arm64-v8a/libcipherbird.so dist/libcipherbird-android-arm64-v8a.so
+          cp bridge/bindings/cipherbird/android/src/main/jniLibs/x86_64/libcipherbird.so dist/libcipherbird-android-x86_64.so
+          cp bridge/bindings/cipherbird/ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird dist/CipherBird-ios-arm64
+          cp bridge/bindings/cipherbird/ios/cipherbird/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird dist/CipherBird-ios-arm64-simulator
+          cp bridge/bindings/cipherbird/macos/cipherbird/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird dist/CipherBird-macos-arm64
+          cp bridge/bindings/cipherbird/assets/cipherbird.wasm dist/cipherbird.wasm
+          cp bridge/bindings/cipherbird/assets/cipherbird.js dist/cipherbird.js
+          cp bridge/bindings/cipherbird_dart/native/darwin-arm64/libcipherbird.dylib dist/libcipherbird-darwin-arm64.dylib
       - name: Checksums
         id: hash
-        working-directory: build/release-artifacts
+        working-directory: dist
         run: |
-          shasum -a 256 libcryptolib_c.dylib > SHA256SUMS
+          sha256sum * > SHA256SUMS
           cat SHA256SUMS
-          echo "hashes=$(base64 < SHA256SUMS | tr -d '\n')" >> "$GITHUB_OUTPUT"
-      - name: SBOM (syft)
-        uses: anchore/sbom-action@v0
+          echo "hashes=$(base64 -w0 < SHA256SUMS)" >> "$GITHUB_OUTPUT"
+      - name: SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c
         with:
           path: .
           format: spdx-json
-          output-file: build/release-artifacts/cryptolib.sbom.spdx.json
+          output-file: dist/cipherbird.sbom.spdx.json
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
       - name: Keyless-sign the checksums
-        env:
-          COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign-blob --yes \
-            --output-signature build/release-artifacts/SHA256SUMS.sig \
-            --output-certificate build/release-artifacts/SHA256SUMS.pem \
-            build/release-artifacts/SHA256SUMS
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts
-          path: build/release-artifacts/*
+            --output-signature dist/SHA256SUMS.sig \
+            --output-certificate dist/SHA256SUMS.pem \
+            dist/SHA256SUMS
+      - name: Attach everything to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "See the package changelogs." --verify-tag
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber dist/*
 
-  # SLSA build provenance for the artifacts (verifiable with slsa-verifier).
+  # SLSA provenance for the release checksums. The reusable workflow has to be
+  # referenced by tag: the generator verifies its own tag at run time.
   provenance:
-    needs: [build]
+    needs: [publish]
     permissions:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
     with:
-      base64-subjects: ${{ needs.build.outputs.hashes }}
+      base64-subjects: ${{ needs.publish.outputs.hashes }}
       upload-assets: true

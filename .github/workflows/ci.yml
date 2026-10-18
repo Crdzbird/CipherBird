@@ -13,7 +13,7 @@ jobs:
   test:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
         run: |
           brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
@@ -22,15 +22,15 @@ jobs:
       - name: Configure + build tests
         run: |
           cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
-          cmake --build build/test --target cryptolib_tests
+            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_EXAMPLE=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+          cmake --build build/test
       - name: Run tests
         run: ./build/test/cryptolib_tests
 
   asan:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build blst from source (pinned)
@@ -45,7 +45,7 @@ jobs:
   tsan:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
       - name: Build blst from source (pinned)
@@ -65,7 +65,7 @@ jobs:
   fuzz:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps (LLVM clang for libFuzzer)
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm lld
       - name: Build blst from source (pinned)
@@ -79,7 +79,8 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
           cmake --build build/fuzz
           for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_stego build/fuzz/fuzz_diff_aead; do
-            [ -x "$fz" ] && "$fz" -max_total_time=60 -print_final_stats=1 || true
+            test -x "$fz"
+            "$fz" -max_total_time=60 -print_final_stats=1
           done
 
   # Keccak-256 has no in-process oracle in our C deps (OpenSSL ships SHA3, not
@@ -89,7 +90,7 @@ jobs:
   keccak_xcheck:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
         run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 node
       - name: Build blst from source (pinned)
@@ -105,5 +106,51 @@ jobs:
           DY="$(ls build/bridge/libcryptolib_c*.dylib | head -1)"
           NODE_PATH=/tmp/xcheck/node_modules node scripts/keccak_cross_check.mjs "$DY"
 
-  # Constant-time verification runs on Linux (Valgrind/ctgrind) — added once the
-  # Linux dep build lands; the CT harness + CMake option already exist locally.
+  # Constant-time probe under Valgrind (ctgrind method) on Linux, against
+  # dependencies built from the hash-pinned tarballs.
+  ctgrind:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build autoconf automake libtool valgrind pkg-config
+      - name: Build pinned dependencies for Linux
+        run: bash scripts/linux/build_deps.sh
+      - name: Build the probe
+        run: |
+          cmake -S . -B build/ct -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCRYPTOLIB_CT_VALGRIND=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_TESTS=OFF \
+            -DCRYPTOLIB_BUILD_EXAMPLE=OFF -DCRYPTOLIB_DEPS_ROOT="$PWD/third_party/linux/x86_64"
+          cmake --build build/ct --target ct_probe
+      - name: Run under memcheck
+        run: valgrind --tool=memcheck --error-exitcode=1 --track-origins=no ./build/ct/ct_probe
+
+  # The Dart packages and the Go binding against a freshly built C ABI.
+  bindings:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install deps
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 go
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
+      - name: Build the C ABI
+        run: |
+          cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_BUILD_TESTS=OFF
+          cmake --build build/release --target cryptolib_c
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+      - name: cipherbird (Flutter) native suite
+        working-directory: bridge/bindings/cipherbird
+        run: |
+          flutter pub get
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" flutter test
+      - name: cipherbird_dart native suite
+        working-directory: bridge/bindings/cipherbird_dart
+        run: |
+          dart pub get
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" dart test
+      - name: Go binding
+        working-directory: bridge/bindings/go
+        run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cryptolib/

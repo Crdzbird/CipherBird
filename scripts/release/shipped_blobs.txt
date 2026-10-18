@@ -1,0 +1,10 @@
+bridge/bindings/cipherbird/android/src/main/jniLibs/arm64-v8a/libcipherbird.so
+bridge/bindings/cipherbird/android/src/main/jniLibs/x86_64/libcipherbird.so
+bridge/bindings/cipherbird/ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird
+bridge/bindings/cipherbird/ios/cipherbird/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird
+bridge/bindings/cipherbird/macos/cipherbird/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird
+bridge/bindings/cipherbird/assets/cipherbird.wasm
+bridge/bindings/cipherbird/assets/cipherbird.js
+bridge/bindings/cipherbird_dart/lib/assets/cipherbird.wasm
+bridge/bindings/cipherbird_dart/lib/assets/cipherbird.js
+bridge/bindings/cipherbird_dart/native/darwin-arm64/libcipherbird.dylib
