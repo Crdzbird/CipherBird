@@ -14,7 +14,8 @@ using crypto::Session;
 
 namespace {
 std::vector<uint8_t> bytes(std::string_view s) { return {s.begin(), s.end()}; }
-std::vector<uint8_t> vec(const crypto::SecureBuffer& b) { return {b.span().begin(), b.span().end()}; }
+template <class Buffer>
+std::vector<uint8_t> vec(const Buffer& b) { return {b.span().begin(), b.span().end()}; }
 
 // Establish a fresh Alice(initiator)/Bob(responder) session pair via the handshake.
 struct Pair { Session alice; Session bob; };
@@ -56,7 +57,7 @@ TEST("session/ping-pong-many-turns") {
 TEST("session/multiple-in-a-row-same-chain") {
     auto p = establish();
     // Alice sends several without Bob replying → same sending chain, N advances.
-    std::vector<crypto::SecureBuffer> msgs;
+    std::vector<crypto::PublicBuffer> msgs;
     for (int i = 0; i < 5; ++i) {
         auto m = p.alice.encrypt(bytes("msg" + std::to_string(i)));
         CHECK_OK(m);
@@ -71,7 +72,7 @@ TEST("session/multiple-in-a-row-same-chain") {
 
 TEST("session/out-of-order-within-chain") {
     auto p = establish();
-    std::vector<crypto::SecureBuffer> msgs;
+    std::vector<crypto::PublicBuffer> msgs;
     for (int i = 0; i < 4; ++i) {
         auto m = p.alice.encrypt(bytes("x" + std::to_string(i)));
         msgs.push_back(std::move(m.value()));

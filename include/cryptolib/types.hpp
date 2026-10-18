@@ -29,14 +29,17 @@ namespace crypto {
     return out;
 }
 
-/// Output of an unkeyed digest: public by construction (a hash of data the
-/// caller already holds), so it lives in plain memory with no page lock and
-/// no wipe. Keyed hashes, MACs, KDF outputs and keys use SecureBuffer.
-class Digest {
+/// A buffer whose contents are public by construction: digests of data the
+/// caller already holds, ciphertexts, signatures, public keys, envelopes.
+/// It lives in plain memory with no page lock and no wipe. Anything whose
+/// value depends on a secret (keys, shared secrets, KDF and MAC outputs,
+/// decrypted plaintext) uses SecureBuffer.
+class PublicBuffer {
 public:
-    Digest() = default;
-    explicit Digest(std::size_t n) : data_(n, 0) {}
-    explicit Digest(std::vector<uint8_t> v) : data_(std::move(v)) {}
+    PublicBuffer() = default;
+    explicit PublicBuffer(std::size_t n) : data_(n, 0) {}
+    explicit PublicBuffer(std::vector<uint8_t> v) : data_(std::move(v)) {}
+    PublicBuffer(const uint8_t* p, std::size_t n) : data_(p, p + n) {}
 
     [[nodiscard]] uint8_t*       data()        noexcept { return data_.data(); }
     [[nodiscard]] const uint8_t* data()  const noexcept { return data_.data(); }
@@ -48,15 +51,19 @@ public:
     [[nodiscard]] auto end()   const noexcept { return data_.end(); }
     [[nodiscard]] const std::vector<uint8_t>& bytes() const noexcept { return data_; }
     [[nodiscard]] std::vector<uint8_t> release() noexcept { return std::move(data_); }
+    void resize(std::size_t n) { data_.resize(n); }
     [[nodiscard]] std::string to_hex() const { return hex_encode(data_); }
     [[nodiscard]] std::string to_string() const {
         return { reinterpret_cast<const char*>(data_.data()), data_.size() };
     }
-    [[nodiscard]] bool operator==(const Digest& o) const noexcept { return data_ == o.data_; }
+    [[nodiscard]] bool operator==(const PublicBuffer& o) const noexcept { return data_ == o.data_; }
 
 private:
     std::vector<uint8_t> data_;
 };
+
+/// The public output of a hash.
+using Digest = PublicBuffer;
 
 class SecureBuffer {
 public:

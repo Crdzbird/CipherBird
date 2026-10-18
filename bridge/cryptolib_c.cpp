@@ -42,6 +42,17 @@ CryptoBuffer to_cbuf(const crypto::SecureBuffer& sb) {
     return cb;
 }
 
+/** Copy a public buffer into a malloc'd CryptoBuffer. */
+CryptoBuffer to_cbuf(const crypto::PublicBuffer& sb) {
+    CryptoBuffer cb;
+    cb.len = sb.size();
+    if (cb.len == 0) { cb.data = nullptr; return cb; }
+    cb.data = static_cast<uint8_t*>(std::malloc(cb.len));
+    if (!cb.data) { cb.len = 0; return cb; }   // keep len consistent on OOM
+    std::memcpy(cb.data, sb.data(), cb.len);
+    return cb;
+}
+
 /** Copy raw span into a malloc'd CryptoBuffer. */
 CryptoBuffer to_cbuf(std::span<const uint8_t> sp) {
     CryptoBuffer cb;
@@ -73,8 +84,8 @@ CryptoBufferResult ok_buf(const crypto::SecureBuffer& sb) {
     return { to_cbuf(sb), nullptr };
 }
 
-/** Make a success CryptoBufferResult from a public digest. */
-CryptoBufferResult ok_digest(const crypto::Digest& d) {
+/** Make a success CryptoBufferResult from a public buffer. */
+CryptoBufferResult ok_buf(const crypto::PublicBuffer& d) {
     auto* p = static_cast<uint8_t*>(std::malloc(d.size() ? d.size() : 1));
     if (!p) return { {nullptr, 0}, dup_err_cstr("out of memory") };
     std::memcpy(p, d.data(), d.size());
@@ -202,7 +213,42 @@ CRYPTO_API void cryptolib_entropy_info_free(CryptoEntropyInfo* info) {
  * Initialisation & utilities
  * ═══════════════════════════════════════════════════════════════════════════ */
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/em_js.h>
+
+/* Under Emscripten libsodium's default source is /dev/urandom on the in-memory
+ * filesystem, which the runtime serves one byte per JavaScript call (about
+ * 1.2 us per byte). This provider fills the whole buffer with the platform
+ * CSPRNG in one crossing per 64 KiB, the limit crypto.getRandomValues
+ * accepts. It adds no user-space generator: every byte still comes from the
+ * browser's CSPRNG. */
+EM_JS(void, cipherbird_fill_random, (uint8_t* ptr, size_t len), {
+    var view = HEAPU8.subarray(ptr, ptr + len);
+    for (var off = 0; off < len; off += 65536) {
+        crypto.getRandomValues(view.subarray(off, Math.min(off + 65536, len)));
+    }
+});
+
+namespace {
+const char* wasm_random_name(void) { return "cipherbird_getrandomvalues"; }
+void wasm_random_buf(void* const buf, const size_t size) {
+    if (size > 0) cipherbird_fill_random(static_cast<uint8_t*>(buf), size);
+}
+uint32_t wasm_random(void) {
+    uint32_t value = 0;
+    wasm_random_buf(&value, sizeof value);
+    return value;
+}
+const randombytes_implementation wasm_random_impl = {
+    wasm_random_name, wasm_random, nullptr, nullptr, wasm_random_buf, nullptr
+};
+}
+#endif
+
 CRYPTO_API int cryptolib_init(void) try {
+#ifdef __EMSCRIPTEN__
+    if (randombytes_set_implementation(&wasm_random_impl) != 0) return -1;
+#endif
     crypto::init();
     return 0;
 } CL_FAIL_INT
@@ -1417,7 +1463,7 @@ CRYPTO_API CryptoBufferResult cryptolib_blake3_hasher_finalize(
     auto* impl = static_cast<Blake3StreamImpl*>(h);
     const size_t n = out_len == 0 ? 32 : out_len;
     if (impl->stream.keyed()) return ok_buf(impl->stream.finalize(n));
-    return ok_digest(impl->stream.finalize_digest(n));
+    return ok_buf(impl->stream.finalize_digest(n));
 #else
     (void)h; (void)out_len;
     return err_buf("BLAKE3 not enabled (build with -DCRYPTOLIB_BLAKE3=ON)");

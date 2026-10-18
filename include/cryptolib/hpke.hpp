@@ -69,12 +69,12 @@ public:
         Context& operator=(const Context&) = delete;
 
         /// Sender: AEAD-seal the next message (advances the sequence number).
-        [[nodiscard]] Result<SecureBuffer> seal(std::span<const uint8_t> aad,
+        [[nodiscard]] Result<PublicBuffer> seal(std::span<const uint8_t> aad,
                                                 std::span<const uint8_t> pt) {
             if (aead_ == Aead::ExportOnly)
-                return Result<SecureBuffer>::err("HPKE: export-only context cannot seal");
+                return Result<PublicBuffer>::err("HPKE: export-only context cannot seal");
             auto nonce = compute_nonce();
-            if (nonce.is_err()) return Result<SecureBuffer>::err(nonce.error().message);
+            if (nonce.is_err()) return Result<PublicBuffer>::err(nonce.error().message);
             auto ct = aead_seal(aead_, key_.span(), nonce.value().span(), aad, pt);
             if (ct.is_err()) return ct;
             ++seq_;
@@ -131,7 +131,7 @@ public:
     };
 
     struct SenderContext { SecureBuffer enc; Context ctx; };
-    struct Sealed { SecureBuffer enc; SecureBuffer ct; };
+    struct Sealed { PublicBuffer enc; PublicBuffer ct; };
 
     // ── Key generation ────────────────────────────────────────────────────────
     [[nodiscard]] static KeyPair generate_keypair() {
@@ -208,7 +208,8 @@ public:
         if (s.is_err()) return Result<Sealed>::err(s.error().message);
         auto ct = s.value().ctx.seal(aad, pt);
         if (ct.is_err()) return Result<Sealed>::err(ct.error().message);
-        return Result<Sealed>::ok(Sealed{ std::move(s.value().enc), std::move(ct.value()) });
+        const auto& enc = s.value().enc;
+        return Result<Sealed>::ok(Sealed{ PublicBuffer(enc.data(), enc.size()), std::move(ct.value()) });
     }
     [[nodiscard]] static Result<SecureBuffer>
     open_base(Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
@@ -441,19 +442,19 @@ private:
     static std::size_t aead_Nn(Aead a) { return a == Aead::ExportOnly ? 0 : 12; }
     static constexpr std::size_t AEAD_TAG = 16;
 
-    static Result<SecureBuffer> aead_seal(Aead aead, std::span<const uint8_t> key,
+    static Result<PublicBuffer> aead_seal(Aead aead, std::span<const uint8_t> key,
                                           std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
                                           std::span<const uint8_t> pt) {
         if (aead == Aead::ChaCha20Poly1305) {
-            SecureBuffer ct(pt.size() + AEAD_TAG);
+            PublicBuffer ct(pt.size() + AEAD_TAG);
             unsigned long long clen = 0;
             if (crypto_aead_chacha20poly1305_ietf_encrypt(
                     ct.data(), &clen, pt.data(), pt.size(),
                     aad.data(), aad.size(), nullptr, nonce.data(), key.data()) != 0)
-                return Result<SecureBuffer>::err("HPKE: ChaCha20Poly1305 seal failed");
-            return Result<SecureBuffer>::ok(std::move(ct));
+                return Result<PublicBuffer>::err("HPKE: ChaCha20Poly1305 seal failed");
+            return Result<PublicBuffer>::ok(std::move(ct));
         }
-        return aes_gcm(aead, true, key, nonce, aad, pt);
+        return aes_gcm<PublicBuffer>(aead, true, key, nonce, aad, pt);
     }
 
     static Result<SecureBuffer> aead_open(Aead aead, std::span<const uint8_t> key,
@@ -469,62 +470,64 @@ private:
                 return Result<SecureBuffer>::err("HPKE: ChaCha20Poly1305 open failed (auth)");
             return Result<SecureBuffer>::ok(std::move(pt));
         }
-        return aes_gcm(aead, false, key, nonce, aad, ct);
+        return aes_gcm<SecureBuffer>(aead, false, key, nonce, aad, ct);
     }
 
 #ifdef CRYPTOLIB_HAS_OPENSSL
-    static Result<SecureBuffer> aes_gcm(Aead aead, bool encrypt, std::span<const uint8_t> key,
-                                        std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
-                                        std::span<const uint8_t> in) {
+    template <class Buffer>
+    static Result<Buffer> aes_gcm(Aead aead, bool encrypt, std::span<const uint8_t> key,
+                                  std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
+                                  std::span<const uint8_t> in) {
         const char* alg = aead == Aead::Aes128Gcm ? "AES-128-GCM" : "AES-256-GCM";
         struct CipherFree { void operator()(EVP_CIPHER* c) const { if (c) EVP_CIPHER_free(c); } };
         struct CtxFree { void operator()(EVP_CIPHER_CTX* c) const { if (c) EVP_CIPHER_CTX_free(c); } };
         std::unique_ptr<EVP_CIPHER, CipherFree> cipher{ EVP_CIPHER_fetch(nullptr, alg, nullptr) };
         std::unique_ptr<EVP_CIPHER_CTX, CtxFree> ctx{ EVP_CIPHER_CTX_new() };
-        if (!cipher || !ctx) return Result<SecureBuffer>::err("HPKE: OpenSSL AES-GCM init failed");
+        if (!cipher || !ctx) return Result<Buffer>::err("HPKE: OpenSSL AES-GCM init failed");
 
         int len = 0;
         if (encrypt) {
-            SecureBuffer out(in.size() + AEAD_TAG);
+            Buffer out(in.size() + AEAD_TAG);
             if (EVP_EncryptInit_ex2(ctx.get(), cipher.get(), nullptr, nullptr, nullptr) != 1 ||
                 EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(nonce.size()), nullptr) != 1 ||
                 EVP_EncryptInit_ex2(ctx.get(), nullptr, key.data(), nonce.data(), nullptr) != 1)
-                return Result<SecureBuffer>::err("HPKE: AES-GCM encrypt init failed");
+                return Result<Buffer>::err("HPKE: AES-GCM encrypt init failed");
             if (!aad.empty() && EVP_EncryptUpdate(ctx.get(), nullptr, &len, aad.data(), static_cast<int>(aad.size())) != 1)
-                return Result<SecureBuffer>::err("HPKE: AES-GCM aad failed");
+                return Result<Buffer>::err("HPKE: AES-GCM aad failed");
             if (EVP_EncryptUpdate(ctx.get(), out.data(), &len, in.data(), static_cast<int>(in.size())) != 1)
-                return Result<SecureBuffer>::err("HPKE: AES-GCM encrypt failed");
+                return Result<Buffer>::err("HPKE: AES-GCM encrypt failed");
             int final_len = 0;
             if (EVP_EncryptFinal_ex(ctx.get(), out.data() + len, &final_len) != 1)
-                return Result<SecureBuffer>::err("HPKE: AES-GCM encrypt final failed");
+                return Result<Buffer>::err("HPKE: AES-GCM encrypt final failed");
             if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_GET_TAG, AEAD_TAG, out.data() + in.size()) != 1)
-                return Result<SecureBuffer>::err("HPKE: AES-GCM get tag failed");
-            return Result<SecureBuffer>::ok(std::move(out));
+                return Result<Buffer>::err("HPKE: AES-GCM get tag failed");
+            return Result<Buffer>::ok(std::move(out));
         }
         // decrypt: in = ciphertext || tag
         const std::size_t ct_len = in.size() - AEAD_TAG;
-        SecureBuffer out(ct_len);
+        Buffer out(ct_len);
         if (EVP_DecryptInit_ex2(ctx.get(), cipher.get(), nullptr, nullptr, nullptr) != 1 ||
             EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, static_cast<int>(nonce.size()), nullptr) != 1 ||
             EVP_DecryptInit_ex2(ctx.get(), nullptr, key.data(), nonce.data(), nullptr) != 1)
-            return Result<SecureBuffer>::err("HPKE: AES-GCM decrypt init failed");
+            return Result<Buffer>::err("HPKE: AES-GCM decrypt init failed");
         if (!aad.empty() && EVP_DecryptUpdate(ctx.get(), nullptr, &len, aad.data(), static_cast<int>(aad.size())) != 1)
-            return Result<SecureBuffer>::err("HPKE: AES-GCM aad failed");
+            return Result<Buffer>::err("HPKE: AES-GCM aad failed");
         if (EVP_DecryptUpdate(ctx.get(), out.data(), &len, in.data(), static_cast<int>(ct_len)) != 1)
-            return Result<SecureBuffer>::err("HPKE: AES-GCM decrypt failed");
+            return Result<Buffer>::err("HPKE: AES-GCM decrypt failed");
         uint8_t tag[AEAD_TAG];
         std::memcpy(tag, in.data() + ct_len, AEAD_TAG);
         if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_TAG, AEAD_TAG, tag) != 1)
-            return Result<SecureBuffer>::err("HPKE: AES-GCM set tag failed");
+            return Result<Buffer>::err("HPKE: AES-GCM set tag failed");
         int final_len = 0;
         if (EVP_DecryptFinal_ex(ctx.get(), out.data() + len, &final_len) != 1)
-            return Result<SecureBuffer>::err("HPKE: AES-GCM open failed (auth)");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<Buffer>::err("HPKE: AES-GCM open failed (auth)");
+        return Result<Buffer>::ok(std::move(out));
     }
 #else
-    static Result<SecureBuffer> aes_gcm(Aead, bool, std::span<const uint8_t>, std::span<const uint8_t>,
-                                        std::span<const uint8_t>, std::span<const uint8_t>) {
-        return Result<SecureBuffer>::err("HPKE: AES-GCM requires OpenSSL (build with CRYPTOLIB_HAS_OPENSSL)");
+    template <class Buffer>
+    static Result<Buffer> aes_gcm(Aead, bool, std::span<const uint8_t>, std::span<const uint8_t>,
+                                  std::span<const uint8_t>, std::span<const uint8_t>) {
+        return Result<Buffer>::err("HPKE: AES-GCM requires OpenSSL (build with CRYPTOLIB_HAS_OPENSSL)");
     }
 #endif
 };

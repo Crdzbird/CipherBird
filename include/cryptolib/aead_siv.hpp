@@ -50,18 +50,18 @@ public:
     }
 
     /// Encrypt → [ nonce(12) | ciphertext | tag(16) ].
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
         if (key.size() != KEY_BYTES)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: key must be 32 bytes");
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: key must be 32 bytes");
         auto cipher = fetch();
-        if (!cipher) return Result<SecureBuffer>::err("AES-256-GCM-SIV: unavailable in this OpenSSL");
+        if (!cipher) return Result<PublicBuffer>::err("AES-256-GCM-SIV: unavailable in this OpenSSL");
         CtxPtr ctx{EVP_CIPHER_CTX_new()};
-        if (!ctx) return Result<SecureBuffer>::err("AES-256-GCM-SIV: ctx alloc failed");
+        if (!ctx) return Result<PublicBuffer>::err("AES-256-GCM-SIV: ctx alloc failed");
 
-        SecureBuffer out(NONCE_BYTES + plaintext.size() + TAG_BYTES);
+        PublicBuffer out(NONCE_BYTES + plaintext.size() + TAG_BYTES);
         randombytes_buf(out.data(), NONCE_BYTES);
         uint8_t* ct  = out.data() + NONCE_BYTES;
         uint8_t* tag = ct + plaintext.size();
@@ -70,20 +70,20 @@ public:
         if (EVP_EncryptInit_ex2(ctx.get(), cipher.get(), nullptr, nullptr, nullptr) != 1 ||
             EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_SET_IVLEN, NONCE_BYTES, nullptr) != 1 ||
             EVP_EncryptInit_ex2(ctx.get(), nullptr, key.data(), out.data(), nullptr) != 1)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: init failed");
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: init failed");
         if (!aad.empty() &&
             EVP_EncryptUpdate(ctx.get(), nullptr, &len, aad.data(),
                               static_cast<int>(aad.size())) != 1)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: aad failed");
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: aad failed");
         if (EVP_EncryptUpdate(ctx.get(), ct, &len, plaintext.data(),
                               static_cast<int>(plaintext.size())) != 1)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: encrypt failed");
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: encrypt failed");
         int fin = 0;
         if (EVP_EncryptFinal_ex(ctx.get(), ct + len, &fin) != 1)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: finalize failed");
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: finalize failed");
         if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_AEAD_GET_TAG, TAG_BYTES, tag) != 1)
-            return Result<SecureBuffer>::err("AES-256-GCM-SIV: get tag failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: get tag failed");
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     /// Decrypt [ nonce(12) | ciphertext | tag(16) ]. Fails closed on tamper.

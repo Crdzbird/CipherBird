@@ -48,25 +48,25 @@ public:
     }
 
     /// Encrypt → wire = K_com(32) ‖ nonce ‖ ciphertext ‖ tag.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
         if (key.size() != KEY_BYTES)
-            return Result<SecureBuffer>::err("CommittingAead: key must be 32 bytes");
+            return Result<PublicBuffer>::err("CommittingAead: key must be 32 bytes");
 
         auto okm = derive(key, aad);
-        if (okm.is_err()) return Result<SecureBuffer>::err(okm.error().message);
+        if (okm.is_err()) return Result<PublicBuffer>::err(okm.error().message);
         auto k_enc = okm.value().span().subspan(0, 32);
         auto k_com = okm.value().span().subspan(32, 32);
 
         auto body = XChaCha20Poly1305::encrypt(plaintext, k_enc, aad);
-        if (body.is_err()) return Result<SecureBuffer>::err(body.error().message);
+        if (body.is_err()) return Result<PublicBuffer>::err(body.error().message);
 
-        SecureBuffer out(COMMIT_BYTES + body.value().size());
+        PublicBuffer out(COMMIT_BYTES + body.value().size());
         std::memcpy(out.data(), k_com.data(), COMMIT_BYTES);
         std::memcpy(out.data() + COMMIT_BYTES, body.value().data(), body.value().size());
-        return Result<SecureBuffer>::ok(std::move(out));
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     /// Decrypt. Fails closed on commitment mismatch OR AEAD auth failure —
@@ -93,7 +93,7 @@ public:
     }
 
     // string_view conveniences
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::string_view plaintext, std::span<const uint8_t> key, std::string_view aad = {}) {
         return encrypt({reinterpret_cast<const uint8_t*>(plaintext.data()), plaintext.size()},
                        key,

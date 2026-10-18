@@ -162,14 +162,28 @@ Reviewed every secret-bearing intermediate in the core constructions:
 - The one raw-byte buffer over potentially-sensitive input (the media-entropy
   chunk reader) is explicitly `sodium_memzero`'d after hashing.
 - OpenSSL `EVP_CIPHER_CTX` round keys are cleared by `EVP_CIPHER_CTX_free`.
-- **Unkeyed digests** (SHA-256, SHA-512, BLAKE2b and BLAKE3 without a key,
-  one-shot and streaming) return `Digest`, a plain buffer with no page lock
-  and no wipe (2026-10). Their output is a function of data the caller
-  already holds, so locking it protected nothing and cost two system calls
-  per hash. The line is drawn by what the output depends on: keyed BLAKE2b
-  and BLAKE3, `derive_key`, HMAC, HKDF and Argon2id still return
-  `SecureBuffer`, a keyed BLAKE3 stream refuses the plain `finalize_digest`,
-  and hasher state is still wiped in every mode.
+- **Public outputs** return `PublicBuffer`, a plain buffer with no page lock
+  and no wipe (2026-10). This covers unkeyed digests (SHA-256, SHA-512,
+  BLAKE2b and BLAKE3 without a key, one-shot and streaming; `Digest` is an
+  alias), AEAD ciphertexts (XChaCha20-Poly1305, AES-256-GCM, the committing
+  mode, GCM-SIV), signatures (Ed25519, ML-DSA, SLH-DSA, the hybrid and
+  triple schemes, BLS, secp256k1), derived and recovered public keys,
+  Keccak-256 and RIPEMD-160, and every sealed envelope (Box, SealedBox,
+  Noise transport and handshake messages, Session, HPKE, Flagship,
+  MolecularVault, the Suite, the Keyring's wrapped slots). Each of these is
+  either a function of data the caller already holds or the bytes that go on
+  the wire, so locking them protected nothing and cost two system calls per
+  call. The line is drawn by what the output depends on: keys, shared
+  secrets, decrypted plaintext, keyed BLAKE2b and BLAKE3, `derive_key`,
+  HMAC, HKDF, Argon2id, Shamir shares and every KEM shared secret still
+  return `SecureBuffer`; a keyed BLAKE3 stream refuses the plain
+  `finalize_digest`; and hasher and cipher state is still wiped in every
+  mode.
+- **Randomness in WebAssembly** comes from the browser CSPRNG through one
+  `crypto.getRandomValues` call per buffer (`cryptolib_init` installs the
+  provider). No user-space generator sits between the platform CSPRNG and
+  the keys; the change only removed a per-byte round trip through the
+  in-memory filesystem.
 
 Finding: no plaintext-secret survives its scope. Re-run this audit when new
 secret-handling code lands.

@@ -14,7 +14,8 @@ using namespace test;
 
 namespace {
 std::vector<uint8_t> bytes(std::string_view s) { return { s.begin(), s.end() }; }
-std::vector<uint8_t> vec(const crypto::SecureBuffer& b) { return { b.span().begin(), b.span().end() }; }
+template <class Buffer>
+std::vector<uint8_t> vec(const Buffer& b) { return { b.span().begin(), b.span().end() }; }
 const std::vector<uint8_t> AAD     = bytes("flagship/aad");
 const std::vector<uint8_t> PURPOSE = bytes("secure-note");
 
@@ -132,7 +133,7 @@ void check_stream_roundtrip() {
     REQUIRE(sealer.is_ok());
 
     std::vector<std::vector<uint8_t>> chunks = { bytes("chunk-one "), bytes("chunk-two "), bytes("chunk-three") };
-    std::vector<crypto::SecureBuffer> wire;
+    std::vector<crypto::PublicBuffer> wire;
     for (std::size_t i = 0; i + 1 < chunks.size(); ++i) {
         auto ct = sealer.value().push(chunks[i]);
         REQUIRE(ct.is_ok());

@@ -45,20 +45,20 @@ public:
         return kp;
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> recipient_pub,
             std::span<const uint8_t> sender_sec) {
         if (recipient_pub.size() != PUBLIC_KEY_BYTES || sender_sec.size() != SECRET_KEY_BYTES)
-            return Result<SecureBuffer>::err("Box: invalid key length");
-        SecureBuffer out(NONCE_BYTES + MAC_BYTES + plaintext.size());
+            return Result<PublicBuffer>::err("Box: invalid key length");
+        PublicBuffer out(NONCE_BYTES + MAC_BYTES + plaintext.size());
         randombytes_buf(out.data(), NONCE_BYTES);
         if (crypto_box_easy(out.data() + NONCE_BYTES,
                             plaintext.data(), plaintext.size(),
                             out.data(),
                             recipient_pub.data(), sender_sec.data()) != 0)
-            return Result<SecureBuffer>::err("Box: encryption failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<PublicBuffer>::err("Box: encryption failed");
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -94,15 +94,15 @@ public:
         return Box::generate_keypair();
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> recipient_pub) {
         if (recipient_pub.size() != PUBLIC_KEY_BYTES)
-            return Result<SecureBuffer>::err("SealedBox: invalid public key");
-        SecureBuffer out(OVERHEAD + plaintext.size());
+            return Result<PublicBuffer>::err("SealedBox: invalid public key");
+        PublicBuffer out(OVERHEAD + plaintext.size());
         if (crypto_box_seal(out.data(), plaintext.data(), plaintext.size(), recipient_pub.data()) != 0)
-            return Result<SecureBuffer>::err("SealedBox: encryption failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<PublicBuffer>::err("SealedBox: encryption failed");
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -150,15 +150,15 @@ public:
     }
 
     /// Returns detached signature (64 bytes)
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message, std::span<const uint8_t> secret_key) {
         if (secret_key.size() != SECRET_KEY_BYTES)
-            return Result<SecureBuffer>::err("Ed25519: invalid secret key");
-        SecureBuffer sig(SIG_BYTES);
+            return Result<PublicBuffer>::err("Ed25519: invalid secret key");
+        PublicBuffer sig(SIG_BYTES);
         unsigned long long len = 0;
         crypto_sign_detached(sig.data(), &len, message.data(), message.size(), secret_key.data());
         sig.resize(static_cast<std::size_t>(len));
-        return Result<SecureBuffer>::ok(std::move(sig));
+        return Result<PublicBuffer>::ok(std::move(sig));
     }
 
     [[nodiscard]] static bool
@@ -173,14 +173,14 @@ public:
     }
 
     /// Convert Ed25519 → X25519 (for hybrid schemes using a single key pair)
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     to_x25519_public(std::span<const uint8_t> ed_pub) {
         if (ed_pub.size() != PUBLIC_KEY_BYTES)
-            return Result<SecureBuffer>::err("Ed25519->X25519: bad key");
-        SecureBuffer out(Box::PUBLIC_KEY_BYTES);
+            return Result<PublicBuffer>::err("Ed25519->X25519: bad key");
+        PublicBuffer out(Box::PUBLIC_KEY_BYTES);
         if (crypto_sign_ed25519_pk_to_curve25519(out.data(), ed_pub.data()) != 0)
-            return Result<SecureBuffer>::err("Ed25519->X25519: conversion failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<PublicBuffer>::err("Ed25519->X25519: conversion failed");
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     [[nodiscard]] static Result<SecureBuffer>
@@ -247,8 +247,8 @@ public:
 class HybridBox {
 public:
     struct HybridCiphertext {
-        SecureBuffer ciphertext;   // Box-encrypted payload
-        SecureBuffer signature;    // Ed25519 signature over ciphertext
+        PublicBuffer ciphertext;   // Box-encrypted payload
+        PublicBuffer signature;    // Ed25519 signature over ciphertext
     };
 
     [[nodiscard]] static Result<HybridCiphertext>

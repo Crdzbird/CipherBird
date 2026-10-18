@@ -45,6 +45,7 @@ auto must(R&& r, const char* what) {
 }
 
 std::span<const uint8_t> sp(const SecureBuffer& b) { return b.span(); }
+std::span<const uint8_t> sp(const crypto::PublicBuffer& b) { return b.span(); }
 std::span<const uint8_t> sp(const std::vector<uint8_t>& v) { return {v.data(), v.size()}; }
 std::span<const uint8_t> sp(std::string_view s) {
   return {reinterpret_cast<const uint8_t*>(s.data()), s.size()};

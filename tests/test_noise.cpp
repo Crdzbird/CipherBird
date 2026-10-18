@@ -72,7 +72,7 @@ TEST("noise/decrypt-at-matches-sequential-decrypt") {
     auto sr = res.into_session();
     REQUIRE(si.is_ok()); REQUIRE(sr.is_ok());
 
-    std::vector<crypto::SecureBuffer> records;
+    std::vector<crypto::PublicBuffer> records;
     const std::vector<std::string> texts = {"r0", "record one", "r2", "r3"};
     for (const auto& t : texts) {
         auto c = si.value().send.encrypt(sv(t));

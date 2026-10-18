@@ -20,7 +20,8 @@ using crypto::Suite;
 
 namespace {
 std::vector<uint8_t> bytes(std::string_view s) { return {s.begin(), s.end()}; }
-std::vector<uint8_t> vec(const SecureBuffer& b) { return {b.span().begin(), b.span().end()}; }
+template <class Buffer>
+std::vector<uint8_t> vec(const Buffer& b) { return {b.span().begin(), b.span().end()}; }
 
 // Write a deterministic scratch file and clean it up.
 struct ScratchFile {

@@ -101,18 +101,18 @@ public:
     }
 
     /// Sign a message (signature in G2, 96 bytes compressed)
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key) {
         if (secret_key.size() != SECRET_KEY_BYTES)
-            return Result<SecureBuffer>::err("BLS: secret key must be 32 bytes");
+            return Result<PublicBuffer>::err("BLS: secret key must be 32 bytes");
 
         // Deserialize secret key
         blst_scalar sk;
         blst_scalar_from_bendian(&sk, secret_key.data());
         if (!blst_sk_check(&sk)) {
             sodium_memzero(&sk, sizeof(sk));
-            return Result<SecureBuffer>::err("BLS: invalid secret key");
+            return Result<PublicBuffer>::err("BLS: invalid secret key");
         }
 
         // Hash message to G2 point
@@ -126,13 +126,13 @@ public:
         sodium_memzero(&sk, sizeof(sk));
 
         // Compress signature
-        SecureBuffer sig(SIGNATURE_BYTES);
+        PublicBuffer sig(SIGNATURE_BYTES);
         blst_p2_compress(sig.data(), &sig_p2);
 
-        return Result<SecureBuffer>::ok(std::move(sig));
+        return Result<PublicBuffer>::ok(std::move(sig));
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::string_view message, std::span<const uint8_t> secret_key) {
         return sign({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
                     secret_key);
@@ -181,17 +181,17 @@ public:
     }
 
     /// Aggregate multiple signatures into a single signature
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     aggregate_signatures(const std::vector<std::span<const uint8_t>>& signatures) {
         if (signatures.empty())
-            return Result<SecureBuffer>::err("BLS: no signatures to aggregate");
+            return Result<PublicBuffer>::err("BLS: no signatures to aggregate");
 
         // Decompress first signature
         blst_p2_affine sig_aff;
         if (signatures[0].size() != SIGNATURE_BYTES)
-            return Result<SecureBuffer>::err("BLS: all signatures must be 96 bytes");
+            return Result<PublicBuffer>::err("BLS: all signatures must be 96 bytes");
         if (blst_p2_uncompress(&sig_aff, signatures[0].data()) != BLST_SUCCESS)
-            return Result<SecureBuffer>::err("BLS: invalid signature encoding");
+            return Result<PublicBuffer>::err("BLS: invalid signature encoding");
 
         blst_p2 agg;
         blst_p2_from_affine(&agg, &sig_aff);
@@ -199,18 +199,18 @@ public:
         // Add remaining signatures
         for (std::size_t i = 1; i < signatures.size(); ++i) {
             if (signatures[i].size() != SIGNATURE_BYTES)
-                return Result<SecureBuffer>::err("BLS: all signatures must be 96 bytes");
+                return Result<PublicBuffer>::err("BLS: all signatures must be 96 bytes");
             if (blst_p2_uncompress(&sig_aff, signatures[i].data()) != BLST_SUCCESS)
-                return Result<SecureBuffer>::err("BLS: invalid signature encoding");
+                return Result<PublicBuffer>::err("BLS: invalid signature encoding");
 
             blst_p2 tmp;
             blst_p2_from_affine(&tmp, &sig_aff);
             blst_p2_add_or_double(&agg, &agg, &tmp);
         }
 
-        SecureBuffer result(SIGNATURE_BYTES);
+        PublicBuffer result(SIGNATURE_BYTES);
         blst_p2_compress(result.data(), &agg);
-        return Result<SecureBuffer>::ok(std::move(result));
+        return Result<PublicBuffer>::ok(std::move(result));
     }
 
     /// Verify an aggregate signature against multiple (message, public_key) pairs.

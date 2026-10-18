@@ -60,19 +60,20 @@ public:
             concat(ed.secret_key.span(), md.value().secret_key.span()) });
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message, std::span<const uint8_t> secret_key) {
         auto ms = MlDsa::sizes(ML_DSA_LEVEL);
-        if (ms.is_err()) return Result<SecureBuffer>::err(ms.error().message);
+        if (ms.is_err()) return Result<PublicBuffer>::err(ms.error().message);
         if (secret_key.size() != ED_SECRET_BYTES + ms.value().secret_key)
-            return Result<SecureBuffer>::err("HybridSig: invalid secret key length");
+            return Result<PublicBuffer>::err("HybridSig: invalid secret key length");
 
         auto ed_sig = asymmetric::Ed25519::sign(message, secret_key.first(ED_SECRET_BYTES));
-        if (ed_sig.is_err()) return Result<SecureBuffer>::err(ed_sig.error().message);
+        if (ed_sig.is_err()) return Result<PublicBuffer>::err(ed_sig.error().message);
         auto md_sig = MlDsa::sign(message, secret_key.subspan(ED_SECRET_BYTES), ML_DSA_LEVEL);
-        if (md_sig.is_err()) return Result<SecureBuffer>::err(md_sig.error().message);
+        if (md_sig.is_err()) return Result<PublicBuffer>::err(md_sig.error().message);
 
-        return Result<SecureBuffer>::ok(concat(ed_sig.value().span(), md_sig.value().span()));
+        auto joined = concat(ed_sig.value().span(), md_sig.value().span());
+        return Result<PublicBuffer>::ok(PublicBuffer(joined.data(), joined.size()));
     }
 
     /// Verify: fails unless BOTH components verify.

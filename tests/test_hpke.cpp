@@ -25,7 +25,8 @@ std::vector<uint8_t> unhex(std::string_view h) {
     for (std::size_t i = 0; i + 1 < h.size(); i += 2) o.push_back((nib(h[i]) << 4) | nib(h[i + 1]));
     return o;
 }
-std::vector<uint8_t> vec(const crypto::SecureBuffer& b) { return {b.span().begin(), b.span().end()}; }
+template <class Buffer>
+std::vector<uint8_t> vec(const Buffer& b) { return {b.span().begin(), b.span().end()}; }
 std::span<const uint8_t> sp(const std::vector<uint8_t>& v) { return {v.data(), v.size()}; }
 } // namespace
 

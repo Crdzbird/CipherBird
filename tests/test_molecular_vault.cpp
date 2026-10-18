@@ -16,7 +16,8 @@ using crypto::SecureBuffer;
 
 namespace {
 std::vector<uint8_t> bytes(std::string_view s) { return {s.begin(), s.end()}; }
-std::vector<uint8_t> vec(const SecureBuffer& b) {
+template <class Buffer>
+std::vector<uint8_t> vec(const Buffer& b) {
     return {b.span().begin(), b.span().end()};
 }
 // Fast Argon2id params so the suite stays quick; production uses SENSITIVE+.

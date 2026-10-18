@@ -329,7 +329,7 @@ public:
             uint16_t wlen = 0;
             if (!get16(wlen)) return Result<Keyring>::err("Keyring: truncated wrapped len");
             if (!need(wlen)) return Result<Keyring>::err("Keyring: truncated wrapped");
-            s.wrapped = SecureBuffer(p, wlen); p += wlen;
+            s.wrapped = PublicBuffer(p, wlen); p += wlen;
 
             kr.slots_.push_back(std::move(s));
         }
@@ -342,7 +342,7 @@ private:
         SecureBuffer       salt;
         unsigned long long ops = 0;   // Argon2id opslimit (passphrase slots)
         std::size_t        mem = 0;   // Argon2id memlimit (passphrase slots)
-        SecureBuffer       wrapped;   // XChaCha20Poly1305(master): nonce|ct|tag
+        PublicBuffer       wrapped;   // XChaCha20Poly1305(master): nonce|ct|tag
     };
 
     SecureBuffer       envelope_id_;
@@ -411,7 +411,7 @@ private:
                    std::string_view("cryptolib:keyring:v1:device"), SLOT_KEY_BYTES);
     }
 
-    [[nodiscard]] Result<SecureBuffer>
+    [[nodiscard]] Result<PublicBuffer>
     wrap(std::span<const uint8_t> slot_key, const std::vector<uint8_t>& aad) const {
         return symmetric::XChaCha20Poly1305::encrypt(master_.span(), slot_key, aad);
     }

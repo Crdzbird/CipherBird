@@ -34,12 +34,12 @@ public:
     static constexpr std::size_t DIGEST_BYTES = 32;
     static constexpr std::size_t RATE_BYTES   = 136;  // (1600 - 2*256) / 8
 
-    [[nodiscard]] static Result<SecureBuffer> digest(std::span<const uint8_t> msg) {
-        SecureBuffer out(DIGEST_BYTES);
+    [[nodiscard]] static Result<PublicBuffer> digest(std::span<const uint8_t> msg) {
+        PublicBuffer out(DIGEST_BYTES);
         keccak(msg.data(), msg.size(), out.data());
-        return Result<SecureBuffer>::ok(std::move(out));
+        return Result<PublicBuffer>::ok(std::move(out));
     }
-    [[nodiscard]] static Result<SecureBuffer> digest(std::string_view msg) {
+    [[nodiscard]] static Result<PublicBuffer> digest(std::string_view msg) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
     }
 

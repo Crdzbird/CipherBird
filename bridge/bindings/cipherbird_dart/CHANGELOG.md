@@ -12,6 +12,14 @@ Faster public hashing; no API or wire-format change.
 - Keyed BLAKE2b and BLAKE3, `deriveKey`, HMAC, HKDF and Argon2id keep their
   locked, wiped buffers; a keyed BLAKE3 stream cannot take the plain path.
   Output bytes are unchanged, so every known answer test keeps passing.
+- Public outputs across the engine (ciphertexts, signatures, public keys,
+  envelopes, Keccak-256 and RIPEMD-160) now use plain buffers like the
+  digests, removing two system calls from every such call; keys, shared
+  secrets, decrypted plaintext, MACs and KDF outputs keep their locked, wiped
+  buffers. In the browser, randomness now comes from one
+  `crypto.getRandomValues` call per buffer instead of one per byte: 32
+  random bytes went from 39 us to 1.3 us and a 32-byte XChaCha20 encrypt
+  from 28 us to 4.9 us in Chrome.
 - The bundled macOS library and the WebAssembly engine are rebuilt.
 
 ## 1.1.1

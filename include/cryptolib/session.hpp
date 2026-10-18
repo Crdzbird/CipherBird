@@ -109,12 +109,12 @@ public:
     // ── Messaging ─────────────────────────────────────────────────────────────
     /// Encrypt the next outgoing message. Advances the sending ratchet. `aad` is
     /// bound (authenticated) alongside the message header.
-    [[nodiscard]] Result<SecureBuffer>
+    [[nodiscard]] Result<PublicBuffer>
     encrypt(std::span<const uint8_t> plaintext, std::span<const uint8_t> aad = {}) {
         if (cks_.span().empty())
-            return Result<SecureBuffer>::err("Session: no sending chain yet (responder must receive first)");
+            return Result<PublicBuffer>::err("Session: no sending chain yet (responder must receive first)");
         auto mk = advance_chain(cks_);
-        if (mk.is_err()) return Result<SecureBuffer>::err(mk.error().message);
+        if (mk.is_err()) return Result<PublicBuffer>::err(mk.error().message);
 
         std::vector<uint8_t> header = serialize_header(dhs_pub_.span(), pending_ct_.span(), pn_, ns_);
         ns_ += 1;
@@ -127,7 +127,7 @@ public:
         std::vector<uint8_t> out(header);
         put_u32(out, static_cast<uint32_t>(body.value().size()));
         out.insert(out.end(), body.value().span().begin(), body.value().span().end());
-        return Result<SecureBuffer>::ok(SecureBuffer(std::move(out)));
+        return Result<PublicBuffer>::ok(PublicBuffer(std::move(out)));
     }
 
     /// Decrypt an incoming message. Handles ratchet turns and out-of-order /

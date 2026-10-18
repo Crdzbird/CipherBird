@@ -70,21 +70,21 @@ public:
     // Argon2id(params) over a fresh random salt, then split via HKDF into two
     // independent AEAD keys for the cascade. Everything needed to open (salt,
     // Argon2id params) travels in the header; only the passphrase is secret.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal(std::span<const uint8_t> plaintext,
          std::string_view         passphrase,
          std::span<const uint8_t> aad     = {},
          KdfParams                params  = KdfParams{crypto_pwhash_OPSLIMIT_SENSITIVE,
                                                       crypto_pwhash_MEMLIMIT_SENSITIVE}) {
         if (passphrase.empty())
-            return Result<SecureBuffer>::err("MolecularVault: passphrase must not be empty");
+            return Result<PublicBuffer>::err("MolecularVault: passphrase must not be empty");
 
         // Fresh salt per seal — never reused.
         std::array<uint8_t, SALT_BYTES> salt{};
         randombytes_buf(salt.data(), salt.size());
 
         auto master = Argon2id::derive_key(passphrase, salt, 32, params.ops, params.mem);
-        if (master.is_err()) return Result<SecureBuffer>::err(master.error().message);
+        if (master.is_err()) return Result<PublicBuffer>::err(master.error().message);
 
         auto inner = seal_with_master(plaintext, master.value().span(), aad);
         if (inner.is_err()) return inner;
@@ -113,12 +113,12 @@ public:
     // Seal/open under a caller-supplied 32-byte master key (e.g. one agreed via
     // the hybrid KEM, or a high-entropy random key). No Argon2id is applied; the
     // key is expected to already be full-entropy. The header records ops=mem=0.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_with_key(std::span<const uint8_t> plaintext,
                   std::span<const uint8_t> master_key,
                   std::span<const uint8_t> aad = {}) {
         if (master_key.size() != 32)
-            return Result<SecureBuffer>::err("MolecularVault: master key must be 32 bytes");
+            return Result<PublicBuffer>::err("MolecularVault: master key must be 32 bytes");
         std::array<uint8_t, SALT_BYTES> salt{}; // zero salt = raw-key marker
         auto inner = seal_with_master(plaintext, master_key, aad);
         if (inner.is_err()) return inner;
@@ -174,12 +174,12 @@ private:
     // key-committing AEAD (outer). Each layer authenticates the same AAD, so
     // tampering at any level fails closed. Independent keys mean a break of one
     // cipher does not expose the plaintext.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_with_master(std::span<const uint8_t> plaintext,
                      std::span<const uint8_t> master,
                      std::span<const uint8_t> aad) {
         auto keys = split_keys(master);
-        if (keys.is_err()) return Result<SecureBuffer>::err(keys.error().message);
+        if (keys.is_err()) return Result<PublicBuffer>::err(keys.error().message);
         const auto& [k1, k2] = keys.value();
 
         auto l1 = XChaCha20Poly1305::encrypt(plaintext, k1.span(), aad);
@@ -215,7 +215,7 @@ private:
         return x;
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     frame(const std::array<uint8_t, SALT_BYTES>& salt,
           KdfParams params, std::span<const uint8_t> inner) {
         std::vector<uint8_t> out;
@@ -227,7 +227,7 @@ private:
         put_u64_le(out, static_cast<uint64_t>(params.mem));
         out.insert(out.end(), salt.begin(), salt.end());
         out.insert(out.end(), inner.begin(), inner.end());
-        return Result<SecureBuffer>::ok(SecureBuffer(std::move(out)));
+        return Result<PublicBuffer>::ok(PublicBuffer(std::move(out)));
     }
 
     [[nodiscard]] static Result<void>

@@ -120,18 +120,18 @@ public:
     // ── One-shot seal / open ─────────────────────────────────────────────────
     // seal: sign-then-encrypt, recipient-bound. `purpose` is an optional domain
     // label bound into the signature (e.g. "invoice", "session-key").
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal(std::span<const uint8_t> plaintext,
          std::span<const uint8_t> recipient_public,
          std::span<const uint8_t> sender_secret,
          std::span<const uint8_t> aad = {},
          std::span<const uint8_t> purpose = {}) {
         auto enc = Kem::encapsulate(recipient_public);
-        if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
+        if (enc.is_err()) return Result<PublicBuffer>::err(enc.error().message);
 
         auto to_sign = sig_transcript(DS_SIG, recipient_public, purpose, plaintext);
         auto sig = Sig::sign(to_sign, sender_secret);
-        if (sig.is_err()) return Result<SecureBuffer>::err(sig.error().message);
+        if (sig.is_err()) return Result<PublicBuffer>::err(sig.error().message);
 
         // inner = sig_len | signature | plaintext
         std::vector<uint8_t> inner;
@@ -146,10 +146,10 @@ public:
         sodium_memzero(inner.data(), inner.size());
         if (env.is_err()) return env;
 
-        SecureBuffer out(head.size() + env.value().size());
+        PublicBuffer out(head.size() + env.value().size());
         std::memcpy(out.data(), head.data(), head.size());
         std::memcpy(out.data() + head.size(), env.value().data(), env.value().size());
-        return Result<SecureBuffer>::ok(std::move(out));
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     // open: decrypt, then verify AUTH-FIRST. Needs the recipient's OWN public key
@@ -223,14 +223,14 @@ public:
         [[nodiscard]] const SecureBuffer& preamble() const noexcept { return preamble_; }
 
         // Encrypt one interior chunk → returns its ciphertext (store/transmit it).
-        [[nodiscard]] Result<SecureBuffer> push(std::span<const uint8_t> chunk) {
-            if (finalized_) return Result<SecureBuffer>::err("Flagship: stream already finalized");
+        [[nodiscard]] Result<PublicBuffer> push(std::span<const uint8_t> chunk) {
+            if (finalized_) return Result<PublicBuffer>::err("Flagship: stream already finalized");
             auto ct = encryptor_->push(chunk);
             transcript_->update(ct.span());
-            return Result<SecureBuffer>::ok(std::move(ct));
+            return Result<PublicBuffer>::ok(PublicBuffer(ct.data(), ct.size()));
         }
 
-        struct Final { SecureBuffer ciphertext; SecureBuffer trailer; };
+        struct Final { PublicBuffer ciphertext; PublicBuffer trailer; };
         // Encrypt the final chunk (may be empty) and emit the signed trailer.
         [[nodiscard]] Result<Final> finalize(std::span<const uint8_t> last_chunk = {}) {
             if (finalized_) return Result<Final>::err("Flagship: stream already finalized");
@@ -245,7 +245,7 @@ public:
 
             std::vector<uint8_t> tr(MAGIC_TRAILER.begin(), MAGIC_TRAILER.end());
             put_lp(tr, sig.value().span());
-            return Result<Final>::ok(Final{ std::move(ct), SecureBuffer(std::move(tr)) });
+            return Result<Final>::ok(Final{ PublicBuffer(ct.data(), ct.size()), PublicBuffer(std::move(tr)) });
         }
 
     private:

@@ -73,14 +73,14 @@ public:
     // seal_pq uses X25519+ML-KEM-768; seal_pq_sntrup uses X25519+sntrup761 (a
     // different lattice family, for diversity). open_pq auto-detects which from
     // the envelope's suite id.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_pq(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> recipient_kem_public,
             std::span<const uint8_t> aad = {}) {
         return seal_pq_impl(SUITE_HYBRID_KEM, plaintext, recipient_kem_public, aad);
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_pq_sntrup(std::span<const uint8_t> plaintext,
                    std::span<const uint8_t> recipient_kem_public,
                    std::span<const uint8_t> aad = {}) {
@@ -109,7 +109,7 @@ public:
     // signature — both classical AND post-quantum on each axis. open_* returns
     // the plaintext ONLY if the signature verifies against `signer_sig_public`.
     // seal_signed_pq uses ML-KEM; seal_signed_pq_sntrup uses sntrup761.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_signed_pq(std::span<const uint8_t> plaintext,
                    std::span<const uint8_t> recipient_kem_public,
                    std::span<const uint8_t> signer_sig_secret,
@@ -118,7 +118,7 @@ public:
                                    recipient_kem_public, signer_sig_secret, aad);
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_signed_pq_sntrup(std::span<const uint8_t> plaintext,
                           std::span<const uint8_t> recipient_kem_public,
                           std::span<const uint8_t> signer_sig_secret,
@@ -164,12 +164,12 @@ public:
     // ── 3. File-as-key ──────────────────────────────────────────────────────
     // The file IS the key: deterministic media entropy re-derives the same
     // master on any machine, so nothing secret is ever stored.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_with_file(std::span<const uint8_t> plaintext,
                    const std::filesystem::path& key_file,
                    std::span<const uint8_t> aad = {}) {
         auto m = master_from_file(key_file);
-        if (m.is_err()) return Result<SecureBuffer>::err(m.error().message);
+        if (m.is_err()) return Result<PublicBuffer>::err(m.error().message);
         return MolecularVault::seal_with_key(plaintext, m.value().span(), aad);
     }
 
@@ -185,12 +185,12 @@ public:
     // ── 4. Keyring-guarded ──────────────────────────────────────────────────
     // The master key is never at rest in plaintext: a Keyring wraps it under a
     // device factor and/or a passphrase. Either slot unlocks the same master.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_with_keyring_device(std::span<const uint8_t> plaintext, Keyring& kr,
                              std::span<const uint8_t> factor_key,
                              std::span<const uint8_t> aad = {}) {
         auto m = kr.unlock_with_device(factor_key);
-        if (m.is_err()) return Result<SecureBuffer>::err(m.error().message);
+        if (m.is_err()) return Result<PublicBuffer>::err(m.error().message);
         return MolecularVault::seal_with_key(plaintext, m.value().span(), aad);
     }
 
@@ -203,12 +203,12 @@ public:
         return MolecularVault::open_with_key(envelope, m.value().span(), aad);
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_with_keyring_passphrase(std::span<const uint8_t> plaintext, Keyring& kr,
                                  std::string_view passphrase,
                                  std::span<const uint8_t> aad = {}) {
         auto m = kr.unlock_with_passphrase(passphrase);
-        if (m.is_err()) return Result<SecureBuffer>::err(m.error().message);
+        if (m.is_err()) return Result<PublicBuffer>::err(m.error().message);
         return MolecularVault::seal_with_key(plaintext, m.value().span(), aad);
     }
 
@@ -226,7 +226,7 @@ public:
     // shares of which any k reconstruct it. No single custodian can open — or
     // block — the secret. Distribute the shares; keep the envelope anywhere.
     struct ThresholdSealed {
-        SecureBuffer envelope;
+        PublicBuffer envelope;
         std::vector<Shamir::Share> shares;
     };
 
@@ -256,14 +256,14 @@ public:
 
     // ── 6. EVM address ──────────────────────────────────────────────────────
     // address = last 20 bytes of Keccak-256(uncompressed pubkey without 0x04).
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     evm_address(std::span<const uint8_t> secp256k1_public_key) {
         if (secp256k1_public_key.size() != 65 || secp256k1_public_key[0] != 0x04)
-            return Result<SecureBuffer>::err("Suite: expected a 65-byte uncompressed secp256k1 public key");
+            return Result<PublicBuffer>::err("Suite: expected a 65-byte uncompressed secp256k1 public key");
         auto h = hash::Keccak256::digest(secp256k1_public_key.subspan(1));
-        if (h.is_err()) return Result<SecureBuffer>::err(h.error().message);
+        if (h.is_err()) return Result<PublicBuffer>::err(h.error().message);
         auto tail = h.value().span().subspan(12, EVM_ADDRESS_BYTES);
-        return Result<SecureBuffer>::ok(SecureBuffer(tail.data(), tail.size()));
+        return Result<PublicBuffer>::ok(PublicBuffer(tail.data(), tail.size()));
     }
 
 private:
@@ -284,7 +284,7 @@ private:
     }
 
     // magic | ver | suite | kem_ct_len(4) | kem_ct | inner
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     frame(const std::array<uint8_t, 4>& magic, uint8_t suite_id,
           std::span<const uint8_t> kem_ct, std::span<const uint8_t> inner) {
         std::vector<uint8_t> out;
@@ -295,7 +295,7 @@ private:
         put_u32_le(out, static_cast<uint32_t>(kem_ct.size()));
         out.insert(out.end(), kem_ct.begin(), kem_ct.end());
         out.insert(out.end(), inner.begin(), inner.end());
-        return Result<SecureBuffer>::ok(SecureBuffer(std::move(out)));
+        return Result<PublicBuffer>::ok(PublicBuffer(std::move(out)));
     }
 
     // Validates magic + version and outputs the suite id + slices. The caller
@@ -348,24 +348,24 @@ private:
     }
 
     // ── seal impls (shared by the ML-KEM and sntrup761 entry points) ─────────
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_pq_impl(uint8_t suite_id, std::span<const uint8_t> plaintext,
                  std::span<const uint8_t> recipient_kem_public,
                  std::span<const uint8_t> aad) {
         auto enc = kem_encapsulate(suite_id, recipient_kem_public);
-        if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
+        if (enc.is_err()) return Result<PublicBuffer>::err(enc.error().message);
         auto env = MolecularVault::seal_with_key(plaintext, enc.value().shared_secret.span(), aad);
         if (env.is_err()) return env;
         return frame(MAGIC_PQ, suite_id, enc.value().ciphertext.span(), env.value().span());
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     seal_signed_pq_impl(uint8_t suite_id, std::span<const uint8_t> plaintext,
                         std::span<const uint8_t> recipient_kem_public,
                         std::span<const uint8_t> signer_sig_secret,
                         std::span<const uint8_t> aad) {
         auto sig = pq::HybridSig::sign(plaintext, signer_sig_secret);
-        if (sig.is_err()) return Result<SecureBuffer>::err(sig.error().message);
+        if (sig.is_err()) return Result<PublicBuffer>::err(sig.error().message);
 
         // inner = sig_len | signature | plaintext
         std::vector<uint8_t> inner;
@@ -377,7 +377,7 @@ private:
         auto enc = kem_encapsulate(suite_id, recipient_kem_public);
         if (enc.is_err()) {
             sodium_memzero(inner.data(), inner.size());
-            return Result<SecureBuffer>::err(enc.error().message);
+            return Result<PublicBuffer>::err(enc.error().message);
         }
         auto env = MolecularVault::seal_with_key(inner, enc.value().shared_secret.span(), aad);
         sodium_memzero(inner.data(), inner.size());

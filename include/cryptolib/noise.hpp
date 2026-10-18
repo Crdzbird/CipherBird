@@ -49,19 +49,19 @@ public:
         SecureBuffer k;       // 32 bytes (empty ⇒ no key)
         uint64_t     n = 0;
 
-        [[nodiscard]] Result<SecureBuffer> encrypt(std::span<const uint8_t> pt,
+        [[nodiscard]] Result<PublicBuffer> encrypt(std::span<const uint8_t> pt,
                                                    std::span<const uint8_t> ad = {}) {
-            SecureBuffer out(pt.size() + TAGLEN);
+            PublicBuffer out(pt.size() + TAGLEN);
             unsigned long long olen = 0;
             std::array<uint8_t, 12> nonce = make_nonce(n);
             if (crypto_aead_chacha20poly1305_ietf_encrypt(
                     out.data(), &olen, pt.data(), pt.size(),
                     ad.empty() ? nullptr : ad.data(), ad.size(),
                     nullptr, nonce.data(), k.data()) != 0)
-                return Result<SecureBuffer>::err("Noise: transport encrypt failed");
+                return Result<PublicBuffer>::err("Noise: transport encrypt failed");
             ++n;
             out.resize(static_cast<std::size_t>(olen));
-            return Result<SecureBuffer>::ok(std::move(out));
+            return Result<PublicBuffer>::ok(std::move(out));
         }
         [[nodiscard]] Result<SecureBuffer> decrypt(std::span<const uint8_t> ct,
                                                    std::span<const uint8_t> ad = {}) {
@@ -159,9 +159,9 @@ public:
     [[nodiscard]] std::span<const uint8_t> handshake_hash() const { return h_; }
 
     /// Produce the next handshake message (your turn), embedding `payload`.
-    [[nodiscard]] Result<SecureBuffer> write_message(std::span<const uint8_t> payload = {}) {
-        if (handshake_finished()) return Result<SecureBuffer>::err("Noise: handshake already finished");
-        if (!my_turn()) return Result<SecureBuffer>::err("Noise: not this party's turn to write");
+    [[nodiscard]] Result<PublicBuffer> write_message(std::span<const uint8_t> payload = {}) {
+        if (handshake_finished()) return Result<PublicBuffer>::err("Noise: handshake already finished");
+        if (!my_turn()) return Result<PublicBuffer>::err("Noise: not this party's turn to write");
 
         std::vector<uint8_t> out;
         for (Token t : pattern(msg_index_)) {
@@ -174,19 +174,19 @@ public:
                 }
                 case Token::S: {
                     auto enc = encrypt_and_hash(s_.public_key.span());
-                    if (enc.is_err()) return Result<SecureBuffer>::err(enc.error().message);
+                    if (enc.is_err()) return Result<PublicBuffer>::err(enc.error().message);
                     append(out, enc.value().span());
                     break;
                 }
                 default:
-                    if (auto r = mix_dh(t); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
+                    if (auto r = mix_dh(t); r.is_err()) return Result<PublicBuffer>::err(r.error().message);
             }
         }
         auto tail = encrypt_and_hash(payload);
-        if (tail.is_err()) return Result<SecureBuffer>::err(tail.error().message);
+        if (tail.is_err()) return Result<PublicBuffer>::err(tail.error().message);
         append(out, tail.value().span());
         ++msg_index_;
-        return Result<SecureBuffer>::ok(SecureBuffer(std::move(out)));
+        return Result<PublicBuffer>::ok(PublicBuffer(std::move(out)));
     }
 
     /// Consume a peer handshake message (peer's turn), returning the payload.
@@ -335,23 +335,23 @@ private:
         return Result<void>::ok();
     }
 
-    [[nodiscard]] Result<SecureBuffer> encrypt_and_hash(std::span<const uint8_t> pt) {
-        SecureBuffer ct;
+    [[nodiscard]] Result<PublicBuffer> encrypt_and_hash(std::span<const uint8_t> pt) {
+        PublicBuffer ct;
         if (has_key_) {
-            ct = SecureBuffer(pt.size() + TAGLEN);
+            ct = PublicBuffer(pt.size() + TAGLEN);
             unsigned long long olen = 0;
             auto nonce = make_nonce(nk_);
             if (crypto_aead_chacha20poly1305_ietf_encrypt(
                     ct.data(), &olen, pt.data(), pt.size(),
                     h_.data(), HASHLEN, nullptr, nonce.data(), k_.data()) != 0)
-                return Result<SecureBuffer>::err("Noise: handshake encrypt failed");
+                return Result<PublicBuffer>::err("Noise: handshake encrypt failed");
             ++nk_;
             ct.resize(static_cast<std::size_t>(olen));
         } else {
-            ct = SecureBuffer(pt.data(), pt.size());
+            ct = PublicBuffer(pt.data(), pt.size());
         }
         mix_hash(ct.span());
-        return Result<SecureBuffer>::ok(std::move(ct));
+        return Result<PublicBuffer>::ok(std::move(ct));
     }
 
     [[nodiscard]] Result<SecureBuffer> decrypt_and_hash(std::span<const uint8_t> ct) {

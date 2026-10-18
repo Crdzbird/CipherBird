@@ -60,45 +60,45 @@ public:
     }
 
     /** Derive public key from a 32-byte secret. compressed → 33 bytes else 65. */
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     public_key(std::span<const uint8_t> sk, bool compressed) {
         if (sk.size() != SECRET_KEY_BYTES)
-            return Result<SecureBuffer>::err("secp256k1: secret key must be 32 bytes");
+            return Result<PublicBuffer>::err("secp256k1: secret key must be 32 bytes");
         secp256k1_context* c = ctx();
         if (secp256k1_ec_seckey_verify(c, sk.data()) != 1)
-            return Result<SecureBuffer>::err("secp256k1: invalid secret key");
+            return Result<PublicBuffer>::err("secp256k1: invalid secret key");
         secp256k1_pubkey pk;
         if (secp256k1_ec_pubkey_create(c, &pk, sk.data()) != 1)
-            return Result<SecureBuffer>::err("secp256k1: pubkey derivation failed");
+            return Result<PublicBuffer>::err("secp256k1: pubkey derivation failed");
         uint8_t out[PUBKEY_UNCOMP_BYTES];
         std::size_t outlen = compressed ? PUBKEY_COMP_BYTES : PUBKEY_UNCOMP_BYTES;
         secp256k1_ec_pubkey_serialize(c, out, &outlen, &pk,
             compressed ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED);
-        return Result<SecureBuffer>::ok(SecureBuffer(out, outlen));
+        return Result<PublicBuffer>::ok(PublicBuffer(out, outlen));
     }
 
     /** Sign a 32-byte digest. RFC6979 deterministic nonce, low-S.
      *  Returns 65 bytes: r(32) ‖ s(32) ‖ recovery_id(1, 0..3). */
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> digest32, std::span<const uint8_t> sk) {
         if (digest32.size() != DIGEST_BYTES)
-            return Result<SecureBuffer>::err("secp256k1: digest must be 32 bytes");
+            return Result<PublicBuffer>::err("secp256k1: digest must be 32 bytes");
         if (sk.size() != SECRET_KEY_BYTES)
-            return Result<SecureBuffer>::err("secp256k1: secret key must be 32 bytes");
+            return Result<PublicBuffer>::err("secp256k1: secret key must be 32 bytes");
         secp256k1_context* c = ctx();
         if (secp256k1_ec_seckey_verify(c, sk.data()) != 1)
-            return Result<SecureBuffer>::err("secp256k1: invalid secret key");
+            return Result<PublicBuffer>::err("secp256k1: invalid secret key");
         secp256k1_ecdsa_recoverable_signature rsig;
         if (secp256k1_ecdsa_sign_recoverable(c, &rsig, digest32.data(), sk.data(),
                                              nullptr, nullptr) != 1)
-            return Result<SecureBuffer>::err("secp256k1: signing failed");
+            return Result<PublicBuffer>::err("secp256k1: signing failed");
         uint8_t out64[64];
         int recid = 0;
         secp256k1_ecdsa_recoverable_signature_serialize_compact(c, out64, &recid, &rsig);
-        SecureBuffer out(SIG_RECOVERABLE_BYTES);
+        PublicBuffer out(SIG_RECOVERABLE_BYTES);
         std::memcpy(out.data(), out64, 64);
         out.data()[64] = static_cast<uint8_t>(recid);
-        return Result<SecureBuffer>::ok(std::move(out));
+        return Result<PublicBuffer>::ok(std::move(out));
     }
 
     /** Verify. sig is 64 bytes (r ‖ s); pk is 33 or 65 bytes. Low-S enforced. */
@@ -117,26 +117,26 @@ public:
 
     /** Recover the 65-byte uncompressed public key from a 32-byte digest and a
      *  65-byte recoverable signature (r ‖ s ‖ recovery_id). Ethereum ecrecover. */
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     recover(std::span<const uint8_t> digest32, std::span<const uint8_t> sig65) {
         if (digest32.size() != DIGEST_BYTES)
-            return Result<SecureBuffer>::err("secp256k1: digest must be 32 bytes");
+            return Result<PublicBuffer>::err("secp256k1: digest must be 32 bytes");
         if (sig65.size() != SIG_RECOVERABLE_BYTES)
-            return Result<SecureBuffer>::err("secp256k1: recoverable signature must be 65 bytes");
+            return Result<PublicBuffer>::err("secp256k1: recoverable signature must be 65 bytes");
         int recid = sig65[64];
         if (recid < 0 || recid > 3)
-            return Result<SecureBuffer>::err("secp256k1: recovery id out of range (0..3)");
+            return Result<PublicBuffer>::err("secp256k1: recovery id out of range (0..3)");
         secp256k1_context* c = ctx();
         secp256k1_ecdsa_recoverable_signature rsig;
         if (secp256k1_ecdsa_recoverable_signature_parse_compact(c, &rsig, sig65.data(), recid) != 1)
-            return Result<SecureBuffer>::err("secp256k1: recoverable signature parse failed");
+            return Result<PublicBuffer>::err("secp256k1: recoverable signature parse failed");
         secp256k1_pubkey pk;
         if (secp256k1_ecdsa_recover(c, &pk, &rsig, digest32.data()) != 1)
-            return Result<SecureBuffer>::err("secp256k1: public-key recovery failed");
+            return Result<PublicBuffer>::err("secp256k1: public-key recovery failed");
         uint8_t out[PUBKEY_UNCOMP_BYTES];
         std::size_t outlen = PUBKEY_UNCOMP_BYTES;
         secp256k1_ec_pubkey_serialize(c, out, &outlen, &pk, SECP256K1_EC_UNCOMPRESSED);
-        return Result<SecureBuffer>::ok(SecureBuffer(out, outlen));
+        return Result<PublicBuffer>::ok(PublicBuffer(out, outlen));
     }
 
 private:

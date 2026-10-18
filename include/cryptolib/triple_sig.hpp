@@ -83,26 +83,26 @@ public:
             concat3(ed.secret_key.span(), md.value().secret_key.span(), sl.value().secret_key.span()) });
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message, std::span<const uint8_t> secret_key) {
         auto sz = sizes();
-        if (sz.is_err()) return Result<SecureBuffer>::err(sz.error().message);
+        if (sz.is_err()) return Result<PublicBuffer>::err(sz.error().message);
         if (secret_key.size() != sz.value().secret_key)
-            return Result<SecureBuffer>::err("TripleSig: invalid secret key length");
+            return Result<PublicBuffer>::err("TripleSig: invalid secret key length");
 
         auto ed_sec = secret_key.first(ED_SECRET_BYTES);
         auto md_sec = secret_key.subspan(ED_SECRET_BYTES, sz.value().mldsa_secret);
         auto sl_sec = secret_key.subspan(ED_SECRET_BYTES + sz.value().mldsa_secret);
 
         auto ed_sig = asymmetric::Ed25519::sign(message, ed_sec);
-        if (ed_sig.is_err()) return Result<SecureBuffer>::err(ed_sig.error().message);
+        if (ed_sig.is_err()) return Result<PublicBuffer>::err(ed_sig.error().message);
         auto md_sig = MlDsa::sign(message, md_sec, ML_DSA_LEVEL);
-        if (md_sig.is_err()) return Result<SecureBuffer>::err(md_sig.error().message);
+        if (md_sig.is_err()) return Result<PublicBuffer>::err(md_sig.error().message);
         auto sl_sig = SlhDsa::sign(message, sl_sec, SLH_LEVEL, SLH_HASH);
-        if (sl_sig.is_err()) return Result<SecureBuffer>::err(sl_sig.error().message);
+        if (sl_sig.is_err()) return Result<PublicBuffer>::err(sl_sig.error().message);
 
-        return Result<SecureBuffer>::ok(
-            concat3(ed_sig.value().span(), md_sig.value().span(), sl_sig.value().span()));
+        auto joined = concat3(ed_sig.value().span(), md_sig.value().span(), sl_sig.value().span());
+        return Result<PublicBuffer>::ok(PublicBuffer(joined.data(), joined.size()));
     }
 
     /// Verify: fails unless ALL THREE components verify.

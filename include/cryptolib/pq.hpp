@@ -218,7 +218,7 @@ public:
     }
 
     /// Sign a message
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::DSA_65) {
@@ -226,23 +226,23 @@ public:
         return ossl_backend::sig_sign(evp_alg(level), message, {}, secret_key);
 #else
         auto sig = make_sig(level);
-        if (!sig) return Result<SecureBuffer>::err("ML-DSA: algorithm not available");
+        if (!sig) return Result<PublicBuffer>::err("ML-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
-            return Result<SecureBuffer>::err("ML-DSA: invalid secret key length");
+            return Result<PublicBuffer>::err("ML-DSA: invalid secret key length");
 
-        SecureBuffer signature(sig->length_signature);
+        PublicBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
 
         if (OQS_SIG_sign(sig.get(), signature.data(), &sig_len,
                           message.data(), message.size(), secret_key.data()) != OQS_SUCCESS)
-            return Result<SecureBuffer>::err("ML-DSA: signing failed");
+            return Result<PublicBuffer>::err("ML-DSA: signing failed");
 
         signature.resize(sig_len);
-        return Result<SecureBuffer>::ok(std::move(signature));
+        return Result<PublicBuffer>::ok(std::move(signature));
 #endif
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::string_view message, std::span<const uint8_t> secret_key,
          Level level = Level::DSA_65) {
         return sign({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
@@ -283,30 +283,30 @@ public:
     /// An empty context reproduces sign(); a non-empty context binds the
     /// signature to that domain so it will not verify under a different context.
     /// The context is limited to 255 bytes by the standard.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign_with_context(std::span<const uint8_t> message,
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::DSA_65) {
         if (context.size() > 255)
-            return Result<SecureBuffer>::err("ML-DSA: context string exceeds 255 bytes");
+            return Result<PublicBuffer>::err("ML-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_sign(evp_alg(level), message, context, secret_key);
 #else
         auto sig = make_sig(level);
-        if (!sig) return Result<SecureBuffer>::err("ML-DSA: algorithm not available");
+        if (!sig) return Result<PublicBuffer>::err("ML-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
-            return Result<SecureBuffer>::err("ML-DSA: invalid secret key length");
+            return Result<PublicBuffer>::err("ML-DSA: invalid secret key length");
 
-        SecureBuffer signature(sig->length_signature);
+        PublicBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
         const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
         if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
                                       message.data(), message.size(),
                                       ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
-            return Result<SecureBuffer>::err("ML-DSA: signing failed");
+            return Result<PublicBuffer>::err("ML-DSA: signing failed");
         signature.resize(sig_len);
-        return Result<SecureBuffer>::ok(std::move(signature));
+        return Result<PublicBuffer>::ok(std::move(signature));
 #endif
     }
 
@@ -424,7 +424,7 @@ public:
     }
 
     /// Sign a message
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
@@ -432,23 +432,23 @@ public:
         return ossl_backend::sig_sign(evp_alg(level, hash), message, {}, secret_key);
 #else
         auto sig = make_sig(level, hash);
-        if (!sig) return Result<SecureBuffer>::err("SLH-DSA: algorithm not available");
+        if (!sig) return Result<PublicBuffer>::err("SLH-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
-            return Result<SecureBuffer>::err("SLH-DSA: invalid secret key length");
+            return Result<PublicBuffer>::err("SLH-DSA: invalid secret key length");
 
-        SecureBuffer signature(sig->length_signature);
+        PublicBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
 
         if (OQS_SIG_sign(sig.get(), signature.data(), &sig_len,
                           message.data(), message.size(), secret_key.data()) != OQS_SUCCESS)
-            return Result<SecureBuffer>::err("SLH-DSA: signing failed");
+            return Result<PublicBuffer>::err("SLH-DSA: signing failed");
 
         signature.resize(sig_len);
-        return Result<SecureBuffer>::ok(std::move(signature));
+        return Result<PublicBuffer>::ok(std::move(signature));
 #endif
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign(std::string_view message, std::span<const uint8_t> secret_key,
          Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
         return sign({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
@@ -487,30 +487,30 @@ public:
 
     /// Sign with a domain-separation context string (FIPS 205, pure external
     /// interface). Empty context reproduces sign(); limited to 255 bytes.
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<PublicBuffer>
     sign_with_context(std::span<const uint8_t> message,
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
         if (context.size() > 255)
-            return Result<SecureBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
+            return Result<PublicBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_sign(evp_alg(level, hash), message, context, secret_key);
 #else
         auto sig = make_sig(level, hash);
-        if (!sig) return Result<SecureBuffer>::err("SLH-DSA: algorithm not available");
+        if (!sig) return Result<PublicBuffer>::err("SLH-DSA: algorithm not available");
         if (secret_key.size() != sig->length_secret_key)
-            return Result<SecureBuffer>::err("SLH-DSA: invalid secret key length");
+            return Result<PublicBuffer>::err("SLH-DSA: invalid secret key length");
 
-        SecureBuffer signature(sig->length_signature);
+        PublicBuffer signature(sig->length_signature);
         std::size_t sig_len = 0;
         const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
         if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
                                       message.data(), message.size(),
                                       ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
-            return Result<SecureBuffer>::err("SLH-DSA: signing failed");
+            return Result<PublicBuffer>::err("SLH-DSA: signing failed");
         signature.resize(sig_len);
-        return Result<SecureBuffer>::ok(std::move(signature));
+        return Result<PublicBuffer>::ok(std::move(signature));
 #endif
     }
 
