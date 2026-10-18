@@ -245,13 +245,31 @@ const randombytes_implementation wasm_random_impl = {
 }
 #endif
 
-CRYPTO_API int cryptolib_init(void) try {
-#ifdef __EMSCRIPTEN__
-    if (randombytes_set_implementation(&wasm_random_impl) != 0) return -1;
+#ifdef CRYPTOLIB_TESTING
+/* Test builds may substitute the initialisation step to exercise the failure
+ * path; production builds do not compile this symbol. */
+void (*cryptolib_testing_init_override)(void) = nullptr;
 #endif
-    crypto::init();
-    return 0;
-} CL_FAIL_INT
+
+/* Returns 0 on success and -1 on any failure. This function must not share
+ * the generic int fallback, whose 0 would read as success here. */
+CRYPTO_API int cryptolib_init(void) {
+    try {
+#ifdef __EMSCRIPTEN__
+        if (randombytes_set_implementation(&wasm_random_impl) != 0) return -1;
+#endif
+#ifdef CRYPTOLIB_TESTING
+        if (cryptolib_testing_init_override) {
+            cryptolib_testing_init_override();
+            return 0;
+        }
+#endif
+        crypto::init();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
 
 CRYPTO_API CryptoBufferResult cryptolib_random_bytes(size_t n) try {
     return ok_buf(crypto::random_bytes(n));

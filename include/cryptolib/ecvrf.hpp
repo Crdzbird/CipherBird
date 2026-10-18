@@ -57,6 +57,24 @@ public:
         return kp;
     }
 
+    /// True when `p` lies in the prime-order subgroup. (L-1)P + P equals the
+    /// identity exactly for such points; a point with a torsion component
+    /// either is rejected by libsodium outright or yields L*T, which is not
+    /// the identity.
+    [[nodiscard]] static bool in_main_subgroup(const uint8_t* p) noexcept {
+        static constexpr uint8_t L_MINUS_ONE[32] = {
+            0xec, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2,
+            0xde, 0xf9, 0xde, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 };
+        static constexpr uint8_t IDENTITY[32] = { 0x01 };
+        uint8_t q[32], r[32];
+        if (crypto_scalarmult_ed25519_noclamp(q, L_MINUS_ONE, p) != 0) return false;
+        if (crypto_core_ed25519_add(r, q, p) != 0) return false;
+        const bool identity = sodium_memcmp(r, IDENTITY, sizeof r) == 0;
+        sodium_memzero(q, sizeof q);
+        return identity;
+    }
+
     /// Y = x·B for the RFC 8032 secret seed `sk`.
     [[nodiscard]] static SecureBuffer derive_public_key(std::span<const uint8_t> sk) {
         auto [x, trunc] = expand_sk(sk);
@@ -121,7 +139,7 @@ public:
     verify(std::span<const uint8_t> pk, std::span<const uint8_t> alpha, std::span<const uint8_t> pi) {
         if (pk.size() != PT_BYTES) return Result<SecureBuffer>::err("ECVRF: public key must be 32 bytes");
         if (pi.size() != PROOF_BYTES) return Result<SecureBuffer>::err("ECVRF: proof must be 80 bytes");
-        if (crypto_core_ed25519_is_valid_point(pk.data()) != 1)
+        if (crypto_core_ed25519_is_valid_point(pk.data()) != 1 || !in_main_subgroup(pk.data()))
             return Result<SecureBuffer>::err("ECVRF: invalid public key");
 
         std::span<const uint8_t> Gamma = pi.subspan(0, PT_BYTES);

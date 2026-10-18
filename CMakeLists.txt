@@ -46,7 +46,7 @@ else()
     # pkg-config tells us the current Cellar path regardless of point-release
     # bumps (e.g. libsodium 1.0.21 -> 1.0.22), so we don't hard-code versions.
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(SODIUM REQUIRED libsodium)
+    pkg_check_modules(SODIUM REQUIRED libsodium>=1.0.21)
 
     set(CRYPTOLIB_DEPS_PREBUILT OFF)
 endif()
@@ -208,8 +208,11 @@ endif()
 option(CRYPTOLIB_BUILD_TESTS "Build test suite" ${_CRYPTOLIB_HOST_BUILD})
 if(CRYPTOLIB_BUILD_TESTS)
     file(GLOB TEST_SOURCES tests/test_*.cpp)
-    add_executable(cryptolib_tests ${TEST_SOURCES})
-    target_include_directories(cryptolib_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    # The C ABI translation unit is compiled into the test binary with the
+    # testing hook enabled so its failure paths can be exercised.
+    add_executable(cryptolib_tests ${TEST_SOURCES} bridge/cryptolib_c.cpp)
+    target_compile_definitions(cryptolib_tests PRIVATE CRYPTOLIB_TESTING=1)
+    target_include_directories(cryptolib_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/bridge)
     target_compile_options(cryptolib_tests PRIVATE -Wall -Wextra -Wno-unused-parameter -O2
         ${CRYPTOLIB_SANITIZE_FLAGS})
     target_link_options(cryptolib_tests PRIVATE ${CRYPTOLIB_SANITIZE_FLAGS})

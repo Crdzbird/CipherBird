@@ -116,8 +116,29 @@ TEST("ecvrf/e2e/rejects-tampering") {
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_ecvrf() {
+    RUN("ecvrf/verify-rejects-public-key-outside-main-subgroup");
     RUN("ecvrf/kat/rfc9381-tai");
     RUN("ecvrf/e2e/prove-verify");
     RUN("ecvrf/e2e/unique-and-deterministic");
     RUN("ecvrf/e2e/rejects-tampering");
+}
+
+TEST("ecvrf/verify-rejects-public-key-outside-main-subgroup") {
+    using V = crypto::Ecvrf;
+    auto sk = crypto::random_bytes(32);
+    auto pk = V::derive_public_key(sk.span());
+    auto pi = V::prove(sk.span(), test::sv2sp("alpha"));
+    REQUIRE(pi.is_ok());
+    CHECK(V::in_main_subgroup(pk.data()));
+    static const uint8_t torsion[32] = {
+        0xc7, 0x17, 0x6a, 0x70, 0x3d, 0x4d, 0xd8, 0x4f, 0xba, 0x3c, 0x0b, 0x76,
+        0x0d, 0x10, 0x67, 0x0f, 0x2a, 0x20, 0x53, 0xfa, 0x2c, 0x39, 0xcc, 0xc6,
+        0x4e, 0xc7, 0xfd, 0x77, 0x92, 0xac, 0x03, 0x7a };
+    uint8_t mixed[32];
+    REQUIRE(crypto_core_ed25519_add(mixed, pk.data(), torsion) == 0);
+    CHECK(!V::in_main_subgroup(mixed));
+    auto bad = V::verify(std::span<const uint8_t>(mixed, 32), test::sv2sp("alpha"), pi.value().span());
+    CHECK_ERR(bad);
+    auto good = V::verify(pk.span(), test::sv2sp("alpha"), pi.value().span());
+    CHECK(good.is_ok());
 }

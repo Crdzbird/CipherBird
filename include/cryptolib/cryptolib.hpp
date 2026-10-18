@@ -151,6 +151,10 @@
 namespace crypto {
 
 /// Must be called once at program startup before any crypto operation.
+static_assert(SODIUM_LIBRARY_VERSION_MAJOR > 26 ||
+              (SODIUM_LIBRARY_VERSION_MAJOR == 26 && SODIUM_LIBRARY_VERSION_MINOR >= 3),
+              "cryptolib requires libsodium 1.0.21 or newer (CVE-2025-69277 affects earlier releases)");
+
 inline void init() {
     if (sodium_init() < 0)
         throw std::runtime_error("libsodium initialisation failed");

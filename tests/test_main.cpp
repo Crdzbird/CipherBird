@@ -53,6 +53,7 @@ void run_tests_keyring_rotation();
 void run_tests_shamir();
 void run_tests_molecular_vault();
 void run_tests_suite();
+void run_tests_c_abi_init();
 void run_tests_flagship();
 void run_tests_session();
 void run_tests_frost();
@@ -72,6 +73,7 @@ int main() {
 
     crypto::init();
 
+    run_suite("c_abi_init",     run_tests_c_abi_init);
     run_suite("types",          run_tests_types);
     run_suite("hash",           run_tests_hash);
     run_suite("symmetric",      run_tests_symmetric);
