@@ -1,14 +1,25 @@
 part of 'native_platform.dart';
 
-/// Opens the native engine: an explicit [path], else the `CIPHERBIRD_LIBRARY`
-/// or `CRYPTOLIB_DYLIB` environment variable, else the bundled library.
+/// Release builds (`dart.vm.product`) ignore the environment and the working
+/// directory: only an explicit path, the library shipped beside the program
+/// or the process image is opened, so nothing on the host can swap the engine
+/// of a shipped program.
+const bool _productMode = bool.fromEnvironment('dart.vm.product');
+
+String? _environmentOverride() {
+  if (_productMode) {
+    return null;
+  }
+  final env = Platform.environment;
+  return env['CIPHERBIRD_LIBRARY'] ?? env['CRYPTOLIB_DYLIB'];
+}
+
+/// Opens the native engine: an explicit [path], else (outside release builds)
+/// the `CIPHERBIRD_LIBRARY` or `CRYPTOLIB_DYLIB` environment variable, else
+/// the bundled library.
 DynamicLibrary openEngineLibrary(String? path) {
   final explicit = (path ?? '').isNotEmpty ? path : null;
-  final resolved =
-      explicit ??
-      Platform.environment['CIPHERBIRD_LIBRARY'] ??
-      Platform.environment['CRYPTOLIB_DYLIB'] ??
-      _bundledLibraryPath();
+  final resolved = explicit ?? _environmentOverride() ?? _bundledLibraryPath();
   if (resolved != null && resolved.isNotEmpty) {
     return DynamicLibrary.open(resolved);
   }

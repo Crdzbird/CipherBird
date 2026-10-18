@@ -10,18 +10,22 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:cipherbird_dart/src/engine_integrity.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
 import 'package:meta/meta.dart';
 
 part 'allocator.dart';
 part 'array.dart';
+part 'asset_fetch.dart';
 part 'cipher_bird_isolate_runner.dart';
 part 'double_type.dart';
 part 'dynamic_library.dart';
+part 'engine_instantiation.dart';
 part 'engine_loader.dart';
 part 'engine_module.dart';
 part 'engine_worker.dart';
+part 'engine_worker_boot.dart';
 part 'heap_memory.dart';
 part 'int32.dart';
 part 'local_memory.dart';

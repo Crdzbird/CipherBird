@@ -6,8 +6,8 @@ String? _bundledLibraryPath() {
   final slot = _nativeSlot();
   if (slot == null) return null;
   final roots = <String>[
-    ..._packageRootsFromConfig(),
-    Directory.current.path,
+    if (!_productMode) ..._packageRootsFromConfig(),
+    if (!_productMode) Directory.current.path,
     if (Platform.script.scheme == 'file')
       File.fromUri(Platform.script).parent.parent.path,
   ];

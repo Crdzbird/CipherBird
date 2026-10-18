@@ -5,10 +5,11 @@
 /// Android via jniLibs, WebAssembly for the web) and resolved automatically;
 /// no path is needed. One await at startup covers every platform: it returns
 /// at once natively and, in the browser, joins the engine download that the
-/// plugin registration started before `main`. With the engine scripts
-/// `cipherbird.js` and `cipherbird_boot.js` in `web/index.html`, the page
+/// plugin registration started before `main`. `dart run cipherbird:web_setup`
+/// adds the engine tag to `web/index.html` with its integrity digest; with
+/// `--boot` and `--dart-define=CIPHERBIRD_PAGE_ENGINE=true` the page
 /// instantiates the engine during Flutter's own bootstrap and no await is
-/// needed on the web either; [CipherBird.preload] documents the tags.
+/// needed on the web either; [CipherBird.preload] has the details.
 ///
 /// ```dart
 /// Future<void> main() async {
@@ -355,15 +356,14 @@ final class CipherBird {
   /// use. In the browser it joins the fetch and compilation of the
   /// WebAssembly engine that the plugin registration started before `main`,
   /// so the wait is only whatever download time is left; [library] overrides
-  /// the URL of `cipherbird.js`. With the two engine scripts in
-  /// `web/index.html` the page instantiates the engine during Flutter's own
-  /// bootstrap and this call returns at once, so the await can be dropped
-  /// on the web as well:
-  ///
-  /// ```html
-  /// <script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
-  /// <script src="assets/packages/cipherbird/assets/cipherbird_boot.js" defer></script>
-  /// ```
+  /// the URL of `cipherbird.js`. Every file is checked against the
+  /// Subresource Integrity digests the package was built with.
+  /// `dart run cipherbird:web_setup` writes the engine tag with the same
+  /// digest so the download starts during Flutter's bootstrap. With
+  /// `web_setup --boot` and `--dart-define=CIPHERBIRD_PAGE_ENGINE=true` the
+  /// page also instantiates the engine and this call returns at once, so
+  /// the await can be dropped on the web; that opt-in trusts the
+  /// `self.cipherbirdEngine` global, that is, the scripts on the page.
   ///
   /// [runner] is accepted for source compatibility and unused. Returns true.
   static Future<bool> preload({

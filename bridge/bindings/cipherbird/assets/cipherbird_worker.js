@@ -1,19 +1,30 @@
-// Web worker hosting its own copy of the engine for CipherBird jobs.
-// Spawned by the Dart side through a blob that sets self.cipherbirdBase to
-// the directory holding cipherbird.js and cipherbird.wasm, then imports this
-// file. Messages: {id, op, args}; replies: {id, result} or {id, error}.
+// Web worker hosting its own copy of the engine for CipherBird jobs. The
+// Dart side fetches cipherbird.js and this file with their integrity
+// digests, joins them into one blob (so createCipherBird is in scope and
+// nothing is imported by URL) and sends the verified .wasm bytes in the
+// first message {op: 'init', args: {wasm}}. Messages: {id, op, args};
+// replies: {id, result} or {id, error}.
 'use strict';
 
-var base = self.cipherbirdBase || '';
-importScripts(base + 'cipherbird.js');
+var resolveEngine;
+var enginePromise = new Promise(function (resolve) { resolveEngine = resolve; });
 
-var enginePromise = createCipherBird({ locateFile: function (file) { return base + file; } })
-  .then(function (module) {
+function initEngine(args) {
+  var bytes = args.wasm;
+  var options = {
+    instantiateWasm: function (imports, onInstance) {
+      WebAssembly.instantiate(bytes, imports).then(function (result) { onInstance(result.instance); });
+      return {};
+    }
+  };
+  resolveEngine(createCipherBird(options).then(function (module) {
     if (module._cbw_cryptolib_init() !== 0) {
       throw new Error('cipherbird: engine init failed');
     }
     return module;
-  });
+  }));
+  return enginePromise.then(function () { return true; });
+}
 
 function cString(module, text) {
   var bytes = new TextEncoder().encode(text);
@@ -96,11 +107,14 @@ var ops = {
 
 self.onmessage = function (event) {
   var message = event.data;
-  enginePromise.then(function (module) {
-    var handler = ops[message.op];
-    if (!handler) { throw new Error('cipherbird: unknown worker op ' + message.op); }
-    return handler(module, message.args || {});
-  }).then(function (result) {
+  var job = message.op === 'init'
+    ? Promise.resolve().then(function () { return initEngine(message.args || {}); })
+    : enginePromise.then(function (module) {
+        var handler = ops[message.op];
+        if (!handler) { throw new Error('cipherbird: unknown worker op ' + message.op); }
+        return handler(module, message.args || {});
+      });
+  job.then(function (result) {
     self.postMessage({ id: message.id, result: result });
   }, function (error) {
     self.postMessage({ id: message.id, error: String(error && error.message ? error.message : error) });

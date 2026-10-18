@@ -17,6 +17,7 @@ Future<void>? _inFlight;
 /// Loads and instantiates the WebAssembly engine once. [library] is the URL
 /// of `cipherbird.js` (its `.wasm` sits next to it); the `CIPHERBIRD_LIBRARY`
 /// compile-time define and the package asset paths are tried otherwise.
+/// Every file is checked against the digests in [EngineIntegrity].
 /// Concurrent callers share one load; a caller with an explicit [library]
 /// retries with it only if the shared load failed.
 Future<void> prepareEngine(String? library) async {
@@ -45,12 +46,8 @@ Future<void> prepareEngine(String? library) async {
 }
 
 Future<void> _load(String? library) async {
-  final booting = globalContext.getProperty<JSPromise<JSObject>?>(
-    'cipherbirdEnginePromise'.toJS,
-  );
-  if (booting != null && (library == null || library.isEmpty)) {
-    await booting.toDart;
-    if (adoptPageEngine()) {
+  if (library == null || library.isEmpty) {
+    if (await awaitPageEngine()) {
       return;
     }
   }
@@ -60,7 +57,7 @@ Future<void> _load(String? library) async {
     if (defined.isNotEmpty) defined,
     ...engineCandidates(),
   ];
-  Object? lastError;
+  final errors = <String>[];
   for (final url in candidates) {
     try {
       final absolute = Uri.base.resolve(url).toString();
@@ -69,29 +66,8 @@ Future<void> _load(String? library) async {
       await EngineWorker.start();
       return;
     } on Object catch (error) {
-      lastError = error;
+      errors.add('$url: $error');
     }
   }
-  throw StateError('cipherbird: could not load the engine: $lastError');
-}
-
-JSFunction? get _loadedFactory =>
-    globalContext.getProperty<JSFunction?>('createCipherBird'.toJS);
-
-Future<EngineModule> _instantiate(String url) async {
-  if (_loadedFactory == null) {
-    await _injectScript(url);
-  }
-  final factory = _loadedFactory;
-  if (factory == null) {
-    throw StateError('cipherbird: $url did not define createCipherBird');
-  }
-  final base = url.substring(0, url.lastIndexOf('/') + 1);
-  final options = JSObject();
-  options['locateFile'] = ((String file) => '$base$file').toJS;
-  final promise = factory.callAsFunction(null, options);
-  if (promise == null) {
-    throw StateError('cipherbird: createCipherBird returned nothing');
-  }
-  return EngineModule._(await (promise as JSPromise<JSObject>).toDart);
+  throw StateError('cipherbird: could not load the engine: $errors');
 }

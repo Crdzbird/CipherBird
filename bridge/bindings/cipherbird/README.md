@@ -87,30 +87,38 @@ before `main` runs, and `preload` joins that download, so the await covers
 only whatever transfer time is left. Code that runs later and only needs to
 wait can await `CipherBird.ready`, the same future.
 
-On the web the await can be removed entirely. Run this once from the app
-root and it adds the two engine scripts to `web/index.html` (idempotent;
-`--remove` takes them out again):
+On the web, run this once from the app root (idempotent; `--remove` takes
+the tag out again):
 
 ```bash
 dart run cipherbird:web_setup
 ```
 
-The tags it inserts, if you prefer to add them by hand:
+It adds the engine script to `web/index.html` with the Subresource
+Integrity digest of the bundled file (`integrity="sha384-..."
+crossorigin="anonymous"`), so the download starts in parallel with
+Flutter's bootstrap and the browser refuses an engine whose bytes differ
+from the ones the package was built with. The Dart loader and its worker
+apply the same digests to everything they fetch. Rerun the command after
+upgrading the package to refresh the digest; to add the tag by hand, take
+the digest from `lib/src/engine_integrity.dart`.
 
-```html
-<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
-<script src="assets/packages/cipherbird/assets/cipherbird_boot.js" defer></script>
+The await itself can be dropped on the web as well, as an opt-in:
+
+```bash
+dart run cipherbird:web_setup --boot
+flutter build web --dart-define=CIPHERBIRD_PAGE_ENGINE=true
 ```
 
-The first script downloads the engine in parallel with Flutter's own
-bootstrap; the second instantiates it as soon as it arrives. Flutter's
-bootstrap takes longer than the engine does, so by the time `main` runs the
-engine is already instantiated and the package adopts it synchronously:
-`CipherBird.instance` works with no await, exactly as on native platforms,
-and `await CipherBird.preload()` returns at once if you keep it. The await is
-only needed when neither script is in the page, or on a slow connection as a
-safety net: if the engine is still downloading when the first use happens,
-`preload` waits for it, while a direct `CipherBird.instance` throws a
+`--boot` adds `cipherbird_boot.js`, which instantiates the engine as soon
+as it arrives, and the define makes the package adopt that engine
+synchronously: `CipherBird.instance` works from the first line of `main`
+and `await CipherBird.preload()` returns at once if you keep it. This is
+off by default because adopting the engine means trusting the
+`self.cipherbirdEngine` global, that is, every script running on the page;
+turn it on only for pages whose scripts you control. Without the define,
+`preload` always loads the engine itself through the digest-checked path,
+and a direct `CipherBird.instance` before it completes throws a
 `StateError` that says to await it.
 
 ## Quick start
@@ -308,13 +316,14 @@ with Emscripten and ships inside the package as `assets/cipherbird.js` and
 Dart API is identical. Browsers only compile a module of that size
 asynchronously, so there are two ways to run:
 
-- **With the two script tags in `web/index.html`** (see Install), the page
-  downloads and instantiates the engine while Flutter bootstraps, the
-  package adopts the finished engine synchronously, and no await is needed:
-  `CipherBird.instance` works from the first line of `main`.
-- **Without them**, the plugin registration starts the download before
-  `main` and `await CipherBird.preload()` in `main` waits for it; the await
-  is required in this setup.
+- **By default** the plugin registration starts the download before
+  `main`, every file is checked against its integrity digest, and
+  `await CipherBird.preload()` in `main` waits for the compilation; the
+  await is required in this setup.
+- **With `web_setup --boot` and `--dart-define=CIPHERBIRD_PAGE_ENGINE=true`**
+  the page instantiates the engine while Flutter bootstraps and the package
+  adopts it synchronously, so no await is needed; see Install for what that
+  trusts.
 
 The engine is found at the package asset path. To serve it from somewhere
 else, call `CipherBird.preload(library:

@@ -351,6 +351,7 @@ web-bundle:
 	$(call hdr,Bundling the WebAssembly engine into cipherbird and cipherbird_dart)
 	@cp build/web/dist/cipherbird.js build/web/dist/cipherbird.wasm bridge/bindings/cipherbird/assets/
 	@python3 scripts/web/gen_dart.py build/web/gen bridge/bindings/cipherbird
+	@python3 scripts/web/gen_integrity.py bridge/bindings/cipherbird
 	@bash scripts/sync_dart_package.sh
 
 .PHONY: flutter-web-test

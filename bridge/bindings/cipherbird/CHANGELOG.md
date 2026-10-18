@@ -1,3 +1,39 @@
+## 1.1.3-dev.1
+
+Supply-chain and loader hardening from the bank-readiness assessment; no
+API or wire-format change. A pre-release for testing.
+
+- Every web engine file is loaded with a Subresource Integrity digest.
+  `web_setup` writes `integrity` and `crossorigin` attributes on the two
+  page tags and refreshes them on rerun; the Dart loader injects
+  `cipherbird.js` with the same digest, fetches `cipherbird.wasm` with
+  `integrity` and hands the verified bytes to the engine; the worker is
+  built from the verified bytes of `cipherbird.js` and
+  `cipherbird_worker.js` and receives the verified `.wasm` in its first
+  message, so it imports nothing by URL and nothing is interpolated into
+  its source. The digests live in `lib/src/engine_integrity.dart`,
+  generated from the bundled files.
+- A `createCipherBird` global that was on the page before the verified
+  script ran is removed rather than called.
+- Adopting an engine the page booted through `cipherbird_boot.js` is now
+  an opt-in: `dart run cipherbird:web_setup --boot` writes the boot tag and
+  `CIPHERBIRD_PAGE_ENGINE=true` (a dart-define) makes the loader adopt the
+  page's engine. By default `web_setup` writes only the engine tag and the
+  loader always loads through the digest-checked path, so the await in
+  `main` is required on the web; pages set up with 1.1.1 or 1.1.2 keep
+  working but need the define to keep the no-await startup.
+- Release builds (`dart.vm.product`) no longer honour the
+  `CIPHERBIRD_LIBRARY` and `CRYPTOLIB_DYLIB` environment variables, the
+  package configuration or the current directory when opening the native
+  engine; only an explicit path, the library beside the executable or the
+  process image is used.
+- Engine binaries: the desktop library for macOS is now linked against the
+  same pinned static dependency set as the iOS and Android slices
+  (libsodium 1.0.22, OpenSSL 3.5.9, liboqs 0.15.0, blst v0.3.17) instead of
+  Homebrew packages, and every bundled engine is built from sha256-pinned
+  sources with a pinned blst commit, NDK and Emscripten. `cryptolib_init`
+  reports failure with a non-zero result.
+
 ## 1.1.2
 
 Faster public hashing; no API or wire-format change.

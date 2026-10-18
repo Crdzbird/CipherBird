@@ -57,15 +57,16 @@ No setup call is needed. `CipherBird.load()` resolves the library in this
 order: an explicit path, the `CIPHERBIRD_LIBRARY` environment variable, the
 bundled copy found through the program's `.dart_tool/package_config.json`,
 the current directory or the directory above the running script, then the
-loader path. A compiled executable (`dart compile exe`) has no package
-configuration next to it, so pass the path or set the variable and ship the
-library file with the binary.
+loader path. A release build (`dart compile exe`, or any build with
+`dart.vm.product`) skips the environment variable, the package
+configuration and the current directory: it opens only an explicit path or
+`native/<os>-<arch>/` beside the executable's directory, so ship the library
+file with the binary or pass its path.
 
 `CipherBird.preload()` returns immediately on native platforms; the first
 use of `CipherBird.instance` opens the library synchronously. In the browser
 it is the one await that fetches and compiles the engine, unless the page
-boots the engine itself with the two script tags described under Web, in
-which case the package adopts it synchronously and no await is needed.
+boots the engine itself and the build opts in to adopting it, see Web.
 
 ## Web
 
@@ -84,17 +85,19 @@ Future<void> main() async {
 }
 ```
 
-To drop the await, let the page download and instantiate the engine before
-the Dart code runs; the package adopts the finished engine synchronously.
-`dart run cipherbird_dart:web_setup` inserts the tags into `web/index.html`,
-or add them by hand:
+`dart run cipherbird_dart:web_setup` inserts the engine tag into
+`web/index.html` with the Subresource Integrity digest of the bundled file,
+so the download starts early and the browser refuses changed bytes; rerun
+it after upgrading the package. To add it by hand, take the digest from
+`lib/src/engine_integrity.dart`. The loader and the worker check the same
+digests on everything they fetch.
 
-```html
-<script src="packages/cipherbird_dart/assets/cipherbird.js" defer></script>
-<script src="packages/cipherbird_dart/assets/cipherbird_boot.js" defer></script>
-```
-
-Keep the await where the first use may run before those scripts finish; it
+To drop the await, run `web_setup --boot` (adds `cipherbird_boot.js`, which
+instantiates the engine as soon as it arrives) and compile with
+`-DCIPHERBIRD_PAGE_ENGINE=true`; the package then adopts the page's engine
+synchronously. This is off by default because it trusts the
+`self.cipherbirdEngine` global, that is, every script on the page. Keep the
+await where the first use may run before the boot script finishes; it
 returns at once when the engine is already there.
 
 For a deployment that does not serve `packages/`, copy the two files next to

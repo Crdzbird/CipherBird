@@ -14,7 +14,7 @@ from pathlib import Path
 RESERVED = {'in', 'is', 'as', 'if', 'do', 'for', 'new', 'var', 'this', 'with', 'class'}
 HANDWRITTEN = [
     'allocator', 'array', 'cipher_bird_isolate_runner', 'double_type', 'dynamic_library',
-    'engine_loader', 'engine_module', 'engine_worker', 'heap_memory', 'int32', 'local_memory', 'memory',
+    'asset_fetch', 'engine_instantiation', 'engine_loader', 'engine_module', 'engine_worker', 'engine_worker_boot', 'heap_memory', 'int32', 'local_memory', 'memory',
     'native_type', 'page_engine', 'pointer', 'pointer_extensions', 'script_injection', 'size', 'size_of', 'struct', 'uint16',
     'uint64', 'uint8', 'utf8', 'utf8_extensions', 'void_type', 'web_engine',
 ]
@@ -181,6 +181,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:cipherbird/src/engine_integrity.dart';
 import 'package:cipherbird/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird/src/runner/cipher_bird_runner.dart';
 import 'package:meta/meta.dart';

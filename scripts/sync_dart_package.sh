@@ -21,9 +21,11 @@ sed 's/^library;$/library;/' "$SRC/lib/cipherbird.dart" > "$DST/lib/cipherbird_d
 for t in "$SRC"/test/*_test.dart; do
   sed -e "s#package:flutter_test/flutter_test.dart#package:test/test.dart#" \
       -e "s#package:cipherbird/cipherbird.dart#package:cipherbird_dart/cipherbird_dart.dart#" \
+      -e "s#assets/packages/cipherbird/assets/#packages/cipherbird_dart/assets/#g" \
       "$t" > "$DST/test/$(basename "$t")"
 done
 sed -e "s#assets/packages/cipherbird/assets/#packages/cipherbird_dart/assets/#g" \
     -e "s#cipherbird:web_setup#cipherbird_dart:web_setup#g" \
+    -e "s#package:cipherbird/src/#package:cipherbird_dart/src/#g" \
     "$SRC/bin/web_setup.dart" > "$DST/bin/web_setup.dart"
 echo "synced $(find "$DST/lib/src" -name '*.dart' | wc -l | tr -d ' ') source files and $(ls "$DST"/test | wc -l | tr -d ' ') tests"
