@@ -1,0 +1,462 @@
+<title>CryptoLib Bank Readiness Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (audit dossier), wide tables scroll in their own containers; severity is carried by a left stripe + pill, never by accent. */
+:root {
+  --paper: #fbfbfa;
+  --panel: #f1f2f4;
+  --ink: #1b2230;
+  --muted: #5b6474;
+  --rule: #d9dce2;
+  --accent: #23407a;
+  --crit: #a3162b;
+  --crit-bg: #fbe9ec;
+  --high: #b4500c;
+  --high-bg: #fdf0e4;
+  --med: #8a6a00;
+  --med-bg: #fbf5dc;
+  --low: #2f6b4f;
+  --low-bg: #e6f3ec;
+  --info: #4b5566;
+  --info-bg: #eceef2;
+  --f-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12161d; --panel: #1b212b; --ink: #e5e8ee; --muted: #9aa3b2; --rule: #2c3442; --accent: #8fb0ef;
+    --crit: #ff8a9a; --crit-bg: #3a1820; --high: #ffb27a; --high-bg: #3a2414; --med: #e9cd6a; --med-bg: #33300f;
+    --low: #82d0a8; --low-bg: #15302a; --info: #b3bccb; --info-bg: #232a35; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12161d; --panel: #1b212b; --ink: #e5e8ee; --muted: #9aa3b2; --rule: #2c3442; --accent: #8fb0ef;
+  --crit: #ff8a9a; --crit-bg: #3a1820; --high: #ffb27a; --high-bg: #3a2414; --med: #e9cd6a; --med-bg: #33300f;
+  --low: #82d0a8; --low-bg: #15302a; --info: #b3bccb; --info-bg: #232a35; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15.5px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: flex; flex-direction: column; gap: 44px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); font-weight: 650; }
+h2 { font-size: 1.55rem; font-weight: 650; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 1.12rem; font-weight: 650; }
+p { margin: 0; max-width: 72ch; }
+section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+code { background: var(--panel); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--muted); font-size: 0.9rem; }
+.meta b { color: var(--ink); font-weight: 600; }
+
+.verdict { border: 1px solid var(--crit); background: var(--crit-bg); border-radius: 10px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.verdict .label { font-family: var(--f-mono); font-weight: 500; font-size: 0.85rem; letter-spacing: 0.06em; color: var(--crit); }
+.verdict .call { font-family: var(--f-display); font-size: clamp(1.6rem, 3.6vw, 2.2rem); font-weight: 650; color: var(--crit); }
+.verdict ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px; max-width: 78ch; }
+
+.counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.count { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; }
+.count .n { font-family: var(--f-display); font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.count .t { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.count.c .n { color: var(--crit); } .count.h .n { color: var(--high); } .count.m .n { color: var(--med); } .count.l .n { color: var(--low); }
+
+.pill { display: inline-block; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.p-crit { color: var(--crit); background: var(--crit-bg); }
+.p-high { color: var(--high); background: var(--high-bg); }
+.p-med { color: var(--med); background: var(--med-bg); }
+.p-low { color: var(--low); background: var(--low-bg); }
+.p-info { color: var(--info); background: var(--info-bg); }
+.tag { font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+
+.findings { display: flex; flex-direction: column; gap: 12px; }
+.f { border: 1px solid var(--rule); border-left-width: 4px; border-radius: 6px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.f.crit { border-left-color: var(--crit); } .f.high { border-left-color: var(--high); } .f.med { border-left-color: var(--med); } .f.low { border-left-color: var(--low); }
+.f-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.f-id { font-family: var(--f-mono); font-size: 0.85rem; color: var(--muted); }
+.f-title { font-weight: 600; flex: 1 1 320px; min-width: 0; }
+.f dl { margin: 0; display: grid; grid-template-columns: 110px 1fr; gap: 4px 14px; font-size: 0.93rem; }
+.f dt { color: var(--muted); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 2px; }
+.f dd { margin: 0; min-width: 0; }
+@media (max-width: 560px) { .f dl { grid-template-columns: 1fr; } .f dt { padding-top: 6px; } }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { background: var(--panel); font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: 0.85rem; }
+
+.st { font-family: var(--f-mono); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
+.st-met { color: var(--low); } .st-gap { color: var(--crit); } .st-part { color: var(--med); } .st-unk { color: var(--info); } .st-na { color: var(--muted); }
+
+.note { background: var(--panel); border-radius: 8px; padding: 14px 18px; font-size: 0.93rem; display: flex; flex-direction: column; gap: 8px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.cols > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+ul.plain { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.phase { border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.phase h3 { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.phase h3 span { font-family: var(--f-body); font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+pre { background: var(--panel); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.8rem; line-height: 1.5; margin: 0; }
+details { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 16px; }
+details summary { cursor: pointer; font-weight: 600; }
+details[open] summary { margin-bottom: 10px; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">Fitness-for-banking assessment, revision 2</div>
+  <h1>CryptoLib engine and CipherBird bindings</h1>
+  <div class="meta">
+    <span><b>Commit</b> <span class="mono">af56e56</span> (main)</span>
+    <span><b>Packages</b> cipherbird 1.1.2, cipherbird_dart 1.1.2</span>
+    <span><b>Engine</b> CryptoLib 3.0.0</span>
+    <span><b>Assessed</b> 2026-10-18</span>
+    <span><b>Supersedes</b> revision 1 (d3bbf60, 2026-10-15)</span>
+  </div>
+</header>
+
+<section id="verdict">
+  <div class="verdict">
+    <div class="label">EXECUTIVE VERDICT</div>
+    <div class="call">NO-GO, with real progress</div>
+    <p>Since revision 1 the two reproduced memory-safety bugs are fixed and regression-tested. The shipped mobile and web engines moved to libsodium 1.0.22 and OpenSSL 3.5.9 LTS, and CI is green for the first time. One critical and two high findings are closed, and one of the two critical findings that remain depends on a decision the bank still has to make. Reasons it is still NO-GO:</p>
+    <ol>
+      <li><b>Shipped binaries still have no verifiable provenance.</b> All 10 native blobs on pub.dev were built on the maintainer's workstation. The only SLSA provenance covers a desktop dylib nobody ships, and release tags <code>v1.1.1</code> and <code>v1.1.2</code> were re-pointed after release (9 and 2 commits respectively).</li>
+      <li><b>No FIPS 140-3 validated module.</b> This is unchanged. It is critical if the bank requires validation, which US banks and most PCI assessors expect, and high otherwise.</li>
+      <li><b>Keys can still leak at the edges.</b> Bindings still free key and password copies without wiping them, and no binding uses Secure Enclave or StrongBox. The new web boot path accepts any page script's object as the crypto engine.</li>
+    </ol>
+    <p><b>Closest path to GO WITH CONDITIONS:</b> build and attest every shipped blob in CI, and make release tags immutable (C1, N1). After that, the verdict rests on the bank's FIPS answer and on the binding hygiene work.</p>
+  </div>
+  <div class="counts" aria-label="Findings by severity">
+    <div class="count c"><span class="n">2</span><span class="t">Critical (was 3)</span></div>
+    <div class="count h"><span class="n">7</span><span class="t">High (was 9)</span></div>
+    <div class="count m"><span class="n">14</span><span class="t">Medium</span></div>
+    <div class="count l"><span class="n">9</span><span class="t">Low</span></div>
+    <div class="count l"><span class="n">3</span><span class="t">Closed</span></div>
+  </div>
+</section>
+
+<section id="delta">
+  <h2>1. What changed since revision 1</h2>
+  <p>Every revision 1 finding was re-checked against <code>af56e56</code>. CLOSED means the evidence was re-run, not only read: the PoC inputs, the test suite, and the CI and release history.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Revision 1 finding</th><th>Now</th><th>Evidence at af56e56</th></tr></thead>
+      <tbody>
+        <tr><td class="num">C1</td><td>Shipped blobs lack provenance</td><td><span class="st st-gap">OPEN</span></td><td>All 10 blobs embed <code>/Users/crdzbird/...</code> or Homebrew paths. The pub.dev 1.1.2 archives match git HEAD byte for byte, but no pipeline builds them</td></tr>
+        <tr><td class="num">C2</td><td>EOL OpenSSL 3.3.2, libsodium 1.0.20 in mobile and web</td><td><span class="st st-met">CLOSED</span></td><td>iOS, macOS framework, Android and wasm contain <code>3.5.9</code>; pins are libsodium 1.0.22 and OpenSSL 3.5.9; committed tarballs match upstream sha256. Residual drift is now M11</td></tr>
+        <tr><td class="num">C3</td><td>No FIPS 140-3 module</td><td><span class="st st-gap">OPEN</span></td><td>No provider load, no <code>fips=yes</code>, no self-tests</td></tr>
+        <tr><td class="num">H1</td><td>Vault short-signature crash</td><td><span class="st st-met">CLOSED</span></td><td><code>packet.hpp:86</code>, <code>vault.hpp:263</code>, <code>vault.hpp:630-634</code>; PoC now returns "deserialise rejected"; tests in <code>test_hardening.cpp:144-198</code></td></tr>
+        <tr><td class="num">H2</td><td>Suite and Session length wraparound</td><td><span class="st st-met">CLOSED</span></td><td><code>suite.hpp:150-154,314-315</code>, <code>session.hpp:362</code>; PoC returns "Suite: invalid signature length"</td></tr>
+        <tr><td class="num">H3</td><td>Bindings do not wipe secrets</td><td><span class="st st-gap">OPEN</span></td><td>No change to Dart, Go, JVM, web worker or other bindings</td></tr>
+        <tr><td class="num">H4</td><td>No hardware-backed keys</td><td><span class="st st-gap">OPEN</span></td><td>No Secure Enclave, Keystore, StrongBox or attestation code in shipped bindings</td></tr>
+        <tr><td class="num">H5</td><td>Unhashed dependency downloads, unpinned blst</td><td><span class="st st-part">PARTIAL</span></td><td>CI pins blst v0.3.17 by tag and commit (<code>scripts/ci/install_blst.sh</code>). Mobile and web downloads are atomic but still unhashed, and the platform builds still clone blst HEAD</td></tr>
+        <tr><td class="num">H6</td><td>CI never passed</td><td><span class="st st-part">MEDIUM</span></td><td>CI green on HEAD; ASan, TSan and fuzzers run. Release is not gated on CI, fuzz still ends in <code>|| true</code>, no Linux or ctgrind job. Downgraded to M12</td></tr>
+        <tr><td class="num">H7</td><td>No disclosure channel</td><td><span class="st st-gap">OPEN</span></td><td>No <code>SECURITY.md</code>; README now points to GitHub Security Advisories, but private reporting is still disabled</td></tr>
+        <tr><td class="num">H8</td><td>Single maintainer, no review controls</td><td><span class="st st-gap">OPEN</span></td><td>No branch protection, 0 of 20 commits signed, unsigned tags</td></tr>
+        <tr><td class="num">H9</td><td>Engine substitution at load time</td><td><span class="st st-gap">WORSE</span></td><td>Native overrides unchanged; the new web boot path trusts page globals (see H9 below)</td></tr>
+        <tr><td class="num">M1-M10</td><td>Medium findings</td><td><span class="st st-gap">OPEN</span></td><td>M7 partial: the C ABI blocks a second Noise split; C++ does not</td></tr>
+        <tr><td class="num">L1-L7</td><td>Low findings</td><td><span class="st st-gap">OPEN</span></td><td>No change</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="scope">
+  <h2>2. Scope and frame</h2>
+  <p>The scope is unchanged from revision 1: EU, US and UK frames at their strictest intersection; PCI cardholder data, SCA credentials, PII and transaction integrity; assurance target unknown, so FIPS-dependent findings carry both readings; all platforms. Materials added in this revision:</p>
+  <ul class="plain">
+    <li>The 22-commit diff <code>d3bbf60..af56e56</code>, including the new <code>PublicBuffer</code> output type and the WebAssembly randomness provider.</li>
+    <li>The published pub.dev 1.1.2 archives, downloaded and compared with git HEAD.</li>
+    <li>The GitHub release objects and the Release workflow history.</li>
+  </ul>
+  <div class="note">
+    <b>Still not reviewed:</b> internals of BBS, FROST, OPAQUE, OPRF and ECVRF; the steganography subsystem; Swift, Python, Ruby and Rust bindings in depth; constant-time measurement (no Linux or ctgrind job yet); and the consuming banking app.
+  </div>
+</section>
+
+<section id="findings">
+  <h2>3. Open findings</h2>
+
+  <h3>Critical</h3>
+  <div class="findings">
+    <article class="f crit">
+      <div class="f-head"><span class="f-id">C1</span><span class="pill p-crit">CRITICAL</span><span class="f-title">Every shipped native binary is still built outside any pipeline</span><span class="tag">SUPPLY</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>
+          <ul class="plain">
+            <li>The 10 blobs are the Android arm64 and x86_64 <code>.so</code>, iOS device and simulator, the macOS framework, <code>cipherbird.wasm</code> and <code>.js</code> in both packages, and the Dart desktop dylib.</li>
+            <li>All carry workstation paths (<code>/Users/crdzbird/CLionProjects/cryptolib/build/...</code>) or Homebrew paths.</li>
+            <li><code>release.yml</code> builds only <code>libcryptolib_c.dylib</code>.</li>
+            <li>The pub.dev 1.1.2 archives are byte-identical to git HEAD, which is good. That proves only that what was committed got published, not what it was built from.</li>
+          </ul>
+        </dd>
+        <dt>Frame</dt><dd>PCI DSS 4.0.1 Req 6.3.2; DORA ICT third-party risk; SLSA build integrity.</dd>
+        <dt>Remediation</dt><dd>A CI matrix (macOS runner for Apple slices, Linux runner with a pinned NDK and Emscripten for Android and wasm) builds every slice from hash-pinned sources and attests each one. Publishing then fails unless each committed blob's sha256 equals its attested subject.</dd>
+        <dt>Verify</dt><dd>Run <code>slsa-verifier verify-artifact</code> on each blob extracted from the pub.dev archive.</dd>
+      </dl>
+    </article>
+
+    <article class="f crit">
+      <div class="f-head"><span class="f-id">C3</span><span class="pill p-crit">CRITICAL*</span><span class="f-title">No FIPS 140-3 validated module or approved mode</span><span class="tag">GAP</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>Unchanged from revision 1: no <code>OSSL_PROVIDER_load</code>, no <code>fips=yes</code>, no power-on self-tests, and libsodium defaults. The new mobile and web OpenSSL 3.5.9 is the line currently in CMVP review (3.5.4 submitted); it is not validated, and the sealed desktop build still uses <code>no-dso</code>.</dd>
+        <dt>Impact</dt><dd>*CRITICAL if the bank requires a validated module; HIGH otherwise.</dd>
+        <dt>Remediation</dt><dd>A FIPS profile through an already-validated module per platform: the OpenSSL 3.1.2 FIPS provider (certificate #4985) on servers, and the platform modules on iOS and Android. This is engineering work, not a certification of CryptoLib itself.</dd>
+      </dl>
+    </article>
+  </div>
+
+  <h3>High</h3>
+  <div class="findings">
+    <article class="f high">
+      <div class="f-head"><span class="f-id">N1</span><span class="pill p-high">HIGH</span><span class="f-title">Release tags were re-pointed after release; provenance attests a file users never receive</span><span class="tag">SUPPLY</span><span class="tag">NEW</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>
+          <ul class="plain">
+            <li><b>Moved tags:</b> the Release workflow ran for <code>v1.1.1</code> on 9 commits (<code>fc3a755</code> to <code>7c5ff2a</code>) and for <code>v1.1.2</code> on 2 (<code>4c5b547</code>, then <code>0e5636c</code>). 9 stale draft releases remain.</li>
+            <li><b>Release contents:</b> the v1.1.2 release holds one asset, <code>libcryptolib_c.dylib.intoto.jsonl</code>. The attested dylib (sha256 <code>fa1a9ba2...</code>) is not attached and matches no shipped binary.</li>
+            <li><b>Ephemeral artifacts:</b> the SBOM appears only on drafts. The cosign signature lives only in a workflow artifact, which expires 2027-01-16.</li>
+            <li><b>No CI gate:</b> Release ran green on <code>4c5b547</code> while CI on the same commit was red.</li>
+          </ul>
+        </dd>
+        <dt>Impact</dt><dd>A bank cannot tie "version 1.1.2" to one commit. Two consumers who fetched the tag at different times may hold different code, and both see a provenance file that names neither.</dd>
+        <dt>Remediation</dt><dd>
+          <ul class="plain">
+            <li>Make tags immutable: a GitHub tag ruleset forbidding update and delete, plus signed annotated tags.</li>
+            <li>Never re-use a version; ship a new patch version instead.</li>
+            <li>Attach the shipped blobs, SBOM, SHA256SUMS, <code>.sig</code> and <code>.pem</code> to the release.</li>
+            <li>Make Release depend on a green CI run for the same SHA, and delete the stale drafts.</li>
+          </ul>
+        </dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H9</span><span class="pill p-high">HIGH</span><span class="f-title">Engine substitution at load time, now worse on the web</span><span class="tag">SUPPLY</span><span class="tag">LEAK</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>
+          <ul class="plain">
+            <li><b>New web boot path:</b> <code>adoptPageEngine()</code> takes whatever object is at <code>self.cipherbirdEngine</code> as the crypto engine, with no check (<code>platform/web/page_engine.dart:10-16</code>). It runs before anything else, even when the caller passed an explicit library URL (<code>engine_loader.dart:23</code>).</li>
+            <li><b>Other trusted globals:</b> an existing <code>cipherbirdEnginePromise</code> or <code>createCipherBird</code> global is trusted the same way (<code>engine_loader.dart:48-55,78-86</code>).</li>
+            <li><b>No integrity checks:</b> <code>web_setup</code> writes the engine script tags without <code>integrity</code>. The worker blob still interpolates <code>base</code> into script text (<code>engine_worker.dart:19-21</code>).</li>
+            <li><b>Native overrides unchanged:</b> <code>CIPHERBIRD_LIBRARY</code> and <code>CRYPTOLIB_DYLIB</code>, cwd search, the JVM temp extract.</li>
+          </ul>
+        </dd>
+        <dt>Impact</dt><dd>On the web, any script that runs earlier on the page supplies the entire crypto engine and sees every key: a third-party tag or an XSS payload. Bank web apps commonly carry analytics and tag-manager scripts.</dd>
+        <dt>Remediation</dt><dd>Only adopt an engine the library itself created, using a module-scoped reference, never a page global. Add SRI hashes to the <code>web_setup</code> tags and to <code>importScripts</code>. Pass <code>base</code> to the worker with <code>postMessage</code>. Remove the native env-var and cwd overrides from release builds.</dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H3</span><span class="pill p-high">HIGH</span><span class="f-title">Bindings leave keys and passwords in unwiped memory</span><span class="tag">LEAK</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>Unchanged:
+          <ul class="plain">
+            <li><b>Dart:</b> <code>marshal_buffers.dart:40-47</code> frees <code>calloc</code> memory without wiping. Passphrases go through <code>toNativeUtf8</code>. The KEM shared secret is never wiped (<code>easy/kem_key_pair.dart:48-49</code>). There is a <code>SymmetricKey.destroy()</code>, but it zeroes only one Dart heap copy.</li>
+            <li><b>Go:</b> plain <code>C.free</code> (<code>cryptolib.go:165-180,692,752,796-814,856</code>).</li>
+            <li><b>JVM:</b> one Arena per instance.</li>
+            <li><b>Web worker:</b> <code>_free</code> without zeroing.</li>
+            <li><b>Node, Python, Ruby, Rust, .NET, Swift:</b> no wipe calls found.</li>
+          </ul>
+        </dd>
+        <dt>Remediation</dt><dd>Wipe before every free. Use zeroizing secret handles. Pass passwords as bytes. On JVM, use one arena per call.</dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H4</span><span class="pill p-high">HIGH</span><span class="f-title">No hardware-backed key generation, storage or attestation</span><span class="tag">KEYMGMT</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>Unchanged. Keystore and Keychain code exist only as samples outside the shipped plugin.</dd>
+        <dt>Frame</dt><dd>PSD2 RTS on SCA (Delegated Regulation (EU) 2018/389), possession element.</dd>
+        <dt>Remediation</dt><dd>Hardware-first key API: Secure Enclave P-256 and Keystore with StrongBox, biometric gating, attestation. The hardware key wraps the Keyring master.</dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H5</span><span class="pill p-high">HIGH</span><span class="f-title">Platform dependency downloads still unhashed; blst unpinned outside CI</span><span class="tag">SUPPLY</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>
+          <ul class="plain">
+            <li><code>fetch_tarball</code> in <code>scripts/{ios,android,web}/lib/common.sh</code> is atomic now but checks no sha256.</li>
+            <li>The shipped blobs carry three different blst snapshots: Android <code>dece82e</code>, iOS <code>4f72b30</code>, and CI v0.3.17 <code>54e6e55</code>.</li>
+            <li>The NDK is "newest installed", and Emscripten and Homebrew versions float.</li>
+          </ul>
+        </dd>
+        <dt>Remediation</dt><dd>Record a sha256 per tarball and refuse to build on mismatch, following the pattern in <code>build_openssl_nosock.sh</code>. Use <code>install_blst.sh</code> on every platform. Pin the NDK and Emscripten versions in the scripts and in the SBOM.</dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H7</span><span class="pill p-high">HIGH</span><span class="f-title">No working vulnerability disclosure channel</span><span class="tag">MAINT</span></div>
+      <dl>
+        <dt>Evidence</dt><dd>No <code>SECURITY.md</code>. The README now tells reporters to use GitHub Security Advisories, but <code>private-vulnerability-reporting</code> returns <code>{"enabled":false}</code>, so that route does not work. There is no supported-versions policy.</dd>
+        <dt>Remediation</dt><dd>Enable private reporting (one setting), add <code>SECURITY.md</code> with a contact and response targets, and publish supported versions.</dd>
+      </dl>
+    </article>
+
+    <article class="f high">
+      <div class="f-head"><span class="f-id">H8</span><span class="pill p-high">HIGH</span><span class="f-title">Single maintainer, no review controls, no external audit</span><span class="tag">MAINT</span></div>
+      <dl>
+        <dt>Evidence</dt><dd><code>main</code> is unprotected with no rulesets. 0 of the last 20 commits are signed, and the <code>v1.1.1</code> and <code>v1.1.2</code> tags are unsigned. There is one author, and the README still lists the external audit as pending.</dd>
+        <dt>Remediation</dt><dd>Branch protection with required CI and review; signed commits and tags; the independent audit scoped in the audit-options note; an exit plan for the bank's DORA register.</dd>
+      </dl>
+    </article>
+  </div>
+
+  <h3>Medium</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Finding</th><th>Evidence</th><th>Remediation</th></tr></thead>
+      <tbody>
+        <tr><td class="num">N2</td><td><b>New:</b> <code>cryptolib_init</code> reports a failed initialisation as success</td><td><code>bridge/cryptolib_c.cpp:248-254</code> with <code>CL_FAIL_INT</code> (<code>:130</code>) returning 0, which means success for this function only. This was present in revision 1 and missed there</td><td>Return a non-zero error from the catch; add a test that forces <code>sodium_init</code> failure</td></tr>
+        <tr><td class="num">N3</td><td><b>New:</b> Dart desktop dylib links Homebrew OpenSSL with Homebrew config paths</td><td><code>native/darwin-arm64/libcipherbird.dylib</code> embeds <code>/opt/homebrew/etc/openssl@3</code>, OpenSSL 3.6.4, liboqs 0.16.0. If libcrypto auto-loads its config, a writable Homebrew prefix could load a provider into the process (not verified at runtime)</td><td>Build the desktop slice from the sealed <code>no-dso</code> OpenSSL, as the release dylib does</td></tr>
+        <tr><td class="num">M11</td><td>Dependency version drift across shipped slices</td><td>Desktop Dart: OpenSSL 3.6.4, liboqs 0.16.0, secp256k1 0.8.0. Mobile and web: 3.5.9, 0.15.0, 0.7.1. No libsodium version floor in <code>CMakeLists.txt:49</code>, so a pre-1.0.21 system libsodium (CVE-2025-69277, used by <code>ecvrf.hpp:124</code>) is still accepted</td><td>One version set for every slice; a CMake floor of libsodium 1.0.21; an explicit main-subgroup check in ECVRF</td></tr>
+        <tr><td class="num">M12</td><td>CI gaps (downgraded from H6)</td><td>Release not gated on CI; fuzz still ends in <code>|| true</code>; no Linux or ctgrind job; no Dart, Flutter or Go binding tests; <code>test</code> job does not build examples; README test count and release-pipeline text stale</td><td>Gate Release on CI; fail on fuzz crashes; add Linux ctgrind and binding jobs</td></tr>
+        <tr><td class="num">M1</td><td>Core zeroization gaps</td><td><code>pq_openssl_backend.hpp:81</code>, <code>hpke.hpp:289,296,328,349</code>, <code>noise.hpp:245</code>, <code>entropy_drbg.hpp:93</code>, <code>entropy_fortuna.hpp:108</code>, bridge Shamir and BBS (<code>cryptolib_c.cpp:482-491,2508-2510</code>)</td><td>SecureBuffer or <code>OPENSSL_cleanse</code> on every path</td></tr>
+        <tr><td class="num">M2</td><td>Argon2id cost from unauthenticated header</td><td><code>keyring.hpp:327</code>, <code>molecular_vault.hpp:244-245</code>; u64 to size_t truncation on 32-bit</td><td>Policy ceiling before deriving</td></tr>
+        <tr><td class="num">M3</td><td>Web secrets in JS-readable wasm memory</td><td>Passwords posted as strings; <code>WebAllocator.free</code> no zero; <code>HEAPU8</code> exported</td><td>Web build not approved for long-lived keys or card data</td></tr>
+        <tr><td class="num">M4</td><td>Non-standard original constructions</td><td>Library-native hybrid combiners, MolecularVault cascade, committing AEAD</td><td>Standards-track defaults (X-Wing, HPKE with ML-KEM); external review</td></tr>
+        <tr><td class="num">M5</td><td>Suite signature does not bind recipient</td><td><code>suite.hpp:367</code> (Flagship does bind it)</td><td>Sign over recipient key, KEM ciphertext and AAD</td></tr>
+        <tr><td class="num">M6</td><td>Session initiator unauthenticated</td><td><code>session.hpp:69-104</code></td><td>Signed prekeys, documented identity binding</td></tr>
+        <tr><td class="num">M7</td><td>Noise nonce-reuse footgun in C++ (partial)</td><td><code>noise.hpp:225</code>, public <code>CipherState::n</code>; C ABI blocks double split</td><td>One-shot consuming <code>into_session</code></td></tr>
+        <tr><td class="num">M8</td><td>Untrusted-media parser surface</td><td>Vendored <code>stb_image</code> 2.30, <code>dr_flac</code> 0.13.3</td><td>Bank build profile without stego</td></tr>
+        <tr><td class="num">M9</td><td>Threat model excludes endpoint compromise</td><td><code>docs/THREAT_MODEL.md</code> section 3</td><td>Mobile-banking threat model</td></tr>
+        <tr><td class="num">M10</td><td>No third-party notices; Actions pinned by tag</td><td>MIT only for bundled Apache-2.0 code; <code>checkout@v4</code> and others; root <code>SHA256SUMS</code> still stale</td><td>NOTICE file; SHA pins; delete or regenerate <code>SHA256SUMS</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Low</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Finding</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td class="num">N4</td><td><b>New:</b> public C++ digest APIs now return unwiped memory whatever the input; apps hashing a PIN or key leave it on the heap (C ABI unaffected, its free still wipes)</td><td><code>hash.hpp:33-43,103,217,260</code>, <code>types.hpp:36-66</code></td></tr>
+        <tr><td class="num">N5</td><td><b>New:</b> Shamir share parser length wraps on 32-bit (wasm32, armv7), causing a crash or trap</td><td><code>cryptolib_c.cpp:501</code></td></tr>
+        <tr><td class="num">L1</td><td><code>HmacSha512</code> uses only the first 32 key bytes</td><td><code>hash.hpp:381</code></td></tr>
+        <tr><td class="num">L2</td><td><code>string_view</code> into NUL-expecting C APIs</td><td><code>hash.hpp:148,363</code></td></tr>
+        <tr><td class="num">L3</td><td>DRBG and Fortuna SP 800-90A deviations (opt-in only)</td><td><code>entropy_drbg.hpp:89-90</code>, <code>entropy_fortuna.hpp:82</code></td></tr>
+        <tr><td class="num">L4</td><td>Test hooks and secret-to-string helpers in production API</td><td><code>hpke.hpp:242</code>, <code>noise.hpp:144</code>, <code>types.hpp:135-137</code></td></tr>
+        <tr><td class="num">L5</td><td>EVP <code>int</code> casts above 2 GiB</td><td>18 sites in <code>aead_siv</code>, <code>symmetric</code>, <code>hpke</code>, PQ backend</td></tr>
+        <tr><td class="num">L6</td><td>MolecularVault mode byte unchecked</td><td><code>molecular_vault.hpp:243-245</code></td></tr>
+        <tr><td class="num">L7</td><td>Paths in error strings; Go <code>Print</code> helper</td><td><code>media_entropy.hpp:328</code>, <code>cryptolib.go:1466</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>New code reviewed and found sound</h3>
+  <ul class="plain">
+    <li><b><code>PublicBuffer</code> split:</b> no internal path puts secret-derived data into a plain buffer. The four internal Digest callers hash public data, every decrypt path still returns <code>SecureBuffer</code>, keyed BLAKE2b and BLAKE3 stay secret, and <code>cryptolib_buffer_free</code> still wipes every C ABI output.</li>
+    <li><b>WebAssembly randomness:</b> <code>crypto.getRandomValues</code> is called per buffer in 64 KiB chunks (<code>cryptolib_c.cpp:216-251</code>). It is installed before <code>sodium_init</code>, with no user-space generator in between. If the browser API is missing, it fails closed with an exception rather than weak bytes. liboqs draws from <code>getentropy</code>, which maps to the same source.</li>
+    <li><b>Integrity of what was published:</b> the pub.dev 1.1.2 archives match git HEAD exactly, and the committed OpenSSL 3.5.9 and libsodium 1.0.22 tarballs match upstream checksums.</li>
+  </ul>
+</section>
+
+<section id="matrix">
+  <h2>4. Requirement matrix</h2>
+  <p>Clause numbers per PCI DSS v4.0.1, Delegated Regulation (EU) 2018/389 and Delegated Regulation (EU) 2024/1774; [VERIFY] items should be confirmed by the bank's compliance team.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Frame</th><th>Requirement</th><th>Rev 1</th><th>Rev 2</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>FIPS 140-3</td><td>Validated module covering the shipped build</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-gap">GAP</span></td><td>C3</td></tr>
+        <tr><td>SP 800-131A</td><td>Approved algorithms</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>Approved options exist; defaults non-approved</td></tr>
+        <tr><td>SP 800-90A/B</td><td>Approved DRBG and entropy</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>OS CSPRNG everywhere incl. wasm; no validated DRBG</td></tr>
+        <tr><td>SP 800-57</td><td>Key lifecycle</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>H3, H4, M1</td></tr>
+        <tr><td>PCI 3.6 / 3.7</td><td>Key management for stored account data</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>No HSM or KMS integration; Shamir available</td></tr>
+        <tr><td>PCI 6.2.4</td><td>Prevent common software attacks</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-part">PARTIAL</span></td><td>H1 and H2 closed with tests; CI gates run; M2, N5 remain</td></tr>
+        <tr><td>PCI 6.3.1 / 6.3.3</td><td>Vulnerabilities identified and patched</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-part">PARTIAL</span></td><td>Known-vulnerable deps removed (C2); no disclosure channel (H7)</td></tr>
+        <tr><td>PCI 6.3.2</td><td>Component inventory</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-gap">GAP</span></td><td>SBOM not on releases; blst snapshots unrecorded (C1, H5, N1)</td></tr>
+        <tr><td>PSD2 RTS Art. 7</td><td>Possession element protected against replication</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-gap">GAP</span></td><td>H4 [VERIFY article]</td></tr>
+        <tr><td>PSD2 RTS Art. 5</td><td>Dynamic linking</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>M5</td></tr>
+        <tr><td>DORA RTS Art. 6-7</td><td>Cryptographic controls and key management policy</td><td><span class="st st-part">PARTIAL</span></td><td><span class="st st-part">PARTIAL</span></td><td>[VERIFY articles]</td></tr>
+        <tr><td>DORA third-party</td><td>Due diligence, support, exit</td><td><span class="st st-gap">GAP</span></td><td><span class="st st-gap">GAP</span></td><td>H7, H8</td></tr>
+        <tr><td>NIST IR 8547</td><td>PQC transition</td><td><span class="st st-met">MET</span></td><td><span class="st st-met">MET</span></td><td>Hybrid KEM and signatures, suite IDs</td></tr>
+        <tr><td>Constant-time</td><td>Verified absence of secret-dependent timing</td><td><span class="st st-unk">UNKNOWN</span></td><td><span class="st st-unk">UNKNOWN</span></td><td>No ctgrind job</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="roadmap">
+  <h2>5. Roadmap to GO WITH CONDITIONS</h2>
+  <div class="phase">
+    <h3>Phase 0 <span>done</span></h3>
+    <p>Parser fixes with regression tests, dependency upgrades on mobile and web, green CI. Verified in this revision.</p>
+  </div>
+  <div class="phase">
+    <h3>Phase 1: provable releases and quick wins <span>C1, N1, H5, H7, H9, N2, N3</span></h3>
+    <ul class="plain">
+      <li><b>Quick wins first, about an hour each:</b> enable private vulnerability reporting, add <code>SECURITY.md</code>, protect <code>main</code>, add a tag ruleset that blocks tag updates, delete the stale drafts, and fix <code>cryptolib_init</code>'s return code.</li>
+      <li>Build all 10 shipped slices in CI from hash-pinned sources (blst through <code>install_blst.sh</code> everywhere). Attach the blobs, SBOM and signatures to the release, and gate publishing on hash equality.</li>
+      <li>Remove the web page-global adoption path, add SRI, and drop the native env-var overrides in release builds.</li>
+      <li>Build the Dart desktop dylib from the sealed OpenSSL and unify versions across slices.</li>
+    </ul>
+  </div>
+  <div class="phase">
+    <h3>Phase 2: binding hygiene and hardware keys <span>H3, H4, M1, M2</span></h3>
+    <ul class="plain">
+      <li>Wipe-before-free in every binding; zeroizing handles; passwords as bytes.</li>
+      <li>Hardware-first key API with attestation for the SCA possession factor.</li>
+      <li>Close the core zeroization gaps and cap Argon2 parameters.</li>
+    </ul>
+  </div>
+  <div class="phase">
+    <h3>Phase 3: regulated production <span>C3, H8, M4-M9</span></h3>
+    <ul class="plain">
+      <li>FIPS profile on validated modules; external audit of the bank profile; bank build without stego and non-standard combiners.</li>
+    </ul>
+  </div>
+  <div class="note">
+    <b>Audit timing:</b> Phase 1 should land before an external auditor starts. Otherwise the audit spends billed days rediscovering the provenance and disclosure gaps above, which you can close yourself.
+  </div>
+</section>
+
+<section id="appendix">
+  <h2>6. Appendix: evidence log</h2>
+  <details open>
+    <summary>Tests and PoCs (macOS arm64, 2026-10-18, commit af56e56)</summary>
+    <pre>./build/assess2/cryptolib_tests          497 tests, 497 passed, 0 failed (Release)
+./build/assess2-asan/cryptolib_tests     497 tests, 497 passed, 0 failed (ASan + UBSan)
+
+poc vault  (00 00 78 79 7a)               vault: deserialise rejected
+poc suite  (sig_len = 0xFFFFFFFD)         open_signed_pq: "Suite: invalid signature length"</pre>
+  </details>
+  <details>
+    <summary>Release and CI history</summary>
+    <pre>gh run list --workflow Release           v1.1.1 released from 9 commits (fc3a755 .. 7c5ff2a)
+                                         v1.1.2 released from 2 commits (4c5b547, 0e5636c)
+gh api releases/tags/v1.1.2              assets: libcryptolib_c.dylib.intoto.jsonl (only)
+gh run list (CI)                         green on af56e56; red on 3e757ec, 4c5b547 (examples broke)
+gh api .../private-vulnerability-reporting   {"enabled":false}
+gh api .../branches/main/protection      404 Branch not protected</pre>
+  </details>
+  <details>
+    <summary>Shipped binary checks</summary>
+    <pre>strings android arm64 libcipherbird.so   "3.5.9"
+strings iOS / macOS CipherBird            "OpenSSL 3.5.9 29 Sep 2026", "1.0.22"
+strings cipherbird_dart darwin dylib      liboqs-0.16.0, /opt/homebrew/etc/openssl@3
+pub.dev 1.1.2 archives vs git HEAD        byte-identical for every native blob</pre>
+  </details>
+  <details>
+    <summary>External references</summary>
+    <ul class="plain">
+      <li>OpenSSL FIPS provider status (3.1.2 certificate #4985 Active; 3.5.4 in review): <a href="https://openssl-library.org/news/fips-cve/index.html" target="_blank" rel="noopener">openssl-library.org/news/fips-cve</a></li>
+      <li>OpenSSL 3.5.9 release, 2026-09-29: <a href="https://github.com/openssl/openssl/releases" target="_blank" rel="noopener">github.com/openssl/openssl/releases</a></li>
+      <li>CVE-2025-69277 (libsodium before 1.0.21): <a href="https://api.osv.dev/v1/vulns/ALPINE-CVE-2025-69277" target="_blank" rel="noopener">OSV ALPINE-CVE-2025-69277</a></li>
+    </ul>
+  </details>
+</section>
+
+<footer>Revision 2 of the assessment, commit af56e56, 2026-10-18. It supersedes revision 1 (d3bbf60). Anything not listed as verified is not cleared, and no certification, audit or test result was assumed.</footer>
+
+</div>
