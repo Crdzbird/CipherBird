@@ -121,7 +121,7 @@ private:
 
             sub("BLAKE2b-512 — keyed MAC mode");
             auto key = crypto::random_bytes(32);
-            auto mac = must(crypto::hash::Blake2b::digest(sp, key.span()), "blake2b keyed");
+            auto mac = must(crypto::hash::Blake2b::keyed(sp, key.span()), "blake2b keyed");
             kv("MAC (32 B)", hex32(mac));
             ok("BLAKE2b — all modes verified");
         }
@@ -1108,11 +1108,13 @@ private:
     }
     bool has(const std::string& key) const { return opts_.count(key) > 0; }
 
-    static std::string hex(const crypto::SecureBuffer& b, std::size_t n = 32) {
+    template <typename Buffer>
+    static std::string hex(const Buffer& b, std::size_t n = 32) {
         auto h = b.to_hex();
         return h.substr(0, std::min(n * 2, h.size())) + "…";
     }
-    static std::string hex32(const crypto::SecureBuffer& b) { return hex(b, 32); }
+    template <typename Buffer>
+    static std::string hex32(const Buffer& b) { return hex(b, 32); }
 
     static std::span<const uint8_t> sv(const std::string& s) {
         return { reinterpret_cast<const uint8_t*>(s.data()), s.size() };

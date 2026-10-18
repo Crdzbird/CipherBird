@@ -47,7 +47,8 @@ static void must(const crypto::Result<T>& r, const char* label) {
     if (r.is_err()) bad(std::string(label) + ": " + r.error().message);
 }
 
-static std::string hex(const crypto::SecureBuffer& b, std::size_t n = 32) {
+template <typename Buffer>
+static std::string hex(const Buffer& b, std::size_t n = 32) {
     auto h = b.to_hex();
     return h.substr(0, std::min(n, h.size())) + "…";
 }

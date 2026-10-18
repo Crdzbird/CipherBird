@@ -113,7 +113,7 @@ static void demo_hashing() {
     // Blake2b — keyed
     {
         auto key = crypto::random_bytes(32);
-        auto h = Blake2b::digest(
+        auto h = Blake2b::keyed(
             std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(msg.data()), msg.size()},
             key.span());
         CHECK(h.is_ok(), "Blake2b keyed hash");
