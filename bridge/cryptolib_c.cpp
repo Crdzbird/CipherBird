@@ -73,6 +73,21 @@ CryptoBufferResult ok_buf(const crypto::SecureBuffer& sb) {
     return { to_cbuf(sb), nullptr };
 }
 
+/** Make a success CryptoBufferResult from a public digest. */
+CryptoBufferResult ok_digest(const crypto::Digest& d) {
+    auto* p = static_cast<uint8_t*>(std::malloc(d.size() ? d.size() : 1));
+    if (!p) return { {nullptr, 0}, dup_err_cstr("out of memory") };
+    std::memcpy(p, d.data(), d.size());
+    return { {p, d.size()}, nullptr };
+}
+
+/** A malloc'd output buffer of n bytes for a digest written in place. */
+CryptoBufferResult digest_buf(size_t n) {
+    auto* p = static_cast<uint8_t*>(std::malloc(n ? n : 1));
+    if (!p) return { {nullptr, 0}, dup_err_cstr("out of memory") };
+    return { {p, n}, nullptr };
+}
+
 /** Make an error CryptoBufferResult. */
 CryptoBufferResult err_buf(const std::string& msg) {
     return { {nullptr, 0}, dup_str(msg) };
@@ -207,22 +222,38 @@ CRYPTO_API int cryptolib_secure_equal(const uint8_t* a, size_t a_len,
 
 CRYPTO_API CryptoBufferResult cryptolib_blake2b(const uint8_t* msg, size_t msg_len,
                                                  const uint8_t* key, size_t key_len) try {
-    auto r = crypto::hash::Blake2b::digest(sp(msg, msg_len),
-                 key ? sp(key, key_len) : std::span<const uint8_t>{});
-    if (r.is_err()) return err_buf(r.error().message);
-    return ok_buf(r.value());
+    if (key && key_len > 0) {
+        auto r = crypto::hash::Blake2b::keyed(sp(msg, msg_len), sp(key, key_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        return ok_buf(r.value());
+    }
+    auto out = digest_buf(crypto::hash::Blake2b::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_generichash(out.buf.data, out.buf.len, msg, msg_len, nullptr, 0) != 0) {
+        std::free(out.buf.data);
+        return err_buf("Blake2b: hashing failed");
+    }
+    return out;
 } CL_FAIL_BUFRES
 
 CRYPTO_API CryptoBufferResult cryptolib_sha256(const uint8_t* msg, size_t msg_len) try {
-    auto r = crypto::hash::Sha256::digest(sp(msg, msg_len));
-    if (r.is_err()) return err_buf(r.error().message);
-    return ok_buf(r.value());
+    auto out = digest_buf(crypto::hash::Sha256::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_hash_sha256(out.buf.data, msg, msg_len) != 0) {
+        std::free(out.buf.data);
+        return err_buf("SHA256: failed");
+    }
+    return out;
 } CL_FAIL_BUFRES
 
 CRYPTO_API CryptoBufferResult cryptolib_sha512(const uint8_t* msg, size_t msg_len) try {
-    auto r = crypto::hash::Sha512::digest(sp(msg, msg_len));
-    if (r.is_err()) return err_buf(r.error().message);
-    return ok_buf(r.value());
+    auto out = digest_buf(crypto::hash::Sha512::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_hash_sha512(out.buf.data, msg, msg_len) != 0) {
+        std::free(out.buf.data);
+        return err_buf("SHA512: failed");
+    }
+    return out;
 } CL_FAIL_BUFRES
 
 CRYPTO_API CryptoBufferResult cryptolib_hmac_sha512(const uint8_t* msg, size_t msg_len,
@@ -1309,9 +1340,14 @@ CRYPTO_API CryptoBufferResult cryptolib_open_from_file(
 CRYPTO_API CryptoBufferResult cryptolib_blake3(const uint8_t* msg, size_t msg_len,
                                                 size_t out_len) try {
 #ifdef CRYPTOLIB_HAS_BLAKE3
-    auto r = crypto::hash::Blake3::digest(sp(msg, msg_len), out_len == 0 ? 32 : out_len);
-    if (r.is_err()) return err_buf(r.error().message);
-    return ok_buf(r.value());
+    auto out = digest_buf(out_len == 0 ? 32 : out_len);
+    if (out.error) return out;
+    crypto::hash::blake3_hasher h;
+    crypto::hash::blake3_hasher_init(&h);
+    crypto::hash::blake3_hasher_update(&h, msg, msg_len);
+    crypto::hash::blake3_hasher_finalize(&h, out.buf.data, out.buf.len);
+    sodium_memzero(&h, sizeof(h));
+    return out;
 #else
     (void)msg; (void)msg_len; (void)out_len;
     return err_buf("BLAKE3 not enabled (build with -DCRYPTOLIB_BLAKE3=ON)");
@@ -1379,7 +1415,9 @@ CRYPTO_API CryptoBufferResult cryptolib_blake3_hasher_finalize(
 #ifdef CRYPTOLIB_HAS_BLAKE3
     if (!h) return err_buf("null handle");
     auto* impl = static_cast<Blake3StreamImpl*>(h);
-    return ok_buf(impl->stream.finalize(out_len == 0 ? 32 : out_len));
+    const size_t n = out_len == 0 ? 32 : out_len;
+    if (impl->stream.keyed()) return ok_buf(impl->stream.finalize(n));
+    return ok_digest(impl->stream.finalize_digest(n));
 #else
     (void)h; (void)out_len;
     return err_buf("BLAKE3 not enabled (build with -DCRYPTOLIB_BLAKE3=ON)");

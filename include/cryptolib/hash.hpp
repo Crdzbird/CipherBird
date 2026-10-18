@@ -29,25 +29,32 @@ class Blake2b {
 public:
     static constexpr std::size_t DIGEST_BYTES = crypto_generichash_BYTES_MAX; // 64
 
-    [[nodiscard]] static Result<SecureBuffer>
-    digest(std::span<const uint8_t> msg, std::span<const uint8_t> key = {}) {
-        if (!key.empty() &&
-            (key.size() < crypto_generichash_KEYBYTES_MIN ||
-             key.size() > crypto_generichash_KEYBYTES_MAX))
-            return Result<SecureBuffer>::err("Blake2b: invalid key length");
-
-        SecureBuffer out(DIGEST_BYTES);
-        if (crypto_generichash(out.data(), out.size(),
-                               msg.data(), msg.size(),
-                               key.empty() ? nullptr : key.data(),
-                               key.size()) != 0)
-            return Result<SecureBuffer>::err("Blake2b: hashing failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+    /// Unkeyed hash: public output, plain memory.
+    [[nodiscard]] static Result<Digest>
+    digest(std::span<const uint8_t> msg) {
+        Digest out(DIGEST_BYTES);
+        if (crypto_generichash(out.data(), out.size(), msg.data(), msg.size(),
+                               nullptr, 0) != 0)
+            return Result<Digest>::err("Blake2b: hashing failed");
+        return Result<Digest>::ok(std::move(out));
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<Digest>
     digest(std::string_view msg) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
+    }
+
+    /// Keyed hash (MAC): the output depends on a secret, so it stays locked.
+    [[nodiscard]] static Result<SecureBuffer>
+    keyed(std::span<const uint8_t> msg, std::span<const uint8_t> key) {
+        if (key.size() < crypto_generichash_KEYBYTES_MIN ||
+            key.size() > crypto_generichash_KEYBYTES_MAX)
+            return Result<SecureBuffer>::err("Blake2b: invalid key length");
+        SecureBuffer out(DIGEST_BYTES);
+        if (crypto_generichash(out.data(), out.size(), msg.data(), msg.size(),
+                               key.data(), key.size()) != 0)
+            return Result<SecureBuffer>::err("Blake2b: hashing failed");
+        return Result<SecureBuffer>::ok(std::move(out));
     }
 
     // Streaming API — feed data in chunks
@@ -62,11 +69,11 @@ public:
                 throw std::runtime_error("Blake2b stream: update after finalize");
             crypto_generichash_update(&st_, chunk.data(), chunk.size());
         }
-        [[nodiscard]] SecureBuffer finalize() {
+        [[nodiscard]] Digest finalize() {
             if (finalized_)
                 throw std::runtime_error("Blake2b stream: finalize called twice");
             finalized_ = true;
-            SecureBuffer out(DIGEST_BYTES);
+            Digest out(DIGEST_BYTES);
             crypto_generichash_final(&st_, out.data(), out.size());
             sodium_memzero(&st_, sizeof(st_));
             return out;
@@ -90,21 +97,22 @@ public:
     static constexpr std::size_t DIGEST_BYTES = BLAKE3_OUT_LEN;  // 32
     static constexpr std::size_t KEY_BYTES    = BLAKE3_KEY_LEN;  // 32
 
-    /// One-shot unkeyed hash (default 32 bytes, extendable)
-    [[nodiscard]] static Result<SecureBuffer>
+    /// One-shot unkeyed hash (default 32 bytes, extendable): public output,
+    /// plain memory.
+    [[nodiscard]] static Result<Digest>
     digest(std::span<const uint8_t> msg, std::size_t out_len = DIGEST_BYTES) {
         if (out_len == 0)
-            return Result<SecureBuffer>::err("Blake3: output length must be > 0");
+            return Result<Digest>::err("Blake3: output length must be > 0");
         blake3_hasher h;
         blake3_hasher_init(&h);
         blake3_hasher_update(&h, msg.data(), msg.size());
-        SecureBuffer out(out_len);
+        Digest out(out_len);
         blake3_hasher_finalize(&h, out.data(), out.size());
         sodium_memzero(&h, sizeof(h));
-        return Result<SecureBuffer>::ok(std::move(out));
+        return Result<Digest>::ok(std::move(out));
     }
 
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<Digest>
     digest(std::string_view msg, std::size_t out_len = DIGEST_BYTES) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() }, out_len);
     }
@@ -151,10 +159,26 @@ public:
         Stream() { blake3_hasher_init(&h_); }
 
         /// Construct keyed stream (MAC mode)
-        explicit Stream(std::span<const uint8_t> key) {
+        explicit Stream(std::span<const uint8_t> key) : keyed_(true) {
             if (key.size() != KEY_BYTES)
                 throw std::runtime_error("Blake3 stream: key must be exactly 32 bytes");
             blake3_hasher_init_keyed(&h_, key.data());
+        }
+
+        [[nodiscard]] bool keyed() const noexcept { return keyed_; }
+
+        /// Plain-memory output for an unkeyed stream. Refused on a keyed
+        /// stream, whose output depends on a secret: use finalize there.
+        [[nodiscard]] Digest finalize_digest(std::size_t out_len = DIGEST_BYTES) {
+            if (keyed_)
+                throw std::runtime_error("Blake3 stream: keyed output must use finalize");
+            if (finalized_)
+                throw std::runtime_error("Blake3 stream: finalize called twice");
+            finalized_ = true;
+            Digest out(out_len);
+            blake3_hasher_finalize(&h_, out.data(), out.size());
+            sodium_memzero(&h_, sizeof(h_));
+            return out;
         }
 
         void update(std::span<const uint8_t> chunk) {
@@ -174,6 +198,7 @@ public:
         }
     private:
         blake3_hasher h_{};
+        bool keyed_ = false;
         bool finalized_ = false;
     };
 };
@@ -187,14 +212,15 @@ class Sha256 {
 public:
     static constexpr std::size_t DIGEST_BYTES = crypto_hash_sha256_BYTES;
 
-    [[nodiscard]] static Result<SecureBuffer>
+    /// Public output, plain memory.
+    [[nodiscard]] static Result<Digest>
     digest(std::span<const uint8_t> msg) {
-        SecureBuffer out(DIGEST_BYTES);
+        Digest out(DIGEST_BYTES);
         if (crypto_hash_sha256(out.data(), msg.data(), msg.size()) != 0)
-            return Result<SecureBuffer>::err("SHA256: failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<Digest>::err("SHA256: failed");
+        return Result<Digest>::ok(std::move(out));
     }
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<Digest>
     digest(std::string_view msg) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
     }
@@ -207,11 +233,11 @@ public:
                 throw std::runtime_error("SHA256 stream: update after finalize");
             crypto_hash_sha256_update(&st_, chunk.data(), chunk.size());
         }
-        [[nodiscard]] SecureBuffer finalize() {
+        [[nodiscard]] Digest finalize() {
             if (finalized_)
                 throw std::runtime_error("SHA256 stream: finalize called twice");
             finalized_ = true;
-            SecureBuffer out(DIGEST_BYTES);
+            Digest out(DIGEST_BYTES);
             crypto_hash_sha256_final(&st_, out.data());
             sodium_memzero(&st_, sizeof(st_));
             return out;
@@ -229,14 +255,15 @@ class Sha512 {
 public:
     static constexpr std::size_t DIGEST_BYTES = crypto_hash_sha512_BYTES;
 
-    [[nodiscard]] static Result<SecureBuffer>
+    /// Public output, plain memory.
+    [[nodiscard]] static Result<Digest>
     digest(std::span<const uint8_t> msg) {
-        SecureBuffer out(DIGEST_BYTES);
+        Digest out(DIGEST_BYTES);
         if (crypto_hash_sha512(out.data(), msg.data(), msg.size()) != 0)
-            return Result<SecureBuffer>::err("SHA512: failed");
-        return Result<SecureBuffer>::ok(std::move(out));
+            return Result<Digest>::err("SHA512: failed");
+        return Result<Digest>::ok(std::move(out));
     }
-    [[nodiscard]] static Result<SecureBuffer>
+    [[nodiscard]] static Result<Digest>
     digest(std::string_view msg) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
     }
@@ -249,11 +276,11 @@ public:
                 throw std::runtime_error("SHA512 stream: update after finalize");
             crypto_hash_sha512_update(&st_, chunk.data(), chunk.size());
         }
-        [[nodiscard]] SecureBuffer finalize() {
+        [[nodiscard]] Digest finalize() {
             if (finalized_)
                 throw std::runtime_error("SHA512 stream: finalize called twice");
             finalized_ = true;
-            SecureBuffer out(DIGEST_BYTES);
+            Digest out(DIGEST_BYTES);
             crypto_hash_sha512_final(&st_, out.data());
             sodium_memzero(&st_, sizeof(st_));
             return out;

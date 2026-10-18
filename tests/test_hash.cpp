@@ -1,3 +1,4 @@
+#include <type_traits>
 #include "test_framework.hpp"
 using namespace test;
 
@@ -34,17 +35,35 @@ TEST("hash/blake2b/streaming-equals-oneshot") {
 }
 
 TEST("hash/blake2b/keyed") {
-    // Blake2b keyed: pass key as second span argument
     auto key = crypto::random_bytes(32);
-    auto a   = crypto::hash::Blake2b::digest(sv2sp("msg"), key.span());
-    auto b   = crypto::hash::Blake2b::digest(sv2sp("msg"), key.span());
+    auto a   = crypto::hash::Blake2b::keyed(sv2sp("msg"), key.span());
+    auto b   = crypto::hash::Blake2b::keyed(sv2sp("msg"), key.span());
     REQUIRE(a.is_ok()); REQUIRE(b.is_ok());
     CHECK(a.value().to_hex() == b.value().to_hex());
+    static_assert(std::is_same_v<decltype(a.value()), crypto::SecureBuffer&>);
 
     auto key2 = crypto::random_bytes(32);
-    auto c    = crypto::hash::Blake2b::digest(sv2sp("msg"), key2.span());
+    auto c    = crypto::hash::Blake2b::keyed(sv2sp("msg"), key2.span());
     REQUIRE(c.is_ok());
     CHECK(a.value().to_hex() != c.value().to_hex());
+    CHECK_ERR(crypto::hash::Blake2b::keyed(sv2sp("msg"), sv2sp("short")));
+}
+
+TEST("hash/digest/unkeyed-outputs-are-plain-and-keyed-stay-locked") {
+    auto sha = crypto::hash::Sha256::digest("abc");
+    auto b2  = crypto::hash::Blake2b::digest("abc");
+    static_assert(std::is_same_v<decltype(sha.value()), crypto::Digest&>);
+    static_assert(std::is_same_v<decltype(b2.value()), crypto::Digest&>);
+    REQUIRE(sha.is_ok());
+    CHECK(sha.value().to_hex() ==
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    auto key = crypto::random_bytes(32);
+    auto mac = crypto::hash::HmacSha256::compute(sv2sp("abc"), key.span());
+    static_assert(std::is_same_v<decltype(mac.value()), crypto::SecureBuffer&>);
+    crypto::hash::Sha256::Stream st;
+    st.update(sv2sp("ab"));
+    st.update(sv2sp("c"));
+    CHECK(st.finalize() == sha.value());
 }
 
 TEST("hash/sha256/known-vector") {
@@ -201,6 +220,26 @@ TEST("hash/blake3/streaming-equals-oneshot") {
     CHECK(one.value().to_hex() == two.to_hex());
 }
 
+TEST("hash/blake3/keyed-stream-refuses-plain-finalize") {
+    auto key = crypto::random_bytes(32);
+    crypto::hash::Blake3::Stream keyed(key.span());
+    keyed.update(sv2sp("payload"));
+    CHECK(keyed.keyed());
+    bool refused = false;
+    try { (void)keyed.finalize_digest(); } catch (const std::runtime_error&) { refused = true; }
+    CHECK(refused);
+    auto mac = keyed.finalize();
+    static_assert(std::is_same_v<decltype(mac), crypto::SecureBuffer>);
+    CHECK(mac.size() == 32);
+
+    crypto::hash::Blake3::Stream plain;
+    plain.update(sv2sp("payload"));
+    CHECK(!plain.keyed());
+    auto one = crypto::hash::Blake3::digest("payload");
+    REQUIRE(one.is_ok());
+    CHECK(plain.finalize_digest() == one.value());
+}
+
 TEST("hash/blake3/streaming-keyed") {
     auto key = crypto::random_bytes(32);
     auto one = crypto::hash::Blake3::keyed(sv2sp("hello world"), key.span());
@@ -312,6 +351,7 @@ void run_tests_hash() {
     RUN("hash/blake2b/different-inputs");
     RUN("hash/blake2b/streaming-equals-oneshot");
     RUN("hash/blake2b/keyed");
+    RUN("hash/digest/unkeyed-outputs-are-plain-and-keyed-stay-locked");
     RUN("hash/sha256/known-vector");
     RUN("hash/sha256/deterministic");
     RUN("hash/sha512/known-vector");
@@ -331,6 +371,7 @@ void run_tests_hash() {
     RUN("hash/blake3/derive-key");
     RUN("hash/blake3/streaming-equals-oneshot");
     RUN("hash/blake3/streaming-keyed");
+    RUN("hash/blake3/keyed-stream-refuses-plain-finalize");
 #endif
     RUN("hash/hmac-sha256/basic");
     RUN("hash/hmac-sha256/verify");

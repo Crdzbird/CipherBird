@@ -17,6 +17,47 @@ namespace crypto {
 // Zeroes memory on destruction via sodium_memzero (compiler-proof).
 // Non-copyable: secrets must never be duplicated carelessly.
 // ─────────────────────────────────────────────────────────────────────────────
+/// Branchless nibble to hex so the conversion does no secret-dependent table
+/// lookup (avoids a cache-timing side channel when hex-encoding secrets).
+[[nodiscard]] inline std::string hex_encode(std::span<const uint8_t> bytes) {
+    auto nib = [](int n) -> char {
+        return static_cast<char>(n + '0' + (((9 - n) >> 31) & 0x27));
+    };
+    std::string out;
+    out.reserve(bytes.size() * 2);
+    for (auto b : bytes) { out += nib(b >> 4); out += nib(b & 0x0f); }
+    return out;
+}
+
+/// Output of an unkeyed digest: public by construction (a hash of data the
+/// caller already holds), so it lives in plain memory with no page lock and
+/// no wipe. Keyed hashes, MACs, KDF outputs and keys use SecureBuffer.
+class Digest {
+public:
+    Digest() = default;
+    explicit Digest(std::size_t n) : data_(n, 0) {}
+    explicit Digest(std::vector<uint8_t> v) : data_(std::move(v)) {}
+
+    [[nodiscard]] uint8_t*       data()        noexcept { return data_.data(); }
+    [[nodiscard]] const uint8_t* data()  const noexcept { return data_.data(); }
+    [[nodiscard]] std::size_t    size()  const noexcept { return data_.size(); }
+    [[nodiscard]] bool           empty() const noexcept { return data_.empty(); }
+    [[nodiscard]] std::span<uint8_t>       span()       noexcept { return data_; }
+    [[nodiscard]] std::span<const uint8_t> span() const noexcept { return data_; }
+    [[nodiscard]] auto begin() const noexcept { return data_.begin(); }
+    [[nodiscard]] auto end()   const noexcept { return data_.end(); }
+    [[nodiscard]] const std::vector<uint8_t>& bytes() const noexcept { return data_; }
+    [[nodiscard]] std::vector<uint8_t> release() noexcept { return std::move(data_); }
+    [[nodiscard]] std::string to_hex() const { return hex_encode(data_); }
+    [[nodiscard]] std::string to_string() const {
+        return { reinterpret_cast<const char*>(data_.data()), data_.size() };
+    }
+    [[nodiscard]] bool operator==(const Digest& o) const noexcept { return data_ == o.data_; }
+
+private:
+    std::vector<uint8_t> data_;
+};
+
 class SecureBuffer {
 public:
     SecureBuffer() = default;
@@ -84,18 +125,7 @@ public:
         }
     }
 
-    [[nodiscard]] std::string to_hex() const {
-        // Branchless nibble→hex so the conversion does no secret-dependent table
-        // lookup (avoids a cache-timing side channel when hex-encoding secrets).
-        auto nib = [](int n) -> char {
-            // n in [0,15]: '0'+n for 0-9, else 'a'+(n-10). 0x27 = 'a'-'0'-10.
-            return static_cast<char>(n + '0' + (((9 - n) >> 31) & 0x27));
-        };
-        std::string out;
-        out.reserve(data_.size() * 2);
-        for (auto b : data_) { out += nib(b >> 4); out += nib(b & 0x0f); }
-        return out;
-    }
+    [[nodiscard]] std::string to_hex() const { return hex_encode(data_); }
 
     [[nodiscard]] std::string to_string() const {
         return { reinterpret_cast<const char*>(data_.data()), data_.size() };
