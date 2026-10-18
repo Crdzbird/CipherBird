@@ -41,6 +41,7 @@ jobs:
           mkdir -p out/apple out/desktop
           cp -R CryptoLib.xcframework out/apple/CipherBird.xcframework
           cp build/desktop/libcryptolib_c.dylib out/desktop/
+          ditto -c -k --keepParent out/apple/CipherBird.xcframework out/apple/CipherBird.xcframework.zip
           for f in out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird \
                    out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird \
                    out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird \
@@ -55,10 +56,11 @@ jobs:
             out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird
             out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird
             out/desktop/libcryptolib_c.dylib
+      # The framework's symlinks only survive the artifact store inside a zip.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: engine-apple
-          path: out/apple
+          path: out/apple/CipherBird.xcframework.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: engine-desktop

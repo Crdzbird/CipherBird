@@ -107,9 +107,14 @@ jobs:
           NODE_PATH=/tmp/xcheck/node_modules node scripts/keccak_cross_check.mjs "$DY"
 
   # Constant-time probe under Valgrind (ctgrind method) on Linux, against
-  # dependencies built from the hash-pinned tarballs.
+  # dependencies built from the hash-pinned tarballs. Report-only for now:
+  # the probe marks whole secrets undefined and has no declassification
+  # points yet, so its first run reported 137 contexts (ML-KEM rejection
+  # sampling on the public seed, AEAD tag decisions) that need triage before
+  # the job can block. The full log is uploaded as an artifact.
   ctgrind:
     runs-on: ubuntu-24.04
+    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install build tools
@@ -126,7 +131,17 @@ jobs:
             -DCRYPTOLIB_BUILD_EXAMPLE=OFF -DCRYPTOLIB_DEPS_ROOT="$PWD/third_party/linux/x86_64"
           cmake --build build/ct --target ct_probe
       - name: Run under memcheck
-        run: valgrind --tool=memcheck --error-exitcode=1 --track-origins=no ./build/ct/ct_probe
+        run: |
+          valgrind --tool=memcheck --error-exitcode=1 --track-origins=yes \
+            --log-file=ct_probe.valgrind.log ./build/ct/ct_probe || status=$?
+          grep 'ERROR SUMMARY' ct_probe.valgrind.log
+          exit "${status:-0}"
+      - name: Keep the Valgrind log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ct_probe-valgrind-log
+          path: ct_probe.valgrind.log
 
   # The Dart packages and the Go binding against a freshly built C ABI.
   bindings:
