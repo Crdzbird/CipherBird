@@ -38,8 +38,8 @@ by how your project is built.
 
 | Package | Published on pub.dev | Repository |
 |---|---|---|
-| [cipherbird](https://pub.dev/packages/cipherbird) | [1.1.1](https://pub.dev/packages/cipherbird/versions/1.1.1) | 1.1.2 at tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
-| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | [1.1.1](https://pub.dev/packages/cipherbird_dart/versions/1.1.1) | 1.1.2 at tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
+| [cipherbird](https://pub.dev/packages/cipherbird) | [1.1.2](https://pub.dev/packages/cipherbird/versions/1.1.2) | tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
+| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | [1.1.2](https://pub.dev/packages/cipherbird_dart/versions/1.1.2) | tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
 
 Each tag carries the version of both packages it was cut from, so a git
 dependency on a tag and a pub.dev dependency on the same version resolve to
