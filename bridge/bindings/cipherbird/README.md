@@ -480,8 +480,8 @@ a stale binary fails at load. Rebuild from the repository root:
 
 ```bash
 bash scripts/android/build_all.sh arm64-v8a x86_64
-cp build/android/arm64-v8a/libcipherbird.so android/src/main/jniLibs/arm64-v8a/
-cp build/android/x86_64/libcipherbird.so android/src/main/jniLibs/x86_64/
+cp build/android/arm64-v8a/libcryptolib_c.so android/src/main/jniLibs/arm64-v8a/libcipherbird.so
+cp build/android/x86_64/libcryptolib_c.so android/src/main/jniLibs/x86_64/libcipherbird.so
 make ios
 rm -rf ios/cipherbird/CipherBird.xcframework macos/cipherbird/CipherBird.xcframework
 cp -R CipherBird.xcframework ios/cipherbird/CipherBird.xcframework

@@ -1,0 +1,4 @@
+framework module CipherBird {
+    header "cryptolib_c.h"
+    export *
+}

@@ -1,3 +1,19 @@
+## 1.1.2
+
+Faster public hashing; no API or wire-format change.
+
+- The engine's unkeyed digests (SHA-256, SHA-512, BLAKE2b and BLAKE3
+  without a key, one shot and streaming) no longer allocate page-locked,
+  wiped buffers for their output. A digest of public data is public, so the
+  lock protected nothing and cost two system calls per hash. Measured on an
+  Apple M3 Max, 100,000 calls, best of five: `sha256` on 32 bytes 2.44 us to
+  0.30 us, `blake3` 2.15 us to 0.25 us; on 1 KiB 6.09 us to 3.88 us and
+  4.26 us to 1.89 us.
+- Keyed BLAKE2b and BLAKE3, `deriveKey`, HMAC, HKDF and Argon2id keep their
+  locked, wiped buffers; a keyed BLAKE3 stream cannot take the plain path.
+  Output bytes are unchanged, so every known answer test keeps passing.
+- The bundled macOS library and the WebAssembly engine are rebuilt.
+
 ## 1.1.1
 
 Engine hardening and smaller binaries; no API or wire-format change.

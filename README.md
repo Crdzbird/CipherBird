@@ -2,7 +2,7 @@
 
 [![cipherbird on pub.dev](https://img.shields.io/pub/v/cipherbird.svg?label=cipherbird)](https://pub.dev/packages/cipherbird)
 [![cipherbird_dart on pub.dev](https://img.shields.io/pub/v/cipherbird_dart.svg?label=cipherbird_dart)](https://pub.dev/packages/cipherbird_dart)
-[![Release v1.1.1](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.1)
+[![Release v1.1.2](https://img.shields.io/github/v/tag/Crdzbird/CipherBird?label=release)](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2)
 [![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20macOS%20%7C%20Web-blue.svg)](bridge/bindings/cipherbird/README.md#web)
 
@@ -38,8 +38,8 @@ by how your project is built.
 
 | Package | Published on pub.dev | Repository |
 |---|---|---|
-| [cipherbird](https://pub.dev/packages/cipherbird) | [1.1.1](https://pub.dev/packages/cipherbird/versions/1.1.1) | tag [v1.1.1](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.1) |
-| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | [1.1.1](https://pub.dev/packages/cipherbird_dart/versions/1.1.1) | tag [v1.1.1](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.1) |
+| [cipherbird](https://pub.dev/packages/cipherbird) | [1.1.1](https://pub.dev/packages/cipherbird/versions/1.1.1) | 1.1.2 at tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
+| [cipherbird_dart](https://pub.dev/packages/cipherbird_dart) | [1.1.1](https://pub.dev/packages/cipherbird_dart/versions/1.1.1) | 1.1.2 at tag [v1.1.2](https://github.com/Crdzbird/CipherBird/releases/tag/v1.1.2) |
 
 Each tag carries the version of both packages it was cut from, so a git
 dependency on a tag and a pub.dev dependency on the same version resolve to
