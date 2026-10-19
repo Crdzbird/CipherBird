@@ -53,8 +53,7 @@ public static class CryptoLib
 
     // Primitives the composable Recipe pipeline is built from.
     [DllImport(Lib)] private static extern CryptoBufferResult cryptolib_argon2id_derive(
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string password, byte[] salt, nuint saltLen,
-        nuint keyLen, ulong ops, nuint mem);
+        byte[] passwordZ, byte[] salt, nuint saltLen, nuint keyLen, ulong ops, nuint memoryBytes);
     [DllImport(Lib)] private static extern CryptoBufferResult cryptolib_hkdf_derive(
         byte[] ikm, nuint ikmLen, byte[] salt, nuint saltLen, byte[] info, nuint infoLen, nuint outLen);
     [DllImport(Lib)] private static extern CryptoBufferResult cryptolib_xchacha20_encrypt(byte[] pt, nuint ptLen, byte[] k, nuint kLen, byte[] aad, nuint aadLen);
@@ -139,9 +138,26 @@ public static class CryptoLib
     /// <summary><paramref name="n"/> cryptographically secure random bytes.</summary>
     public static byte[] RandomBytes(int n) => Consume(cryptolib_random_bytes((nuint)n));
 
-    /// <summary>Stretch a passphrase into a key with Argon2id.</summary>
+    /// <summary>
+    /// Stretch a passphrase into a key with Argon2id. The UTF-8 copy handed to
+    /// the engine is cleared afterwards; a .NET string itself cannot be, so
+    /// prefer the byte[] overload when the passphrase is held as bytes.
+    /// </summary>
     public static byte[] Argon2idDerive(string password, byte[] salt, int keyLen, ulong ops, ulong memoryBytes)
-        => Consume(cryptolib_argon2id_derive(password, salt, (nuint)salt.Length, (nuint)keyLen, ops, (nuint)memoryBytes));
+    {
+        var pw = System.Text.Encoding.UTF8.GetBytes(password);
+        try { return Argon2idDerive(pw, salt, keyLen, ops, memoryBytes); }
+        finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(pw); }
+    }
+
+    /// <summary>Argon2idDerive for a passphrase held as bytes the caller can clear.</summary>
+    public static byte[] Argon2idDerive(byte[] password, byte[] salt, int keyLen, ulong ops, ulong memoryBytes)
+    {
+        var z = new byte[password.Length + 1];
+        Buffer.BlockCopy(password, 0, z, 0, password.Length);
+        try { return Consume(cryptolib_argon2id_derive(z, salt, (nuint)salt.Length, (nuint)keyLen, ops, (nuint)memoryBytes)); }
+        finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(z); }
+    }
 
     /// <summary>One-shot HKDF: extract + expand to <paramref name="outLen"/> bytes.</summary>
     public static byte[] HkdfDerive(byte[] ikm, byte[] salt, byte[] info, int outLen)

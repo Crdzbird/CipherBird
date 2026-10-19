@@ -71,7 +71,7 @@ module CryptoLib
 
     # Primitives the composable Recipe pipeline is built from.
     AEAD = [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t].freeze
-    attach_function :cryptolib_argon2id_derive, [:string, :pointer, :size_t, :size_t, :uint64, :size_t], CryptoBufferResult.by_value
+    attach_function :cryptolib_argon2id_derive, [:pointer, :pointer, :size_t, :size_t, :uint64, :size_t], CryptoBufferResult.by_value
     attach_function :cryptolib_hkdf_derive, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t, :size_t], CryptoBufferResult.by_value
     attach_function :cryptolib_xchacha20_encrypt, AEAD, CryptoBufferResult.by_value
     attach_function :cryptolib_xchacha20_decrypt, AEAD, CryptoBufferResult.by_value
@@ -116,10 +116,52 @@ module CryptoLib
     out
   end
 
-  def self._u8p(bytes)
-    p = FFI::MemoryPointer.new(:uint8, bytes.bytesize)
-    p.write_bytes(bytes)
+  # A native copy of caller bytes. Release it with _wipe, which overwrites the
+  # block with zeros before the pointer is collected, so key and password
+  # copies handed to the engine do not linger.
+  def self._u8p(bytes, nul: false)
+    size = bytes.bytesize + (nul ? 1 : 0)
+    p = FFI::MemoryPointer.new(:uint8, [size, 1].max)
+    p.put_bytes(0, bytes)
+    p.put_uint8(bytes.bytesize, 0) if nul
     p
+  end
+
+  def self._wipe(p)
+    p.put_bytes(0, "\0".b * p.size)
+    p.free
+  end
+
+  # Native copies of each argument, wiped and freed when the block returns.
+  def self._scratch(*values)
+    ptrs = values.map { |v| _u8p(v) }
+    yield(*ptrs)
+  ensure
+    ptrs&.each { |p| _wipe(p) }
+  end
+
+  # Secret material with a definite end of life: wipe overwrites the bytes
+  # with zeros and every later access raises, so a key copy cannot linger
+  # unnoticed.
+  class Secret
+    def initialize(bytes)
+      @bytes = bytes.b.dup
+      @wiped = false
+    end
+
+    def bytes
+      raise 'cryptolib: this secret was wiped' if @wiped
+      @bytes
+    end
+
+    def wiped? = @wiped
+
+    def wipe
+      return if @wiped
+      @wiped = true
+      @bytes.bytesize.times { |i| @bytes.setbyte(i, 0) }
+      nil
+    end
   end
 
   # ── Public API ─────────────────────────────────────────────────────────────
@@ -167,8 +209,9 @@ module CryptoLib
   end
 
   def self.hybrid_kem_decapsulate(ct, sec)
-    cp = _u8p(ct); sp = _u8p(sec)
-    _consume(Native.cryptolib_hybrid_kem_decapsulate(cp, ct.bytesize, sp, sec.bytesize))
+    _scratch(ct, sec) do |cp, sp|
+      _consume(Native.cryptolib_hybrid_kem_decapsulate(cp, ct.bytesize, sp, sec.bytesize))
+    end
   end
 
   # ── Primitives used by Recipe ──────────────────────────────────────────────
@@ -181,22 +224,34 @@ module CryptoLib
     [pub, sec]
   end
 
-  # Stretch a passphrase into a key with Argon2id.
+  # Stretch a passphrase into a key with Argon2id. The NUL-terminated copy
+  # handed to the engine is wiped afterwards; a Ruby String may still hold the
+  # passphrase, so prefer passing a binary String you clear yourself.
   def self.argon2id_derive(password, salt, key_len: 32, ops: 2, memory_bytes: 67_108_864)
     s = salt.b
-    _consume(Native.cryptolib_argon2id_derive(password, _u8p(s), s.bytesize, key_len, ops, memory_bytes))
+    pw = _u8p(password.b, nul: true)
+    sp = _u8p(s)
+    begin
+      _consume(Native.cryptolib_argon2id_derive(pw, sp, s.bytesize, key_len, ops, memory_bytes))
+    ensure
+      _wipe(pw)
+      _wipe(sp)
+    end
   end
 
   # One-shot HKDF: extract + expand to +out_len+ bytes.
   def self.hkdf_derive(ikm, salt: ''.b, info: ''.b, out_len: 32)
     i = ikm.b; s = salt.b; f = info.b
-    _consume(Native.cryptolib_hkdf_derive(_u8p(i), i.bytesize, _u8p(s), s.bytesize,
-                                          _u8p(f), f.bytesize, out_len))
+    _scratch(i, s, f) do |ip, sp, fp|
+      _consume(Native.cryptolib_hkdf_derive(ip, i.bytesize, sp, s.bytesize, fp, f.bytesize, out_len))
+    end
   end
 
   def self._aead(fn, data, key, aad)
     d = data.b; k = key.b; a = aad.b
-    _consume(Native.send(fn, _u8p(d), d.bytesize, _u8p(k), k.bytesize, _u8p(a), a.bytesize))
+    _scratch(d, k, a) do |dp, kp, ap|
+      _consume(Native.send(fn, dp, d.bytesize, kp, k.bytesize, ap, a.bytesize))
+    end
   end
 
   def self.xchacha20_encrypt(pt, key, aad = ''.b) = _aead(:cryptolib_xchacha20_encrypt, pt, key, aad)
@@ -214,13 +269,13 @@ module CryptoLib
   # Ed25519 keypair derived deterministically from a 32-byte seed.
   def self.ed25519_keygen_from_seed(seed)
     s = seed.b
-    _keypair(Native.cryptolib_ed25519_keygen_from_seed(_u8p(s), s.bytesize))
+    _scratch(s) { |sp| _keypair(Native.cryptolib_ed25519_keygen_from_seed(sp, s.bytesize)) }
   end
 
   # Ed25519 signature. +secret_key+ is the 64-byte secret, not the seed.
   def self.ed25519_sign(msg, secret_key)
     m = msg.b; s = secret_key.b
-    _consume(Native.cryptolib_ed25519_sign(_u8p(m), m.bytesize, _u8p(s), s.bytesize))
+    _scratch(m, s) { |mp, sp| _consume(Native.cryptolib_ed25519_sign(mp, m.bytesize, sp, s.bytesize)) }
   end
 
   def self.ed25519_verify(msg, sig, public_key)
@@ -233,7 +288,7 @@ module CryptoLib
 
   def self.hybrid_sig_sign(msg, secret_key)
     m = msg.b; s = secret_key.b
-    _consume(Native.cryptolib_hybrid_sig_sign(_u8p(m), m.bytesize, _u8p(s), s.bytesize))
+    _scratch(m, s) { |mp, sp| _consume(Native.cryptolib_hybrid_sig_sign(mp, m.bytesize, sp, s.bytesize)) }
   end
 
   def self.hybrid_sig_verify(msg, sig, public_key)

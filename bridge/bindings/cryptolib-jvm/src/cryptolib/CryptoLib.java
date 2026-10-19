@@ -11,7 +11,47 @@ import static java.lang.foreign.ValueLayout.*;
  * KEM); the full C ABI can be bound the same way.
  */
 public final class CryptoLib implements AutoCloseable {
+    /** Holds only the library handle; every call gets its own {@link Scratch}. */
     private final Arena arena = Arena.ofConfined();
+
+    /**
+     * One call's native scratch: a confined arena whose blocks are overwritten
+     * with zeros before the arena closes, so key and password copies handed to
+     * the engine do not outlive the call.
+     */
+    private static final class Scratch implements AutoCloseable {
+        final Arena arena = Arena.ofConfined();
+        private final java.util.List<MemorySegment> blocks = new java.util.ArrayList<>();
+
+        MemorySegment bytes(byte[] b) {
+            MemorySegment m = arena.allocate(b.length == 0 ? 1 : b.length);
+            MemorySegment.copy(b, 0, m, JAVA_BYTE, 0, b.length);
+            blocks.add(m);
+            return m;
+        }
+
+        /** A NUL-terminated copy of UTF-8 bytes, for const char* parameters. */
+        MemorySegment utf8z(byte[] b) {
+            MemorySegment m = arena.allocate(b.length + 1);
+            MemorySegment.copy(b, 0, m, JAVA_BYTE, 0, b.length);
+            m.set(JAVA_BYTE, b.length, (byte) 0);
+            blocks.add(m);
+            return m;
+        }
+
+        MemorySegment utf8(String s) { return utf8z(s.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+
+        MemorySegment alloc(MemoryLayout layout) {
+            MemorySegment m = arena.allocate(layout);
+            blocks.add(m);
+            return m;
+        }
+
+        @Override public void close() {
+            for (MemorySegment m : blocks) m.fill((byte) 0);
+            arena.close();
+        }
+    }
     private final Linker linker = Linker.nativeLinker();
     private final SymbolLookup lib;
 
@@ -78,26 +118,37 @@ public final class CryptoLib implements AutoCloseable {
 
     // ── Primitives used by Recipe ─────────────────────────────────────────────
 
-    /** Stretch a passphrase into a key with Argon2id. */
+    /**
+     * Stretch a passphrase into a key with Argon2id. The UTF-8 copy and the
+     * native copy are wiped; a Java String itself cannot be, so prefer the
+     * byte[] overload when the passphrase is held as bytes.
+     */
     public byte[] argon2idDerive(String password, byte[] salt, int keyLen, long ops, long memoryBytes) {
-        try {
-            return consume((MemorySegment) argon2idDerive.invoke(arena, arena.allocateFrom(password),
-                    seg(salt), (long) salt.length, (long) keyLen, ops, memoryBytes));
+        byte[] pw = password.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        try { return argon2idDerive(pw, salt, keyLen, ops, memoryBytes); }
+        finally { java.util.Arrays.fill(pw, (byte) 0); }
+    }
+
+    /** {@link #argon2idDerive(String, byte[], int, long, long)} for a passphrase held as bytes. */
+    public byte[] argon2idDerive(byte[] password, byte[] salt, int keyLen, long ops, long memoryBytes) {
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) argon2idDerive.invoke(sc.arena, sc.utf8z(password),
+                    sc.bytes(salt), (long) salt.length, (long) keyLen, ops, memoryBytes));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** One-shot HKDF: extract + expand to {@code outLen} bytes. */
     public byte[] hkdfDerive(byte[] ikm, byte[] salt, byte[] info, int outLen) {
-        try {
-            return consume((MemorySegment) hkdfDerive.invoke(arena, seg(ikm), (long) ikm.length,
-                    seg(salt), (long) salt.length, seg(info), (long) info.length, (long) outLen));
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) hkdfDerive.invoke(sc.arena, sc.bytes(ikm), (long) ikm.length,
+                    sc.bytes(salt), (long) salt.length, sc.bytes(info), (long) info.length, (long) outLen));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     private byte[] aead(MethodHandle mh, byte[] data, byte[] key, byte[] aad) {
-        try {
-            return consume((MemorySegment) mh.invoke(arena, seg(data), (long) data.length,
-                    seg(key), (long) key.length, seg(aad), (long) aad.length));
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) mh.invoke(sc.arena, sc.bytes(data), (long) data.length,
+                    sc.bytes(key), (long) key.length, sc.bytes(aad), (long) aad.length));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
@@ -110,7 +161,7 @@ public final class CryptoLib implements AutoCloseable {
     public byte[] molecularSealWithKey(byte[] pt, byte[] key, byte[] aad) { return aead(molSeal, pt, key, aad); }
     public byte[] molecularOpenWithKey(byte[] ct, byte[] key, byte[] aad) { return aead(molOpen, ct, key, aad); }
 
-    private KeyPair keypair(MemorySegment kp) {
+    private KeyPair keypair(Scratch sc, MemorySegment kp) {
         try {
             byte[] pub = readBuf(kp, 0), sec = readBuf(kp, B);
             kpFree.invoke(kp);
@@ -120,47 +171,47 @@ public final class CryptoLib implements AutoCloseable {
 
     /** Ed25519 keypair from the OS CSPRNG. */
     public KeyPair ed25519Keygen() {
-        try { return keypair((MemorySegment) edKg.invoke(arena)); }
+        try (Scratch sc = new Scratch()) { return keypair(sc, (MemorySegment) edKg.invoke(sc.arena)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** Ed25519 keypair derived deterministically from a 32-byte seed. */
     public KeyPair ed25519KeygenFromSeed(byte[] seed) {
-        try { return keypair((MemorySegment) edKgSeed.invoke(arena, seg(seed), (long) seed.length)); }
+        try (Scratch sc = new Scratch()) { return keypair(sc, (MemorySegment) edKgSeed.invoke(sc.arena, sc.bytes(seed), (long) seed.length)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     public byte[] ed25519Sign(byte[] msg, byte[] secretKey) {
-        try {
-            return consume((MemorySegment) edSign.invoke(arena, seg(msg), (long) msg.length,
-                    seg(secretKey), (long) secretKey.length));
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) edSign.invoke(sc.arena, sc.bytes(msg), (long) msg.length,
+                    sc.bytes(secretKey), (long) secretKey.length));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     public boolean ed25519Verify(byte[] msg, byte[] sig, byte[] publicKey) {
-        try {
-            return (int) edVerify.invoke(seg(msg), (long) msg.length, seg(sig), (long) sig.length,
-                    seg(publicKey), (long) publicKey.length) == 1;
+        try (Scratch sc = new Scratch()) {
+            return (int) edVerify.invoke(sc.bytes(msg), (long) msg.length, sc.bytes(sig), (long) sig.length,
+                    sc.bytes(publicKey), (long) publicKey.length) == 1;
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** Ed25519 + ML-DSA-65 keypair: a forgery needs breaking both families. */
     public KeyPair hybridSigKeygen() {
-        try { return keypair((MemorySegment) hySigKg.invoke(arena)); }
+        try (Scratch sc = new Scratch()) { return keypair(sc, (MemorySegment) hySigKg.invoke(sc.arena)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     public byte[] hybridSigSign(byte[] msg, byte[] secretKey) {
-        try {
-            return consume((MemorySegment) hySigSign.invoke(arena, seg(msg), (long) msg.length,
-                    seg(secretKey), (long) secretKey.length));
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) hySigSign.invoke(sc.arena, sc.bytes(msg), (long) msg.length,
+                    sc.bytes(secretKey), (long) secretKey.length));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     public boolean hybridSigVerify(byte[] msg, byte[] sig, byte[] publicKey) {
-        try {
-            return (int) hySigVerify.invoke(seg(msg), (long) msg.length, seg(sig), (long) sig.length,
-                    seg(publicKey), (long) publicKey.length) == 1;
+        try (Scratch sc = new Scratch()) {
+            return (int) hySigVerify.invoke(sc.bytes(msg), (long) msg.length, sc.bytes(sig), (long) sig.length,
+                    sc.bytes(publicKey), (long) publicKey.length) == 1;
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
@@ -172,9 +223,9 @@ public final class CryptoLib implements AutoCloseable {
      * mixes in fresh system entropy and so could never reopen its own envelope.
      */
     public byte[] keyFromFileDeterministic(String path) {
-        try {
-            MemorySegment err = arena.allocate(ADDRESS);
-            MemorySegment h = (MemorySegment) entFromFileDet.invoke(arena.allocateFrom(path), err);
+        try (Scratch sc = new Scratch()) {
+            MemorySegment err = sc.alloc(ADDRESS);
+            MemorySegment h = (MemorySegment) entFromFileDet.invoke(sc.utf8(path), err);
             MemorySegment e = err.get(ADDRESS, 0);
             if (e.address() != 0) {
                 String msg = e.reinterpret(Long.MAX_VALUE).getString(0);
@@ -182,16 +233,16 @@ public final class CryptoLib implements AutoCloseable {
                 throw new RuntimeException(msg);
             }
             if (h.address() == 0) throw new RuntimeException("cryptolib: entropy handle allocation failed");
-            try { return consume((MemorySegment) entSymKey.invoke(arena, h)); }
+            try { return consume(sc, (MemorySegment) entSymKey.invoke(sc.arena, h)); }
             finally { entFree.invoke(h); }
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** Hide {@code payload} inside a media carrier. */
     public void stegoEmbed(String coverPath, byte[] payload, String outputPath) {
-        try {
-            MemorySegment r = (MemorySegment) stegoEmbed.invoke(arena, arena.allocateFrom(coverPath),
-                    seg(payload), (long) payload.length, arena.allocateFrom(outputPath));
+        try (Scratch sc = new Scratch()) {
+            MemorySegment r = (MemorySegment) stegoEmbed.invoke(sc.arena, sc.utf8(coverPath),
+                    sc.bytes(payload), (long) payload.length, sc.utf8(outputPath));
             if (r.get(JAVA_INT, 0) != 1) {
                 MemorySegment e = r.get(ADDRESS, CRES.byteOffset(MemoryLayout.PathElement.groupElement("error")));
                 String msg = e.address() != 0 ? e.reinterpret(Long.MAX_VALUE).getString(0) : "stego embed failed";
@@ -203,20 +254,20 @@ public final class CryptoLib implements AutoCloseable {
 
     /** Recover a payload hidden by {@link #stegoEmbed}. */
     public byte[] stegoExtract(String stegoPath) {
-        try { return consume((MemorySegment) stegoExtract.invoke(arena, arena.allocateFrom(stegoPath))); }
+        try (Scratch sc = new Scratch()) { return consume(sc, (MemorySegment) stegoExtract.invoke(sc.arena, sc.utf8(stegoPath))); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** Forward-error-correct {@code data} under a scheme id (see {@link FecScheme}). */
     public byte[] fecEncode(byte[] data, int scheme) {
-        try { return consume((MemorySegment) fecEnc.invoke(arena, seg(data), (long) data.length, scheme)); }
+        try (Scratch sc = new Scratch()) { return consume(sc, (MemorySegment) fecEnc.invoke(sc.arena, sc.bytes(data), (long) data.length, scheme)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     /** Reverse {@link #fecEncode}, recovering {@code originalLength} bytes. */
     public byte[] fecDecode(byte[] data, int scheme, int originalLength) {
-        try {
-            return consume((MemorySegment) fecDec.invoke(arena, seg(data), (long) data.length,
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) fecDec.invoke(sc.arena, sc.bytes(data), (long) data.length,
                     scheme, (long) originalLength));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
@@ -232,12 +283,6 @@ public final class CryptoLib implements AutoCloseable {
                 new IllegalStateException("symbol not found: " + name)), fd);
     }
 
-    private MemorySegment seg(byte[] b) {
-        MemorySegment s = arena.allocate(b.length == 0 ? 1 : b.length);
-        MemorySegment.copy(b, 0, s, JAVA_BYTE, 0, b.length);
-        return s;
-    }
-
     // Read a CryptoBuffer (at struct offset off) into a byte[].
     private byte[] readBuf(MemorySegment structByVal, long off) {
         MemorySegment data = structByVal.get(ADDRESS, off);
@@ -247,7 +292,7 @@ public final class CryptoLib implements AutoCloseable {
     }
 
     // Consume a CryptoBufferResult: throw on error, else copy + free the buffer.
-    private byte[] consume(MemorySegment res) {
+    private byte[] consume(Scratch sc, MemorySegment res) {
         byte[] out = readBuf(res, 0);
         MemorySegment err = res.get(ADDRESS, RES.byteOffset(MemoryLayout.PathElement.groupElement("error")));
         if (out.length == 0 && err.address() != 0) {
@@ -256,7 +301,7 @@ public final class CryptoLib implements AutoCloseable {
             throw new RuntimeException(msg);
         }
         try {
-            MemorySegment bufCopy = arena.allocate(BUF);
+            MemorySegment bufCopy = sc.alloc(BUF);
             MemorySegment.copy(res, 0, bufCopy, 0, B);
             bufFree.invoke(bufCopy);
         } catch (Throwable t) { throw new RuntimeException(t); }
@@ -274,12 +319,12 @@ public final class CryptoLib implements AutoCloseable {
     }
 
     public byte[] randomBytes(long n) {
-        try { return consume((MemorySegment) random.invoke(arena, n)); }
+        try (Scratch sc = new Scratch()) { return consume(sc, (MemorySegment) random.invoke(sc.arena, n)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
     public byte[] sha256(byte[] msg) {
-        try { return consume((MemorySegment) sha256.invoke(arena, seg(msg), (long) msg.length)); }
+        try (Scratch sc = new Scratch()) { return consume(sc, (MemorySegment) sha256.invoke(sc.arena, sc.bytes(msg), (long) msg.length)); }
         catch (Throwable t) { throw new RuntimeException(t); }
     }
 
@@ -287,8 +332,8 @@ public final class CryptoLib implements AutoCloseable {
     public record Encaps(byte[] ciphertext, byte[] sharedSecret) {}
 
     public KeyPair hybridKemKeygen() {
-        try {
-            MemorySegment kp = (MemorySegment) hyKg.invoke(arena);
+        try (Scratch sc = new Scratch()) {
+            MemorySegment kp = (MemorySegment) hyKg.invoke(sc.arena);
             byte[] pub = readBuf(kp, 0), sec = readBuf(kp, B);
             kpFree.invoke(kp);
             return new KeyPair(pub, sec);
@@ -296,9 +341,9 @@ public final class CryptoLib implements AutoCloseable {
     }
 
     public Encaps hybridKemEncapsulate(byte[] publicKey) {
-        try {
-            MemorySegment err = arena.allocate(ADDRESS);
-            MemorySegment r = (MemorySegment) hyEn.invoke(arena, seg(publicKey), (long) publicKey.length, err);
+        try (Scratch sc = new Scratch()) {
+            MemorySegment err = sc.alloc(ADDRESS);
+            MemorySegment r = (MemorySegment) hyEn.invoke(sc.arena, sc.bytes(publicKey), (long) publicKey.length, err);
             byte[] ct = readBuf(r, 0), ss = readBuf(r, B);
             kemFree.invoke(r);
             return new Encaps(ct, ss);
@@ -306,9 +351,9 @@ public final class CryptoLib implements AutoCloseable {
     }
 
     public byte[] hybridKemDecapsulate(byte[] ciphertext, byte[] secretKey) {
-        try {
-            return consume((MemorySegment) hyDe.invoke(arena, seg(ciphertext), (long) ciphertext.length,
-                    seg(secretKey), (long) secretKey.length));
+        try (Scratch sc = new Scratch()) {
+            return consume(sc, (MemorySegment) hyDe.invoke(sc.arena, sc.bytes(ciphertext), (long) ciphertext.length,
+                    sc.bytes(secretKey), (long) secretKey.length));
         } catch (Throwable t) { throw new RuntimeException(t); }
     }
 

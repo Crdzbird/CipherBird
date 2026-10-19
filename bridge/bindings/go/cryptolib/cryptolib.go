@@ -3,6 +3,15 @@ package cryptolib
 /*
 #include "cryptolib_c.h"
 #include <stdlib.h>
+#include <string.h>
+
+// Overwrites n bytes at p with zeros in a way the compiler keeps, then frees p.
+static void cl_wipe_free(void* p, size_t n) {
+    if (!p) return;
+    volatile unsigned char* q = (volatile unsigned char*)p;
+    while (n--) *q++ = 0;
+    free(p);
+}
 */
 import "C"
 import (
@@ -12,6 +21,51 @@ import (
 	"runtime"
 	"unsafe"
 )
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Secret handling
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Secret is key material the caller owns. Wipe overwrites it with zeros once
+// it is no longer needed; a plain []byte lingers until the collector reuses it.
+type Secret []byte
+
+// Wipe overwrites the bytes with zeros.
+func (s Secret) Wipe() {
+	for i := range s {
+		s[i] = 0
+	}
+}
+
+// Bytes returns the underlying slice without copying.
+func (s Secret) Bytes() []byte { return []byte(s) }
+
+// cstrSecret copies a secret string into C memory as a NUL-terminated string.
+// Release it with wipeFreeStr, which zeroes the copy before freeing it.
+func cstrSecret(s string) *C.char { return C.CString(s) }
+
+// cbytesZ copies a secret byte slice into C memory with a NUL terminator, so
+// it can be handed to a const char* parameter. Release it with wipeFreeStr.
+func cbytesZ(b []byte) *C.char {
+	p := (*C.char)(C.malloc(C.size_t(len(b) + 1)))
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(p)), len(b)+1)
+	copy(buf, b)
+	buf[len(b)] = 0
+	return p
+}
+
+// wipeFreeStr zeroes a NUL-terminated C string and frees it.
+func wipeFreeStr(p *C.char) {
+	if p == nil {
+		return
+	}
+	C.cl_wipe_free(unsafe.Pointer(p), C.strlen(p)+1)
+}
+
+// wipeFree zeroes n bytes of C memory and frees it.
+func wipeFree(p unsafe.Pointer, n int) {
+	C.cl_wipe_free(p, C.size_t(n))
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Init
@@ -160,10 +214,23 @@ func HmacSHA512Verify(msg, mac, key []byte) bool {
 		u8(key), C.size_t(len(key))) == 1
 }
 
-// Argon2idHashStr hashes a password to PHC string format.
+// Argon2idHashStr hashes a password to PHC string format. The C copy of the
+// password is wiped after the call; the Go string itself cannot be.
 func Argon2idHashStr(password string, ops uint64, mem uint64) (string, error) {
-	cp := C.CString(password)
-	defer C.free(unsafe.Pointer(cp))
+	cp := cstrSecret(password)
+	defer wipeFreeStr(cp)
+	return argon2idHashStrC(cp, ops, mem)
+}
+
+// Argon2idHashStrBytes is Argon2idHashStr for a password held as bytes the
+// caller can wipe afterwards.
+func Argon2idHashStrBytes(password []byte, ops uint64, mem uint64) (string, error) {
+	cp := cbytesZ(password)
+	defer wipeFreeStr(cp)
+	return argon2idHashStrC(cp, ops, mem)
+}
+
+func argon2idHashStrC(cp *C.char, ops uint64, mem uint64) (string, error) {
 	r := C.cryptolib_argon2id_hash_str(cp, C.uint64_t(ops), C.size_t(mem))
 	b, err := checkBufResult(r)
 	if err != nil {
@@ -174,9 +241,20 @@ func Argon2idHashStr(password string, ops uint64, mem uint64) (string, error) {
 
 // Argon2idVerifyStr verifies a password against a PHC string.
 func Argon2idVerifyStr(password, phcStr string) bool {
-	cp := C.CString(password)
+	cp := cstrSecret(password)
+	defer wipeFreeStr(cp)
+	return argon2idVerifyC(cp, phcStr)
+}
+
+// Argon2idVerifyStrBytes is Argon2idVerifyStr for a password held as bytes.
+func Argon2idVerifyStrBytes(password []byte, phcStr string) bool {
+	cp := cbytesZ(password)
+	defer wipeFreeStr(cp)
+	return argon2idVerifyC(cp, phcStr)
+}
+
+func argon2idVerifyC(cp *C.char, phcStr string) bool {
 	cs := C.CString(phcStr)
-	defer C.free(unsafe.Pointer(cp))
 	defer C.free(unsafe.Pointer(cs))
 	return C.cryptolib_argon2id_verify_str(cp, cs) == 1
 }
@@ -689,8 +767,16 @@ func (k *Keyring) AddDeviceSlot(factor []byte) bool {
 // AddPassphraseSlot wraps the master key under Argon2id. kdf: 0=interactive, 1=sensitive.
 func (k *Keyring) AddPassphraseSlot(passphrase string, kdf int) bool {
 	defer runtime.KeepAlive(k)
-	cpw := C.CString(passphrase)
-	defer C.free(unsafe.Pointer(cpw))
+	cpw := cstrSecret(passphrase)
+	defer wipeFreeStr(cpw)
+	return C.cryptolib_keyring_add_passphrase_slot(k.handle, cpw, C.int(kdf)) == 1
+}
+
+// AddPassphraseSlotBytes is AddPassphraseSlot for a passphrase held as bytes.
+func (k *Keyring) AddPassphraseSlotBytes(passphrase []byte, kdf int) bool {
+	defer runtime.KeepAlive(k)
+	cpw := cbytesZ(passphrase)
+	defer wipeFreeStr(cpw)
 	return C.cryptolib_keyring_add_passphrase_slot(k.handle, cpw, C.int(kdf)) == 1
 }
 
@@ -746,11 +832,20 @@ func (k *Keyring) UnlockWithDevice(factor []byte) ([]byte, error) {
 		u8(factor), C.size_t(len(factor))))
 }
 
-// UnlockWithPassphrase recovers the master key using a passphrase.
+// UnlockWithPassphrase recovers the master key using a passphrase. Wipe the
+// returned master key (Secret(master).Wipe()) once it has been used.
 func (k *Keyring) UnlockWithPassphrase(passphrase string) ([]byte, error) {
 	defer runtime.KeepAlive(k)
-	cpw := C.CString(passphrase)
-	defer C.free(unsafe.Pointer(cpw))
+	cpw := cstrSecret(passphrase)
+	defer wipeFreeStr(cpw)
+	return checkBufResult(C.cryptolib_keyring_unlock_with_passphrase(k.handle, cpw))
+}
+
+// UnlockWithPassphraseBytes is UnlockWithPassphrase for a passphrase held as bytes.
+func (k *Keyring) UnlockWithPassphraseBytes(passphrase []byte) ([]byte, error) {
+	defer runtime.KeepAlive(k)
+	cpw := cbytesZ(passphrase)
+	defer wipeFreeStr(cpw)
 	return checkBufResult(C.cryptolib_keyring_unlock_with_passphrase(k.handle, cpw))
 }
 
@@ -809,9 +904,9 @@ func (b *AsymBundle) toC() C.CryptoAsymBundle {
 
 func (b *AsymBundle) freeC(cb *C.CryptoAsymBundle) {
 	C.free(unsafe.Pointer(cb.box_public.data))
-	C.free(unsafe.Pointer(cb.box_secret.data))
+	wipeFree(unsafe.Pointer(cb.box_secret.data), int(cb.box_secret.len))
 	C.free(unsafe.Pointer(cb.sign_public.data))
-	C.free(unsafe.Pointer(cb.sign_secret.data))
+	wipeFree(unsafe.Pointer(cb.sign_secret.data), int(cb.sign_secret.len))
 }
 
 // AsymVaultSeal encrypts plaintext from sender to recipient with signature.
@@ -853,8 +948,18 @@ func AsymVaultOpen(pkt *Packet, recipient *AsymBundle, senderSignPub []byte, aad
 
 // Argon2idDerive derives a key from a password and salt using Argon2id.
 func Argon2idDerive(password string, salt []byte, keyLen int, ops uint64, mem uint64) ([]byte, error) {
-	cp := C.CString(password)
-	defer C.free(unsafe.Pointer(cp))
+	cp := cstrSecret(password)
+	defer wipeFreeStr(cp)
+	return checkBufResult(C.cryptolib_argon2id_derive(cp,
+		u8(salt), C.size_t(len(salt)),
+		C.size_t(keyLen), C.uint64_t(ops), C.size_t(mem)))
+}
+
+// Argon2idDeriveBytes is Argon2idDerive for a password held as bytes the
+// caller can wipe afterwards.
+func Argon2idDeriveBytes(password []byte, salt []byte, keyLen int, ops uint64, mem uint64) ([]byte, error) {
+	cp := cbytesZ(password)
+	defer wipeFreeStr(cp)
 	return checkBufResult(C.cryptolib_argon2id_derive(cp,
 		u8(salt), C.size_t(len(salt)),
 		C.size_t(keyLen), C.uint64_t(ops), C.size_t(mem)))
@@ -1017,10 +1122,10 @@ func KeyFromFile(path string) ([]byte, error) {
 // SealFromFile encrypts plaintext using a file as the key (one-liner).
 func SealFromFile(path, plaintext, aad string) (*Packet, error) {
 	cpath := C.CString(path)
-	cpt := C.CString(plaintext)
+	cpt := cstrSecret(plaintext)
 	caad := C.CString(aad)
 	defer C.free(unsafe.Pointer(cpath))
-	defer C.free(unsafe.Pointer(cpt))
+	defer wipeFreeStr(cpt)
 	defer C.free(unsafe.Pointer(caad))
 	var cerr *C.char
 	cp := C.cryptolib_seal_from_file(cpath, cpt, caad, &cerr)
@@ -1224,11 +1329,11 @@ func StegoContentDigest(path string) ([]byte, error) {
 // definitive (an unkeyed cryptolib payload was recovered); LsbEmbeddingLikelihood
 // is a 0..1 heuristic with the caveats in Note — never a proof.
 type HiddenDataReport struct {
-	CryptolibPayload      bool
-	LsbChiSquare          float64
+	CryptolibPayload       bool
+	LsbChiSquare           float64
 	LsbEmbeddingLikelihood float64
-	SamplesAnalysed       uint64
-	Note                  string
+	SamplesAnalysed        uint64
+	Note                   string
 }
 
 // StegoDetectHidden runs the heuristic hidden-data probe over a file. See the
@@ -1456,15 +1561,6 @@ func (f *Fortuna) Close() {
 		C.cryptolib_fortuna_free(f.handle)
 		f.handle = nil
 	}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Pretty-print helper for examples
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// Print prints a labelled hex-encoded value.
-func Print(label string, data []byte) {
-	fmt.Printf("  %-24s %s\n", label+":", Hex(data))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
