@@ -13,6 +13,9 @@ let package = Package(
         .macOS("12.0"),  // the bundled CipherBird binary is built with -mmacosx-version-min=12.0,
     ],
     products: [
+        // Static. HardwareKey.swift declares an Objective-C class so the -ObjC
+        // flag Flutter links with keeps its object file, and with it the
+        // @_cdecl functions Dart resolves through DynamicLibrary.process().
         .library(name: "cipherbird", targets: ["cipherbird"]),
     ],
     dependencies: [],

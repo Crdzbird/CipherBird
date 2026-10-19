@@ -46,7 +46,9 @@ final class KemKeyPair {
   ]) {
     final l = _easyLib(lib);
     final (ct, ss) = l.hybridKemEncapsulate(recipientPublicKey.u8);
-    return (ct, SymmetricKey._(l, l.hkdfDerive(ss, info: _info.bytes)));
+    final key = SymmetricKey._(l, l.hkdfDerive(ss, info: _info.bytes));
+    ss.wipe();
+    return (ct, key);
   }
 
   /// One-call public-key encryption: a self-contained blob only the owner of
@@ -87,4 +89,7 @@ final class KemKeyPair {
 
   /// Secret key bytes - never leave the device.
   Uint8List get secretKey => _pair.secretKey;
+
+  /// Zero the secret key. The object cannot decapsulate afterwards.
+  void destroy() => _pair.secretKey.wipe();
 }

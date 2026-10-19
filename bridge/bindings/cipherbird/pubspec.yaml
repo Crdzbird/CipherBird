@@ -47,6 +47,10 @@ flutter:
       android:
         # ffiPlugin bundles the .so; CipherbirdStartup (a manifest-registered
         # ContentProvider) warms the library off the main thread at launch.
+        # The plugin class serves only the hardware-key method channel
+        # (Android Keystore, StrongBox, BiometricPrompt, key attestation).
+        package: dev.cipherbird.cipherbird
+        pluginClass: CipherbirdHardwarePlugin
         ffiPlugin: true
       ios:
         # FFI plugin. Distributed via Swift Package Manager (ios/cipherbird/

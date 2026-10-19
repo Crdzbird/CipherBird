@@ -68,6 +68,14 @@ use of `CipherBird.instance` opens the library synchronously. In the browser
 it is the one await that fetches and compiles the engine, unless the page
 boots the engine itself and the build opts in to adopting it, see Web.
 
+## Hardware slots
+
+The keyring's hardware slots (`keyringBeginHardwareSlot`,
+`keyringSetHardwareBlob`, `keyringSlotType`, `keyringHardwareSlot`,
+`keyringUnlockWithHardwareFactor`) are available here for programs that
+bring their own key module; the Secure Enclave and Android Keystore
+integration (`HardwareKey`) ships only in the Flutter plugin.
+
 ## Web
 
 The package also runs in the browser, compiled with either `dart compile js`
@@ -99,6 +107,12 @@ synchronously. This is off by default because it trusts the
 `self.cipherbirdEngine` global, that is, every script on the page. Keep the
 await where the first use may run before the boot script finishes; it
 returns at once when the engine is already there.
+
+The browser build is not approved for long-lived keys or card data: the
+engine's linear memory is readable by every script on the page, so keys
+that outlive one operation belong on the native platforms, where the
+package wipes its native copies on free and `SecretBytes` gives key
+material a definite end of life.
 
 For a deployment that does not serve `packages/`, copy the two files next to
 the app and pass their location: `CipherBird.preload(library:

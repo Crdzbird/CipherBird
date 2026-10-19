@@ -37,6 +37,16 @@ extension _MarshalBuffers on CipherBird {
     }
   }
 
+  /// A NUL-terminated native copy of a password given as bytes, in memory
+  /// that is wiped on free. A password containing a zero byte ends there.
+  Pointer<Utf8> _toNativeZ(Uint8List password) {
+    final ptr = calloc<Uint8>(password.length + 1);
+    ptr.asTypedList(password.length + 1)
+      ..setAll(0, password)
+      ..[password.length] = 0;
+    return ptr.cast<Utf8>();
+  }
+
   Pointer<Uint8> _toNative(Uint8List data) {
     if (data.isEmpty) {
       return nullptr;

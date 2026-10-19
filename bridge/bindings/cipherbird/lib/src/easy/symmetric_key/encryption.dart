@@ -38,5 +38,8 @@ extension SymmetricKeyEncryption on SymmetricKey {
   KeySource get asKeySource => RawKeySource(_key);
 
   /// Zero the key bytes. The object is unusable afterwards.
-  void destroy() => _key.wipe();
+  void destroy() => _secret.wipe();
+
+  /// Whether [destroy] ran.
+  bool get isDestroyed => _secret.isWiped;
 }

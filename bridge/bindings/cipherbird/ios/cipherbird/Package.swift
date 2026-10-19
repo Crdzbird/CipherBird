@@ -16,6 +16,9 @@ let package = Package(
     products: [
         // Flutter's generated package references the product by its hyphenated
         // plugin name.
+        // Static. HardwareKey.swift declares an Objective-C class so the -ObjC
+        // flag Flutter links with keeps its object file, and with it the
+        // @_cdecl functions Dart resolves through DynamicLibrary.process().
         .library(name: "cipherbird", targets: ["cipherbird"]),
     ],
     dependencies: [],

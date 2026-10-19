@@ -1,14 +1,15 @@
 part of '../../cipher_bird.dart';
 
-/// Hashing operations.
+/// Password hashing with the password given as UTF-8 bytes, so the caller
+/// can wipe it afterwards; the native copies are wiped on free.
 extension CipherBirdArgon2id on CipherBird {
   /// Hash a password to PHC string format.
-  Uint8List argon2idHashStr(
-    String password, {
+  Uint8List argon2idHashStrBytes(
+    Uint8List password, {
     int ops = 2,
     int mem = 67108864,
   }) {
-    final cp = password.toNativeUtf8();
+    final cp = _toNativeZ(password);
     try {
       return _checkBufResult(_hashing.argon2idHashStr(cp, ops, mem));
     } finally {
@@ -16,9 +17,9 @@ extension CipherBirdArgon2id on CipherBird {
     }
   }
 
-  /// Verify password against PHC string. Returns true if correct.
-  bool argon2idVerifyStr(String password, String phcStr) {
-    final cp = password.toNativeUtf8();
+  /// Verify a password against a PHC string. Returns true if correct.
+  bool argon2idVerifyStrBytes(Uint8List password, String phcStr) {
+    final cp = _toNativeZ(password);
     final cphc = phcStr.toNativeUtf8();
     try {
       return _hashing.argon2idVerifyStr(cp, cphc) == 1;
@@ -29,14 +30,14 @@ extension CipherBirdArgon2id on CipherBird {
   }
 
   /// Derive a key from password + salt.
-  Uint8List argon2idDerive(
-    String password,
+  Uint8List argon2idDeriveBytes(
+    Uint8List password,
     Uint8List salt, {
     int keyLen = 32,
     int ops = 2,
     int mem = 67108864,
   }) {
-    final cp = password.toNativeUtf8();
+    final cp = _toNativeZ(password);
     final ps = _toNative(salt);
     try {
       return _checkBufResult(

@@ -11,10 +11,11 @@ import 'dart:isolate';
 
 import 'package:cipherbird/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird/src/runner/cipher_bird_runner.dart';
-import 'package:ffi/ffi.dart';
+import 'package:ffi/ffi.dart' as ffi;
+import 'package:ffi/ffi.dart' hide StringUtf8Pointer, calloc, malloc;
 
 export 'dart:ffi';
-export 'package:ffi/ffi.dart';
+export 'package:ffi/ffi.dart' hide StringUtf8Pointer, calloc, malloc;
 
 part 'bundled_library.dart';
 part 'cipher_bird_isolate_runner.dart';
@@ -39,3 +40,5 @@ part 'structs/cipher_bird_oprf_blind.dart';
 part 'structs/cipher_bird_packet.dart';
 part 'structs/cipher_bird_result.dart';
 part 'structs/cipher_bird_sealed_info.dart';
+part 'zeroing_allocator.dart';
+part 'zeroing_utf8.dart';

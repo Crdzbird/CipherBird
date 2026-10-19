@@ -13,6 +13,13 @@ extension type KeyringApi(CipherBird _l) {
   bool addPassphraseSlot(Pointer<Void> kr, String passphrase, KdfPreset kdf) =>
       _l.keyringAddPassphraseSlot(kr, passphrase, kdf);
 
+  /// [addPassphraseSlot] with the passphrase as bytes to wipe.
+  bool addPassphraseSlotBytes(
+    Pointer<Void> kr,
+    Uint8List passphrase,
+    KdfPreset kdf,
+  ) => _l.keyringAddPassphraseSlotBytes(kr, passphrase, kdf);
+
   /// Number of slots.
   int slotCount(Pointer<Void> kr) => _l.keyringSlotCount(kr);
 
@@ -29,6 +36,10 @@ extension type KeyringApi(CipherBird _l) {
   /// Recover the master key with a passphrase.
   Uint8List unlockWithPassphrase(Pointer<Void> kr, String passphrase) =>
       _l.keyringUnlockWithPassphrase(kr, passphrase);
+
+  /// [unlockWithPassphrase] with the passphrase as bytes to wipe.
+  Uint8List unlockWithPassphraseBytes(Pointer<Void> kr, Uint8List passphrase) =>
+      _l.keyringUnlockWithPassphraseBytes(kr, passphrase);
 
   /// Free a keyring handle.
   void free(Pointer<Void> kr) => _l.keyringFree(kr);
