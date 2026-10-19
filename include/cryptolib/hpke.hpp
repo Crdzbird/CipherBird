@@ -237,7 +237,10 @@ public:
         return setup_r_impl(mode, kdf, aead, enc, skR, info, psk, psk_id, pkS);
     }
 
+#ifdef CRYPTOLIB_TESTING
     // ── Deterministic setup (test vectors): caller supplies the ephemeral sk ──
+    // Test builds only: a caller-chosen ephemeral key has no place in
+    // production, where every encapsulation must use fresh randomness.
     [[nodiscard]] static Result<SenderContext>
     setup_s_deterministic(Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR,
                           std::span<const uint8_t> info, std::span<const uint8_t> psk,
@@ -245,6 +248,7 @@ public:
                           std::span<const uint8_t> skE) {
         return setup_s_impl(mode, kdf, aead, pkR, info, psk, psk_id, skS, skE);
     }
+#endif
 
 private:
     // ── byte helpers ──────────────────────────────────────────────────────────
@@ -287,8 +291,11 @@ private:
                                         std::span<const uint8_t> salt, std::string_view label,
                                         std::span<const uint8_t> ikm) {
         std::vector<uint8_t> li;
+        li.reserve(7 + suite_id.size() + label.size() + ikm.size());
         put(li, "HPKE-v1"); put(li, suite_id); put(li, label); put(li, ikm);
-        return hkdf_extract(kdf, salt, li);
+        SecureBuffer prk = hkdf_extract(kdf, salt, li);
+        sodium_memzero(li.data(), li.size());
+        return prk;
     }
     static Result<SecureBuffer> labeled_expand(Kdf kdf, std::span<const uint8_t> suite_id,
                                                std::span<const uint8_t> prk, std::string_view label,
@@ -325,18 +332,19 @@ private:
         auto dh1 = dh(skE, pkR);
         if (dh1.is_err()) return Result<std::pair<SecureBuffer, SecureBuffer>>::err(dh1.error().message);
 
-        std::vector<uint8_t> dh_bytes(dh1.value().span().begin(), dh1.value().span().end());
+        SecureBuffer dh_bytes(skS_or_empty.empty() ? NSECRET : 2 * NSECRET);
+        std::memcpy(dh_bytes.data(), dh1.value().data(), NSECRET);
         std::vector<uint8_t> kem_context(pkE.span().begin(), pkE.span().end());
         kem_context.insert(kem_context.end(), pkR.begin(), pkR.end());
 
         if (!skS_or_empty.empty()) { // AuthEncap
             auto dh2 = dh(skS_or_empty, pkR);
             if (dh2.is_err()) return Result<std::pair<SecureBuffer, SecureBuffer>>::err(dh2.error().message);
-            dh_bytes.insert(dh_bytes.end(), dh2.value().span().begin(), dh2.value().span().end());
+            std::memcpy(dh_bytes.data() + NSECRET, dh2.value().data(), NSECRET);
             SecureBuffer pkS = x25519_pk(skS_or_empty);
             kem_context.insert(kem_context.end(), pkS.span().begin(), pkS.span().end());
         }
-        SecureBuffer shared = extract_and_expand(dh_bytes, kem_context);
+        SecureBuffer shared = extract_and_expand(dh_bytes.span(), kem_context);
         return Result<std::pair<SecureBuffer, SecureBuffer>>::ok({ std::move(shared), std::move(pkE) });
     }
 
@@ -346,7 +354,8 @@ private:
           std::span<const uint8_t> pkS_or_empty) {
         auto dh1 = dh(skR, enc);
         if (dh1.is_err()) return Result<SecureBuffer>::err(dh1.error().message);
-        std::vector<uint8_t> dh_bytes(dh1.value().span().begin(), dh1.value().span().end());
+        SecureBuffer dh_bytes(pkS_or_empty.empty() ? NSECRET : 2 * NSECRET);
+        std::memcpy(dh_bytes.data(), dh1.value().data(), NSECRET);
         SecureBuffer pkR = x25519_pk(skR);
         std::vector<uint8_t> kem_context(enc.begin(), enc.end());
         kem_context.insert(kem_context.end(), pkR.span().begin(), pkR.span().end());
@@ -354,10 +363,10 @@ private:
         if (!pkS_or_empty.empty()) { // AuthDecap
             auto dh2 = dh(skR, pkS_or_empty);
             if (dh2.is_err()) return Result<SecureBuffer>::err(dh2.error().message);
-            dh_bytes.insert(dh_bytes.end(), dh2.value().span().begin(), dh2.value().span().end());
+            std::memcpy(dh_bytes.data() + NSECRET, dh2.value().data(), NSECRET);
             kem_context.insert(kem_context.end(), pkS_or_empty.begin(), pkS_or_empty.end());
         }
-        return Result<SecureBuffer>::ok(extract_and_expand(dh_bytes, kem_context));
+        return Result<SecureBuffer>::ok(extract_and_expand(dh_bytes.span(), kem_context));
     }
 
     // ── Key schedule (RFC 9180 §5.1) → Context ────────────────────────────────
@@ -485,6 +494,8 @@ private:
         std::unique_ptr<EVP_CIPHER_CTX, CtxFree> ctx{ EVP_CIPHER_CTX_new() };
         if (!cipher || !ctx) return Result<Buffer>::err("HPKE: OpenSSL AES-GCM init failed");
 
+        if (!detail::fits_int(aad.size()) || !detail::fits_int(in.size()))
+            return Result<Buffer>::err("HPKE: input too large for AES-GCM");
         int len = 0;
         if (encrypt) {
             Buffer out(in.size() + AEAD_TAG);

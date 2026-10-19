@@ -325,13 +325,13 @@ public:
         std::error_code ec;
         auto file_size = std::filesystem::file_size(path, ec);
         if (ec)
-            return Result<HealthReport>::err("MediaEntropy: cannot stat: " + path.string());
+            return Result<HealthReport>::err("MediaEntropy: cannot stat the file");
         if (file_size < MIN_FILE_BYTES)
-            return Result<HealthReport>::err("MediaEntropy: file too small (<256 bytes): " + path.string());
+            return Result<HealthReport>::err("MediaEntropy: file too small (<256 bytes)");
 
         std::ifstream file(path, std::ios::binary);
         if (!file)
-            return Result<HealthReport>::err("MediaEntropy: cannot open: " + path.string());
+            return Result<HealthReport>::err("MediaEntropy: cannot open the file");
 
         const std::size_t want = std::min<std::size_t>(max_bytes, static_cast<std::size_t>(file_size));
         std::vector<uint8_t> sample(want);
@@ -451,21 +451,21 @@ private:
         std::error_code ec;
         if (!std::filesystem::exists(path, ec) || ec)
             return Result<MediaInfo>::err(
-                "MediaEntropy: file not found: " + path.string());
+                "MediaEntropy: file not found");
 
         auto file_size = std::filesystem::file_size(path, ec);
         if (ec)
             return Result<MediaInfo>::err(
-                "MediaEntropy: cannot stat: " + path.string());
+                "MediaEntropy: cannot stat the file");
 
         if (file_size < MIN_FILE_BYTES)
             return Result<MediaInfo>::err(
-                "MediaEntropy: file too small (<256 bytes): " + path.string());
+                "MediaEntropy: file too small (<256 bytes)");
 
         std::ifstream file(path, std::ios::binary);
         if (!file)
             return Result<MediaInfo>::err(
-                "MediaEntropy: cannot open: " + path.string());
+                "MediaEntropy: cannot open the file");
 
         // NOTE: we intentionally do NOT hash the file path.  Binding the
         // path breaks deterministic-mode portability — the same file content

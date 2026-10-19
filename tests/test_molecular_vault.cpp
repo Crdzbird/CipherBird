@@ -34,6 +34,36 @@ TEST("molecular/passphrase/roundtrip") {
     CHECK(vec(out.value()) == pt);
 }
 
+TEST("molecular/rejects-nonzero-mode-byte") {
+    auto env = MolecularVault::seal(bytes("secret"), "p", {}, fast());
+    CHECK_OK(env);
+    auto forged = vec(env.value());
+    forged[5] = 1;
+    auto r = MolecularVault::open(forged, "p", {});
+    CHECK_ERR(r);
+    CHECK(r.error().message.find("unsupported mode") != std::string::npos);
+}
+
+// The Argon2id cost sits in the unauthenticated header; a forged header must
+// not make the opener allocate gigabytes or loop for hours before the AEAD
+// check can fail.
+TEST("molecular/rejects-kdf-params-outside-policy") {
+    auto env = MolecularVault::seal(bytes("secret"), "p", {}, fast());
+    CHECK_OK(env);
+    auto forged = vec(env.value());
+    for (int i = 0; i < 8; ++i) forged[6 + i] = 0;
+    forged[6 + 5] = 1; // ops = 2^40
+    auto r = MolecularVault::open(forged, "p", {});
+    CHECK_ERR(r);
+    CHECK(r.error().message.find("outside policy") != std::string::npos);
+    forged = vec(env.value());
+    for (int i = 0; i < 8; ++i) forged[14 + i] = 0;
+    forged[14 + 5] = 1; // mem = 2^40 bytes
+    r = MolecularVault::open(forged, "p", {});
+    CHECK_ERR(r);
+    CHECK(r.error().message.find("outside policy") != std::string::npos);
+}
+
 TEST("molecular/passphrase/wrong-passphrase-fails") {
     auto env = MolecularVault::seal(bytes("secret"), "right-pass", {}, fast());
     CHECK_OK(env);
@@ -122,4 +152,6 @@ void run_tests_molecular_vault() {
     RUN("molecular/empty-plaintext-roundtrip");
     RUN("molecular/rejects-empty-passphrase");
     RUN("molecular/rejects-truncated-envelope");
+    RUN("molecular/rejects-nonzero-mode-byte");
+    RUN("molecular/rejects-kdf-params-outside-policy");
 }

@@ -345,7 +345,66 @@ TEST("hkdf/rfc5869-test-vector-1") {
     CHECK(okm.value().to_hex() == "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865");
 }
 
+// RFC 4231 test case 6: a 131-byte key, longer than the SHA-512 block, which
+// HMAC must hash before use. The one-shot libsodium call would read 32 bytes.
+TEST("hash/hmac-sha512/rfc4231-case6-long-key") {
+    std::vector<uint8_t> key(131, 0xaa);
+    auto r = crypto::hash::HmacSha512::compute(
+        sv2sp("Test Using Larger Than Block-Size Key - Hash Key First"), key);
+    REQUIRE(r.is_ok());
+    CHECK(r.value().to_hex() ==
+          "80b24263c7c1a3ebb71493c1dd7be8b49b46d1f41b4aeec1121b013783f8f352"
+          "6b56d037e05f2598bd0fd2215d6a1e5295e64f73f63f0aec8b915a985d786598");
+    CHECK(crypto::hash::HmacSha512::verify(
+        sv2sp("Test Using Larger Than Block-Size Key - Hash Key First"), r.value().span(), key));
+    key[130] ^= 1;
+    CHECK(!crypto::hash::HmacSha512::verify(
+        sv2sp("Test Using Larger Than Block-Size Key - Hash Key First"), r.value().span(), key));
+}
+
+TEST("hash/secret-digest/matches-public-digest") {
+    auto msg = sv2sp("a PIN the app must not leave on the heap");
+    CHECK(crypto::hash::Sha256::secret_digest(msg).value().to_hex() ==
+          crypto::hash::Sha256::digest(msg).value().to_hex());
+    CHECK(crypto::hash::Sha512::secret_digest(msg).value().to_hex() ==
+          crypto::hash::Sha512::digest(msg).value().to_hex());
+    CHECK(crypto::hash::Blake2b::secret_digest(msg).value().to_hex() ==
+          crypto::hash::Blake2b::digest(msg).value().to_hex());
+    CHECK(crypto::hash::Blake3::secret_digest(msg, 40).value().to_hex() ==
+          crypto::hash::Blake3::digest(msg, 40).value().to_hex());
+}
+
+// A context passed as a view into a longer string has no NUL after it; the
+// derivation must use exactly the viewed bytes.
+TEST("hash/blake3/derive-key-context-without-terminator") {
+    const std::string longer = "cryptolib/test/context-v1 trailing bytes that are not part of it";
+    std::string_view view(longer.data(), 25);
+    auto a = crypto::hash::Blake3::derive_key(view, sv2sp("ikm"));
+    auto b = crypto::hash::Blake3::derive_key(std::string(view), sv2sp("ikm"));
+    REQUIRE(a.is_ok()); REQUIRE(b.is_ok());
+    CHECK(a.value().to_hex() == b.value().to_hex());
+}
+
+TEST("hash/argon2id/policy-ceiling") {
+    using A = crypto::hash::Argon2id;
+    CHECK(A::within_policy(crypto_pwhash_OPSLIMIT_SENSITIVE, crypto_pwhash_MEMLIMIT_SENSITIVE));
+    CHECK(A::within_policy(A::POLICY_MAX_OPS, A::POLICY_MAX_MEM_BYTES));
+    CHECK(!A::within_policy(A::POLICY_MAX_OPS + 1, crypto_pwhash_MEMLIMIT_INTERACTIVE));
+    CHECK(!A::within_policy(2, A::POLICY_MAX_MEM_BYTES + 1));
+    CHECK(!A::within_policy(0, crypto_pwhash_MEMLIMIT_INTERACTIVE));
+    CHECK(!A::within_policy(2, 0));
+    auto phc = A::hash_password_str("pw", crypto_pwhash_OPSLIMIT_INTERACTIVE, crypto_pwhash_MEMLIMIT_INTERACTIVE);
+    REQUIRE(phc.is_ok());
+    const std::string padded = phc.value() + "trailing";
+    CHECK(A::verify_str("pw", std::string_view(padded.data(), phc.value().size())));
+    CHECK(!A::verify_str("pw", std::string(crypto_pwhash_STRBYTES + 4, 'x')));
+}
+
 void run_tests_hash() {
+    RUN("hash/hmac-sha512/rfc4231-case6-long-key");
+    RUN("hash/secret-digest/matches-public-digest");
+    RUN("hash/blake3/derive-key-context-without-terminator");
+    RUN("hash/argon2id/policy-ceiling");
     RUN("hash/blake2b/one-shot");
     RUN("hash/blake2b/deterministic");
     RUN("hash/blake2b/different-inputs");

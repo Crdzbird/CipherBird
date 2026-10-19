@@ -102,6 +102,8 @@ public:
         std::span<const uint8_t> inner;
         if (auto e = unframe(envelope, salt, params, inner); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
+        if (!Argon2id::within_policy(params.ops, params.mem))
+            return Result<SecureBuffer>::err("MolecularVault: kdf params outside policy");
 
         auto master = Argon2id::derive_key(passphrase, salt, 32, params.ops, params.mem);
         if (master.is_err()) return Result<SecureBuffer>::err(master.error().message);
@@ -241,8 +243,13 @@ private:
             return Result<void>::err("MolecularVault: bad magic");
         if (env[4] != VERSION)
             return Result<void>::err("MolecularVault: unsupported version");
+        if (env[5] != 0)
+            return Result<void>::err("MolecularVault: unsupported mode");
+        const uint64_t mem = get_u64_le(env.data() + 14);
+        if (mem > static_cast<uint64_t>(SIZE_MAX))
+            return Result<void>::err("MolecularVault: kdf params outside policy");
         params.ops = get_u64_le(env.data() + 6);
-        params.mem = static_cast<std::size_t>(get_u64_le(env.data() + 14));
+        params.mem = static_cast<std::size_t>(mem);
         std::memcpy(salt.data(), env.data() + 22, SALT_BYTES);
         inner = env.subspan(HDR);
         return Result<void>::ok();

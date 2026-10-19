@@ -11,6 +11,7 @@
 
 #include "test_framework.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -21,6 +22,116 @@ namespace {
 std::vector<uint8_t> bytes(const crypto::SecureBuffer& b) {
     return std::vector<uint8_t>(b.span().begin(), b.span().end());
 }
+}
+
+// A passphrase slot's Argon2id cost travels in the envelope. A forged envelope
+// must be refused before any derivation, not after gigabytes are requested.
+TEST("keyring/deserialise/kdf-params-outside-policy-rejected") {
+    auto kr = crypto::Keyring::create();
+    REQUIRE(kr.add_passphrase_slot("pw", crypto::KdfParams::interactive()).is_ok());
+    auto blob = bytes(kr.serialise());
+    std::vector<uint8_t> marker;
+    for (int i = 0; i < 8; ++i) marker.push_back(uint8_t(uint64_t(crypto_pwhash_OPSLIMIT_INTERACTIVE) >> (8 * i)));
+    for (int i = 0; i < 8; ++i) marker.push_back(uint8_t(uint64_t(crypto_pwhash_MEMLIMIT_INTERACTIVE) >> (8 * i)));
+    auto at = std::search(blob.begin(), blob.end(), marker.begin(), marker.end());
+    REQUIRE(at != blob.end());
+    const std::size_t ops_off = static_cast<std::size_t>(at - blob.begin());
+    auto forged = blob;
+    forged[ops_off + 5] = 1; // ops = 2^40 + 2
+    auto r = crypto::Keyring::deserialise(forged);
+    CHECK_ERR(r);
+    CHECK(r.error().message.find("outside policy") != std::string::npos);
+    forged = blob;
+    forged[ops_off + 8 + 5] = 1; // mem = 2^40 + 64 MiB
+    r = crypto::Keyring::deserialise(forged);
+    CHECK_ERR(r);
+    CHECK(crypto::Keyring::deserialise(blob).is_ok());
+}
+
+// A stand-in for the platform key module: wraps and unwraps a factor under a
+// key the keyring never sees. Real modules are the Secure Enclave and the
+// Android Keystore, driven by the bindings.
+namespace {
+struct FakeModule {
+    crypto::SecureBuffer key = crypto::random_bytes(32);
+    std::vector<uint8_t> wrap(std::span<const uint8_t> factor) const {
+        auto ct = crypto::symmetric::XChaCha20Poly1305::encrypt(factor, key.span(), {});
+        return bytes_of(ct.value());
+    }
+    crypto::Result<crypto::SecureBuffer> unwrap(std::span<const uint8_t> blob) const {
+        return crypto::symmetric::XChaCha20Poly1305::decrypt(blob, key.span(), {});
+    }
+    template <class B> static std::vector<uint8_t> bytes_of(const B& b) {
+        return std::vector<uint8_t>(b.span().begin(), b.span().end());
+    }
+};
+}
+
+TEST("keyring/hardware/round-trip-through-a-module") {
+    FakeModule module;
+    const std::vector<uint8_t> key_id = {'s', 'e', ':', 'b', 'a', 'n', 'k', '1'};
+
+    auto kr = crypto::Keyring::create();
+    auto factor = kr.add_hardware_slot(key_id);
+    REQUIRE(factor.is_ok());
+    CHECK(factor.value().size() == 32);
+    CHECK(kr.slot_count() == 1);
+    CHECK(kr.slot_type(0).value() == crypto::Keyring::SlotType::HardwareWrapped);
+    REQUIRE(kr.set_hardware_blob(0, module.wrap(factor.value().span())).is_ok());
+    REQUIRE(kr.add_passphrase_slot("pw", crypto::KdfParams::interactive()).is_ok());
+
+    auto blob = kr.serialise();
+    CHECK(blob.span()[4] == crypto::Keyring::VERSION_HARDWARE);
+    auto loaded = crypto::Keyring::deserialise(blob.span());
+    REQUIRE(loaded.is_ok());
+    auto slot = loaded.value().hardware_slot(0);
+    REQUIRE(slot.is_ok());
+    CHECK(FakeModule::bytes_of(slot.value().first) == key_id);
+    auto unwrapped = module.unwrap(slot.value().second.span());
+    REQUIRE(unwrapped.is_ok());
+    auto master = loaded.value().unlock_with_hardware(0, unwrapped.value().span());
+    REQUIRE(master.is_ok());
+    auto by_pass = crypto::Keyring::deserialise(blob.span()).value().unlock_with_passphrase("pw");
+    REQUIRE(by_pass.is_ok());
+    CHECK(bytes(master.value()) == bytes(by_pass.value()));
+
+    auto wrong = crypto::random_bytes(32);
+    CHECK(loaded.value().unlock_with_hardware(0, wrong.span()).is_err());
+    CHECK(loaded.value().unlock_with_hardware(1, unwrapped.value().span()).is_err());
+    CHECK(loaded.value().hardware_slot(1).is_err());
+    CHECK(loaded.value().set_hardware_blob(1, key_id).is_err());
+    REQUIRE(loaded.value().remove_slot(0).is_ok());
+    CHECK(loaded.value().serialise().span()[4] == crypto::Keyring::VERSION);
+}
+
+TEST("keyring/hardware/envelope-version-and-tamper") {
+    auto plain = crypto::Keyring::create();
+    REQUIRE(plain.add_device_slot(crypto::random_bytes(32).span()).is_ok());
+    CHECK(plain.serialise().span()[4] == crypto::Keyring::VERSION);
+
+    auto kr = crypto::Keyring::create();
+    auto factor = kr.add_hardware_slot(std::vector<uint8_t>{1, 2, 3});
+    REQUIRE(factor.is_ok());
+    REQUIRE(kr.set_hardware_blob(0, std::vector<uint8_t>(40, 0xab)).is_ok());
+    auto blob = bytes(kr.serialise());
+
+    auto downgraded = blob;
+    downgraded[4] = crypto::Keyring::VERSION;
+    CHECK(crypto::Keyring::deserialise(downgraded).is_err());
+
+    auto renamed = blob;
+    const std::vector<uint8_t> id = {1, 2, 3};
+    auto at = std::search(renamed.begin() + 5, renamed.end(), id.begin(), id.end());
+    REQUIRE(at != renamed.end());
+    *at = 9;
+    auto loaded = crypto::Keyring::deserialise(renamed);
+    REQUIRE(loaded.is_ok());
+    CHECK(loaded.value().unlock_with_hardware(0, factor.value().span()).is_err());
+
+    auto truncated = std::vector<uint8_t>(blob.begin(), blob.end() - 1);
+    CHECK(crypto::Keyring::deserialise(truncated).is_err());
+    CHECK(kr.set_hardware_blob(0, std::vector<uint8_t>(crypto::Keyring::MAX_HW_BLOB_BYTES + 1, 1)).is_err());
+    CHECK(kr.add_hardware_slot({}).is_err());
 }
 
 // ── Single-device: device factor wraps + recovers the master key ─────────────
@@ -190,6 +301,9 @@ TEST("keyring/malformed-rejected") {
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_keyring() {
+    RUN("keyring/deserialise/kdf-params-outside-policy-rejected");
+    RUN("keyring/hardware/round-trip-through-a-module");
+    RUN("keyring/hardware/envelope-version-and-tamper");
     RUN("keyring/device/round-trip");
     RUN("keyring/device/wrong-factor-rejected");
     RUN("keyring/cross-device/same-master");

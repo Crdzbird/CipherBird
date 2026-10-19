@@ -45,21 +45,26 @@ public:
     static constexpr const char* PROTOCOL = "Noise_XX_25519_ChaChaPoly_SHA256";
 
     /// A directional transport cipher (post-handshake).
-    struct CipherState {
+    class CipherState {
+    public:
         SecureBuffer k;       // 32 bytes (empty ⇒ no key)
-        uint64_t     n = 0;
+
+        /// The next nonce. Read-only: a caller that could set it could make
+        /// two records share a nonce, which breaks ChaCha20-Poly1305.
+        [[nodiscard]] uint64_t nonce() const noexcept { return n_; }
 
         [[nodiscard]] Result<PublicBuffer> encrypt(std::span<const uint8_t> pt,
                                                    std::span<const uint8_t> ad = {}) {
+            if (n_ == UINT64_MAX) return Result<PublicBuffer>::err("Noise: nonce exhausted, rekey");
             PublicBuffer out(pt.size() + TAGLEN);
             unsigned long long olen = 0;
-            std::array<uint8_t, 12> nonce = make_nonce(n);
+            std::array<uint8_t, 12> nonce = make_nonce(n_);
             if (crypto_aead_chacha20poly1305_ietf_encrypt(
                     out.data(), &olen, pt.data(), pt.size(),
                     ad.empty() ? nullptr : ad.data(), ad.size(),
                     nullptr, nonce.data(), k.data()) != 0)
                 return Result<PublicBuffer>::err("Noise: transport encrypt failed");
-            ++n;
+            ++n_;
             out.resize(static_cast<std::size_t>(olen));
             return Result<PublicBuffer>::ok(std::move(out));
         }
@@ -68,13 +73,13 @@ public:
             if (ct.size() < TAGLEN) return Result<SecureBuffer>::err("Noise: transport ciphertext too short");
             SecureBuffer out(ct.size() - TAGLEN);
             unsigned long long olen = 0;
-            std::array<uint8_t, 12> nonce = make_nonce(n);
+            std::array<uint8_t, 12> nonce = make_nonce(n_);
             if (crypto_aead_chacha20poly1305_ietf_decrypt(
                     out.data(), &olen, nullptr, ct.data(), ct.size(),
                     ad.empty() ? nullptr : ad.data(), ad.size(),
                     nonce.data(), k.data()) != 0)
                 return Result<SecureBuffer>::err("Noise: transport authentication failed");
-            ++n;
+            ++n_;
             out.resize(static_cast<std::size_t>(olen));
             return Result<SecureBuffer>::ok(std::move(out));
         }
@@ -126,9 +131,24 @@ public:
             out.resize(static_cast<std::size_t>(olen));
             return Result<SecureBuffer>::ok(std::move(out));
         }
+
+    private:
+        uint64_t n_ = 0;
     };
 
     struct Session { CipherState send, recv; };
+
+    NoiseXX(const NoiseXX&)            = delete;
+    NoiseXX& operator=(const NoiseXX&) = delete;
+    NoiseXX(NoiseXX&&) noexcept            = default;
+    NoiseXX& operator=(NoiseXX&&) noexcept = default;
+
+    /// The chaining key and handshake hash are secrets of the handshake and
+    /// are wiped with it.
+    ~NoiseXX() {
+        sodium_memzero(ck_.data(), HASHLEN);
+        sodium_memzero(h_.data(), HASHLEN);
+    }
 
     [[nodiscard]] static NoiseXX initiator(const asymmetric::EncryptionKeyPair& static_kp,
                                            std::span<const uint8_t> prologue = {}) {
@@ -139,14 +159,15 @@ public:
         return NoiseXX(false, static_kp, prologue);
     }
 
-    /// TEST-ONLY: force the ephemeral keypair used by the next `e` token so that
-    /// handshakes become deterministic for known-answer (vector) validation.
-    /// Production code must never call this — ephemerals must be random.
+#ifdef CRYPTOLIB_TESTING
+    /// Test builds only: force the ephemeral keypair used by the next `e`
+    /// token so handshakes become deterministic for known-answer vectors.
     void test_set_ephemeral(const asymmetric::EncryptionKeyPair& e) {
         e_.public_key = SecureBuffer(e.public_key.data(), e.public_key.size());
         e_.secret_key = SecureBuffer(e.secret_key.data(), e.secret_key.size());
         have_fixed_e_ = true;
     }
+#endif
 
     [[nodiscard]] bool handshake_finished() const { return msg_index_ >= 3; }
 
@@ -222,15 +243,24 @@ public:
     }
 
     /// Valid once handshake_finished(): the two transport CipherStates.
+    /// One shot: the handshake state is consumed, so a second call cannot
+    /// produce a second Session with the same keys and fresh counters.
     [[nodiscard]] Result<Session> into_session() {
         if (!handshake_finished()) return Result<Session>::err("Noise: handshake not finished");
+        if (split_) return Result<Session>::err("Noise: session already taken");
         auto out = hkdf2(ck_, {});  // Split(): HKDF(ck, empty, 2)
         Session s;
         // Initiator sends with the first output, receives with the second.
         if (initiator_) { s.send.k = std::move(out.first); s.recv.k = std::move(out.second); }
         else            { s.send.k = std::move(out.second); s.recv.k = std::move(out.first); }
+        split_ = true;
+        sodium_memzero(ck_.data(), HASHLEN);
+        k_.zeroize();
         return Result<Session>::ok(std::move(s));
     }
+
+    /// Whether into_session() already consumed this handshake.
+    [[nodiscard]] bool split() const noexcept { return split_; }
 
 private:
     enum class Token { E, S, EE, ES, SE };
@@ -248,6 +278,7 @@ private:
     uint64_t     nk_ = 0;
     bool         has_key_ = false;
     bool         have_fixed_e_ = false; // test seam
+    bool         split_ = false;
 
     NoiseXX(bool initiator, const asymmetric::EncryptionKeyPair& static_kp,
             std::span<const uint8_t> prologue)
