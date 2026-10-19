@@ -4,7 +4,20 @@ part of '../../cipher_bird.dart';
 extension CipherBirdKeyringManagement on CipherBird {
   /// Recover the master key with a passphrase.
   Uint8List keyringUnlockWithPassphrase(Pointer<Void> kr, String passphrase) {
-    final cpw = passphrase.toNativeUtf8();
+    final bytes = utf8.encode(passphrase);
+    try {
+      return keyringUnlockWithPassphraseBytes(kr, bytes);
+    } finally {
+      bytes.wipe();
+    }
+  }
+
+  /// [keyringUnlockWithPassphrase] with the passphrase as bytes to wipe.
+  Uint8List keyringUnlockWithPassphraseBytes(
+    Pointer<Void> kr,
+    Uint8List passphrase,
+  ) {
+    final cpw = _toNativeZ(passphrase);
     try {
       return _checkBufResult(
         _lib.lookupFunction<

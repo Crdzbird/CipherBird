@@ -15,13 +15,15 @@ part of '../../cipher_bird.dart';
 /// ```
 extension KemKeyPairDecryption on KemKeyPair {
   /// Recipient side: recover the key agreed in [KemKeyPair.encapsulate].
-  SymmetricKey decapsulate(List<int> ciphertext) => SymmetricKey._(
-    _lib,
-    _lib.hkdfDerive(
-      _lib.hybridKemDecapsulate(ciphertext.u8, secretKey),
-      info: KemKeyPair._info.bytes,
-    ),
-  );
+  SymmetricKey decapsulate(List<int> ciphertext) {
+    final ss = _lib.hybridKemDecapsulate(ciphertext.u8, secretKey);
+    final key = SymmetricKey._(
+      _lib,
+      _lib.hkdfDerive(ss, info: KemKeyPair._info.bytes),
+    );
+    ss.wipe();
+    return key;
+  }
 
   /// Open a blob made by [KemKeyPair.encryptFor] for this key pair.
   Uint8List decrypt(List<int> blob, {List<int>? aad}) {

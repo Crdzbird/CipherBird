@@ -505,7 +505,9 @@ CryptoBuffer serialise_shares(const std::vector<crypto::Shamir::Share>& shares) 
         for (int i = 0; i < 4; ++i) out.push_back(static_cast<uint8_t>((n >> (8 * i)) & 0xff));
         out.insert(out.end(), s.y.span().begin(), s.y.span().end());
     }
-    return to_cbuf(std::span<const uint8_t>(out.data(), out.size()));
+    CryptoBuffer cb = to_cbuf(std::span<const uint8_t>(out.data(), out.size()));
+    sodium_memzero(out.data(), out.size());
+    return cb;
 }
 // Parse a concatenation of those records back into shares.
 bool parse_shares(std::span<const uint8_t> blob, std::vector<crypto::Shamir::Share>& out) {
@@ -516,7 +518,7 @@ bool parse_shares(std::span<const uint8_t> blob, std::vector<crypto::Shamir::Sha
         uint32_t ylen = 0;
         for (int i = 0; i < 4; ++i) ylen |= static_cast<uint32_t>(blob[off + 1 + i]) << (8 * i);
         off += 5;
-        if (off + ylen > blob.size()) return false;
+        if (ylen > blob.size() - off) return false;
         crypto::SecureBuffer y(blob.data() + off, ylen);
         out.push_back(crypto::Shamir::Share{index, std::move(y)});
         off += ylen;
@@ -2318,10 +2320,10 @@ CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_s(
     const uint8_t* skS, size_t skS_len,
     CryptoBuffer* out_enc, char** out_error) try {
     if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
-    auto r = crypto::Hpke::setup_s_deterministic(
+    auto r = crypto::Hpke::setup_s(
         hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
         sp(pkR, pkR_len), sp(info, info_len),
-        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len), {});
+        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len));
     if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
     if (out_enc) *out_enc = to_cbuf(r.value().enc);
     return new HpkeCtxImpl{ std::move(r.value().ctx) };
@@ -2525,7 +2527,9 @@ CRYPTO_API CryptoBufferResult cryptolib_bbs_finalize_nym_secrets(
         bbs_msgs(prover_nyms, nym_lens, nym_count), sp(signer_nym_entropy, entropy_len));
     std::vector<uint8_t> flat;
     for (const auto& s : secrets) flat.insert(flat.end(), s.begin(), s.end());
-    return { to_cbuf(std::span<const uint8_t>(flat)), nullptr };
+    CryptoBufferResult out{ to_cbuf(std::span<const uint8_t>(flat)), nullptr };
+    sodium_memzero(flat.data(), flat.size());
+    return out;
 #else
     (void)prover_nyms;(void)nym_lens;(void)nym_count;(void)signer_nym_entropy;(void)entropy_len;
     return err_buf("BBS not enabled");
@@ -3307,6 +3311,46 @@ CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_device(
     CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len) try {
     if (!kr) return err_buf("null keyring");
     auto r = static_cast<KeyringImpl*>(kr)->kr.unlock_with_device(sp(factor_key, len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_keyring_add_hardware_slot(
+    CryptoKeyringHandle kr, const uint8_t* key_id, size_t key_id_len) try {
+    if (!kr) return err_buf("null keyring");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.add_hardware_slot(sp(key_id, key_id_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_keyring_set_hardware_blob(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* blob, size_t blob_len) try {
+    if (!kr) return 0;
+    return static_cast<KeyringImpl*>(kr)->kr.set_hardware_blob(index, sp(blob, blob_len)).is_ok() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API int cryptolib_keyring_slot_type(CryptoKeyringHandle kr, size_t index) try {
+    if (!kr) return -1;
+    auto r = static_cast<KeyringImpl*>(kr)->kr.slot_type(index);
+    return r.is_ok() ? static_cast<int>(r.value()) : -1;
+} catch (...) { return -1; }
+
+CRYPTO_API int cryptolib_keyring_hardware_slot(
+    CryptoKeyringHandle kr, size_t index, CryptoBuffer* out_key_id, CryptoBuffer* out_blob) try {
+    if (out_key_id) *out_key_id = CryptoBuffer{ nullptr, 0 };
+    if (out_blob) *out_blob = CryptoBuffer{ nullptr, 0 };
+    if (!kr) return 0;
+    auto r = static_cast<KeyringImpl*>(kr)->kr.hardware_slot(index);
+    if (r.is_err()) return 0;
+    if (out_key_id) *out_key_id = to_cbuf(r.value().first.span());
+    if (out_blob) *out_blob = to_cbuf(r.value().second.span());
+    return 1;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_hardware(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* factor, size_t factor_len) try {
+    if (!kr) return err_buf("null keyring");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.unlock_with_hardware(index, sp(factor, factor_len));
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES

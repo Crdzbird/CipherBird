@@ -32,6 +32,49 @@ extension Data {
 
 // MARK: - Internal Helpers
 
+/// Secret material with a definite end of life: `wipe()` overwrites the bytes
+/// with zeros (and so does deinit), and every later access traps, so a key
+/// copy cannot linger on the heap unnoticed.
+final class SecretData {
+    private var storage: Data
+    private(set) var isWiped = false
+
+    init(_ data: Data) { storage = data }
+
+    /// The live bytes, not a copy.
+    var bytes: Data {
+        precondition(!isWiped, "cryptolib: this secret was wiped")
+        return storage
+    }
+
+    var count: Int { storage.count }
+
+    /// Overwrites the bytes with zeros. Idempotent.
+    func wipe() {
+        if isWiped { return }
+        isWiped = true
+        storage.resetBytes(in: 0..<storage.count)
+    }
+
+    deinit { wipe() }
+}
+
+/// Runs `use` with a NUL-terminated copy of a password and zeroes the copy
+/// afterwards. A Swift String bridged straight to a C `const char*` leaves a
+/// temporary nothing can wipe, which is why every password path goes through
+/// here.
+private func withPassword<T>(_ password: Data, _ use: (UnsafePointer<CChar>) throws -> T) rethrows -> T {
+    var z = [UInt8](password) + [0]
+    defer { for i in z.indices { z[i] = 0 } }
+    return try z.withUnsafeBufferPointer { buf in
+        try buf.baseAddress!.withMemoryRebound(to: CChar.self, capacity: buf.count) { try use($0) }
+    }
+}
+
+private func withPassword<T>(_ password: String, _ use: (UnsafePointer<CChar>) throws -> T) rethrows -> T {
+    try withPassword(Data(password.utf8), use)
+}
+
 /// Copy a CryptoBuffer into Data and free the C buffer.
 private func copyAndFree(_ buf: inout CryptoBuffer) -> Data {
     guard let ptr = buf.data, buf.len > 0 else { return Data() }
@@ -157,14 +200,27 @@ final class CryptoLibBridge {
         }
     }
 
+    /// The password copy handed to the engine is wiped afterwards; a Swift
+    /// String itself cannot be, so prefer the Data overload for passwords
+    /// held as bytes.
     func argon2idHashStr(_ password: String, ops: UInt64 = 2, mem: Int = 67108864) throws -> String {
-        var r = cryptolib_argon2id_hash_str(password, ops, mem)
-        let data = try check(&r)
-        return String(data: data, encoding: .utf8) ?? ""
+        try argon2idHashStr(Data(password.utf8), ops: ops, mem: mem)
+    }
+
+    func argon2idHashStr(_ password: Data, ops: UInt64 = 2, mem: Int = 67108864) throws -> String {
+        try withPassword(password) { pw in
+            var r = cryptolib_argon2id_hash_str(pw, ops, mem)
+            let data = try check(&r)
+            return String(data: data, encoding: .utf8) ?? ""
+        }
     }
 
     func argon2idVerifyStr(_ password: String, phcStr: String) -> Bool {
-        return cryptolib_argon2id_verify_str(password, phcStr) == 1
+        argon2idVerifyStr(Data(password.utf8), phcStr: phcStr)
+    }
+
+    func argon2idVerifyStr(_ password: Data, phcStr: String) -> Bool {
+        withPassword(password) { pw in cryptolib_argon2id_verify_str(pw, phcStr) == 1 }
     }
 
     // MARK: - Symmetric Encryption

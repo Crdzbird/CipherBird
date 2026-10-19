@@ -26,19 +26,36 @@ function initEngine(args) {
   return enginePromise.then(function () { return true; });
 }
 
+// Scratch allocations and their sizes, so release() can wipe them.
+var scratch = new Map();
+
 function cString(module, text) {
   var bytes = new TextEncoder().encode(text);
   var ptr = module._malloc(bytes.length + 1);
   module.HEAPU8.set(bytes, ptr);
   module.HEAPU8[ptr + bytes.length] = 0;
+  bytes.fill(0);
+  scratch.set(ptr, bytes.length + 1);
   return ptr;
 }
 
 function cBytes(module, bytes) {
   var view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  var ptr = module._malloc(view.length === 0 ? 1 : view.length);
+  var size = view.length === 0 ? 1 : view.length;
+  var ptr = module._malloc(size);
   module.HEAPU8.set(view, ptr);
+  scratch.set(ptr, size);
   return ptr;
+}
+
+// Overwrites a scratch block with zeros, then frees it.
+function release(module, ptr) {
+  var size = scratch.get(ptr);
+  if (size) {
+    module.HEAPU8.fill(0, ptr, ptr + size);
+    scratch.delete(ptr);
+  }
+  module._free(ptr);
 }
 
 function readCString(module, ptr) {
@@ -78,7 +95,7 @@ var ops = {
       module._cbw_cryptolib_argon2id_derive(out, password, salt, a.salt.length, a.keyLen, ops64[0], ops64[1], a.mem);
       return takeBuffer(module, out);
     } finally {
-      module._free(out); module._free(salt); module._free(password);
+      module._free(out); release(module, salt); release(module, password);
     }
   },
   argon2id_hash_str: function (module, a) {
@@ -91,7 +108,7 @@ var ops = {
       var end = bytes.indexOf(0);
       return new TextDecoder().decode(end < 0 ? bytes : bytes.subarray(0, end));
     } finally {
-      module._free(out); module._free(password);
+      module._free(out); release(module, password);
     }
   },
   argon2id_verify_str: function (module, a) {
@@ -100,7 +117,7 @@ var ops = {
     try {
       return module._cbw_cryptolib_argon2id_verify_str(password, phc) === 1;
     } finally {
-      module._free(phc); module._free(password);
+      release(module, phc); release(module, password);
     }
   }
 };

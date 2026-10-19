@@ -29,15 +29,11 @@ extension CipherBirdKeyring on CipherBird {
     String passphrase,
     KdfPreset kdf,
   ) {
-    final cpw = passphrase.toNativeUtf8();
+    final bytes = utf8.encode(passphrase);
     try {
-      return _lib.lookupFunction<
-            Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32),
-            int Function(Pointer<Void>, Pointer<Utf8>, int)
-          >('cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf.value) ==
-          1;
+      return keyringAddPassphraseSlotBytes(kr, bytes, kdf);
     } finally {
-      malloc.free(cpw);
+      bytes.wipe();
     }
   }
 

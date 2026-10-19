@@ -23,6 +23,7 @@
 
 #include "../types.hpp"
 
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
 #include <openssl/params.h>
@@ -79,6 +80,10 @@ inline Result<KeyPairBytes> keygen(const char* alg) {
     if (!pkey) return Result<KeyPairBytes>::err("PQ(OpenSSL): keypair generation failed");
 
     uint8_t pub[4096], priv[8192];
+    struct Cleanse {
+        uint8_t* p; std::size_t n;
+        ~Cleanse() { OPENSSL_cleanse(p, n); }
+    } const cleanse_priv{ priv, sizeof priv };
     std::size_t publen = 0, privlen = 0;
     if (EVP_PKEY_get_octet_string_param(pkey.get(), OSSL_PKEY_PARAM_PUB_KEY,
                                         pub, sizeof pub, &publen) != 1 ||

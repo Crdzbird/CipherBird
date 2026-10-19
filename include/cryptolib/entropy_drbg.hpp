@@ -13,6 +13,14 @@
  * ║  Built on libsodium HMAC-SHA-512 — composition only, no new cryptography.     ║
  * ║  Validated byte-for-byte against a NIST CAVP HMAC_DRBG SHA-512 vector.        ║
  * ╚════════════════════════════════════════════════════════════════════════════╝
+ *
+ * Status: this is an implementation of the SP 800-90A algorithm, not a
+ * validated DRBG. Known deviations from a conforming instantiation: the
+ * entropy input is whatever the caller supplies (no SP 800-90B source or
+ * health tests sit in front of it), reseeding is left to the caller rather
+ * than enforced by an entropy source, and prediction resistance is not
+ * offered. The process CSPRNG remains the default random source; this class
+ * is opt-in for beacon-style reproducible streams.
  */
 
 #include "types.hpp"
@@ -85,11 +93,26 @@ public:
         reseed_counter_ = 1;
     }
 
-    // Internal-state accessors (for known-answer validation).
+#ifdef CRYPTOLIB_TESTING
+    // Internal-state accessors (for known-answer validation), test builds only.
     [[nodiscard]] std::span<const uint8_t> key_state() const { return { K_.data(), OUTLEN }; }
     [[nodiscard]] std::span<const uint8_t> v_state() const { return { V_.data(), OUTLEN }; }
+#endif
+
+    HmacDrbg(const HmacDrbg&)            = delete;
+    HmacDrbg& operator=(const HmacDrbg&) = delete;
+    HmacDrbg(HmacDrbg&&) noexcept            = default;
+    HmacDrbg& operator=(HmacDrbg&&) noexcept = default;
+
+    /// The working state K and V is the generator's secret; wiped with it.
+    ~HmacDrbg() {
+        sodium_memzero(K_.data(), OUTLEN);
+        sodium_memzero(V_.data(), OUTLEN);
+    }
 
 private:
+    HmacDrbg() = default;
+
     std::array<uint8_t, OUTLEN> K_{}, V_{};
     uint64_t reseed_counter_ = 0;
 

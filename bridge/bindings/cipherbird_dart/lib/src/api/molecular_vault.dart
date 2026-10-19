@@ -18,8 +18,24 @@ extension CipherBirdMolecular on CipherBird {
     int ops = 0,
     int mem = 0,
   }) {
+    final bytes = utf8.encode(passphrase);
+    try {
+      return molecularSealBytes(plaintext, bytes, aad: aad, ops: ops, mem: mem);
+    } finally {
+      bytes.wipe();
+    }
+  }
+
+  /// [molecularSeal] with the passphrase as UTF-8 bytes the caller can wipe.
+  Uint8List molecularSealBytes(
+    Uint8List plaintext,
+    Uint8List passphrase, {
+    Uint8List? aad,
+    int ops = 0,
+    int mem = 0,
+  }) {
     final pp = _toNative(plaintext);
-    final cpw = passphrase.toNativeUtf8();
+    final cpw = _toNativeZ(passphrase);
     final pa = (aad != null && aad.isNotEmpty) ? _toNative(aad) : nullptr;
     try {
       return _checkBufResult(

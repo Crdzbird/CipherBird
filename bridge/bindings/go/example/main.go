@@ -45,18 +45,18 @@ func main() {
 	msg := []byte("The quick brown fox jumps over the lazy dog")
 
 	hash := must(cryptolib.Blake2b(msg, nil))
-	cryptolib.Print("BLAKE2b-512", hash)
+	show("BLAKE2b-512", hash)
 
 	sha := must(cryptolib.SHA256(msg))
-	cryptolib.Print("SHA-256", sha)
+	show("SHA-256", sha)
 
 	// ── 2. Symmetric encryption ──────────────────────────────────────────
 	fmt.Println("\n═══ Symmetric Encryption ═══")
 	key := must(cryptolib.SymKeygen())
-	cryptolib.Print("Key", key)
+	show("Key", key)
 
 	ct := must(cryptolib.XChaCha20Encrypt([]byte("Go says hello to XChaCha20!"), key, nil))
-	cryptolib.Print("Ciphertext", ct[:32])
+	show("Ciphertext", ct[:32])
 
 	pt := must(cryptolib.XChaCha20Decrypt(ct, key, nil))
 	fmt.Printf("  %-24s %s\n", "Decrypted:", string(pt))
@@ -64,11 +64,11 @@ func main() {
 	// ── 3. Ed25519 signing ───────────────────────────────────────────────
 	fmt.Println("\n═══ Ed25519 Signing ═══")
 	kp := cryptolib.Ed25519Keygen()
-	cryptolib.Print("Public key", kp.Public)
+	show("Public key", kp.Public)
 
 	document := []byte("I, the undersigned, approve this document.")
 	sig := must(cryptolib.Ed25519Sign(document, kp.Secret))
-	cryptolib.Print("Signature", sig)
+	show("Signature", sig)
 
 	if cryptolib.Ed25519Verify(document, sig, kp.Public) {
 		fmt.Println("  ✓ Signature verified")
@@ -80,8 +80,8 @@ func main() {
 	fmt.Println("\n═══ Box Encryption (Alice → Bob) ═══")
 	alice := cryptolib.BoxKeygen()
 	bob := cryptolib.BoxKeygen()
-	cryptolib.Print("Alice public", alice.Public)
-	cryptolib.Print("Bob   public", bob.Public)
+	show("Alice public", alice.Public)
+	show("Bob   public", bob.Public)
 
 	boxCt := must(cryptolib.BoxEncrypt([]byte("Hello Bob, from Alice!"), bob.Public, alice.Secret))
 	boxPt := must(cryptolib.BoxDecrypt(boxCt, alice.Public, bob.Secret))
@@ -105,11 +105,11 @@ func main() {
 		fmt.Printf("  %-24s %.0f bits\n", "Entropy estimate:", info.EntropyBits)
 
 		keys := me.DeriveAll()
-		cryptolib.Print("symmetric_key", keys.SymmetricKey)
-		cryptolib.Print("vault_master_key", keys.VaultMasterKey)
-		cryptolib.Print("signing_seed", keys.SigningSeed)
-		cryptolib.Print("box_seed", keys.BoxSeed)
-		cryptolib.Print("stream_key", keys.StreamKey)
+		show("symmetric_key", keys.SymmetricKey)
+		show("vault_master_key", keys.VaultMasterKey)
+		show("signing_seed", keys.SigningSeed)
+		show("box_seed", keys.BoxSeed)
+		show("stream_key", keys.StreamKey)
 		fmt.Println("  ✓ 6 domain-separated keys derived from one file")
 
 		// 5b. Encrypt with the file-derived key
@@ -159,7 +159,7 @@ func main() {
 		enrollKeys := enrollMe.DeriveAll()
 		enrollKp := cryptolib.Ed25519KeygenFromSeed(enrollKeys.SigningSeed)
 		storedFingerprint := enrollKp.Public
-		cryptolib.Print("Enrolled fingerprint", storedFingerprint)
+		show("Enrolled fingerprint", storedFingerprint)
 
 		// Verification: re-derive from the same file → compare
 		verifyMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
@@ -185,11 +185,11 @@ func main() {
 
 		// Server sends a random 32-byte challenge
 		challenge := must(cryptolib.RandomBytes(32))
-		cryptolib.Print("Challenge", challenge)
+		show("Challenge", challenge)
 
 		// Client signs the challenge with the file-derived Ed25519 secret key
 		clientSig := must(cryptolib.Ed25519Sign(challenge, enrollKp.Secret))
-		cryptolib.Print("Client signature", clientSig)
+		show("Client signature", clientSig)
 
 		// Server verifies signature against stored public key
 		if cryptolib.Ed25519Verify(challenge, clientSig, storedFingerprint) {
@@ -215,7 +215,7 @@ func main() {
 		defer credKey.Close()
 		credSymKey := must(credKey.SymmetricKey())
 		credHash := must(cryptolib.Blake2b(credSymKey, nil))
-		cryptolib.Print("Credential hash", credHash)
+		show("Credential hash", credHash)
 
 		// Re-derive from same file → hash → compare
 		credKey2 := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
@@ -246,9 +246,9 @@ func main() {
 		lavaKey2 := must(lava2.SymmetricKey())
 		lavaKey3 := must(lava3.SymmetricKey())
 
-		cryptolib.Print("LavaRand key #1", lavaKey1)
-		cryptolib.Print("LavaRand key #2", lavaKey2)
-		cryptolib.Print("LavaRand key #3", lavaKey3)
+		show("LavaRand key #1", lavaKey1)
+		show("LavaRand key #2", lavaKey2)
+		show("LavaRand key #3", lavaKey3)
 
 		// Show all 3 are different (LavaRand mixes system entropy each time)
 		allDifferent := !cryptolib.SecureEqual(lavaKey1, lavaKey2) &&
@@ -265,7 +265,7 @@ func main() {
 		defer fpMe.Close()
 		fpKey := must(fpMe.SymmetricKey())
 		fingerprint := must(cryptolib.Blake2b(fpKey, nil))
-		cryptolib.Print("Device fingerprint", fingerprint)
+		show("Device fingerprint", fingerprint)
 		fmt.Println("  This fingerprint is your file's identity — same on any machine, any OS, forever.")
 
 		// ── 14b. Multi-Layer Secure Messaging ───────────────────────────────
@@ -282,18 +282,18 @@ func main() {
 
 		// Step 1: Hash the message with BLAKE2b → integrity digest
 		digest := must(cryptolib.Blake2b(originalMsg, nil))
-		cryptolib.Print("Step 1 digest", digest[:16])
+		show("Step 1 digest", digest[:16])
 		fmt.Println("  ✓ Step 1: BLAKE2b integrity digest computed")
 
 		// Step 2: Encrypt message+digest with XChaCha20
 		combined := append(originalMsg, digest...)
 		mlCiphertext := must(cryptolib.XChaCha20Encrypt(combined, mlSymKey, nil))
-		cryptolib.Print("Step 2 ciphertext", mlCiphertext[:16])
+		show("Step 2 ciphertext", mlCiphertext[:16])
 		fmt.Println("  ✓ Step 2: Message+digest encrypted with XChaCha20")
 
 		// Step 3: Sign the ciphertext with file-derived Ed25519 key
 		mlSignature := must(cryptolib.Ed25519Sign(mlCiphertext, mlSignKp.Secret))
-		cryptolib.Print("Step 3 signature", mlSignature[:16])
+		show("Step 3 signature", mlSignature[:16])
 		fmt.Println("  ✓ Step 3: Ciphertext signed with Ed25519")
 
 		// Step 4: If capacity allows, embed (signature + ciphertext) into stego
@@ -386,7 +386,7 @@ func main() {
 		sharedSecret := aliceKeys.SymmetricKey
 		aliceMsg := []byte("Hello Bob! Our shared photo is our shared secret.")
 		sharedCt := must(cryptolib.XChaCha20Encrypt(aliceMsg, sharedSecret, []byte("alice-to-bob")))
-		cryptolib.Print("Alice ciphertext", sharedCt[:16])
+		show("Alice ciphertext", sharedCt[:16])
 
 		// Bob decrypts using his derived symmetric key (identical)
 		bobDecrypted := must(cryptolib.XChaCha20Decrypt(sharedCt, bobKeys.SymmetricKey, []byte("alice-to-bob")))
@@ -411,13 +411,13 @@ func main() {
 		fmt.Println("  Deriving time-lock key with Argon2id (ops=4, mem=256MB)...")
 		timeLockKey := must(cryptolib.Argon2idDerive(
 			cryptolib.Hex(tlMasterKey), argonSalt, 32, 4, 268435456))
-		cryptolib.Print("Time-lock key", timeLockKey)
+		show("Time-lock key", timeLockKey)
 		fmt.Println("  ✓ Argon2id derivation complete (expensive parameters add time-lock protection)")
 
 		// Seal a message through the vault
 		tlSecret := []byte("This message is protected by entropy + Argon2id + 4-layer vault")
 		tlPkt := must(tlVault.Seal(tlSecret, "time-locked"))
-		cryptolib.Print("Vault ciphertext", tlPkt.Ciphertext[:16])
+		show("Vault ciphertext", tlPkt.Ciphertext[:16])
 
 		// Open it, verifying the slow derivation adds protection
 		tlOpened := must(tlVault.Open(tlPkt, "time-locked"))
@@ -495,23 +495,23 @@ func main() {
 		fmt.Printf("  %-24s %.0f bits\n", "Combined entropy:", poolInfo.EntropyBits)
 
 		poolKeys := poolMe.DeriveAll()
-		cryptolib.Print("Combined sym key", poolKeys.SymmetricKey)
+		show("Combined sym key", poolKeys.SymmetricKey)
 
 		// Derive keys from each individual source
 		indMe1 := must(cryptolib.EntropyFromFile(src1Path))
 		defer indMe1.Close()
 		indKey1 := must(indMe1.SymmetricKey())
-		cryptolib.Print("Source 1 key", indKey1)
+		show("Source 1 key", indKey1)
 
 		indMe2 := must(cryptolib.EntropyFromFile(src2Path))
 		defer indMe2.Close()
 		indKey2 := must(indMe2.SymmetricKey())
-		cryptolib.Print("Source 2 key", indKey2)
+		show("Source 2 key", indKey2)
 
 		indMe3 := must(cryptolib.EntropyFromFile(src3Path))
 		defer indMe3.Close()
 		indKey3 := must(indMe3.SymmetricKey())
-		cryptolib.Print("Source 3 key", indKey3)
+		show("Source 3 key", indKey3)
 
 		// Show combined key differs from every individual key
 		combinedDiffers := !cryptolib.SecureEqual(poolKeys.SymmetricKey, indKey1) &&
@@ -571,8 +571,8 @@ func main() {
 
 		// Print the test vector
 		tvKeyHash := must(cryptolib.Blake2b(tvSymKey1, nil))
-		cryptolib.Print("File hash (BLAKE2b)", tvKeyHash)
-		cryptolib.Print("Symmetric key", tvSymKey1)
+		show("File hash (BLAKE2b)", tvKeyHash)
+		show("Symmetric key", tvSymKey1)
 		fmt.Printf("  %-24s %s...\n", "Ciphertext prefix:", cryptolib.Hex(tvCiphertext[:16]))
 		fmt.Println("  Check this file into your repo. Every CI run produces identical keys.")
 
@@ -605,30 +605,30 @@ func main() {
 		defer alicePartyMe.Close()
 		alicePartyRaw := must(alicePartyMe.Raw())
 		alicePartyKey := must(alicePartyMe.SymmetricKey())
-		cryptolib.Print("Alice individual key", alicePartyKey)
+		show("Alice individual key", alicePartyKey)
 
 		bobPartyMe := must(cryptolib.EntropyFromFile(bobFile))
 		defer bobPartyMe.Close()
 		bobPartyRaw := must(bobPartyMe.Raw())
 		bobPartyKey := must(bobPartyMe.SymmetricKey())
-		cryptolib.Print("Bob individual key", bobPartyKey)
+		show("Bob individual key", bobPartyKey)
 
 		charliePartyMe := must(cryptolib.EntropyFromFile(charlieFile))
 		defer charliePartyMe.Close()
 		charliePartyRaw := must(charliePartyMe.Raw())
 		charliePartyKey := must(charliePartyMe.SymmetricKey())
-		cryptolib.Print("Charlie individual key", charliePartyKey)
+		show("Charlie individual key", charliePartyKey)
 
 		// Combined ceremony key: concatenate all 3 raw entropy buffers → BLAKE2b
 		ceremonyInput := append(append(alicePartyRaw, bobPartyRaw...), charliePartyRaw...)
 		ceremonyHash := must(cryptolib.Blake2b(ceremonyInput, nil))
 		ceremonyKey := ceremonyHash[:32] // use first 32 bytes as symmetric key
-		cryptolib.Print("Ceremony key", ceremonyKey)
+		show("Ceremony key", ceremonyKey)
 
 		// Encrypt a master secret with the ceremony key
 		masterSecret := []byte("MASTER SECRET: requires all 3 participants to unlock")
 		ceremonyCt := must(cryptolib.XChaCha20Encrypt(masterSecret, ceremonyKey, nil))
-		cryptolib.Print("Ceremony ciphertext", ceremonyCt[:16])
+		show("Ceremony ciphertext", ceremonyCt[:16])
 
 		// Show that no individual party's key can decrypt it
 		_, errAlice := cryptolib.XChaCha20Decrypt(ceremonyCt, alicePartyKey, nil)
@@ -679,7 +679,7 @@ func main() {
 		twoPartyInput := append(reAliceRaw, reBobRaw...)
 		twoPartyHash := must(cryptolib.Blake2b(twoPartyInput, nil))
 		twoPartyKey := twoPartyHash[:32]
-		cryptolib.Print("2-of-3 key (no Charlie)", twoPartyKey)
+		show("2-of-3 key (no Charlie)", twoPartyKey)
 
 		_, errTwoParty := cryptolib.XChaCha20Decrypt(reCeremonyCt, twoPartyKey, nil)
 		if errTwoParty != nil {
@@ -705,11 +705,11 @@ func main() {
 	fmt.Println("\n═══ AES-256-GCM ═══")
 	if cryptolib.AES256GCMAvailable() {
 		aesKey := must(cryptolib.SymKeygen())
-		cryptolib.Print("Key", aesKey)
+		show("Key", aesKey)
 
 		aesAad := []byte("authenticated-context")
 		aesCt := must(cryptolib.AES256GCMEncrypt([]byte("AES-256-GCM says hello from Go!"), aesKey, aesAad))
-		cryptolib.Print("Ciphertext", aesCt[:32])
+		show("Ciphertext", aesCt[:32])
 
 		aesPt := must(cryptolib.AES256GCMDecrypt(aesCt, aesKey, aesAad))
 		fmt.Printf("  %-24s %s\n", "Decrypted:", string(aesPt))
@@ -721,10 +721,10 @@ func main() {
 	// ── 7. SealedBox ────────────────────────────────────────────────────
 	fmt.Println("\n═══ SealedBox (Anonymous Sender) ═══")
 	sbKp := cryptolib.BoxKeygen()
-	cryptolib.Print("Recipient public", sbKp.Public)
+	show("Recipient public", sbKp.Public)
 
 	sbCt := must(cryptolib.SealedBoxEncrypt([]byte("Anonymous message!"), sbKp.Public))
-	cryptolib.Print("Ciphertext", sbCt[:32])
+	show("Ciphertext", sbCt[:32])
 
 	sbPt := must(cryptolib.SealedBoxDecrypt(sbCt, sbKp.Public, sbKp.Secret))
 	fmt.Printf("  %-24s %s\n", "Decrypted:", string(sbPt))
@@ -734,13 +734,13 @@ func main() {
 	fmt.Println("\n═══ X25519 Key Agreement ═══")
 	partyA := cryptolib.X25519Keygen()
 	partyB := cryptolib.X25519Keygen()
-	cryptolib.Print("Party A public", partyA.Public)
-	cryptolib.Print("Party B public", partyB.Public)
+	show("Party A public", partyA.Public)
+	show("Party B public", partyB.Public)
 
 	sharedA := must(cryptolib.X25519SharedSecret(partyA.Secret, partyB.Public))
 	sharedB := must(cryptolib.X25519SharedSecret(partyB.Secret, partyA.Public))
-	cryptolib.Print("Shared (A side)", sharedA)
-	cryptolib.Print("Shared (B side)", sharedB)
+	show("Shared (A side)", sharedA)
+	show("Shared (B side)", sharedB)
 
 	if cryptolib.SecureEqual(sharedA, sharedB) {
 		fmt.Println("  ✓ Both parties derived the same shared secret")
@@ -751,13 +751,13 @@ func main() {
 	// ── 9. SecretStream ─────────────────────────────────────────────────
 	fmt.Println("\n═══ SecretStream (Chunked AEAD) ═══")
 	streamKey := must(cryptolib.SymKeygen())
-	cryptolib.Print("Stream key", streamKey)
+	show("Stream key", streamKey)
 
 	enc := cryptolib.NewStreamEncryptor(streamKey)
 	defer enc.Close()
 
 	header := must(enc.Header())
-	cryptolib.Print("Header", header)
+	show("Header", header)
 
 	chunks := []string{"chunk-1: Hello", "chunk-2: streaming", "chunk-3: world!"}
 	encChunks := make([][]byte, len(chunks))
@@ -792,14 +792,14 @@ func main() {
 	fmt.Println("\n═══ Asymmetric Vault (Alice → Bob) ═══")
 	aliceBundle := cryptolib.AsymBundleGenerate()
 	bobBundle := cryptolib.AsymBundleGenerate()
-	cryptolib.Print("Alice box public", aliceBundle.BoxPublic)
-	cryptolib.Print("Alice sign public", aliceBundle.SignPublic)
-	cryptolib.Print("Bob   box public", bobBundle.BoxPublic)
+	show("Alice box public", aliceBundle.BoxPublic)
+	show("Alice sign public", aliceBundle.SignPublic)
+	show("Bob   box public", bobBundle.BoxPublic)
 
 	avPkt := must(cryptolib.AsymVaultSeal(&aliceBundle, bobBundle.BoxPublic,
 		[]byte("Authenticated message from Alice to Bob"), "go:asym-vault"))
-	cryptolib.Print("Packet ciphertext", avPkt.Ciphertext[:32])
-	cryptolib.Print("Packet signature", avPkt.Signature)
+	show("Packet ciphertext", avPkt.Ciphertext[:32])
+	show("Packet signature", avPkt.Signature)
 
 	avPt := must(cryptolib.AsymVaultOpen(avPkt, &bobBundle, aliceBundle.SignPublic, "go:asym-vault"))
 	fmt.Printf("  %-24s %s\n", "Bob received:", string(avPt))
@@ -827,10 +827,10 @@ func main() {
 	fmt.Println("\n═══ HMAC-SHA512 ═══")
 	hmacKey := must(cryptolib.SymKeygen())
 	hmacMsg := []byte("Message to authenticate")
-	cryptolib.Print("HMAC key", hmacKey)
+	show("HMAC key", hmacKey)
 
 	mac := must(cryptolib.HmacSHA512(hmacMsg, hmacKey))
-	cryptolib.Print("MAC", mac)
+	show("MAC", mac)
 
 	if cryptolib.HmacSHA512Verify(hmacMsg, mac, hmacKey) {
 		fmt.Println("  ✓ HMAC verified (untampered)")
@@ -1044,4 +1044,10 @@ func main() {
 		len(must(cryptolib.Secp256k1Pubkey(ecKp.Secret, true))))
 
 	fmt.Println("\nDone.")
+}
+
+// show prints a labelled hex-encoded value. It lives in the example rather
+// than the library: printing key material is a demo convenience, not an API.
+func show(label string, data []byte) {
+	fmt.Printf("  %-24s %s\n", label+":", cryptolib.Hex(data))
 }

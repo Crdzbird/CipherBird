@@ -77,8 +77,17 @@ public:
     static constexpr std::size_t ENVELOPE_ID_BYTES = 16;
     static constexpr std::size_t MAX_SLOTS        = 16;   // bound untrusted input
     static constexpr uint8_t     VERSION          = 1;
+    /// Envelope version written when a hardware slot is present. A parser that
+    /// predates hardware slots refuses it instead of silently ignoring the slot.
+    static constexpr uint8_t     VERSION_HARDWARE = 2;
+    static constexpr std::size_t MAX_KEY_ID_BYTES = 255;
+    static constexpr std::size_t MAX_HW_BLOB_BYTES = 4096;
 
-    enum class SlotType : uint8_t { Passphrase = 0, DeviceKey = 1 };
+    /// HardwareWrapped: a device-style slot whose 32-byte factor is wrapped by a
+    /// platform key module (Secure Enclave, Android Keystore). The envelope
+    /// carries the module's key identifier and its wrapped factor; the factor
+    /// itself only exists while the module has just unwrapped it.
+    enum class SlotType : uint8_t { Passphrase = 0, DeviceKey = 1, HardwareWrapped = 2 };
 
     // ── Construction ──────────────────────────────────────────────────────────
 
@@ -153,7 +162,81 @@ public:
         return Result<void>::ok();
     }
 
+    /// Add a hardware slot: a fresh random 32-byte factor wraps the master and
+    /// is returned so the platform module can wrap it; store the module's
+    /// output with set_hardware_blob. `key_id` names the module key.
+    [[nodiscard]] Result<SecureBuffer>
+    add_hardware_slot(std::span<const uint8_t> key_id) {
+        if (master_.empty())
+            return Result<SecureBuffer>::err("Keyring: locked — create or unlock first");
+        if (key_id.empty() || key_id.size() > MAX_KEY_ID_BYTES)
+            return Result<SecureBuffer>::err("Keyring: hardware key id must be 1..255 bytes");
+        if (slots_.size() >= MAX_SLOTS)
+            return Result<SecureBuffer>::err("Keyring: too many slots");
+
+        Slot s;
+        s.type   = SlotType::HardwareWrapped;
+        s.salt   = rand_buf(SALT_BYTES);
+        s.key_id = PublicBuffer(key_id.data(), key_id.size());
+        SecureBuffer factor = rand_buf(SLOT_KEY_BYTES);
+        auto slot_key = derive_device_key(factor.span(), s.salt.span());
+        if (slot_key.is_err()) return Result<SecureBuffer>::err(slot_key.error().message);
+        auto wrapped = wrap(slot_key.value().span(), aad_for(s));
+        if (wrapped.is_err()) return Result<SecureBuffer>::err(wrapped.error().message);
+        s.wrapped = std::move(wrapped.value());
+        slots_.push_back(std::move(s));
+        return Result<SecureBuffer>::ok(std::move(factor));
+    }
+
+    /// Store the platform module's wrapped factor for the hardware slot at `index`.
+    [[nodiscard]] Result<void>
+    set_hardware_blob(std::size_t index, std::span<const uint8_t> blob) {
+        if (index >= slots_.size() || slots_[index].type != SlotType::HardwareWrapped)
+            return Result<void>::err("Keyring: not a hardware slot");
+        if (blob.empty() || blob.size() > MAX_HW_BLOB_BYTES)
+            return Result<void>::err("Keyring: hardware blob must be 1..4096 bytes");
+        slots_[index].hw_blob = PublicBuffer(blob.data(), blob.size());
+        return Result<void>::ok();
+    }
+
+    /// The type of the slot at `index`.
+    [[nodiscard]] Result<SlotType> slot_type(std::size_t index) const {
+        if (index >= slots_.size()) return Result<SlotType>::err("Keyring: bad slot index");
+        return Result<SlotType>::ok(slots_[index].type);
+    }
+
+    /// The module key id and wrapped factor of the hardware slot at `index`.
+    [[nodiscard]] Result<std::pair<PublicBuffer, PublicBuffer>>
+    hardware_slot(std::size_t index) const {
+        using R = Result<std::pair<PublicBuffer, PublicBuffer>>;
+        if (index >= slots_.size() || slots_[index].type != SlotType::HardwareWrapped)
+            return R::err("Keyring: not a hardware slot");
+        const auto& s = slots_[index];
+        return R::ok({ PublicBuffer(s.key_id.data(), s.key_id.size()),
+                       PublicBuffer(s.hw_blob.data(), s.hw_blob.size()) });
+    }
+
+    /// Recover the master key with the factor the platform module unwrapped
+    /// for the hardware slot at `index`.
+    [[nodiscard]] Result<SecureBuffer>
+    unlock_with_hardware(std::size_t index, std::span<const uint8_t> factor) {
+        if (index >= slots_.size() || slots_[index].type != SlotType::HardwareWrapped)
+            return Result<SecureBuffer>::err("Keyring: not a hardware slot");
+        const auto& s = slots_[index];
+        auto slot_key = derive_device_key(factor, s.salt.span());
+        if (slot_key.is_err()) return Result<SecureBuffer>::err("Keyring: unlock failed");
+        auto m = unwrap(s, slot_key.value().span());
+        if (m.is_err()) return Result<SecureBuffer>::err("Keyring: unlock failed");
+        master_ = SecureBuffer(m.value().data(), m.value().size());
+        return m;
+    }
+
     [[nodiscard]] std::size_t slot_count() const noexcept { return slots_.size(); }
+
+    [[nodiscard]] bool has_hardware_slot() const noexcept {
+        for (const auto& s : slots_) if (s.type == SlotType::HardwareWrapped) return true;
+        return false;
+    }
 
     /// Revoke a slot. The master key is unchanged; that factor can no longer
     /// open it once the new envelope is persisted.
@@ -256,6 +339,8 @@ public:
     //   'C''K''R''1' | version(1) | envelope_id(16) | slot_count(1)
     //   per slot: type(1) | salt_len(1) | salt | ops(8) | mem(8)
     //             | wrapped_len(2) | wrapped
+    //   version 2 (written only when a hardware slot exists), per hardware slot
+    //   additionally: key_id_len(1) | key_id | blob_len(2) | blob
     [[nodiscard]] SecureBuffer serialise() const {
         std::vector<uint8_t> out;
         auto put8  = [&](uint8_t v){ out.push_back(v); };
@@ -264,7 +349,7 @@ public:
         auto putb  = [&](std::span<const uint8_t> b){ out.insert(out.end(), b.begin(), b.end()); };
 
         out.push_back('C'); out.push_back('K'); out.push_back('R'); out.push_back('1');
-        put8(VERSION);
+        put8(has_hardware_slot() ? VERSION_HARDWARE : VERSION);
         putb(envelope_id_.span());
         put8(static_cast<uint8_t>(slots_.size()));
         for (const auto& s : slots_) {
@@ -275,6 +360,12 @@ public:
             put64(static_cast<uint64_t>(s.mem));
             put16(static_cast<uint16_t>(s.wrapped.size()));
             putb(s.wrapped.span());
+            if (s.type == SlotType::HardwareWrapped) {
+                put8(static_cast<uint8_t>(s.key_id.size()));
+                putb(s.key_id.span());
+                put16(static_cast<uint16_t>(s.hw_blob.size()));
+                putb(s.hw_blob.span());
+            }
         }
         return SecureBuffer(std::move(out));
     }
@@ -288,8 +379,9 @@ public:
         if (!need(4) || p[0] != 'C' || p[1] != 'K' || p[2] != 'R' || p[3] != '1')
             return Result<Keyring>::err("Keyring: bad magic");
         p += 4;
-        if (!need(1) || *p != VERSION) return Result<Keyring>::err("Keyring: bad version");
-        ++p;
+        if (!need(1) || (*p != VERSION && *p != VERSION_HARDWARE))
+            return Result<Keyring>::err("Keyring: bad version");
+        const uint8_t version = *p++;
         if (!need(ENVELOPE_ID_BYTES)) return Result<Keyring>::err("Keyring: truncated id");
 
         Keyring kr;
@@ -313,8 +405,10 @@ public:
             Slot s;
             if (!need(1)) return Result<Keyring>::err("Keyring: truncated slot type");
             uint8_t t = *p++;
-            if (t > static_cast<uint8_t>(SlotType::DeviceKey))
+            if (t > static_cast<uint8_t>(SlotType::HardwareWrapped))
                 return Result<Keyring>::err("Keyring: unknown slot type");
+            if (t == static_cast<uint8_t>(SlotType::HardwareWrapped) && version != VERSION_HARDWARE)
+                return Result<Keyring>::err("Keyring: hardware slot in a version 1 envelope");
             s.type = static_cast<SlotType>(t);
 
             if (!need(1)) return Result<Keyring>::err("Keyring: truncated salt len");
@@ -324,12 +418,25 @@ public:
 
             uint64_t ops = 0, mem = 0;
             if (!get64(ops) || !get64(mem)) return Result<Keyring>::err("Keyring: truncated kdf params");
+            if (s.type == SlotType::Passphrase && !hash::Argon2id::within_policy(ops, mem))
+                return Result<Keyring>::err("Keyring: kdf params outside policy");
             s.ops = ops; s.mem = static_cast<std::size_t>(mem);
 
             uint16_t wlen = 0;
             if (!get16(wlen)) return Result<Keyring>::err("Keyring: truncated wrapped len");
             if (!need(wlen)) return Result<Keyring>::err("Keyring: truncated wrapped");
             s.wrapped = PublicBuffer(p, wlen); p += wlen;
+
+            if (s.type == SlotType::HardwareWrapped) {
+                if (!need(1)) return Result<Keyring>::err("Keyring: truncated key id len");
+                std::size_t id_len = *p++;
+                if (id_len == 0 || !need(id_len)) return Result<Keyring>::err("Keyring: truncated key id");
+                s.key_id = PublicBuffer(p, id_len); p += id_len;
+                uint16_t blen = 0;
+                if (!get16(blen)) return Result<Keyring>::err("Keyring: truncated blob len");
+                if (blen > MAX_HW_BLOB_BYTES || !need(blen)) return Result<Keyring>::err("Keyring: truncated blob");
+                s.hw_blob = PublicBuffer(p, blen); p += blen;
+            }
 
             kr.slots_.push_back(std::move(s));
         }
@@ -343,6 +450,8 @@ private:
         unsigned long long ops = 0;   // Argon2id opslimit (passphrase slots)
         std::size_t        mem = 0;   // Argon2id memlimit (passphrase slots)
         PublicBuffer       wrapped;   // XChaCha20Poly1305(master): nonce|ct|tag
+        PublicBuffer       key_id;    // hardware slots: the module key identifier
+        PublicBuffer       hw_blob;   // hardware slots: the module-wrapped factor
     };
 
     SecureBuffer       envelope_id_;
@@ -390,12 +499,14 @@ private:
     [[nodiscard]] std::vector<uint8_t> aad_for(const Slot& s) const {
         std::vector<uint8_t> aad;
         aad.push_back('C'); aad.push_back('K'); aad.push_back('R'); aad.push_back('1');
-        aad.push_back(VERSION);
+        aad.push_back(s.type == SlotType::HardwareWrapped ? VERSION_HARDWARE : VERSION);
         aad.insert(aad.end(), envelope_id_.span().begin(), envelope_id_.span().end());
         aad.push_back(static_cast<uint8_t>(s.type));
         aad.insert(aad.end(), s.salt.span().begin(), s.salt.span().end());
         for (int i = 0; i < 8; ++i) aad.push_back(uint8_t(s.ops >> (8*i)));
         for (int i = 0; i < 8; ++i) aad.push_back(uint8_t(static_cast<uint64_t>(s.mem) >> (8*i)));
+        if (s.type == SlotType::HardwareWrapped)
+            aad.insert(aad.end(), s.key_id.span().begin(), s.key_id.span().end());
         return aad;
     }
 

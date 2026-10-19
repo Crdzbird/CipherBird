@@ -45,16 +45,39 @@ final Map<String, Function> _registry43 = {
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_keyring_unlock_with_passphrase':
-      (Pointer<NativeType> kr, Pointer<NativeType> passphrase) =>
+  'cryptolib_keyring_add_hardware_slot':
+      (Pointer<NativeType> kr, Pointer<NativeType> keyId, int keyIdLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_keyring_unlock_with_passphrase',
-            [kr.address.toJS, passphrase.address.toJS],
+            '_cbw_cryptolib_keyring_add_hardware_slot',
+            [kr.address.toJS, keyId.address.toJS, keyIdLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_keyring_free': (Pointer<NativeType> kr) => WebEngine.current
-      .callVoid('_cbw_cryptolib_keyring_free', [kr.address.toJS]),
-  'cryptolib_version': () =>
-      Pointer<Utf8>._(WebEngine.current.callInt('_cbw_cryptolib_version', [])),
+  'cryptolib_keyring_set_hardware_blob':
+      (
+        Pointer<NativeType> kr,
+        int index,
+        Pointer<NativeType> blob,
+        int blobLen,
+      ) => WebEngine.current.callInt(
+        '_cbw_cryptolib_keyring_set_hardware_blob',
+        [kr.address.toJS, index.toJS, blob.address.toJS, blobLen.toJS],
+      ),
+  'cryptolib_keyring_slot_type': (Pointer<NativeType> kr, int index) =>
+      WebEngine.current.callInt('_cbw_cryptolib_keyring_slot_type', [
+        kr.address.toJS,
+        index.toJS,
+      ]),
+  'cryptolib_keyring_hardware_slot':
+      (
+        Pointer<NativeType> kr,
+        int index,
+        Pointer<NativeType> outKeyId,
+        Pointer<NativeType> outBlob,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_keyring_hardware_slot', [
+        kr.address.toJS,
+        index.toJS,
+        outKeyId.address.toJS,
+        outBlob.address.toJS,
+      ]),
 };

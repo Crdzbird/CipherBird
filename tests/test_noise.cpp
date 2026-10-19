@@ -210,6 +210,38 @@ TEST("noise/out-of-turn-rejected") {
     CHECK(ini.write_message().is_err());
 }
 
+TEST("noise/into-session-once") {
+    auto iks = X25519::generate_keypair();
+    auto rks = X25519::generate_keypair();
+    auto ini = NoiseXX::initiator(iks);
+    auto res = NoiseXX::responder(rks);
+    REQUIRE(do_handshake(ini, res));
+    auto first = ini.into_session();
+    REQUIRE(first.is_ok());
+    CHECK(ini.split());
+    auto second = ini.into_session();
+    CHECK(second.is_err());
+}
+
+TEST("noise/transport-nonce-read-only") {
+    auto iks = X25519::generate_keypair();
+    auto rks = X25519::generate_keypair();
+    auto ini = NoiseXX::initiator(iks);
+    auto res = NoiseXX::responder(rks);
+    REQUIRE(do_handshake(ini, res));
+    auto si = ini.into_session();
+    auto sr = res.into_session();
+    REQUIRE(si.is_ok()); REQUIRE(sr.is_ok());
+    CHECK(si.value().send.nonce() == 0);
+    auto c1 = si.value().send.encrypt(sv("one"));
+    auto c2 = si.value().send.encrypt(sv("two"));
+    REQUIRE(c1.is_ok()); REQUIRE(c2.is_ok());
+    CHECK(si.value().send.nonce() == 2);
+    CHECK(sr.value().recv.decrypt(c1.value().span()).is_ok());
+    CHECK(sr.value().recv.decrypt(c2.value().span()).is_ok());
+    CHECK(sr.value().recv.nonce() == 2);
+}
+
 void run_tests_noise() {
     RUN("noise/xx-handshake-and-transport");
     RUN("noise/decrypt-at-matches-sequential-decrypt");
@@ -220,4 +252,6 @@ void run_tests_noise() {
     RUN("noise/tampered-handshake-rejected");
     RUN("noise/tampered-transport-rejected");
     RUN("noise/out-of-turn-rejected");
+    RUN("noise/into-session-once");
+    RUN("noise/transport-nonce-read-only");
 }

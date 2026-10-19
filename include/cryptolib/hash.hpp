@@ -44,6 +44,17 @@ public:
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
     }
 
+    /// Hash of a secret input (a PIN, a key): the digest is as sensitive as
+    /// the input, so it is returned in locked, wiped memory.
+    [[nodiscard]] static Result<SecureBuffer>
+    secret_digest(std::span<const uint8_t> msg) {
+        SecureBuffer out(DIGEST_BYTES);
+        if (crypto_generichash(out.data(), out.size(), msg.data(), msg.size(),
+                               nullptr, 0) != 0)
+            return Result<SecureBuffer>::err("Blake2b: hashing failed");
+        return Result<SecureBuffer>::ok(std::move(out));
+    }
+
     /// Keyed hash (MAC): the output depends on a secret, so it stays locked.
     [[nodiscard]] static Result<SecureBuffer>
     keyed(std::span<const uint8_t> msg, std::span<const uint8_t> key) {
@@ -135,6 +146,20 @@ public:
         return Result<SecureBuffer>::ok(std::move(out));
     }
 
+    /// Hash of a secret input, returned in locked, wiped memory.
+    [[nodiscard]] static Result<SecureBuffer>
+    secret_digest(std::span<const uint8_t> msg, std::size_t out_len = DIGEST_BYTES) {
+        if (out_len == 0)
+            return Result<SecureBuffer>::err("Blake3: output length must be > 0");
+        blake3_hasher h;
+        blake3_hasher_init(&h);
+        blake3_hasher_update(&h, msg.data(), msg.size());
+        SecureBuffer out(out_len);
+        blake3_hasher_finalize(&h, out.data(), out.size());
+        sodium_memzero(&h, sizeof(h));
+        return Result<SecureBuffer>::ok(std::move(out));
+    }
+
     /// Key derivation — domain-separated via context string (RFC-style)
     [[nodiscard]] static Result<SecureBuffer>
     derive_key(std::string_view context,
@@ -144,8 +169,9 @@ public:
             return Result<SecureBuffer>::err("Blake3: context must not be empty");
         if (out_len == 0)
             return Result<SecureBuffer>::err("Blake3: output length must be > 0");
+        const std::string context_z(context);
         blake3_hasher h;
-        blake3_hasher_init_derive_key(&h, context.data());
+        blake3_hasher_init_derive_key(&h, context_z.c_str());
         blake3_hasher_update(&h, input_keying_material.data(), input_keying_material.size());
         SecureBuffer out(out_len);
         blake3_hasher_finalize(&h, out.data(), out.size());
@@ -220,6 +246,15 @@ public:
             return Result<Digest>::err("SHA256: failed");
         return Result<Digest>::ok(std::move(out));
     }
+
+    /// Hash of a secret input, returned in locked, wiped memory.
+    [[nodiscard]] static Result<SecureBuffer>
+    secret_digest(std::span<const uint8_t> msg) {
+        SecureBuffer out(DIGEST_BYTES);
+        if (crypto_hash_sha256(out.data(), msg.data(), msg.size()) != 0)
+            return Result<SecureBuffer>::err("SHA256: failed");
+        return Result<SecureBuffer>::ok(std::move(out));
+    }
     [[nodiscard]] static Result<Digest>
     digest(std::string_view msg) {
         return digest({ reinterpret_cast<const uint8_t*>(msg.data()), msg.size() });
@@ -262,6 +297,15 @@ public:
         if (crypto_hash_sha512(out.data(), msg.data(), msg.size()) != 0)
             return Result<Digest>::err("SHA512: failed");
         return Result<Digest>::ok(std::move(out));
+    }
+
+    /// Hash of a secret input, returned in locked, wiped memory.
+    [[nodiscard]] static Result<SecureBuffer>
+    secret_digest(std::span<const uint8_t> msg) {
+        SecureBuffer out(DIGEST_BYTES);
+        if (crypto_hash_sha512(out.data(), msg.data(), msg.size()) != 0)
+            return Result<SecureBuffer>::err("SHA512: failed");
+        return Result<SecureBuffer>::ok(std::move(out));
     }
     [[nodiscard]] static Result<Digest>
     digest(std::string_view msg) {
@@ -360,8 +404,23 @@ public:
 
     [[nodiscard]] static bool
     verify_str(std::string_view password, std::string_view phc_str) {
-        return crypto_pwhash_str_verify(phc_str.data(),
+        if (phc_str.size() >= crypto_pwhash_STRBYTES) return false;
+        const std::string phc_z(phc_str);
+        return crypto_pwhash_str_verify(phc_z.c_str(),
                                         password.data(), password.size()) == 0;
+    }
+
+    /// Ceiling on the work factor an envelope header may demand before the
+    /// header has been authenticated: a forged header must not be able to
+    /// make the opener allocate or compute without bound.
+    static constexpr unsigned long long POLICY_MAX_OPS = 64;
+    static constexpr uint64_t POLICY_MAX_MEM_BYTES = 4ull << 30;
+
+    /// Whether (ops, mem) read from untrusted input may be passed to Argon2id.
+    [[nodiscard]] static bool within_policy(uint64_t ops, uint64_t mem) noexcept {
+        if (ops < crypto_pwhash_OPSLIMIT_MIN || ops > POLICY_MAX_OPS) return false;
+        if (mem < crypto_pwhash_MEMLIMIT_MIN || mem > POLICY_MAX_MEM_BYTES) return false;
+        return mem <= static_cast<uint64_t>(SIZE_MAX);
     }
 };
 
@@ -378,8 +437,19 @@ public:
         if (key.size() < KEY_BYTES)
             return Result<SecureBuffer>::err("HMAC-SHA512: key too short");
         SecureBuffer mac(MAC_BYTES);
-        crypto_auth_hmacsha512(mac.data(), msg.data(), msg.size(), key.data());
+        mac_full_key(mac.data(), msg, key);
         return Result<SecureBuffer>::ok(std::move(mac));
+    }
+
+    /// Every key byte takes part, as RFC 2104 specifies (keys longer than the
+    /// block are hashed first); the one-shot libsodium call uses exactly 32.
+    static void mac_full_key(uint8_t* out, std::span<const uint8_t> msg,
+                             std::span<const uint8_t> key) noexcept {
+        crypto_auth_hmacsha512_state st;
+        crypto_auth_hmacsha512_init(&st, key.data(), key.size());
+        crypto_auth_hmacsha512_update(&st, msg.data(), msg.size());
+        crypto_auth_hmacsha512_final(&st, out);
+        sodium_memzero(&st, sizeof st);
     }
 
     [[nodiscard]] static bool
@@ -387,7 +457,11 @@ public:
            std::span<const uint8_t> mac,
            std::span<const uint8_t> key) {
         if (mac.size() != MAC_BYTES || key.size() < KEY_BYTES) return false;
-        return crypto_auth_hmacsha512_verify(mac.data(), msg.data(), msg.size(), key.data()) == 0;
+        uint8_t expected[MAC_BYTES];
+        mac_full_key(expected, msg, key);
+        const bool ok = sodium_memcmp(expected, mac.data(), MAC_BYTES) == 0;
+        sodium_memzero(expected, sizeof expected);
+        return ok;
     }
 };
 

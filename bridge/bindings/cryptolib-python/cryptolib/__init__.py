@@ -130,9 +130,69 @@ def _consume(r: _CryptoBufferResult) -> bytes:
     return out
 
 
+class _Scratch:
+    """A native copy of caller bytes that is overwritten with zeros when it is
+    released, so key and password copies handed to the engine do not linger.
+    CPython frees it deterministically when the last reference goes away."""
+
+    __slots__ = ("arr", "size")
+
+    def __init__(self, b: bytes, nul: bool = False) -> None:
+        self.size = len(b) + (1 if nul else 0)
+        self.arr = (c_uint8 * max(self.size, 1))()
+        _C.memmove(self.arr, b, len(b))
+
+    def ptr(self):
+        return _C.cast(self.arr, POINTER(c_uint8))
+
+    def wipe(self) -> None:
+        _C.memset(self.arr, 0, len(self.arr))
+
+    def __del__(self) -> None:
+        self.wipe()
+
+
 def _u8p(b: bytes):
-    arr = (c_uint8 * len(b)).from_buffer_copy(b)
-    return _C.cast(arr, POINTER(c_uint8)), arr  # keep arr alive
+    scratch = _Scratch(b)
+    return scratch.ptr(), scratch  # keep the scratch alive; it wipes on release
+
+
+class SecretBytes:
+    """Secret material with a definite end of life: wipe() overwrites the bytes
+    with zeros and every later access raises, so a key copy cannot linger on
+    the heap unnoticed. Usable as a context manager."""
+
+    __slots__ = ("_buf", "_wiped")
+
+    def __init__(self, data: bytes | bytearray) -> None:
+        self._buf = bytearray(data)
+        self._wiped = False
+
+    @property
+    def bytes(self) -> bytearray:
+        if self._wiped:
+            raise ValueError("cryptolib: this secret was wiped")
+        return self._buf
+
+    @property
+    def wiped(self) -> bool:
+        return self._wiped
+
+    def wipe(self) -> None:
+        if self._wiped:
+            return
+        self._wiped = True
+        for i in range(len(self._buf)):
+            self._buf[i] = 0
+
+    def __enter__(self) -> "SecretBytes":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.wipe()
+
+    def __len__(self) -> int:
+        return len(self._buf)
 
 
 # ── Public API ───────────────────────────────────────────────────────────────
@@ -194,9 +254,21 @@ def hybrid_kem_decapsulate(ciphertext: bytes, secret_key: bytes) -> bytes:
 # ── Primitives used by Recipe ────────────────────────────────────────────────
 def argon2id_derive(password: str, salt: bytes, key_len: int = 32,
                     ops: int = 2, memory_bytes: int = 67108864) -> bytes:
-    """Stretch a passphrase into a key with Argon2id."""
+    """Stretch a passphrase into a key with Argon2id. A str cannot be wiped;
+    prefer argon2id_derive_bytes with a bytearray you clear afterwards."""
+    return argon2id_derive_bytes(password.encode(), salt, key_len, ops, memory_bytes)
+
+
+def argon2id_derive_bytes(password: bytes | bytearray, salt: bytes, key_len: int = 32,
+                          ops: int = 2, memory_bytes: int = 67108864) -> bytes:
+    """argon2id_derive for a passphrase held as bytes. The NUL-terminated copy
+    handed to the engine is wiped afterwards."""
+    pw = _Scratch(bytes(password), nul=True)
     sp, _k = _u8p(salt)
-    return _consume(_argon2id(password.encode(), sp, len(salt), key_len, ops, memory_bytes))
+    try:
+        return _consume(_argon2id(_C.cast(pw.arr, c_char_p), sp, len(salt), key_len, ops, memory_bytes))
+    finally:
+        pw.wipe()
 
 
 def hkdf_derive(ikm: bytes, salt: bytes = b"", info: bytes = b"", out_len: int = 32) -> bytes:

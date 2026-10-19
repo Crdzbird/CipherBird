@@ -14,8 +14,22 @@ extension CipherBirdMolecularOpen on CipherBird {
     String passphrase, {
     Uint8List? aad,
   }) {
+    final bytes = utf8.encode(passphrase);
+    try {
+      return molecularOpenBytes(envelope, bytes, aad: aad);
+    } finally {
+      bytes.wipe();
+    }
+  }
+
+  /// [molecularOpen] with the passphrase as UTF-8 bytes the caller can wipe.
+  Uint8List molecularOpenBytes(
+    Uint8List envelope,
+    Uint8List passphrase, {
+    Uint8List? aad,
+  }) {
     final pe = _toNative(envelope);
-    final cpw = passphrase.toNativeUtf8();
+    final cpw = _toNativeZ(passphrase);
     final pa = (aad != null && aad.isNotEmpty) ? _toNative(aad) : nullptr;
     try {
       return _checkBufResult(

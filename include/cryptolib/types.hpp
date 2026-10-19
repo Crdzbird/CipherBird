@@ -2,6 +2,7 @@
 
 #include <sodium.h>
 
+#include <climits>
 #include <cstdint>
 #include <cstring>
 #include <optional>
@@ -64,6 +65,13 @@ private:
 
 /// The public output of a hash.
 using Digest = PublicBuffer;
+
+namespace detail {
+/// Whether a byte count can be handed to an API that takes a C int length.
+[[nodiscard]] inline bool fits_int(std::size_t n) noexcept {
+    return n <= static_cast<std::size_t>(INT_MAX);
+}
+} // namespace detail
 
 class SecureBuffer {
 public:
@@ -132,11 +140,15 @@ public:
         }
     }
 
+#ifdef CRYPTOLIB_TESTING
+    /// Test builds only: a secret rendered as text leaves an unwiped copy
+    /// in a std::string, so production code has no such helper.
     [[nodiscard]] std::string to_hex() const { return hex_encode(data_); }
 
     [[nodiscard]] std::string to_string() const {
         return { reinterpret_cast<const char*>(data_.data()), data_.size() };
     }
+#endif
 
 private:
     // Best-effort page locking so secret bytes are not written to swap.

@@ -308,6 +308,51 @@ job's `op` name, so custom jobs are isolate-only there.
 Everything else is fast enough to call on the UI isolate; the figures below
 say how fast.
 
+## Hardware-backed keys
+
+`package:cipherbird/cipherbird_hardware.dart` puts the possession factor
+in the platform key module: the Secure Enclave on iOS and macOS, and the
+Android Keystore, in StrongBox when the device has one and otherwise in the
+trusted execution environment (the fallback is reported in `backing`, never
+silent). The key never leaves the module. It wraps a keyring slot, so the
+keyring master is recoverable only through the module, and a key created
+with `biometric: true` unwraps only after the user passes the system
+biometric prompt (`LAContext` on Apple, `BiometricPrompt` with a
+`CryptoObject` on Android).
+
+```dart
+import 'package:cipherbird/cipherbird.dart';
+import 'package:cipherbird/cipherbird_hardware.dart';
+
+final key = await HardwareKey.create('bank-possession', biometric: true);
+final lib = CipherBird.instance;
+final kr = lib.keyringCreate();
+await lib.keyringAddHardwareSlot(kr, key);
+final envelope = lib.keyringSerialise(kr);
+
+final loaded = lib.keyringDeserialise(envelope);
+final master = await lib.keyringUnlockWithHardware(loaded, key, reason: 'Open your vault');
+master.wipe();
+```
+
+Attestation is for your server: `key.attest(challenge)` returns an App
+Attest attestation object (Apple) computed over
+`SHA-256(challenge || enclave public key)`, or the Android key attestation
+certificate chain of a companion EC key generated with the challenge at the
+same security level. The documents are returned to the app and are not
+stored in the keyring envelope. Envelopes with a hardware slot carry
+version 2, which earlier package versions refuse to parse.
+
+Not every environment has a module: the iOS simulator uses a software key
+and reports `HardwareBacking.software`, App Attest is unavailable there,
+emulators land in the TEE, and the browser and the pure Dart package have
+no key module at all (`HardwareKeyException` with code `unsupported`).
+Requires Android 9 (API 28) for hardware keys and biometric gating.
+On macOS the Secure Enclave key lives in the data protection keychain,
+which requires the host app to be signed with a Team ID (an ad-hoc or
+"sign to run locally" build fails with `errSecMissingEntitlement`,
+status -34018).
+
 ## Web
 
 The same package runs in the browser. The engine is compiled to WebAssembly
@@ -324,6 +369,13 @@ asynchronously, so there are two ways to run:
   the page instantiates the engine while Flutter bootstraps and the package
   adopts it synchronously, so no await is needed; see Install for what that
   trusts.
+
+The browser build is not approved for long-lived keys or card data. The
+engine's linear memory is readable by every script on the page, so a key
+that outlives one operation, or cardholder data at rest, belongs on the
+native platforms (where the package wipes its native copies on free and
+`SecretBytes` gives key material a definite end of life). Use the web
+build for session-scoped operations.
 
 The engine is found at the package asset path. To serve it from somewhere
 else, call `CipherBird.preload(library:

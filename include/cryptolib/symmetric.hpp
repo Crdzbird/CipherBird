@@ -224,6 +224,8 @@ private:
         std::unique_ptr<EVP_CIPHER_CTX, CtxFree> ctx{ EVP_CIPHER_CTX_new() };
         if (!cipher || !ctx)
             return Result<Buffer>::err("AES-256-GCM: OpenSSL init failed");
+        if (!detail::fits_int(aad.size()) || !detail::fits_int(in.size()))
+            return Result<Buffer>::err("AES-256-GCM: input too large");
         int len = 0;
         if (encrypt) {
             uint8_t* body = out.data() + NONCE_BYTES;

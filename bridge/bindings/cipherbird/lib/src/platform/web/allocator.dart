@@ -1,11 +1,14 @@
 part of 'web_platform.dart';
 
 /// Allocates in the engine's heap through its exported `malloc` and `free`,
-/// with the call shape of dart:ffi's `calloc` and `malloc`.
+/// with the call shape of dart:ffi's `calloc` and `malloc`. Every block is
+/// overwritten with zeros before it is freed.
 final class WebAllocator {
   const WebAllocator._(this._zeroed);
 
   final bool _zeroed;
+
+  static final Map<int, int> _sizes = {};
 
   /// Allocates [count] elements of [T]; zero-filled for `calloc`.
   Pointer<T> call<T extends NativeType>([int count = 1]) {
@@ -18,14 +21,21 @@ final class WebAllocator {
     if (_zeroed && bytes > 0) {
       engine.memory.view(address, bytes).fillRange(0, bytes, 0);
     }
+    _sizes[address] = bytes;
     return Pointer<T>._(address);
   }
 
-  /// Releases [pointer]; the null pointer is ignored.
+  /// Wipes and releases [pointer]; the null pointer is ignored.
   void free(Pointer<NativeType> pointer) {
-    if (pointer.address != 0) {
-      WebEngine.current.free(pointer.address);
+    if (pointer.address == 0) {
+      return;
     }
+    final engine = WebEngine.current;
+    final size = _sizes.remove(pointer.address);
+    if (size != null && size > 0) {
+      engine.memory.view(pointer.address, size).fillRange(0, size, 0);
+    }
+    engine.free(pointer.address);
   }
 }
 

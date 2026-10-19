@@ -88,6 +88,7 @@ part 'registry/registry_40.dart';
 part 'registry/registry_41.dart';
 part 'registry/registry_42.dart';
 part 'registry/registry_43.dart';
+part 'registry/registry_44.dart';
 part 'registry/symbol_registry.dart';
 part 'structs/cipher_bird_asym_bundle.dart';
 part 'structs/cipher_bird_buffer.dart';

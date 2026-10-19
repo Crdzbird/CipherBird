@@ -1760,6 +1760,38 @@ CRYPTO_API CryptoKeyringHandle cryptolib_keyring_deserialise(
 CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_device(
     CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len);
 
+/** Hardware slots: a platform key module (Secure Enclave, Android Keystore)
+ *  wraps the slot's 32-byte factor; the keyring never sees the module key.
+ *  Add: call add_hardware_slot with the module key's identifier, hand the
+ *  returned factor to the module to wrap, store the result with
+ *  set_hardware_blob, then free the factor. Unlock: read the slot with
+ *  hardware_slot, have the module unwrap the blob, pass the factor to
+ *  unlock_with_hardware. Envelopes with a hardware slot carry version 2;
+ *  older parsers refuse them. */
+
+/** Add a hardware slot named by `key_id` (1..255 bytes). Returns the fresh
+ *  32-byte factor for the module to wrap (caller frees, which wipes it). */
+CRYPTO_API CryptoBufferResult cryptolib_keyring_add_hardware_slot(
+    CryptoKeyringHandle kr, const uint8_t* key_id, size_t key_id_len);
+
+/** Store the module-wrapped factor (1..4096 bytes) for the hardware slot at
+ *  `index`. Returns 1 on success. */
+CRYPTO_API int cryptolib_keyring_set_hardware_blob(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* blob, size_t blob_len);
+
+/** Slot type at `index`: 0 passphrase, 1 device, 2 hardware; -1 for a bad index. */
+CRYPTO_API int cryptolib_keyring_slot_type(CryptoKeyringHandle kr, size_t index);
+
+/** Key id and module-wrapped factor of the hardware slot at `index`. Both
+ *  outputs are caller-freed buffers. Returns 1 on success. */
+CRYPTO_API int cryptolib_keyring_hardware_slot(
+    CryptoKeyringHandle kr, size_t index, CryptoBuffer* out_key_id, CryptoBuffer* out_blob);
+
+/** Unlock the hardware slot at `index` with the factor the module unwrapped.
+ *  Returns the 32-byte master key (caller frees). */
+CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_hardware(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* factor, size_t factor_len);
+
 /** Unlock with a passphrase. Returns the 32-byte master key (caller frees). */
 CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(
     CryptoKeyringHandle kr, const char* passphrase);

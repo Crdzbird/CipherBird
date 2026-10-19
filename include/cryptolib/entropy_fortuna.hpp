@@ -47,6 +47,20 @@ public:
         for (auto& st : pools_) crypto_generichash_init(&st, nullptr, 0, POOL_OUT);
     }
 
+    FortunaPool(const FortunaPool&)            = delete;
+    FortunaPool& operator=(const FortunaPool&) = delete;
+    FortunaPool(FortunaPool&&) noexcept            = default;
+    FortunaPool& operator=(FortunaPool&&) noexcept = default;
+
+    /// The generator key and the pool accumulators hold the entropy that
+    /// was fed in; both are wiped with the pool. Not an SP 800-90A DRBG: the
+    /// reseed schedule is event-count based (see the header note), there is
+    /// no 90B source in front of it, and it is opt-in only.
+    ~FortunaPool() {
+        sodium_memzero(key_.data(), KEY_BYTES);
+        sodium_memzero(pools_.data(), sizeof(pools_));
+    }
+
     /// Add an entropy event from logical source `source_id`. Events are spread
     /// round-robin across the pools; each is bound to its source id and length so
     /// concatenation is unambiguous.

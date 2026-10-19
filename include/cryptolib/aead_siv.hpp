@@ -61,6 +61,8 @@ public:
         CtxPtr ctx{EVP_CIPHER_CTX_new()};
         if (!ctx) return Result<PublicBuffer>::err("AES-256-GCM-SIV: ctx alloc failed");
 
+        if (!detail::fits_int(aad.size()) || !detail::fits_int(plaintext.size()))
+            return Result<PublicBuffer>::err("AES-256-GCM-SIV: input too large");
         PublicBuffer out(NONCE_BYTES + plaintext.size() + TAG_BYTES);
         randombytes_buf(out.data(), NONCE_BYTES);
         uint8_t* ct  = out.data() + NONCE_BYTES;
@@ -95,6 +97,8 @@ public:
             return Result<SecureBuffer>::err("AES-256-GCM-SIV: key must be 32 bytes");
         if (wire.size() < NONCE_BYTES + TAG_BYTES)
             return Result<SecureBuffer>::err("AES-256-GCM-SIV: ciphertext too short");
+        if (!detail::fits_int(aad.size()) || !detail::fits_int(wire.size()))
+            return Result<SecureBuffer>::err("AES-256-GCM-SIV: input too large");
         auto cipher = fetch();
         if (!cipher) return Result<SecureBuffer>::err("AES-256-GCM-SIV: unavailable in this OpenSSL");
         CtxPtr ctx{EVP_CIPHER_CTX_new()};

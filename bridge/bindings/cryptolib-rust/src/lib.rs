@@ -196,12 +196,61 @@ aead_fn!(committing_decrypt, cryptolib_committing_decrypt, "Key-committing AEAD 
 aead_fn!(molecular_seal_with_key, cryptolib_molecular_seal_with_key, "MolecularVault cascade under a raw 32-byte master key.");
 aead_fn!(molecular_open_with_key, cryptolib_molecular_open_with_key, "Open a MolecularVault envelope. Fails closed.");
 
-/// Stretch a passphrase into a key with Argon2id.
+/// Overwrites `bytes` with zeros in a way the optimiser keeps.
+pub fn wipe(bytes: &mut [u8]) {
+    for b in bytes.iter_mut() {
+        // Safety: writes within the slice; volatile so the store is not elided.
+        unsafe { std::ptr::write_volatile(b, 0) };
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Secret material that is wiped when dropped. Derefs to the bytes.
+pub struct Secret(Vec<u8>);
+
+impl Secret {
+    /// Takes ownership of `bytes`; they are wiped on drop.
+    pub fn new(bytes: Vec<u8>) -> Self { Secret(bytes) }
+
+    /// The bytes.
+    pub fn as_bytes(&self) -> &[u8] { &self.0 }
+
+    /// Wipes now, ahead of the drop.
+    pub fn wipe(&mut self) { wipe(&mut self.0); }
+}
+
+impl Drop for Secret {
+    fn drop(&mut self) { wipe(&mut self.0); }
+}
+
+impl std::ops::Deref for Secret {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] { &self.0 }
+}
+
+impl From<Vec<u8>> for Secret {
+    fn from(v: Vec<u8>) -> Self { Secret(v) }
+}
+
+/// Stretch a passphrase into a key with Argon2id. The NUL-terminated copy
+/// handed to the engine is wiped afterwards.
 pub fn argon2id_derive(password: &str, salt: &[u8], key_len: usize, ops: u64, memory_bytes: usize)
     -> Result<Vec<u8>, String>
 {
-    let c = CString::new(password).map_err(|e| e.to_string())?;
-    unsafe { consume(cryptolib_argon2id_derive(c.as_ptr(), salt.as_ptr(), salt.len(), key_len, ops, memory_bytes)) }
+    argon2id_derive_bytes(password.as_bytes(), salt, key_len, ops, memory_bytes)
+}
+
+/// `argon2id_derive` for a passphrase held as bytes (which the caller can wipe).
+pub fn argon2id_derive_bytes(password: &[u8], salt: &[u8], key_len: usize, ops: u64, memory_bytes: usize)
+    -> Result<Vec<u8>, String>
+{
+    if password.contains(&0) { return Err("argon2id: password must not contain a NUL byte".into()); }
+    let mut z = Vec::with_capacity(password.len() + 1);
+    z.extend_from_slice(password);
+    z.push(0);
+    let r = unsafe { consume(cryptolib_argon2id_derive(z.as_ptr() as *const c_char, salt.as_ptr(), salt.len(), key_len, ops, memory_bytes)) };
+    wipe(&mut z);
+    r
 }
 
 /// One-shot HKDF: extract + expand to `out_len` bytes.

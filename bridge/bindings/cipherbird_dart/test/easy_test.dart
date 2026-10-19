@@ -97,9 +97,50 @@ Future<void> main() async {
       expect(lib.recipe().withKey(key.bytes).open(env).text, 'r');
     });
 
-    test('destroy wipes the key', () {
-      final key = SymmetricKey.generate()..destroy();
-      expect(key.bytes.every((b) => b == 0), isTrue);
+    test('destroy wipes the key and makes it unusable', () {
+      final key = SymmetricKey.generate();
+      final raw = key.bytes;
+      key.destroy();
+      expect(key.isDestroyed, isTrue);
+      expect(() => key.bytes, throwsStateError);
+      expect(() => key.encrypt([1, 2, 3]), throwsStateError);
+      expect(raw.every((b) => b == 0), isFalse);
+    });
+
+    test('SecretBytes wipes in place and refuses later reads', () {
+      final raw = Uint8List.fromList([1, 2, 3, 4]);
+      final secret = SecretBytes.take(raw);
+      expect(secret.use((b) => b.length), 4);
+      secret.wipe();
+      expect(secret.isWiped, isTrue);
+      expect(raw.every((b) => b == 0), isTrue);
+      expect(() => secret.bytes, throwsStateError);
+      secret.wipe();
+    });
+
+    test('KemKeyPair destroy wipes the secret key', () {
+      final pair = KemKeyPair.generate();
+      final sk = pair.secretKey;
+      pair.destroy();
+      expect(sk.every((b) => b == 0), isTrue);
+    });
+
+    test('byte passphrases derive the same key as strings', () {
+      final salt = Uint8List.fromList(List.filled(16, 7));
+      final a = SymmetricKey.fromPassphrase('pw', salt: salt);
+      final pw = Uint8List.fromList('pw'.codeUnits);
+      final b = SymmetricKey.fromPassphraseBytes(pw, salt: salt);
+      expect(a.hex, b.hex);
+      final lib = CipherBird.instance;
+      final phc = lib.easy.hashPasswordBytes(
+        Uint8List.fromList('pw'.codeUnits),
+      );
+      expect(lib.easy.verifyPassword('pw', phc), isTrue);
+      expect(lib.easy.verifyPasswordBytes(pw, phc), isTrue);
+      expect(
+        lib.easy.verifyPasswordBytes(Uint8List.fromList([120]), phc),
+        isFalse,
+      );
     });
   });
 

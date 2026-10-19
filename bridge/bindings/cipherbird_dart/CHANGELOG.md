@@ -3,6 +3,38 @@
 Supply-chain and loader hardening from the bank-readiness assessment; no
 API or wire-format change. A pre-release for testing.
 
+- Keyring hardware slots in the C ABI and here: `keyringBeginHardwareSlot`,
+  `keyringSetHardwareBlob`, `keyringSlotType`, `keyringHardwareSlot` and
+  `keyringUnlockWithHardwareFactor`, for programs with their own key
+  module. Envelopes holding a hardware slot are version 2 and are refused
+  by earlier versions. The Secure Enclave and Keystore integration ships in
+  the Flutter plugin only.
+- Secrets are wiped at the FFI edge. Every native block the package
+  allocates, natively and in the browser, is overwritten with zeros before
+  it is freed, and so is every scratch block in the web worker; passphrases
+  are marshalled through that path. New byte forms take a passphrase as
+  `Uint8List` the caller can wipe: `argon2idDeriveBytes`,
+  `argon2idHashStrBytes`, `argon2idVerifyStrBytes`, `molecularSealBytes`,
+  `molecularOpenBytes`, `keyringAddPassphraseSlotBytes`,
+  `keyringUnlockWithPassphraseBytes`, `SymmetricKey.fromPassphraseBytes`
+  and the matching `easy` and facade entries. `SecretBytes` is a handle
+  for key material with a definite end of life; `SymmetricKey` now holds
+  one, `SymmetricKey.bytes` throws after `destroy`, `KemKeyPair.destroy`
+  wipes the secret key, and KEM shared secrets are wiped once the session
+  key is derived.
+- The browser build is not approved for long-lived keys or card data: the
+  engine's linear memory is readable by every script on the page, so a key
+  that must outlive one operation belongs on the native platforms. The
+  web README says so.
+- Engine fixes from the assessment: HMAC-SHA512 now uses every key byte
+  (RFC 2104) instead of the first 32; `cryptolib_init` reports failure;
+  an envelope header can no longer demand an Argon2id cost above the
+  policy ceiling (64 passes, 4 GiB) before it is authenticated; the
+  MolecularVault mode byte is checked; HPKE, Noise, the DRBG, Fortuna and
+  the PQ backend wipe their scratch secrets; Noise `into_session` is one
+  shot and the transport nonce is read only; a Shamir share record with a
+  length near 2^32 is rejected on 32-bit targets; AES-GCM inputs above
+  2 GiB are refused instead of truncated.
 - Every web engine file is loaded with a Subresource Integrity digest.
   `web_setup` writes `integrity` and `crossorigin` attributes on the two
   page tags and refreshes them on rerun; the Dart loader injects

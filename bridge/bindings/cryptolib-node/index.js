@@ -70,6 +70,8 @@ function ensureLoaded() {
   hkdf: f('CryptoBufferResult cryptolib_hkdf_derive(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, size_t)'),
   argonHash: f('CryptoBufferResult cryptolib_argon2id_hash_str(const char*, uint64_t, size_t)'),
   argonVerify: f('int cryptolib_argon2id_verify_str(const char*, const char*)'),
+  argonHashZ: f('CryptoBufferResult cryptolib_argon2id_hash_str(uint8_t*, uint64_t, size_t)'),
+  argonVerifyZ: f('int cryptolib_argon2id_verify_str(uint8_t*, const char*)'),
   symKeygen: f('CryptoBufferResult cryptolib_sym_keygen()'),
   xEnc: f('CryptoBufferResult cryptolib_xchacha20_encrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   xDec: f('CryptoBufferResult cryptolib_xchacha20_decrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
@@ -113,6 +115,8 @@ function ensureLoaded() {
   krDeser: f('void *cryptolib_keyring_deserialise(uint8_t*, size_t, _Out_ char**)'),
   krUnlockDev: f('CryptoBufferResult cryptolib_keyring_unlock_with_device(void*, uint8_t*, size_t)'),
   krUnlockPw: f('CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(void*, const char*)'),
+  krAddPwZ: f('int cryptolib_keyring_add_passphrase_slot(void*, uint8_t*, int)'),
+  krUnlockPwZ: f('CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(void*, uint8_t*)'),
   krFree: f('void cryptolib_keyring_free(void*)'),
   bufFree: f('void cryptolib_buffer_free(CryptoBuffer*)'),
   pktFree: f('void cryptolib_packet_free(CryptoPacket*)'),
@@ -131,6 +135,7 @@ function ensureLoaded() {
   hkdfExtract: f('CryptoBufferResult cryptolib_hkdf_extract(uint8_t*, size_t, uint8_t*, size_t)'),
   hkdfExpand: f('CryptoBufferResult cryptolib_hkdf_expand(uint8_t*, size_t, uint8_t*, size_t, size_t)'),
   argonDerive: f('CryptoBufferResult cryptolib_argon2id_derive(const char*, uint8_t*, size_t, size_t, uint64_t, size_t)'),
+  argonDeriveZ: f('CryptoBufferResult cryptolib_argon2id_derive(uint8_t*, uint8_t*, size_t, size_t, uint64_t, size_t)'),
 
   // Symmetric — committing AEAD + streaming
   cmtEnc: f('CryptoBufferResult cryptolib_committing_encrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
@@ -210,6 +215,8 @@ function ensureLoaded() {
   // MolecularVault
   molSeal: f('CryptoBufferResult cryptolib_molecular_seal(uint8_t*, size_t, const char*, uint8_t*, size_t, uint64_t, size_t)'),
   molOpen: f('CryptoBufferResult cryptolib_molecular_open(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
+  molSealZ: f('CryptoBufferResult cryptolib_molecular_seal(uint8_t*, size_t, uint8_t*, uint8_t*, size_t, uint64_t, size_t)'),
+  molOpenZ: f('CryptoBufferResult cryptolib_molecular_open(uint8_t*, size_t, uint8_t*, uint8_t*, size_t)'),
   molSealKey: f('CryptoBufferResult cryptolib_molecular_seal_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   molOpenKey: f('CryptoBufferResult cryptolib_molecular_open_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
 
@@ -226,6 +233,8 @@ function ensureLoaded() {
   suiteOpenKrDev: f('CryptoBufferResult cryptolib_suite_open_with_keyring_device(uint8_t*, size_t, void*, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteSealKrPw: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
   suiteOpenKrPw: f('CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(uint8_t*, size_t, void*, const char*, uint8_t*, size_t)'),
+  suiteSealKrPwZ: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(uint8_t*, size_t, void*, uint8_t*, uint8_t*, size_t)'),
+  suiteOpenKrPwZ: f('CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(uint8_t*, size_t, void*, uint8_t*, uint8_t*, size_t)'),
   suiteSealThr: f('CryptoBufferResult cryptolib_suite_seal_threshold(uint8_t*, size_t, uint8_t, uint8_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
   // Flagship/Fortress sealed messaging (tier 0=Flagship, 1=Fortress).
   sealedGenRecip: f('CryptoKeyPair cryptolib_sealed_generate_recipient(int)'),
@@ -386,6 +395,37 @@ function consume(r) {
 }
 function kp(k) { const pub = b(k.public_key), sec = b(k.secret_key); fn.kpFree(k); return { publicKey: pub, secretKey: sec }; }
 const u8 = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x);
+
+/** Overwrites a Buffer or typed array with zeros. Call it on key material you are done with. */
+function wipe(bytes) { if (bytes && typeof bytes.fill === 'function') bytes.fill(0); return bytes; }
+
+// Runs `use` with a NUL-terminated copy of a password (string or bytes) and
+// wipes the copy afterwards. koffi hands a Buffer to the engine by pointer,
+// so no further copy is made; a string password is marshalled by koffi into
+// memory nothing can wipe, which is why every password path goes through here.
+function withPassword(pw, use) {
+  const z = Buffer.isBuffer(pw) || ArrayBuffer.isView(pw)
+    ? Buffer.concat([Buffer.from(pw.buffer, pw.byteOffset, pw.byteLength), Buffer.alloc(1)])
+    : Buffer.from(String(pw) + '\0', 'utf8');
+  try { return use(z); } finally { z.fill(0); }
+}
+
+/**
+ * Secret material with a definite end of life: wipe() overwrites the bytes
+ * with zeros and every later access throws, so a key copy cannot linger on
+ * the heap unnoticed.
+ */
+class Secret {
+  constructor(bytes) { this._b = u8(bytes); this._wiped = false; }
+  /** Takes ownership of `bytes` without copying. */
+  static take(bytes) { return new Secret(bytes); }
+  /** A private copy; the caller still owns the original. */
+  static copy(bytes) { return new Secret(Buffer.from(u8(bytes))); }
+  get bytes() { if (this._wiped) throw new Error('cryptolib: this secret was wiped'); return this._b; }
+  get length() { return this._b.length; }
+  get wiped() { return this._wiped; }
+  wipe() { if (this._wiped) return; this._wiped = true; this._b.fill(0); }
+}
 // Parse [index(1)|ylen(4 LE)|y] records into individual distributable share records.
 function splitShareRecords(blob) {
   const out = [];
@@ -1703,6 +1743,7 @@ function noise(initiator, staticPublic, staticSecret, prologue = null) {
 }
 
 module.exports = {
+  wipe, Secret,
   SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
   Rng, Drbg, Fortuna, StegoAdvanced, Composed, FecScheme, MediaFormat, assessFileHealth,
   Blake3Hasher, blake3Hasher, Noise, noise,
@@ -1725,8 +1766,8 @@ module.exports = {
   blake3: (m, len = 32) => consume(fn.blake3(u8(m), u8(m).length, len)),
   hmacSha256: (m, key) => consume(fn.hmac256(u8(m), u8(m).length, u8(key), u8(key).length)),
   hmacSha256Verify: (m, mac, key) => fn.hmac256v(u8(m), u8(m).length, u8(mac), u8(mac).length, u8(key), u8(key).length) === 1,
-  argon2idHashStr: (pw, ops = 2, mem = 67108864) => consume(fn.argonHash(pw, ops, mem)).toString('latin1').replace(/\0+$/, ''),
-  argon2idVerifyStr: (pw, phc) => fn.argonVerify(pw, phc) === 1,
+  argon2idHashStr: (pw, ops = 2, mem = 67108864) => withPassword(pw, (z) => consume(fn.argonHashZ(z, ops, mem)).toString('latin1').replace(/\0+$/, '')),
+  argon2idVerifyStr: (pw, phc) => withPassword(pw, (z) => fn.argonVerifyZ(z, phc) === 1),
 
   symKeygen: () => consume(fn.symKeygen()),
   xchacha20Encrypt: (pt, key, aad = null) => consume(fn.xEnc(u8(pt), u8(pt).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
@@ -1777,13 +1818,13 @@ module.exports = {
 
   // Keyring
   keyringCreate: () => fn.krCreate(),
-  keyringAddDeviceSlot: (kr, factor) => fn.krAddDev(kr, u8(factor), u8(factor).length) === 0,
-  keyringAddPassphraseSlot: (kr, pw, kdf = 0) => fn.krAddPw(kr, pw, kdf) === 0,
+  keyringAddDeviceSlot: (kr, factor) => fn.krAddDev(kr, u8(factor), u8(factor).length) === 1,
+  keyringAddPassphraseSlot: (kr, pw, kdf = 0) => withPassword(pw, (z) => fn.krAddPwZ(kr, z, kdf) === 1),
   keyringSlotCount: (kr) => Number(fn.krCount(kr)),
   keyringSerialise: (kr) => consume(fn.krSer(kr)),
   keyringDeserialise(blob) { const e = [null]; const kr = fn.krDeser(u8(blob), u8(blob).length, e); if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); } return kr; },
   keyringUnlockWithDevice: (kr, factor) => consume(fn.krUnlockDev(kr, u8(factor), u8(factor).length)),
-  keyringUnlockWithPassphrase: (kr, pw) => consume(fn.krUnlockPw(kr, pw)),
+  keyringUnlockWithPassphrase: (kr, pw) => withPassword(pw, (z) => consume(fn.krUnlockPwZ(kr, z))),
   keyringRemoveSlot: (kr, index) => fn.krRemove(kr, index) === 1,
   keyringFree: (kr) => fn.krFree(kr),
 
@@ -1798,7 +1839,7 @@ module.exports = {
                     info ? u8(info) : null, info ? u8(info).length : 0, outLen)),
   hkdfExtract: (ikm, salt = null) => consume(fn.hkdfExtract(salt ? u8(salt) : null, salt ? u8(salt).length : 0, u8(ikm), u8(ikm).length)),
   hkdfExpand: (prk, info = null, len = 32) => consume(fn.hkdfExpand(u8(prk), u8(prk).length, info ? u8(info) : null, info ? u8(info).length : 0, len)),
-  argon2idDerive: (pw, salt, keyLen = 32, ops = 2, mem = 67108864) => consume(fn.argonDerive(pw, u8(salt), u8(salt).length, keyLen, ops, mem)),
+  argon2idDerive: (pw, salt, keyLen = 32, ops = 2, mem = 67108864) => withPassword(pw, (z) => consume(fn.argonDeriveZ(z, u8(salt), u8(salt).length, keyLen, ops, mem))),
 
   // ── Committing AEAD + streaming ──
   committingEncrypt: (pt, key, aad = null) => consume(fn.cmtEnc(u8(pt), u8(pt).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
@@ -1877,8 +1918,8 @@ module.exports = {
   stegoCapacity: (coverPath) => Number(fn.stegoCapacity(coverPath)),
 
   // ── MolecularVault — max-assurance layered encryption ──
-  molecularSeal: (pt, passphrase, aad = null, ops = 0, mem = 0) => consume(fn.molSeal(u8(pt), u8(pt).length, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0, ops, mem)),
-  molecularOpen: (env, passphrase, aad = null) => consume(fn.molOpen(u8(env), u8(env).length, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  molecularSeal: (pt, passphrase, aad = null, ops = 0, mem = 0) => withPassword(passphrase, (z) => consume(fn.molSealZ(u8(pt), u8(pt).length, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0, ops, mem))),
+  molecularOpen: (env, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.molOpenZ(u8(env), u8(env).length, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
   molecularSealWithKey: (pt, masterKey, aad = null) => consume(fn.molSealKey(u8(pt), u8(pt).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   molecularOpenWithKey: (env, masterKey, aad = null) => consume(fn.molOpenKey(u8(env), u8(env).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
 
@@ -1898,8 +1939,8 @@ module.exports = {
   // Keyring-guarded (kr from keyringCreate()/keyringDeserialise()).
   suiteSealWithKeyringDevice: (pt, kr, factorKey, aad = null) => consume(fn.suiteSealKrDev(u8(pt), u8(pt).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenWithKeyringDevice: (env, kr, factorKey, aad = null) => consume(fn.suiteOpenKrDev(u8(env), u8(env).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  suiteSealWithKeyringPassphrase: (pt, kr, passphrase, aad = null) => consume(fn.suiteSealKrPw(u8(pt), u8(pt).length, kr, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  suiteOpenWithKeyringPassphrase: (env, kr, passphrase, aad = null) => consume(fn.suiteOpenKrPw(u8(env), u8(env).length, kr, passphrase, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
+  suiteSealWithKeyringPassphrase: (pt, kr, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.suiteSealKrPwZ(u8(pt), u8(pt).length, kr, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
+  suiteOpenWithKeyringPassphrase: (env, kr, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.suiteOpenKrPwZ(u8(env), u8(env).length, kr, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
   // EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key.
   suiteEvmAddress: (secp256k1PublicKey) => consume(fn.suiteEvmAddr(u8(secp256k1PublicKey), u8(secp256k1PublicKey).length)),
   // Threshold (k-of-n): returns { envelope, shares:[record,...] }; open with any k.
