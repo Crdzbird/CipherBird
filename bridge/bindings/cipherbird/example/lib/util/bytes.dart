@@ -32,3 +32,15 @@ void demand(bool cond, String what) {
     throw StateError(what);
   }
 }
+
+/// How many positions differ between [a] and [b], length difference included.
+int differingBytes(List<int> a, List<int> b) {
+  final n = a.length < b.length ? a.length : b.length;
+  var count = (a.length - b.length).abs();
+  for (var i = 0; i < n; i++) {
+    if (a[i] != b[i]) {
+      count++;
+    }
+  }
+  return count;
+}

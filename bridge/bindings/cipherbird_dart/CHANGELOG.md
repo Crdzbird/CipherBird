@@ -19,6 +19,8 @@
   check before decode, and a WAV with zero channels (in both the WAV and
   the FLAC reader). Every image carrier now caps at 67 million pixels and
   the PNG and JPEG readers validate the declared size before decoding.
+- The Flutter plugin's example app gains steganography and LavaRand
+  playgrounds; this package has no app.
 
 ## 1.2.0
 

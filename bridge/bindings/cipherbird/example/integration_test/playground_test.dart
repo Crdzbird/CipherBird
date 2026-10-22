@@ -19,6 +19,7 @@ void main() {
     'Open as Carol',
     'Replay last',
     'Handshake as Mallory',
+    'Reveal with the wrong key',
   };
 
   testWidgets('every playground action runs', (_) async {

@@ -1,7 +1,10 @@
+import 'package:cipherbird_example/play/play_choice_tile.dart';
+import 'package:cipherbird_example/play/play_picture_tile.dart';
 import 'package:cipherbird_example/play/playground.dart';
 import 'package:flutter/material.dart';
 
-/// Renders any [Playground]: its fields, its action buttons and its log.
+/// Renders any [Playground]: its fields, choices, action buttons,
+/// pictures and log.
 final class PlaygroundPage extends StatelessWidget {
   const PlaygroundPage(this.model, {super.key});
 
@@ -38,6 +41,7 @@ final class PlaygroundPage extends StatelessWidget {
                 ),
               ),
             ),
+          for (final c in model.choices) PlayChoiceTile(c),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -46,6 +50,15 @@ final class PlaygroundPage extends StatelessWidget {
                 FilledButton.tonal(onPressed: a.run, child: Text(a.label)),
             ],
           ),
+          if (model.pictures.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [for (final p in model.pictures) PlayPictureTile(p)],
+              ),
+            ),
           const Divider(height: 32),
           for (final line in model.log)
             Padding(

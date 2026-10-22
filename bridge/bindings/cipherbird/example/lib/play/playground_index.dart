@@ -1,4 +1,5 @@
 import 'package:cipherbird/cipherbird.dart';
+import 'package:cipherbird_example/play/entropy_playground.dart';
 import 'package:cipherbird_example/play/fips_playground.dart';
 import 'package:cipherbird_example/play/hardware_playground.dart';
 import 'package:cipherbird_example/play/hash_playground.dart';
@@ -7,6 +8,7 @@ import 'package:cipherbird_example/play/playground.dart';
 import 'package:cipherbird_example/play/playground_page.dart';
 import 'package:cipherbird_example/play/session_playground.dart';
 import 'package:cipherbird_example/play/signature_playground.dart';
+import 'package:cipherbird_example/play/stego_playground.dart';
 import 'package:cipherbird_example/play/suite2_playground.dart';
 import 'package:cipherbird_example/play/symmetric_playground.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +24,8 @@ final class PlaygroundIndex extends StatelessWidget {
     HpkePlayground(lib),
     Suite2Playground(lib),
     SessionPlayground(lib),
+    StegoPlayground(lib),
+    EntropyPlayground(lib),
     HardwarePlayground(lib),
     FipsPlayground(lib),
   ];
