@@ -85,7 +85,39 @@ struct MediaInfo {
     std::string              path;         // source file path
     std::uintmax_t           file_size;    // bytes
     std::size_t              chunks_read;  // number of read passes
-    double                   entropy_estimate_bits; // conservative lower bound
+    double                   entropy_estimate_bits; // min-entropy lower bound over the whole file
+    HealthReport             health{};     // SP 800-90B assessment of the first 1 MiB
+    double                   entropy_bits_claimed = 0.0; // the estimate capped at the 512-bit conditioner output
+};
+
+/// What a media source must satisfy before its content is trusted as
+/// entropy. The strict default refuses a file whose min-entropy estimate
+/// is below one bit per byte or that fails the repetition-count test; a
+/// permissive policy keeps the assessment but never refuses, for callers
+/// that only want the file-as-key convenience with eyes open. The
+/// adaptive-proportion test is reported but not required by default: it is
+/// defined for a noise source, and the smooth regions of any real photo
+/// trip it without saying anything about the file as a whole.
+struct SourcePolicy {
+    double min_bits_per_byte = 1.0;
+    bool   require_rct       = true;
+    bool   require_apt       = false;
+
+    [[nodiscard]] static constexpr SourcePolicy strict() noexcept { return {}; }
+    [[nodiscard]] static constexpr SourcePolicy permissive() noexcept { return {0.0, false, false}; }
+
+    [[nodiscard]] std::string reject(const HealthReport& h) const {
+        if (h.min_entropy_per_byte < min_bits_per_byte)
+            return "MediaEntropy: source min-entropy " + std::to_string(h.min_entropy_per_byte) +
+                   " bits/byte is below the policy floor of " + std::to_string(min_bits_per_byte) +
+                   " (use SourcePolicy::permissive() to accept a weak source)";
+        if (require_rct && !h.rct_passed)
+            return "MediaEntropy: source failed the repetition-count test (longest run " +
+                   std::to_string(h.longest_run) + ")";
+        if (require_apt && !h.apt_passed)
+            return "MediaEntropy: source failed the adaptive-proportion test";
+        return {};
+    }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,6 +142,7 @@ public:
     static constexpr std::size_t ENTROPY_BYTES  = 64;      // BLAKE2b-512 output
     static constexpr std::size_t KEY_BYTES      = 32;      // derived key size
     static constexpr std::size_t MIN_FILE_BYTES = 256;     // reject tiny files
+    static constexpr std::size_t HEALTH_SAMPLE_BYTES = 1u << 20; // prefix assessed by the 90B tests
 
     // ─── Primary constructors ────────────────────────────────────────────────
     //
@@ -140,8 +173,8 @@ public:
     /// Keys are NOT reproducible across separate from_file() calls.
     /// Use when you derive once and keep the object for the session lifetime.
     [[nodiscard]] static Result<MediaEntropy>
-    from_file(const std::filesystem::path& path) {
-        return harvest_single(path, /*mix_system=*/true);
+    from_file(const std::filesystem::path& path, SourcePolicy policy = {}) {
+        return harvest_single(path, /*mix_system=*/true, policy);
     }
 
     /// Reproducible mode — keys are derived solely from the file's byte content.
@@ -156,28 +189,28 @@ public:
     ///   entropy that are kept confidential (private photos, unique recordings).
     ///   For maximum security, prefer from_file() which mixes system entropy.
     [[nodiscard]] static Result<MediaEntropy>
-    from_file_deterministic(const std::filesystem::path& path) {
-        return harvest_single(path, /*mix_system=*/false);
+    from_file_deterministic(const std::filesystem::path& path, SourcePolicy policy = {}) {
+        return harvest_single(path, /*mix_system=*/false, policy);
     }
 
     /// LavaRand mode — mixes fresh system entropy on every call.
     /// Keys are NOT reproducible across separate from_files() calls.
     [[nodiscard]] static Result<MediaEntropy>
-    from_files(const std::vector<std::filesystem::path>& paths) {
-        return harvest_multiple(paths, /*mix_system=*/true);
+    from_files(const std::vector<std::filesystem::path>& paths, SourcePolicy policy = {}) {
+        return harvest_multiple(paths, /*mix_system=*/true, policy);
     }
 
     /// Reproducible mode — keys derived solely from the files' byte content.
     /// Use for cross-session or cross-process scenarios.
     [[nodiscard]] static Result<MediaEntropy>
-    from_files_deterministic(const std::vector<std::filesystem::path>& paths) {
-        return harvest_multiple(paths, /*mix_system=*/false);
+    from_files_deterministic(const std::vector<std::filesystem::path>& paths, SourcePolicy policy = {}) {
+        return harvest_multiple(paths, /*mix_system=*/false, policy);
     }
 
     // ─── Internal multi-file harvest (shared by both modes) ──────────────────
     [[nodiscard]] static Result<MediaEntropy>
     harvest_multiple(const std::vector<std::filesystem::path>& paths,
-                     bool mix_system) {
+                     bool mix_system, SourcePolicy policy) {
         if (paths.empty())
             return Result<MediaEntropy>::err("MediaEntropy: no files provided");
 
@@ -192,6 +225,8 @@ public:
             auto result = stream_file_into_hash(state, p);
             if (result.is_err())
                 return Result<MediaEntropy>::err(result.error().message);
+            if (auto why = policy.reject(result.value().health); !why.empty())
+                return Result<MediaEntropy>::err(why + " [" + p.string() + "]");
             info_list.push_back(result.value());
             total_bytes += result.value().file_size;
         }
@@ -211,10 +246,14 @@ public:
             .chunks_read           = 0,
             .entropy_estimate_bits = 0.0
         };
+        combined.health.min_entropy_per_byte = 8.0;
         for (auto& mi : info_list) {
             combined.chunks_read           += mi.chunks_read;
             combined.entropy_estimate_bits += mi.entropy_estimate_bits;
+            if (mi.health.min_entropy_per_byte < combined.health.min_entropy_per_byte)
+                combined.health = mi.health;
         }
+        combined.entropy_bits_claimed = std::min(combined.entropy_estimate_bits, 8.0 * ENTROPY_BYTES);
 
         return Result<MediaEntropy>::ok(MediaEntropy(std::move(mixed), combined));
     }
@@ -363,7 +402,9 @@ public:
         return derive_key("vault:entropy_boost:v1");
     }
 
-    /// Conservative lower-bound entropy estimate in bits.
+    /// Min-entropy lower bound of the source in bits (two SP 800-90B
+    /// estimators over the file); the conditioner cannot output more than
+    /// `info().entropy_bits_claimed`.
     [[nodiscard]] double entropy_bits() const noexcept {
         return info_.entropy_estimate_bits;
     }
@@ -480,6 +521,8 @@ private:
         std::size_t chunks = 0;
         std::array<std::uint64_t, 256> hist{};
         std::uint64_t total = 0;
+        std::vector<uint8_t> sample;
+        sample.reserve(HEALTH_SAMPLE_BYTES);
 
         while (file) {
             file.read(reinterpret_cast<char*>(buf.data()),
@@ -488,32 +531,47 @@ private:
             if (bytes_read == 0) break;
             crypto_generichash_update(&state, buf.data(), bytes_read);
             for (std::size_t i = 0; i < bytes_read; ++i) ++hist[buf[i]];
+            if (sample.size() < HEALTH_SAMPLE_BYTES) {
+                const std::size_t take = std::min(bytes_read, HEALTH_SAMPLE_BYTES - sample.size());
+                sample.insert(sample.end(), buf.begin(), buf.begin() + static_cast<std::ptrdiff_t>(take));
+            }
             total += bytes_read;
             ++chunks;
         }
 
-        // Wipe the read buffer — it may contain sensitive frame data.
-        // Use sodium_memzero (compiler-proof) instead of std::fill which
-        // can be dead-store eliminated at -O2.
+        // Wipe the read buffers: they may contain sensitive frame data.
+        // sodium_memzero survives dead-store elimination; std::fill does not.
         sodium_memzero(buf.data(), buf.size());
+
+        // Two SP 800-90B estimators over the sampled prefix and the
+        // Most-Common-Value bound over the whole file; the smaller wins.
+        HealthReport health = assess_health(sample);
+        sodium_memzero(sample.data(), sample.size());
+        health.mcv_bits_per_byte = std::min(health.mcv_bits_per_byte, mcv_bits_per_byte(hist, total));
+        health.min_entropy_per_byte = std::min(health.min_entropy_per_byte, health.mcv_bits_per_byte);
+        const double estimate = health.min_entropy_per_byte * static_cast<double>(total);
 
         return Result<MediaInfo>::ok(MediaInfo{
             .path                  = path.string(),
             .file_size             = file_size,
             .chunks_read           = chunks,
-            .entropy_estimate_bits = shannon_entropy_bits(hist, total)
+            .entropy_estimate_bits = estimate,
+            .health                = health,
+            .entropy_bits_claimed  = std::min(estimate, 8.0 * ENTROPY_BYTES)
         });
     }
 
     // ─── Harvest a single file: open, hash, optionally mix ───────────────────
     [[nodiscard]] static Result<MediaEntropy>
-    harvest_single(const std::filesystem::path& path, bool mix_system) {
+    harvest_single(const std::filesystem::path& path, bool mix_system, SourcePolicy policy) {
         crypto_generichash_state state{};
         crypto_generichash_init(&state, nullptr, 0, ENTROPY_BYTES);
 
         auto info = stream_file_into_hash(state, path);
         if (info.is_err())
             return Result<MediaEntropy>::err(info.error().message);
+        if (auto why = policy.reject(info.value().health); !why.empty())
+            return Result<MediaEntropy>::err(why);
 
         SecureBuffer file_hash(ENTROPY_BYTES);
         crypto_generichash_final(&state, file_hash.data(), ENTROPY_BYTES);
@@ -573,18 +631,19 @@ private:
     // file_size×1.0 heuristic. Security never relies on this number: from_file()
     // mixes system entropy regardless, and deterministic mode is documented as
     // "the file IS the key".
+    /// SP 800-90B 6.3.1 over a whole-file histogram, in bits per byte.
     [[nodiscard]] static double
-    shannon_entropy_bits(const std::array<std::uint64_t, 256>& hist,
-                         std::uint64_t total) noexcept {
+    mcv_bits_per_byte(const std::array<std::uint64_t, 256>& hist,
+                      std::uint64_t total) noexcept {
         if (total == 0) return 0.0;
+        std::uint64_t max_count = 0;
+        for (auto c : hist) max_count = std::max(max_count, c);
         const double n = static_cast<double>(total);
-        double bits_per_byte = 0.0;
-        for (std::uint64_t c : hist) {
-            if (c == 0) continue;
-            const double p = static_cast<double>(c) / n;
-            bits_per_byte -= p * std::log2(p);
-        }
-        return bits_per_byte * n;
+        const double phat = static_cast<double>(max_count) / n;
+        double pu = phat;
+        if (total > 1 && phat < 1.0)
+            pu = std::min(1.0, phat + 2.576 * std::sqrt(phat * (1.0 - phat) / (n - 1.0)));
+        return pu >= 1.0 ? 0.0 : -std::log2(pu);
     }
 
     SecureBuffer entropy_;   // 64-byte mixed entropy (always zeroed on destruction)

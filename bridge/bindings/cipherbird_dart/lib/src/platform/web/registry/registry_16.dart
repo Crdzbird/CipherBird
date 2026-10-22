@@ -1,6 +1,34 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry16 = {
+  'cryptolib_entropy_from_file_with_policy':
+      (
+        Pointer<NativeType> path,
+        int deterministic,
+        int minBitsPerByte,
+        int requireRct,
+        Pointer<NativeType> outError,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt(
+          '_cbw_cryptolib_entropy_from_file_with_policy',
+          [
+            path.address.toJS,
+            deterministic.toJS,
+            minBitsPerByte.toJS,
+            requireRct.toJS,
+            outError.address.toJS,
+          ],
+        ),
+      ),
+  'cryptolib_entropy_from_files':
+      (Pointer<NativeType> paths, int count, Pointer<NativeType> outError) =>
+          Pointer<Void>._(
+            WebEngine.current.callInt('_cbw_cryptolib_entropy_from_files', [
+              paths.address.toJS,
+              count.toJS,
+              outError.address.toJS,
+            ]),
+          ),
   'cryptolib_entropy_from_files_deterministic':
       (Pointer<NativeType> paths, int count, Pointer<NativeType> outError) =>
           Pointer<Void>._(
@@ -60,34 +88,6 @@ final Map<String, Function> _registry16 = {
       WebEngine.current.callStruct(
         '_cbw_cryptolib_key_from_file',
         [path.address.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_seal_from_file':
-      (
-        Pointer<NativeType> path,
-        Pointer<NativeType> plaintext,
-        Pointer<NativeType> aad,
-        Pointer<NativeType> outError,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_seal_from_file',
-        [
-          path.address.toJS,
-          plaintext.address.toJS,
-          aad.address.toJS,
-          outError.address.toJS,
-        ],
-        CipherBirdPacket.size,
-        CipherBirdPacket._new,
-      ),
-  'cryptolib_open_from_file':
-      (
-        Pointer<NativeType> path,
-        Pointer<NativeType> packet,
-        Pointer<NativeType> aad,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_open_from_file',
-        [path.address.toJS, packet.address.toJS, aad.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),

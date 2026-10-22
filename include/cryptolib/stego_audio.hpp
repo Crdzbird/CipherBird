@@ -206,10 +206,14 @@ private:
             uint32_t    chunk_size = read_u32();
 
             if (chunk == "fmt ") {
+                if (chunk_size < 16)
+                    return Result<WavData>::err("WAV: fmt chunk too short");
                 uint16_t audio_fmt = read_u16();
                 if (audio_fmt != 1)
                     return Result<WavData>::err("WAV: only PCM (format=1) supported");
                 w.num_channels    = read_u16();
+                if (w.num_channels == 0 || w.num_channels > 8)
+                    return Result<WavData>::err("WAV: channel count must be 1 to 8");
                 w.sample_rate     = read_u32();
                 read_u32(); // byte rate
                 read_u16(); // block align
@@ -297,6 +301,7 @@ private:
     {
         if (num_channels == 1) return interleaved;
         std::vector<int16_t> out;
+        if (num_channels == 0 || ch >= num_channels) return out;
         out.reserve(interleaved.size() / num_channels);
         for (std::size_t i = ch; i < interleaved.size(); i += num_channels)
             out.push_back(interleaved[i]);
@@ -310,6 +315,7 @@ private:
         uint16_t                    ch)
     {
         if (num_channels == 1) { interleaved = channel; return; }
+        if (num_channels == 0 || ch >= num_channels) return;
         for (std::size_t i = 0, j = ch; j < interleaved.size(); ++i, j += num_channels)
             if (i < channel.size()) interleaved[j] = channel[i];
     }

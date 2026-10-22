@@ -3,10 +3,14 @@
  *
  * The format extractors take file paths, so each input is written to a temp
  * file and run through every format parser (BMP/PPM/PNG/GIF/JPEG/WAV/FLAC/AVI/
- * CRVF/MP3/MP4 via StegoEngine plus the direct format classes). This exercises
- * the untrusted-input header parsing hardened in stego_*.hpp.
+ * CRVF/MP3/MP4 via StegoEngine plus the direct format classes), the carrier
+ * analyzer and the media entropy harvester. This exercises every reader of
+ * untrusted media in the library.
  *
- * Build with -DCRYPTOLIB_FUZZ=ON (clang), then: ./fuzz_stego -max_total_time=120
+ * Build with -DCRYPTOLIB_FUZZ=ON (clang), then:
+ *   ./fuzz_stego -max_total_time=120 tests/fuzz/corpus/stego
+ * The seed corpus is produced by fuzz_corpus_gen (small valid carriers of
+ * every format) so the fuzzer starts from well-formed structure.
  */
 
 #include <cryptolib/cryptolib.hpp>
@@ -64,6 +68,28 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         const char* p = "/tmp/cryptolib_fuzz.flac";
         write_tmp(p, data, size);
         (void)FlacSteganographer::extract(p);
+    }
+    {
+        const char* p = "/tmp/cryptolib_fuzz.mp3";
+        write_tmp(p, data, size);
+        (void)Mp3Steganographer::extract(p);
+    }
+    {
+        const char* p = "/tmp/cryptolib_fuzz.mp4";
+        write_tmp(p, data, size);
+        (void)Mp4Steganographer::extract(p);
+    }
+    {
+        /* The engine sniffs content, not the extension; the analyzer and the
+         * entropy harvester read the same bytes through their own paths. */
+        const char* p = "/tmp/cryptolib_fuzz.bin";
+        write_tmp(p, data, size);
+        (void)StegoEngine::extract(p);
+        (void)StegoAnalyzer::inspect(p);
+        (void)StegoAnalyzer::detect_hidden(p);
+        (void)crypto::entropy::MediaEntropy::from_file_deterministic(
+            p, crypto::entropy::SourcePolicy::permissive());
+        (void)crypto::entropy::MediaEntropy::assess_file_health(p);
     }
     {
         const char* p = "/tmp/cryptolib_fuzz.avi";

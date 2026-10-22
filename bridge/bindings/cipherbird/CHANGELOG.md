@@ -1,3 +1,25 @@
+## Unreleased
+
+- Media entropy assesses every source before trusting it: two SP 800-90B
+  estimators (the Most-Common-Value bound over the whole file and the
+  Markov bound over the bit expansion of the first MiB) with the
+  repetition-count and adaptive-proportion tests. The plain harvests now
+  refuse a file below one bit of min-entropy per byte or one that fails the
+  repetition-count test; `entropyFromFileWithPolicy` takes the floor and
+  the test requirement explicitly, and 0 with `requireRct: false` accepts
+  any file. The engine's `entropyInfo` estimate is now that min-entropy
+  lower bound rather than the earlier Shannon figure, so it reads lower for
+  the same file.
+- The media readers are fuzzed from a seed corpus of every format in CI
+  and every night with a persisted corpus. The campaigns found and fixed
+  five ways a crafted file could exhaust memory or divide by zero before
+  any payload check: a GIF that declares more pixels than its data could
+  encode, GIF or oversized bytes reaching the PNG decoder, a PNG chunk
+  length beyond the end of the file, a progressive JPEG with no size
+  check before decode, and a WAV with zero channels (in both the WAV and
+  the FLAC reader). Every image carrier now caps at 67 million pixels and
+  the PNG and JPEG readers validate the declared size before decoding.
+
 ## 1.2.0
 
 The bank-readiness release: the standards-track post-quantum surface, the

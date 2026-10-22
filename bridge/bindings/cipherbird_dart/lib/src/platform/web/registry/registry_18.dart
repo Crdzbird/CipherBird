@@ -1,6 +1,34 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry18 = {
+  'cryptolib_noise_create':
+      (
+        int initiator,
+        Pointer<NativeType> staticPublic,
+        int staticPublicLen,
+        Pointer<NativeType> staticSecret,
+        int staticSecretLen,
+        Pointer<NativeType> prologue,
+        int prologueLen,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_noise_create', [
+          initiator.toJS,
+          staticPublic.address.toJS,
+          staticPublicLen.toJS,
+          staticSecret.address.toJS,
+          staticSecretLen.toJS,
+          prologue.address.toJS,
+          prologueLen.toJS,
+        ]),
+      ),
+  'cryptolib_noise_write_message':
+      (Pointer<NativeType> h, Pointer<NativeType> payload, int payloadLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_noise_write_message',
+            [h.address.toJS, payload.address.toJS, payloadLen.toJS],
+            CipherBirdBufferResult.size,
+            CipherBirdBufferResult._new,
+          ),
   'cryptolib_noise_read_message':
       (Pointer<NativeType> h, Pointer<NativeType> message, int messageLen) =>
           WebEngine.current.callStruct(
@@ -47,47 +75,4 @@ final Map<String, Function> _registry18 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_noise_decrypt':
-      (
-        Pointer<NativeType> h,
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> ad,
-        int adLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt',
-        [
-          h.address.toJS,
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          ad.address.toJS,
-          adLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_noise_decrypt_at':
-      (
-        Pointer<NativeType> h,
-        int nonceCounter,
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> ad,
-        int adLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt_at',
-        [
-          h.address.toJS,
-          (nonceCounter % 4294967296).toJS,
-          (nonceCounter ~/ 4294967296).toJS,
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          ad.address.toJS,
-          adLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_noise_free': (Pointer<NativeType> h) =>
-      WebEngine.current.callVoid('_cbw_cryptolib_noise_free', [h.address.toJS]),
 };

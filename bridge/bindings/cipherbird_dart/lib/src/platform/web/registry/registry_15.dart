@@ -75,13 +75,4 @@ final Map<String, Function> _registry15 = {
               [path.address.toJS, outError.address.toJS],
             ),
           ),
-  'cryptolib_entropy_from_files':
-      (Pointer<NativeType> paths, int count, Pointer<NativeType> outError) =>
-          Pointer<Void>._(
-            WebEngine.current.callInt('_cbw_cryptolib_entropy_from_files', [
-              paths.address.toJS,
-              count.toJS,
-              outError.address.toJS,
-            ]),
-          ),
 };

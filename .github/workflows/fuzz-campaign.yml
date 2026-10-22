@@ -1,0 +1,65 @@
+name: Fuzz campaign
+
+# A long libFuzzer run over every media reader, nightly and on demand. The
+# evolving corpus is kept in the Actions cache between runs so each night
+# starts where the last one stopped; every crash, timeout or out-of-memory
+# input is uploaded as an artifact for triage.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Minutes to fuzz each target"
+        required: false
+        default: "30"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  campaign:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install deps (LLVM clang for libFuzzer)
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 llvm lld
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
+      - name: Build the fuzz targets
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        run: |
+          cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
+            -DCRYPTOLIB_BUILD_TESTS=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF -DCRYPTOLIB_BUILD_SHOWCASES=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
+          cmake --build build/fuzz
+      - name: Restore the evolving corpus
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+      - name: Fuzz every target
+        run: |
+          minutes="${{ inputs.minutes || '30' }}"
+          mkdir -p corpus/stego corpus/packet corpus/aead findings
+          status=0
+          ASAN_OPTIONS=quarantine_size_mb=64 build/fuzz/fuzz_stego -max_total_time=$((minutes * 60)) \
+            -rss_limit_mb=3072 -malloc_limit_mb=512 -print_final_stats=1 \
+            -artifact_prefix=findings/stego- corpus/stego tests/fuzz/corpus/stego || status=1
+          build/fuzz/fuzz_packet -max_total_time=$((minutes * 60)) -print_final_stats=1 \
+            -artifact_prefix=findings/packet- corpus/packet || status=1
+          build/fuzz/fuzz_diff_aead -max_total_time=$((minutes * 60)) -print_final_stats=1 \
+            -artifact_prefix=findings/aead- corpus/aead || status=1
+          ls -la findings
+          exit $status
+      - name: Keep every finding
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: fuzz-findings-${{ github.run_id }}
+          path: findings
+          if-no-files-found: ignore

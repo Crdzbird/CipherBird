@@ -1,6 +1,49 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry27 = {
+  'cryptolib_hpke_derive_keypair': (Pointer<NativeType> ikm, int ikmLen) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_hpke_derive_keypair',
+        [ikm.address.toJS, ikmLen.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
+      ),
+  'cryptolib_hpke_setup_s':
+      (
+        int kdf,
+        int aead,
+        int mode,
+        Pointer<NativeType> pkR,
+        int pkRLen,
+        Pointer<NativeType> info,
+        int infoLen,
+        Pointer<NativeType> psk,
+        int pskLen,
+        Pointer<NativeType> pskId,
+        int pskIdLen,
+        Pointer<NativeType> skS,
+        int skSLen,
+        Pointer<NativeType> outEnc,
+        Pointer<NativeType> outError,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_hpke_setup_s', [
+          kdf.toJS,
+          aead.toJS,
+          mode.toJS,
+          pkR.address.toJS,
+          pkRLen.toJS,
+          info.address.toJS,
+          infoLen.toJS,
+          psk.address.toJS,
+          pskLen.toJS,
+          pskId.address.toJS,
+          pskIdLen.toJS,
+          skS.address.toJS,
+          skSLen.toJS,
+          outEnc.address.toJS,
+          outError.address.toJS,
+        ]),
+      ),
   'cryptolib_hpke_setup_r':
       (
         int kdf,
@@ -38,43 +81,5 @@ final Map<String, Function> _registry27 = {
           pkSLen.toJS,
           outError.address.toJS,
         ]),
-      ),
-  'cryptolib_hpke_seal':
-      (
-        Pointer<NativeType> h,
-        Pointer<NativeType> aad,
-        int aadLen,
-        Pointer<NativeType> pt,
-        int ptLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_seal',
-        [
-          h.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          pt.address.toJS,
-          ptLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_hpke_open':
-      (
-        Pointer<NativeType> h,
-        Pointer<NativeType> aad,
-        int aadLen,
-        Pointer<NativeType> ct,
-        int ctLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_open',
-        [
-          h.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          ct.address.toJS,
-          ctLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
       ),
 };

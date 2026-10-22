@@ -21,8 +21,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_STATIC
 #define STBI_ONLY_PNG
-#define STBI_ONLY_BMP
-#define STBI_ONLY_GIF
 #define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
 #endif
@@ -39,6 +37,7 @@
 #include "third_party/stb_image_write.h"
 
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -106,6 +105,23 @@ private:
         std::vector<uint8_t> pixels; // RGB interleaved
     };
 
+    /// Every chunk's declared length must fit the bytes that follow it:
+    /// the decoder grows its IDAT buffer by the declared length before it
+    /// reads a byte, so a 900 MB length on a 1 KB file is a 900 MB
+    /// allocation unless it is refused here.
+    [[nodiscard]] static bool png_chunks_well_formed(const std::vector<uint8_t>& buf) {
+        std::size_t pos = 8;
+        bool saw_iend = false;
+        while (pos + 8 <= buf.size() && !saw_iend) {
+            const std::size_t len = (std::size_t(buf[pos]) << 24) | (std::size_t(buf[pos + 1]) << 16) |
+                                    (std::size_t(buf[pos + 2]) << 8) | std::size_t(buf[pos + 3]);
+            if (len > (1u << 31) || len > buf.size() - pos - 8) return false;
+            saw_iend = std::memcmp(buf.data() + pos + 4, "IEND", 4) == 0;
+            pos += 12 + len;
+        }
+        return saw_iend && pos <= buf.size();
+    }
+
     [[nodiscard]] static Result<RgbImage> load_image(const std::string& path) {
         // Read file into memory
         std::ifstream f(path, std::ios::binary | std::ios::ate);
@@ -116,18 +132,27 @@ private:
         std::vector<uint8_t> buf(static_cast<std::size_t>(sz));
         f.read(reinterpret_cast<char*>(buf.data()), sz);
 
+        /* Only a PNG reaches the decoder, and only one whose header dims
+         * pass the caps: the decoder allocates from the header, so the
+         * check has to come before stbi_load, not after. */
+        static constexpr uint8_t PNG_MAGIC[8] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+        if (buf.size() < 8 || std::memcmp(buf.data(), PNG_MAGIC, 8) != 0)
+            return Result<RgbImage>::err("PNG: not a PNG file '" + path + "'");
+        if (!png_chunks_well_formed(buf))
+            return Result<RgbImage>::err("PNG: chunk structure does not fit the file '" + path + "'");
         int w, h, channels;
+        if (!stbi_info_from_memory(buf.data(), static_cast<int>(buf.size()), &w, &h, &channels))
+            return Result<RgbImage>::err("PNG: unreadable header in '" + path + "'");
+        auto byte_count = (w > 0 && h > 0)
+            ? checked_image_bytes(static_cast<std::size_t>(w), static_cast<std::size_t>(h))
+            : std::nullopt;
+        if (!byte_count)
+            return Result<RgbImage>::err("PNG: image dimensions out of range in '" + path + "'");
         uint8_t* data = stbi_load_from_memory(buf.data(), static_cast<int>(buf.size()),
                                                &w, &h, &channels, 3);
         if (!data) return Result<RgbImage>::err(
             std::string("PNG: stb_image load failed: ") + stbi_failure_reason());
-
-        // stb returns non-negative dimensions, but validate against our caps and
-        // compute the byte count without int overflow before copying.
-        auto byte_count = (w > 0 && h > 0)
-            ? checked_image_bytes(static_cast<std::size_t>(w), static_cast<std::size_t>(h))
-            : std::nullopt;
-        if (!byte_count) {
+        if (!checked_image_bytes(static_cast<std::size_t>(w), static_cast<std::size_t>(h))) {
             stbi_image_free(data);
             return Result<RgbImage>::err("PNG: image dimensions out of range in '" + path + "'");
         }

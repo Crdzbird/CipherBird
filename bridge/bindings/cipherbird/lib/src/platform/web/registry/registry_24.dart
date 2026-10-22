@@ -1,6 +1,51 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry24 = {
+  'cryptolib_slh_dsa_verify':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> sig,
+        int sigLen,
+        Pointer<NativeType> publicKey,
+        int pkLen,
+        int level,
+        int hashFamily,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_slh_dsa_verify', [
+        msg.address.toJS,
+        msgLen.toJS,
+        sig.address.toJS,
+        sigLen.toJS,
+        publicKey.address.toJS,
+        pkLen.toJS,
+        level.toJS,
+        hashFamily.toJS,
+      ]),
+  'cryptolib_bls_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_bls_keygen',
+    [],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_bls_keygen_from_ikm': (Pointer<NativeType> ikm, int ikmLen) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_bls_keygen_from_ikm',
+        [ikm.address.toJS, ikmLen.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
+      ),
+  'cryptolib_bls_sign':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_bls_sign',
+        [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
   'cryptolib_bls_verify':
       (
         Pointer<NativeType> msg,
@@ -45,39 +90,4 @@ final Map<String, Function> _registry24 = {
       ]),
   'cryptolib_frost_keygen_free': (Pointer<NativeType> kg) => WebEngine.current
       .callVoid('_cbw_cryptolib_frost_keygen_free', [kg.address.toJS]),
-  'cryptolib_frost_commit_free': (Pointer<NativeType> c) => WebEngine.current
-      .callVoid('_cbw_cryptolib_frost_commit_free', [c.address.toJS]),
-  'cryptolib_frost_keygen': (int n, int t) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_frost_keygen',
-    [n.toJS, t.toJS],
-    CipherBirdFrostKeyGen.size,
-    CipherBirdFrostKeyGen._new,
-  ),
-  'cryptolib_frost_commit':
-      (Pointer<NativeType> shareSecret, int skLen, int identifier) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_frost_commit',
-            [shareSecret.address.toJS, skLen.toJS, identifier.toJS],
-            CipherBirdFrostCommit.size,
-            CipherBirdFrostCommit._new,
-          ),
-  'cryptolib_frost_commit_with_nonces':
-      (
-        int identifier,
-        Pointer<NativeType> hidingNonce,
-        int hnLen,
-        Pointer<NativeType> bindingNonce,
-        int bnLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_frost_commit_with_nonces',
-        [
-          identifier.toJS,
-          hidingNonce.address.toJS,
-          hnLen.toJS,
-          bindingNonce.address.toJS,
-          bnLen.toJS,
-        ],
-        CipherBirdFrostCommit.size,
-        CipherBirdFrostCommit._new,
-      ),
 };

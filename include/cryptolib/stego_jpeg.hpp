@@ -152,6 +152,12 @@ private:
 
     [[nodiscard]] static Result<Bytes> progressive_to_baseline(const Bytes& jpeg) {
         int w, h, channels;
+        if (jpeg.size() < 3 || jpeg[0] != 0xFF || jpeg[1] != 0xD8 || jpeg[2] != 0xFF)
+            return Result<Bytes>::err("JPEG: not a JPEG stream");
+        if (!stbi_info_from_memory(jpeg.data(), static_cast<int>(jpeg.size()), &w, &h, &channels) ||
+            w <= 0 || h <= 0 ||
+            !checked_image_bytes(static_cast<std::size_t>(w), static_cast<std::size_t>(h)))
+            return Result<Bytes>::err("JPEG: image dimensions out of range");
         uint8_t* pixels = stbi_load_from_memory(
             jpeg.data(), static_cast<int>(jpeg.size()), &w, &h, &channels, 3);
         if (!pixels)

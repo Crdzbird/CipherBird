@@ -1,6 +1,34 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry17 = {
+  'cryptolib_seal_from_file':
+      (
+        Pointer<NativeType> path,
+        Pointer<NativeType> plaintext,
+        Pointer<NativeType> aad,
+        Pointer<NativeType> outError,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_seal_from_file',
+        [
+          path.address.toJS,
+          plaintext.address.toJS,
+          aad.address.toJS,
+          outError.address.toJS,
+        ],
+        CipherBirdPacket.size,
+        CipherBirdPacket._new,
+      ),
+  'cryptolib_open_from_file':
+      (
+        Pointer<NativeType> path,
+        Pointer<NativeType> packet,
+        Pointer<NativeType> aad,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_open_from_file',
+        [path.address.toJS, packet.address.toJS, aad.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
   'cryptolib_blake3': (Pointer<NativeType> msg, int msgLen, int outLen) =>
       WebEngine.current.callStruct(
         '_cbw_cryptolib_blake3',
@@ -62,32 +90,4 @@ final Map<String, Function> _registry17 = {
       ),
   'cryptolib_blake3_hasher_free': (Pointer<NativeType> h) => WebEngine.current
       .callVoid('_cbw_cryptolib_blake3_hasher_free', [h.address.toJS]),
-  'cryptolib_noise_create':
-      (
-        int initiator,
-        Pointer<NativeType> staticPublic,
-        int staticPublicLen,
-        Pointer<NativeType> staticSecret,
-        int staticSecretLen,
-        Pointer<NativeType> prologue,
-        int prologueLen,
-      ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_noise_create', [
-          initiator.toJS,
-          staticPublic.address.toJS,
-          staticPublicLen.toJS,
-          staticSecret.address.toJS,
-          staticSecretLen.toJS,
-          prologue.address.toJS,
-          prologueLen.toJS,
-        ]),
-      ),
-  'cryptolib_noise_write_message':
-      (Pointer<NativeType> h, Pointer<NativeType> payload, int payloadLen) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_noise_write_message',
-            [h.address.toJS, payload.address.toJS, payloadLen.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
 };

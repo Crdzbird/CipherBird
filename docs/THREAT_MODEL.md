@@ -125,14 +125,21 @@ by (AI-assisted) steganalysis. Always encrypt *before* embedding; treat stego as
 defense-in-depth only. `StegoEngine::embed_encrypted()` / `extract_decrypt()`
 enforce this — one master key drives a domain-separated XChaCha20-Poly1305 seal,
 whitening (no surviving `CSTG` signature), and a key-seeded block permutation, so
-the always-encrypt path cannot place cleartext in a carrier. Keyed embedding is
-`.ppm`-only for now; other carriers reject a key rather than silently ignoring it.
+the always-encrypt path cannot place cleartext in a carrier. Keyed
+whitening covers every carrier format; the key-seeded block permutation
+applies to the DCT image path.
 
 "LavaRand" media-entropy is a novelty entropy *source* — keys must still come
-from the OS CSPRNG. Its trust signal is a real SP 800-90B **Most-Common-Value
-min-entropy lower bound** (`MediaEntropy::assess_file_health()`, with SP 800-90B
-Repetition-Count + Adaptive-Proportion local tests), not the legacy Shannon
-i.i.d. *upper* bound. `MediaEntropy::make_drbg()` exposes an SP 800-90A HMAC-DRBG
+from the OS CSPRNG. Every harvest assesses the source with two SP 800-90B
+estimators (the Most-Common-Value bound over the whole file and the Markov
+bound over the bit expansion of the first MiB) plus the Repetition-Count and
+Adaptive-Proportion tests, and refuses by default a file below one bit of
+min-entropy per byte or one that fails the repetition-count test
+(`SourcePolicy`; `permissive()` keeps the assessment but never refuses).
+`info().entropy_bits_claimed` caps the claim at the 512-bit conditioner
+output. Two estimators are not the full 90B non-IID suite, and a file an
+attacker also holds has no entropy against that attacker whatever the
+estimate says: the deterministic mode is a password made of a file. `MediaEntropy::make_drbg()` exposes an SP 800-90A HMAC-DRBG
 beacon seeded from the conditioned entropy (deterministic mode reproducible,
 mixed mode folds in system entropy).
 

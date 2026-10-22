@@ -290,6 +290,18 @@ private:
 
         reset_table();
 
+        /* LZW cannot expand without bound: n codes decode to at most
+         * n(n+1)/2 pixels and a code is at least 3 bits, so the remaining
+         * bytes put a quadratic ceiling on the pixels they can encode. A
+         * header that promises more than that is refused before any
+         * allocation sized by it. */
+        const std::size_t remaining = bit_pos / 8 < data.size() ? data.size() - bit_pos / 8 : 0;
+        const std::size_t max_codes = remaining * 8 / 3 + 1;
+        std::size_t decodable = 0;
+        if (!detail::checked_mul(max_codes, max_codes + 1, decodable)) decodable = SIZE_MAX;
+        else decodable /= 2;
+        if (expected_pixels > decodable)
+            return Result<Bytes>::err("GIF: image declares more pixels than its data can encode");
         Bytes output;
         output.reserve(expected_pixels);
 

@@ -3,6 +3,8 @@
 // No compact official vector exists for these estimators, so we validate against
 // analytically-known inputs where the expected verdict is unambiguous.
 #include "test_framework.hpp"
+#include <string>
+#include <vector>
 #include <sodium.h>
 #include <cmath>
 #include <filesystem>
@@ -100,7 +102,56 @@ TEST("health/media-file-assessment") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+TEST("health/markov-estimate-on-analytic-inputs") {
+    std::vector<uint8_t> uniform(1 << 16);
+    randombytes_buf(uniform.data(), uniform.size());
+    const double random_bits = crypto::entropy::markov_min_entropy_per_bit(uniform);
+    CHECK(random_bits > 0.9);
+    std::vector<uint8_t> alternating(1 << 12, 0x55);
+    CHECK(crypto::entropy::markov_min_entropy_per_bit(alternating) < 0.01);
+    std::vector<uint8_t> constant(1 << 12, 0x00);
+    CHECK(crypto::entropy::markov_min_entropy_per_bit(constant) < 0.01);
+    auto r = crypto::entropy::assess_health(alternating);
+    CHECK(r.mcv_bits_per_byte < 0.01 && r.markov_bits_per_byte < 0.1);
+    CHECK(r.min_entropy_per_byte <= r.mcv_bits_per_byte && r.min_entropy_per_byte <= r.markov_bits_per_byte);
+    auto u = crypto::entropy::assess_health(uniform);
+    CHECK(u.min_entropy_per_byte > 7.0);
+}
+
+TEST("health/source-policy-refuses-a-weak-file-unless-permissive") {
+    const char* weak = "/tmp/cryptolib_health_weak.bin";
+    {
+        std::ofstream f(weak, std::ios::binary);
+        std::vector<char> z(1 << 16, 'A');
+        f.write(z.data(), static_cast<std::streamsize>(z.size()));
+    }
+    auto strict = crypto::entropy::MediaEntropy::from_file_deterministic(weak);
+    CHECK(strict.is_err());
+    CHECK(strict.is_err() && strict.error().message.find("policy floor") != std::string::npos);
+    auto loose = crypto::entropy::MediaEntropy::from_file_deterministic(
+        weak, crypto::entropy::SourcePolicy::permissive());
+    CHECK(loose.is_ok());
+    CHECK(loose.is_ok() && loose.value().info().health.min_entropy_per_byte < 0.01);
+    CHECK(loose.is_ok() && loose.value().info().entropy_bits_claimed < 1.0);
+    const char* good = "/tmp/cryptolib_health_good.bin";
+    {
+        std::vector<uint8_t> r(1 << 16);
+        randombytes_buf(r.data(), r.size());
+        std::ofstream f(good, std::ios::binary);
+        f.write(reinterpret_cast<const char*>(r.data()), static_cast<std::streamsize>(r.size()));
+    }
+    auto ok = crypto::entropy::MediaEntropy::from_file_deterministic(good);
+    CHECK(ok.is_ok());
+    CHECK(ok.is_ok() && ok.value().info().entropy_bits_claimed == 512.0);
+    CHECK(ok.is_ok() && ok.value().entropy_bits() > 7.0 * (1 << 16));
+    std::filesystem::remove(weak);
+    std::filesystem::remove(good);
+}
+
 void run_tests_entropy_health() {
+    RUN("health/markov-estimate-on-analytic-inputs");
+    RUN("health/source-policy-refuses-a-weak-file-unless-permissive");
     RUN("health/constant-is-zero-entropy");
     RUN("health/uniform-random-is-healthy");
     RUN("health/biased-source-min-entropy");

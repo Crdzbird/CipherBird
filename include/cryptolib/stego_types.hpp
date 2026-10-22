@@ -44,10 +44,19 @@ namespace crypto::stego {
 namespace detail {
 
 // Generous enough for legitimate media, small enough to bound worst-case memory.
+#ifdef CRYPTOLIB_FUZZING
+/* The fuzz build keeps every reader's worst case small so a campaign fits
+ * a CI runner; the limits below are what production enforces. */
+inline constexpr std::size_t MAX_IMAGE_DIM     = 1u << 12;
+inline constexpr std::size_t MAX_IMAGE_PIXELS  = 1u << 20;
+inline constexpr std::size_t MAX_FRAME_COUNT   = 1u << 8;
+inline constexpr std::size_t MAX_AUDIO_SAMPLES = 1u << 22;
+#else
 inline constexpr std::size_t MAX_IMAGE_DIM     = 1u << 16;  // 65,536 px per side
-inline constexpr std::size_t MAX_IMAGE_PIXELS  = 1u << 28;  // 268M px (~805 MB RGB)
+inline constexpr std::size_t MAX_IMAGE_PIXELS  = 1u << 26;  // 67M px (~201 MB RGB); a hostile header cannot make a reader allocate more
 inline constexpr std::size_t MAX_FRAME_COUNT   = 1u << 20;  // 1,048,576 frames
 inline constexpr std::size_t MAX_AUDIO_SAMPLES = 1u << 30;  // ~1.07e9 samples
+#endif
 
 [[nodiscard]] inline bool checked_mul(std::size_t a, std::size_t b,
                                       std::size_t& out) noexcept {

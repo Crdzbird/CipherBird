@@ -98,6 +98,7 @@ part 'api/entropy/cipher_bird_entropy.dart';
 part 'api/entropy/cipher_bird_entropy/derivation.dart';
 part 'api/entropy/cipher_bird_entropy/open_from_file.dart';
 part 'api/entropy/cipher_bird_entropy_health.dart';
+part 'api/entropy/cipher_bird_entropy_policy.dart';
 part 'api/entropy/health_report.dart';
 part 'api/evm_btc.dart';
 part 'api/evm_btc/secp256k1_verify.dart';

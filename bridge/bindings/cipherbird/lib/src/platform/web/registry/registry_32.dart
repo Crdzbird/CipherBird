@@ -1,6 +1,25 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry32 = {
+  'cryptolib_bbs_calculate_pseudonym':
+      (
+        Pointer<NativeType> contextId,
+        int ctxLen,
+        Pointer<NativeType> nymSecrets,
+        Pointer<NativeType> nymLens,
+        int nymCount,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_bbs_calculate_pseudonym',
+        [
+          contextId.address.toJS,
+          ctxLen.toJS,
+          nymSecrets.address.toJS,
+          nymLens.address.toJS,
+          nymCount.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
   'cryptolib_bbs_proof_gen_with_pseudonym':
       (
         Pointer<NativeType> pk,

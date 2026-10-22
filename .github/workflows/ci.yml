@@ -82,10 +82,13 @@ jobs:
           cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
           cmake --build build/fuzz
-          for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_stego build/fuzz/fuzz_diff_aead; do
+          for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_diff_aead; do
             test -x "$fz"
             "$fz" -max_total_time=60 -print_final_stats=1
           done
+          mkdir -p "$RUNNER_TEMP/stego_corpus"
+          ASAN_OPTIONS=quarantine_size_mb=64 build/fuzz/fuzz_stego -max_total_time=120 -print_final_stats=1 \
+            -rss_limit_mb=3072 -malloc_limit_mb=512 "$RUNNER_TEMP/stego_corpus" tests/fuzz/corpus/stego
 
   # Constant-time probe: secrets are marked undefined under Valgrind and any
   # branch on them fails the job. Authentication verdicts are declassified in

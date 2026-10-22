@@ -1,6 +1,44 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry28 = {
+  'cryptolib_hpke_seal':
+      (
+        Pointer<NativeType> h,
+        Pointer<NativeType> aad,
+        int aadLen,
+        Pointer<NativeType> pt,
+        int ptLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_hpke_seal',
+        [
+          h.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          pt.address.toJS,
+          ptLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_hpke_open':
+      (
+        Pointer<NativeType> h,
+        Pointer<NativeType> aad,
+        int aadLen,
+        Pointer<NativeType> ct,
+        int ctLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_hpke_open',
+        [
+          h.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          ct.address.toJS,
+          ctLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
   'cryptolib_hpke_export':
       (
         Pointer<NativeType> h,
@@ -51,43 +89,5 @@ final Map<String, Function> _registry28 = {
         [pi.address.toJS, piLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
-      ),
-  'cryptolib_ecvrf_verify':
-      (
-        Pointer<NativeType> pk,
-        int pkLen,
-        Pointer<NativeType> alpha,
-        int alphaLen,
-        Pointer<NativeType> pi,
-        int piLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ecvrf_verify',
-        [
-          pk.address.toJS,
-          pkLen.toJS,
-          alpha.address.toJS,
-          alphaLen.toJS,
-          pi.address.toJS,
-          piLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_bbs_keygen':
-      (
-        Pointer<NativeType> keyMaterial,
-        int kmLen,
-        Pointer<NativeType> keyInfo,
-        int kiLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_keygen',
-        [
-          keyMaterial.address.toJS,
-          kmLen.toJS,
-          keyInfo.address.toJS,
-          kiLen.toJS,
-        ],
-        CipherBirdKeyPair.size,
-        CipherBirdKeyPair._new,
       ),
 };

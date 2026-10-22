@@ -32,6 +32,7 @@ part 'local_memory.dart';
 part 'memory.dart';
 part 'native_type.dart';
 part 'page_engine.dart';
+part 'platform_flags.dart';
 part 'pointer.dart';
 part 'pointer_extensions.dart';
 part 'script_injection.dart';
@@ -121,6 +122,3 @@ part 'structs/cipher_bird_packet.dart';
 part 'structs/cipher_bird_result.dart';
 part 'structs/cipher_bird_sealed_info.dart';
 part 'structs/struct_registry.dart';
-
-/// True: this is the browser layer.
-const bool platformIsWeb = true;

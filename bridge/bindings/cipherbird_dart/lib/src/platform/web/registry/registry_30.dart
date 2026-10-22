@@ -1,6 +1,28 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry30 = {
+  'cryptolib_bbs_verify':
+      (
+        Pointer<NativeType> pk,
+        int pkLen,
+        Pointer<NativeType> signature,
+        int sigLen,
+        Pointer<NativeType> header,
+        int headerLen,
+        Pointer<NativeType> msgs,
+        Pointer<NativeType> msgLens,
+        int msgCount,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_bbs_verify', [
+        pk.address.toJS,
+        pkLen.toJS,
+        signature.address.toJS,
+        sigLen.toJS,
+        header.address.toJS,
+        headerLen.toJS,
+        msgs.address.toJS,
+        msgLens.address.toJS,
+        msgCount.toJS,
+      ]),
   'cryptolib_bbs_proof_gen':
       (
         Pointer<NativeType> pk,
@@ -66,27 +88,4 @@ final Map<String, Function> _registry30 = {
         disclosedIndexes.address.toJS,
         indexesCount.toJS,
       ]),
-  'cryptolib_bbs_commit_with_nym':
-      (
-        Pointer<NativeType> committedMsgs,
-        Pointer<NativeType> committedLens,
-        int committedCount,
-        Pointer<NativeType> proverNyms,
-        Pointer<NativeType> nymLens,
-        int nymCount,
-        Pointer<NativeType> secretProverBlind,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_commit_with_nym',
-        [
-          committedMsgs.address.toJS,
-          committedLens.address.toJS,
-          committedCount.toJS,
-          proverNyms.address.toJS,
-          nymLens.address.toJS,
-          nymCount.toJS,
-          secretProverBlind.address.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
 };

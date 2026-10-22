@@ -309,6 +309,13 @@ if(CRYPTOLIB_BUILD_TESTS)
     target_link_libraries(cryptolib_tests PRIVATE crypto::cryptolib)
 endif()
 
+# The seed corpus generator for fuzz_stego (any compiler, full profile).
+if(CRYPTOLIB_BUILD_TESTS AND CRYPTOLIB_PROFILE STREQUAL "full")
+    add_executable(fuzz_corpus_gen tests/fuzz/make_corpus.cpp)
+    target_compile_options(fuzz_corpus_gen PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
+    target_link_libraries(fuzz_corpus_gen PRIVATE crypto::cryptolib)
+endif()
+
 # ─── Fuzzers (libFuzzer, clang only) ─────────────────────────────────────────
 # The stego parsers consume untrusted files; libFuzzer + ASan/UBSan is the
 # primary tool for finding the memory-safety bugs unit tests miss.
@@ -331,6 +338,7 @@ if(CRYPTOLIB_FUZZ AND _CRYPTOLIB_HOST_BUILD)
         add_executable(${_fz} tests/fuzz/${_fz}.cpp)
         target_compile_options(${_fz} PRIVATE
             -g -O1 -fsanitize=fuzzer,address,undefined)
+        target_compile_definitions(${_fz} PRIVATE CRYPTOLIB_FUZZING=1)
         target_link_options(${_fz} PRIVATE -fsanitize=fuzzer,address,undefined)
         target_link_libraries(${_fz} PRIVATE crypto::cryptolib)
     endforeach()

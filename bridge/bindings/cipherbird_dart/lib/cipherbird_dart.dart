@@ -77,6 +77,7 @@ export 'src/cipher_bird.dart'
         CipherBirdEntropyHealth,
         CipherBirdEntropyInfo,
         CipherBirdEntropyOpenFromFile,
+        CipherBirdEntropyPolicy,
         CipherBirdEvmBtc,
         CipherBirdFileInspection,
         CipherBirdFips,

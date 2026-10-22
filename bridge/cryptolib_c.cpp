@@ -112,6 +112,8 @@ std::span<const uint8_t> sp(const uint8_t* p, size_t n) {
     return {p, n};
 }
 
+const char* const kNotInProfile = "not available in this build profile";
+
 std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
     return aad ? sp(aad, len) : std::span<const uint8_t>{};
 }
@@ -1485,6 +1487,23 @@ CRYPTO_API CryptoBlake3Handle cryptolib_blake3_hasher_create(const uint8_t* key,
         new Blake3StreamImpl{crypto::hash::Blake3::Stream(sp(key, key_len))});
 #else
     (void)key; (void)key_len;
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file_with_policy(
+    const char* path, int deterministic, double min_bits_per_byte, int require_rct, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
+    crypto::entropy::SourcePolicy policy{ min_bits_per_byte, require_rct != 0, false };
+    auto r = deterministic
+        ? crypto::entropy::MediaEntropy::from_file_deterministic(path ? path : "", policy)
+        : crypto::entropy::MediaEntropy::from_file(path ? path : "", policy);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoEntropyHandle>(new EntropyImpl{std::move(r.value())});
+#else
+    (void)path; (void)deterministic; (void)min_bits_per_byte; (void)require_rct;
+    if (out_error) *out_error = dup_str(kNotInProfile);
     return nullptr;
 #endif
 } CL_FAIL_PTR
@@ -3408,7 +3427,6 @@ CRYPTO_API void cryptolib_keyring_free(CryptoKeyringHandle kr) {
 #define CL_HAVE_V2 1
 #endif
 
-static const char* const kNotInProfile = "not available in this build profile";
 
 CRYPTO_API CryptoKeyPair cryptolib_xwing_keygen(void) try {
 #ifdef CL_HAVE_V2
