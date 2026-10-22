@@ -7,6 +7,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing v* tag to release again with the current workflow"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,18 +20,24 @@ permissions:
   attestations: read
   actions: read
 
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
 jobs:
   gate:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Require a green CI run for this exact commit
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - name: Require a green CI run for the tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          conclusion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$GITHUB_SHA" \
+          sha="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          conclusion="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow CI --commit "$sha" \
             --json conclusion,status --jq 'map(select(.status=="completed")) | .[0].conclusion // "missing"')"
-          echo "CI for $GITHUB_SHA: $conclusion"
+          echo "CI for $RELEASE_TAG ($sha): $conclusion"
           test "$conclusion" = "success"
       - name: Require an attestation for every shipped binary
         env:
@@ -39,6 +51,8 @@ jobs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
       - name: Stage the shipped binaries under release names
         run: |
           mkdir -p dist
@@ -68,16 +82,19 @@ jobs:
       - name: Keyless-sign the checksums
         run: |
           cosign sign-blob --yes \
-            --output-signature dist/SHA256SUMS.sig \
-            --output-certificate dist/SHA256SUMS.pem \
+            --bundle dist/SHA256SUMS.sigstore.json \
+            dist/SHA256SUMS
+          cosign verify-blob --bundle dist/SHA256SUMS.sigstore.json \
+            --certificate-identity-regexp "^https://github.com/$GITHUB_REPOSITORY/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             dist/SHA256SUMS
       - name: Attach everything to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --notes "See the package changelogs." --verify-tag
-          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber dist/*
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 \
+            || gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "$RELEASE_TAG" --notes "See the package changelogs." --verify-tag
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*
 
   # SLSA provenance for the release checksums. The reusable workflow has to be
   # referenced by tag: the generator verifies its own tag at run time.

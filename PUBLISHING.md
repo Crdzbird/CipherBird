@@ -121,17 +121,18 @@ README).
 
 ## Supply-chain integrity (signing, SBOM, provenance)
 
-`.github/workflows/release.yml` runs on a `v*` tag and:
+`.github/workflows/release.yml` runs on a `v*` tag (or by `gh workflow run release.yml -f tag=v1.2.0` for an existing tag) and:
 1. builds the self-contained artifacts (`scripts/build_selfcontained.sh`),
 2. writes `SHA256SUMS` (`scripts/release/checksums.sh` — runnable locally too),
 3. generates an SPDX SBOM (syft / `anchore/sbom-action`),
-4. **keyless-signs** the checksums with cosign (Sigstore OIDC → `SHA256SUMS.sig` + `.pem`),
+4. **keyless-signs** the checksums with cosign (Sigstore OIDC, bundle `SHA256SUMS.sigstore.json`),
 5. emits **SLSA build provenance** (`slsa-github-generator`) for the artifacts.
 
 Consumers verify with:
 ```
-cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig \
-  --certificate-identity-regexp '.*' --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+cosign verify-blob --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/Crdzbird/CipherBird/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
 sha256sum -c SHA256SUMS
 slsa-verifier verify-artifact <artifact> --provenance-path <prov> --source-uri github.com/<org>/cryptolib
 ```
