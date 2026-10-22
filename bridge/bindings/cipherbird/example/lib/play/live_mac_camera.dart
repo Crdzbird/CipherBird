@@ -1,8 +1,8 @@
 part of 'live_playground.dart';
 
 /// The macOS camera through the example's own AVFoundation grabber: the
-/// luma plane of each frame is one chunk, as on a phone, and each frame is
-/// drawn as the preview as soon as the previous one is on screen.
+/// luma plane of each frame is one chunk, as on a phone, and a colour copy
+/// of each frame is drawn as the preview as soon as the previous one is up.
 extension on LivePlayground {
   bool get _onMac => !kIsWeb && Platform.isMacOS;
 
@@ -33,16 +33,9 @@ extension on LivePlayground {
   });
 
   Future<void> _drawLuma(MacFrame f) async {
-    final rgba = Uint8List(f.luma.length * 4);
-    for (var i = 0; i < f.luma.length; i++) {
-      rgba[i * 4] = f.luma[i];
-      rgba[i * 4 + 1] = f.luma[i];
-      rgba[i * 4 + 2] = f.luma[i];
-      rgba[i * 4 + 3] = 255;
-    }
     final done = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rgba,
+      f.rgba,
       f.width,
       f.height,
       ui.PixelFormat.rgba8888,

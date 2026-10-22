@@ -17,24 +17,27 @@ final class MacCamera {
     return (r?['width']! as int, r?['height']! as int);
   }
 
-  /// One event per frame: width, height and the luma plane.
+  /// One event per frame: width, height, the luma plane and a colour copy.
   Stream<MacFrame> get frames => _frames.receiveBroadcastStream().map((e) {
     final m = e as Map<Object?, Object?>;
     return MacFrame(
       m['width']! as int,
       m['height']! as int,
       m['luma']! as Uint8List,
+      m['rgba']! as Uint8List,
     );
   });
 
   Future<void> stop() => _methods.invokeMethod<void>('stop');
 }
 
-/// One captured frame's luma plane.
+/// One captured frame: the luma plane that is assessed and a colour copy
+/// for the preview.
 final class MacFrame {
-  const MacFrame(this.width, this.height, this.luma);
+  const MacFrame(this.width, this.height, this.luma, this.rgba);
 
   final int width;
   final int height;
   final Uint8List luma;
+  final Uint8List rgba;
 }

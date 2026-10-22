@@ -143,8 +143,37 @@ final class LiveCamera: NSObject, FlutterStreamHandler,
         }
       }
     }
+    // A colour copy of the same subsampled frame for the preview only.
+    var rgba = Data(count: width * height * 4)
+    if let chroma = CVPixelBufferGetBaseAddressOfPlane(pixels, 1) {
+      let cStride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 1)
+      rgba.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
+        let out = dst.baseAddress!.assumingMemoryBound(to: UInt8.self)
+        let ySrc = base.assumingMemoryBound(to: UInt8.self)
+        let cSrc = chroma.assumingMemoryBound(to: UInt8.self)
+        for row in 0..<height {
+          let fy = row * step
+          for col in 0..<width {
+            let fx = col * step
+            let y = Float(ySrc[fy * stride + fx]) - 16
+            let c = cSrc + (fy / 2) * cStride + (fx / 2) * 2
+            let cb = Float(c[0]) - 128
+            let cr = Float(c[1]) - 128
+            let o = (row * width + col) * 4
+            out[o] = UInt8(max(0, min(255, 1.164 * y + 1.596 * cr)))
+            out[o + 1] = UInt8(max(0, min(255, 1.164 * y - 0.392 * cb - 0.813 * cr)))
+            out[o + 2] = UInt8(max(0, min(255, 1.164 * y + 2.017 * cb)))
+            out[o + 3] = 255
+          }
+        }
+      }
+    }
     DispatchQueue.main.async {
-      sink(["width": width, "height": height, "luma": FlutterStandardTypedData(bytes: luma)])
+      sink([
+        "width": width, "height": height,
+        "luma": FlutterStandardTypedData(bytes: luma),
+        "rgba": FlutterStandardTypedData(bytes: rgba),
+      ])
     }
   }
 }
