@@ -103,7 +103,7 @@ fi
 
 # 6. Compile the C-ABI bridge to an object (no link), mirroring the macOS flags.
 clang++ -std=c++20 -O2 -fPIC -c \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_BLS=1 \
+    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 \
     -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
     -I include -I "$DEPS/include" \
     bridge/cryptolib_c.cpp -o "$OUT/cryptolib_c.o"

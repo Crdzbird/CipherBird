@@ -425,6 +425,7 @@ public:
     //
     // Both ends must use a MediaEntropy object from the *same* source file.
     // ─────────────────────────────────────────────────────────────────────────
+#ifdef CRYPTOLIB_HAS_STEGO
     [[nodiscard]] Result<void>
     seal_into(std::string_view cover_path,
               std::string_view plaintext,
@@ -434,6 +435,7 @@ public:
     [[nodiscard]] Result<SecureBuffer>
     open_from(std::string_view stego_path,
               std::string_view aad = {}) const;
+#endif
 
 private:
     // ─── Private constructor ─────────────────────────────────────────────────
@@ -664,6 +666,7 @@ asym_bundle_from_file(const std::filesystem::path& path) {
 // can delegate to StegoEngine.  media_entropy.hpp → steganography.hpp →
 // packet.hpp (no vault.hpp, no cycle).
 // ─────────────────────────────────────────────────────────────────────────────
+#ifdef CRYPTOLIB_HAS_STEGO
 #include "steganography.hpp"
 
 namespace crypto::entropy {
@@ -692,6 +695,7 @@ MediaEntropy::open_from(std::string_view stego_path,
 }
 
 } // namespace crypto::entropy
+#endif
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SecureVault::from_entropy / AsymmetricVault::from_entropy

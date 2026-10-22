@@ -52,11 +52,37 @@ else()
 endif()
 
 # ─── Optional dependencies (ON by default) ──────────────────────────────────
+# Build profile. "full" is everything. "bank" (assessment r2, M8 and M4) drops
+# the untrusted-media parsers (steganography, media entropy) and the
+# library-native combiners (MolecularVault, the triple hybrids, sntrup, the
+# X25519+ML-KEM combiner, Flagship, the legacy Suite and Session) and makes
+# the standards-track X-Wing and HPKE with ML-KEM the defaults. "fips" (C3)
+# keeps only operations the OpenSSL FIPS Provider performs in approved mode:
+# every libsodium-backed primitive is compiled out and libsodium remains
+# linked only for sodium_mlock and sodium_memzero.
+set(CRYPTOLIB_PROFILE "full" CACHE STRING "Build profile: full, bank or fips")
+set_property(CACHE CRYPTOLIB_PROFILE PROPERTY STRINGS full bank fips)
+if(NOT CRYPTOLIB_PROFILE MATCHES "^(full|bank|fips)$")
+    message(FATAL_ERROR "CRYPTOLIB_PROFILE must be full, bank or fips (got ${CRYPTOLIB_PROFILE})")
+endif()
+message(STATUS "cryptolib: build profile ${CRYPTOLIB_PROFILE}")
+
 option(CRYPTOLIB_BLAKE3 "Enable BLAKE3 hash (requires libblake3)" ON)
 option(CRYPTOLIB_PQ     "Enable post-quantum algorithms (requires liboqs)" ON)
 option(CRYPTOLIB_PQ_BACKEND_OPENSSL "Back ML-KEM/ML-DSA/SLH-DSA with OpenSSL EVP (FIPS-track) instead of liboqs; liboqs retained for other algorithms. Byte-compatible encodings." OFF)
 option(CRYPTOLIB_BLS    "Enable BLS12-381 aggregate signatures (requires blst)" ON)
 option(CRYPTOLIB_SECP256K1 "Enable secp256k1 ECDSA for EVM/BTC interop (requires libsecp256k1 w/ recovery module)" ON)
+
+if(CRYPTOLIB_PROFILE STREQUAL "fips")
+    # Nothing outside the validated provider: no liboqs, blst, secp256k1 or BLAKE3.
+    set(CRYPTOLIB_PQ OFF CACHE BOOL "" FORCE)
+    set(CRYPTOLIB_BLS OFF CACHE BOOL "" FORCE)
+    set(CRYPTOLIB_SECP256K1 OFF CACHE BOOL "" FORCE)
+    set(CRYPTOLIB_BLAKE3 OFF CACHE BOOL "" FORCE)
+endif()
+if(CRYPTOLIB_PROFILE STREQUAL "bank" AND NOT CRYPTOLIB_PQ)
+    message(FATAL_ERROR "The bank profile needs CRYPTOLIB_PQ=ON (X-Wing and HPKE with ML-KEM)")
+endif()
 
 if(CRYPTOLIB_BLAKE3 AND NOT CRYPTOLIB_DEPS_PREBUILT)
     pkg_check_modules(BLAKE3 REQUIRED libblake3)
@@ -76,6 +102,11 @@ if(CRYPTOLIB_PQ AND NOT CRYPTOLIB_DEPS_PREBUILT)
     # We never use libssl (TLS/X.509) — linking it would pull an entire network
     # protocol stack as pure attack surface, so we depend on libcrypto alone.
     pkg_check_modules(OPENSSL REQUIRED libcrypto)
+endif()
+if(CRYPTOLIB_PROFILE STREQUAL "fips" AND NOT CRYPTOLIB_DEPS_PREBUILT)
+    # The provider-backed layer talks to libcrypto 3.x only; the validated
+    # fips module is loaded at run time from CRYPTOLIB_FIPS_MODULE_DIR.
+    pkg_check_modules(OPENSSL REQUIRED libcrypto>=3.0)
 endif()
 
 if(CRYPTOLIB_BLS AND NOT CRYPTOLIB_DEPS_PREBUILT)
@@ -132,6 +163,24 @@ if(CRYPTOLIB_PQ)
     endif()
 endif()
 
+# The same profile definitions reach the header-only target and the C bridge.
+if(CRYPTOLIB_PROFILE STREQUAL "full")
+    set(_CRYPTOLIB_PROFILE_DEFS CRYPTOLIB_HAS_SODIUM_CRYPTO=1
+        CRYPTOLIB_HAS_STEGO=1 CRYPTOLIB_HAS_MEDIA_ENTROPY=1 CRYPTOLIB_HAS_NATIVE_COMBINERS=1)
+elseif(CRYPTOLIB_PROFILE STREQUAL "bank")
+    set(_CRYPTOLIB_PROFILE_DEFS CRYPTOLIB_HAS_SODIUM_CRYPTO=1 CRYPTOLIB_PROFILE_BANK=1)
+else()
+    set(_CRYPTOLIB_PROFILE_DEFS CRYPTOLIB_PROFILE_FIPS=1 CRYPTOLIB_HAS_FIPS_PROVIDER=1 CRYPTOLIB_HAS_OPENSSL=1)
+endif()
+target_compile_definitions(cryptolib INTERFACE ${_CRYPTOLIB_PROFILE_DEFS})
+if(CRYPTOLIB_PROFILE STREQUAL "fips")
+    target_include_directories(cryptolib INTERFACE ${OPENSSL_INCLUDE_DIRS})
+    target_link_libraries(cryptolib INTERFACE ${OPENSSL_LIBRARIES})
+    if(NOT CRYPTOLIB_DEPS_PREBUILT)
+        target_link_directories(cryptolib INTERFACE ${OPENSSL_LIBRARY_DIRS})
+    endif()
+endif()
+
 if(CRYPTOLIB_BLS)
     target_compile_definitions(cryptolib INTERFACE CRYPTOLIB_HAS_BLS=1)
     target_include_directories(cryptolib INTERFACE ${BLST_INCLUDE_DIR})
@@ -176,7 +225,13 @@ endif()
 
 # ─── Proof-of-concept ─────────────────────────────────────────────────────────
 option(CRYPTOLIB_BUILD_EXAMPLE "Build PoC example" ${_CRYPTOLIB_HOST_BUILD})
+if(CRYPTOLIB_BUILD_EXAMPLE AND NOT CRYPTOLIB_PROFILE STREQUAL "full")
+    message(STATUS "cryptolib: examples are built in the full profile only")
+    set(CRYPTOLIB_BUILD_EXAMPLE OFF)
+endif()
 if(CRYPTOLIB_BUILD_EXAMPLE)
+    # The demos print keys on purpose; production code has no such helpers.
+    add_compile_definitions(CRYPTOLIB_ALLOW_SECRET_TEXT=1)
     add_executable(cryptolib_poc example/main.cpp)
     target_compile_options(cryptolib_poc PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
     target_link_libraries(cryptolib_poc PRIVATE crypto::cryptolib)
@@ -208,6 +263,28 @@ endif()
 option(CRYPTOLIB_BUILD_TESTS "Build test suite" ${_CRYPTOLIB_HOST_BUILD})
 if(CRYPTOLIB_BUILD_TESTS)
     file(GLOB TEST_SOURCES tests/test_*.cpp)
+    set(_STEGO_TESTS stego_image stego_audio stego_video stego_engine stego_keyed stego_keyed_formats
+        stego_fec stego_analysis stego_encrypted stego_fuzz physical_seal oprf_image_seal hpke_stego_seal
+        vault_stego entropy_stego asym_stego)
+    set(_MEDIA_TESTS media_entropy entropy_health)
+    set(_COMBINER_TESTS molecular_vault triple_hybrid_kem triple_sig sntrup_x25519 suite flagship hybrid session)
+    set(_EXCLUDED_TESTS "")
+    if(NOT CRYPTOLIB_PROFILE STREQUAL "full")
+        list(APPEND _EXCLUDED_TESTS ${_STEGO_TESTS} ${_MEDIA_TESTS} ${_COMBINER_TESTS})
+    endif()
+    if(CRYPTOLIB_PROFILE STREQUAL "fips")
+        file(GLOB _SODIUM_TESTS tests/test_*.cpp)
+        foreach(_src ${_SODIUM_TESTS})
+            get_filename_component(_n ${_src} NAME_WE)
+            string(REGEX REPLACE "^test_" "" _n ${_n})
+            if(NOT _n MATCHES "^(main|types|c_abi_init|fips.*)$")
+                list(APPEND _EXCLUDED_TESTS ${_n})
+            endif()
+        endforeach()
+    endif()
+    foreach(_n ${_EXCLUDED_TESTS})
+        list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_${_n}.cpp)
+    endforeach()
     # The C ABI translation unit is compiled into the test binary with the
     # testing hook enabled so its failure paths can be exercised.
     add_executable(cryptolib_tests ${TEST_SOURCES} bridge/cryptolib_c.cpp)
@@ -251,6 +328,7 @@ option(CRYPTOLIB_CT_VALGRIND "Build the constant-time probe (run under Valgrind)
 if(CRYPTOLIB_CT_VALGRIND AND _CRYPTOLIB_HOST_BUILD)
     add_executable(ct_probe tests/ct/ct_probe.cpp)
     target_compile_options(ct_probe PRIVATE -g -O1)
+    target_compile_definitions(ct_probe PRIVATE CRYPTOLIB_CT_VALGRIND=1)
     target_link_libraries(ct_probe PRIVATE crypto::cryptolib)
 endif()
 
@@ -271,7 +349,14 @@ if(CRYPTOLIB_BUILD_BRIDGE)
     if(NOT CRYPTOLIB_DEPS_PREBUILT AND SODIUM_LIBRARY_DIRS)
         target_link_directories(cryptolib_c PRIVATE ${SODIUM_LIBRARY_DIRS})
     endif()
-    target_compile_definitions(cryptolib_c PRIVATE CRYPTOLIB_BUILD_SHARED)
+    target_compile_definitions(cryptolib_c PRIVATE CRYPTOLIB_BUILD_SHARED ${_CRYPTOLIB_PROFILE_DEFS})
+    if(CRYPTOLIB_PROFILE STREQUAL "fips")
+        target_include_directories(cryptolib_c PRIVATE ${OPENSSL_INCLUDE_DIRS})
+        target_link_libraries(cryptolib_c PRIVATE ${OPENSSL_LIBRARIES})
+        if(NOT CRYPTOLIB_DEPS_PREBUILT)
+            target_link_directories(cryptolib_c PRIVATE ${OPENSSL_LIBRARY_DIRS})
+        endif()
+    endif()
     target_compile_options(cryptolib_c PRIVATE -Wall -Wextra -O2)
 
     set_target_properties(cryptolib_c PROPERTIES

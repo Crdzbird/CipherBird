@@ -110,6 +110,13 @@
 //   media_entropy.hpp → steganography.hpp  (idempotent)
 // All stego headers are therefore reachable from this single include.
 #include "types.hpp"
+#include "shamir.hpp"             // → Shamir secret sharing (GF(256), M-of-N): arithmetic only, every profile
+
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+#include "fips/fips.hpp"          // → approved operations through the OpenSSL FIPS Provider
+#endif
+
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
 #include "hash.hpp"
 #include "keccak.hpp"            // → Keccak-256 (original padding, Ethereum)
 #include "ripemd160.hpp"         // → RIPEMD-160 (Bitcoin HASH160)
@@ -118,33 +125,45 @@
 #include "committing.hpp"        // → key/context-committing AEAD (UtC)
 #include "aead_siv.hpp"          // → AES-256-GCM-SIV nonce-misuse-resistant AEAD (OpenSSL)
 #include "asymmetric.hpp"
-#include "vault.hpp"              // → packet.hpp + steganography.hpp (all stego)
-#include "media_entropy.hpp"      // → steganography.hpp (idempotent via #pragma once)
-#include "stego_media_generator.hpp"
+#include "vault.hpp"              // → packet.hpp (+ steganography.hpp in the full profile)
 #include "pq.hpp"                 // → post-quantum (liboqs, guarded by CRYPTOLIB_HAS_PQ)
-#include "hybrid_kem.hpp"         // → X25519 + ML-KEM-768 hybrid KEM (guarded by CRYPTOLIB_HAS_PQ)
-#include "sntrup_x25519.hpp"      // → X25519 + sntrup761 hybrid KEM (guarded by CRYPTOLIB_HAS_PQ)
-#include "triple_hybrid_kem.hpp"  // → X25519 + ML-KEM-768 + sntrup761 triple hybrid KEM (guarded)
+#include "xwing.hpp"              // → X-Wing (draft-connolly-cfrg-xwing-kem-11), guarded by CRYPTOLIB_HAS_PQ
 #include "hybrid_sig.hpp"         // → Ed25519 + ML-DSA-65 hybrid signatures (guarded by CRYPTOLIB_HAS_PQ)
-#include "triple_sig.hpp"        // → Ed25519 + ML-DSA-65 + SLH-DSA triple signature (guarded)
 #include "bls.hpp"                // → BLS12-381 (blst, guarded by CRYPTOLIB_HAS_BLS)
-#include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase)
-#include "shamir.hpp"             // → Shamir secret sharing (GF(256), M-of-N)
+#include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase / hardware)
 #include "frost.hpp"          // → FROST(Ed25519,SHA-512) threshold signatures
 #include "ecvrf.hpp"          // → ECVRF (RFC 9381) verifiable random function
 #include "bbs.hpp"            // → BBS signatures + selective disclosure (BLS12-381)
 #include "oprf.hpp"           // → OPRF (RFC 9497) oblivious pseudorandom function
 #include "opaque.hpp"         // → OPAQUE aPAKE (draft-irtf-cfrg-opaque, needs OPRF)
-#include "hpke.hpp"           // → HPKE (RFC 9180) hybrid public-key encryption
-#include "session.hpp"        // → PQ forward-secret ratchet (needs PQ)
-#include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
-#include "suite.hpp"             // → Suite: one-call advanced combinations (needs OpenSSL + PQ)
-#include "molecular_vault.hpp"    // → max-assurance layered vault (cascade + Argon2id + committing)
+#include "hpke.hpp"           // → HPKE (RFC 9180, plus ML-KEM and X-Wing KEMs from draft-ietf-hpke-pq)
+#include "suite_v2.hpp"       // → Suite v2: recipient-bound signed envelopes over X-Wing or the hybrid KEM
+#include "session_v2.hpp"     // → Session v2: signed prekeys, identity-bound handshake, X-Wing ratchet
 #include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
+#include "entropy_drbg.hpp"       // → HMAC-DRBG (opt-in beacon)
+#include "entropy_fortuna.hpp"    // → Fortuna pool (opt-in)
+
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
+#include "media_entropy.hpp"      // → steganography.hpp (idempotent via #pragma once)
+#endif
+#ifdef CRYPTOLIB_HAS_STEGO
+#include "stego_media_generator.hpp"
 #include "stego_analysis.hpp"     // → StegoAnalyzer: carrier validity, tamper digest, hidden-data probe
 #include "physical_seal.hpp"      // → PhysicalSeal: two-factor media-entropy seal + keyed stego
 #include "oprf_image_seal.hpp"    // → ImageFactorSeal: OPRF-gated image second-factor + keyed stego
 #include "hpke_stego_seal.hpp"    // → HpkeStegoSeal: keyed stego bound to an HPKE session (exporter)
+#endif
+#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
+#include "hybrid_kem.hpp"         // → X25519 + ML-KEM-768 library-native combiner (full profile only)
+#include "sntrup_x25519.hpp"      // → X25519 + sntrup761 hybrid KEM
+#include "triple_hybrid_kem.hpp"  // → X25519 + ML-KEM-768 + sntrup761 triple hybrid KEM
+#include "triple_sig.hpp"        // → Ed25519 + ML-DSA-65 + SLH-DSA triple signature
+#include "molecular_vault.hpp"    // → max-assurance layered vault (cascade + Argon2id + committing)
+#include "session.hpp"        // → PQ forward-secret ratchet over the native combiner (v1)
+#include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
+#include "suite.hpp"             // → Suite v1: one-call combinations (needs OpenSSL, PQ, media entropy)
+#endif
+#endif
 
 #include <sodium.h>
 

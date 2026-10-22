@@ -349,6 +349,7 @@ public:
          std::string_view               aad,
          const entropy::MediaEntropy&   boost) const;
 
+#ifdef CRYPTOLIB_HAS_STEGO
     // ─────────────────────────────────────────────────────────────────────────
     // Steganography integration — native seal-into-media and open-from-media.
     //
@@ -375,6 +376,7 @@ public:
     open_from(std::string_view stego_path,
               std::string_view aad = {}) const;
 
+#endif
     // ─────────────────────────────────────────────────────────────────────────
     // Media entropy integration — construct a vault seeded by physical entropy.
     //
@@ -748,6 +750,7 @@ public:
          std::span<const uint8_t>       aad,
          const entropy::MediaEntropy&   boost);
 
+#ifdef CRYPTOLIB_HAS_STEGO
     // ─────────────────────────────────────────────────────────────────────────
     // Steganography integration — seal_into / open_from for AsymmetricVault.
     //
@@ -778,6 +781,7 @@ public:
               std::span<const uint8_t>  sender_sign_public,
               std::string_view          stego_path,
               std::string_view          aad = {});
+#endif
 
     // ─────────────────────────────────────────────────────────────────────────
     // Media entropy integration — derive an AsymKeyBundle from a MediaEntropy
@@ -803,6 +807,7 @@ public:
 } // namespace crypto
 
 // ─────────────────────────────────────────────────────────────────────────────
+#ifdef CRYPTOLIB_HAS_STEGO
 // Steganography engine — included after vault class definitions.
 // steganography.hpp now includes packet.hpp (not vault.hpp), so there is no
 // circular dependency: vault.hpp → steganography.hpp → packet.hpp  ✓
@@ -870,3 +875,4 @@ AsymmetricVault::open_from(const AsymKeyBundle&      recipient,
 // See media_entropy.hpp for the inline implementations.
 
 } // namespace crypto
+#endif

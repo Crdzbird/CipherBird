@@ -1,5 +1,5 @@
 /**
- * ct_probe.cpp — constant-time verification harness (ctgrind / TIMECOP method).
+ * ct_probe.cpp: constant-time verification harness (ctgrind / TIMECOP method).
  *
  * Marks secret buffers as "undefined" to Valgrind's memcheck; any branch or
  * memory access whose address/condition depends on those bytes is reported as
@@ -33,7 +33,7 @@
 int main() {
     crypto::init();
 
-    // 1. secure_equal — must not branch on the contents being compared.
+    /* 1. secure_equal must not branch on the contents being compared. */
     {
         auto a = crypto::random_bytes(32);
         auto b = crypto::random_bytes(32);
@@ -43,7 +43,7 @@ int main() {
         (void)eq;
     }
 
-    // 2. Committing AEAD decrypt — commitment compare + AEAD with a secret key.
+    /* 2. Committing AEAD decrypt: commitment compare + AEAD with a secret key. */
     {
         auto key = crypto::symmetric::CommittingAead::generate_key();
         auto ct  = crypto::symmetric::CommittingAead::encrypt(std::string_view("ct-probe"), key.span());
@@ -53,18 +53,23 @@ int main() {
     }
 
 #ifdef CRYPTOLIB_HAS_PQ
-    // 3. ML-KEM decapsulate — secret-key-dependent path.
+    /* 3. ML-KEM decapsulate: secret-key-dependent path. */
     {
         auto kp = crypto::pq::MlKem::generate_keypair();
         auto enc = crypto::pq::MlKem::encapsulate(kp.value().public_key.span());
         auto sk = std::move(kp.value().secret_key);
-        CT_SECRET(sk.data(), sk.size());
+        /* FIPS 203 dk = dk_PKE(1152) || ek(1184) || H(ek)(32) || z(32): the
+         * embedded encapsulation key and its hash are public, and the matrix
+         * expansion from its seed rejection-samples on purpose. Only the
+         * decryption key and the implicit-rejection secret are secret. */
+        CT_SECRET(sk.data(), 1152);
+        CT_SECRET(sk.data() + sk.size() - 32, 32);
         auto ss = crypto::pq::MlKem::decapsulate(enc.value().ciphertext.span(), sk.span());
         (void)ss;
     }
 #endif
 
-    // 4. Keyring unlock — device-factor compare path.
+    /* 4. Keyring unlock: device-factor compare path. */
     {
         auto factor = crypto::random_bytes(32);
         auto kr = crypto::Keyring::create();

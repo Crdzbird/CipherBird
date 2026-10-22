@@ -10,6 +10,7 @@
 #include <cryptolib/cryptolib.hpp>
 
 #include <cstdio>
+#include <exception>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -92,7 +93,12 @@ inline void run(std::string_view name) {
     g_state.abort_ = false;
     g_state.total++;
 
-    it->second();
+    try {
+        it->second();
+    } catch (const std::exception& e) {
+        std::printf("      exception: %s\n", e.what());
+        g_state.cur_ok = false;
+    }
 
     if (g_state.cur_ok) { g_state.passed++; std::printf("    " GRN "✓" RST " %s\n", name.data()); }
     else                 { g_state.failed++; std::printf("    " RED "✗" RST " %s\n", name.data()); }

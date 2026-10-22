@@ -112,6 +112,10 @@ std::span<const uint8_t> sp(const uint8_t* p, size_t n) {
     return {p, n};
 }
 
+std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
+    return aad ? sp(aad, len) : std::span<const uint8_t>{};
+}
+
 /** Build a SecureBuffer from a borrowed CryptoBuffer, tolerating null data. */
 crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
     if (!cb.data || cb.len == 0) return crypto::SecureBuffer{};
@@ -144,13 +148,17 @@ crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
  * Opaque handle internals
  * ═══════════════════════════════════════════════════════════════════════════ */
 
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
 struct VaultImpl     { crypto::SecureVault vault; };
-struct EntropyImpl   { crypto::entropy::MediaEntropy me; };
 struct StreamEncImpl { crypto::symmetric::SecretStream::Encryptor enc; };
 struct StreamDecImpl { crypto::symmetric::SecretStream::Decryptor dec; };
 struct KeyringImpl   { crypto::Keyring kr; };
 struct DrbgImpl      { crypto::entropy::HmacDrbg d; };
 struct FortunaImpl   { crypto::entropy::FortunaPool p; };
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
+struct EntropyImpl   { crypto::entropy::MediaEntropy me; };
+#endif
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Memory management
@@ -272,7 +280,12 @@ CRYPTO_API int cryptolib_init(void) {
 }
 
 CRYPTO_API CryptoBufferResult cryptolib_random_bytes(size_t n) try {
+#ifdef CRYPTOLIB_PROFILE_FIPS
+    auto r = crypto::fips::Random::bytes(n);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
     return ok_buf(crypto::random_bytes(n));
+#endif
 } CL_FAIL_BUFRES
 
 CRYPTO_API int cryptolib_secure_equal(const uint8_t* a, size_t a_len,
@@ -280,6 +293,7 @@ CRYPTO_API int cryptolib_secure_equal(const uint8_t* a, size_t a_len,
     return crypto::secure_equal(sp(a, a_len), sp(b, b_len)) ? 1 : 0;
 } CL_FAIL_INT
 
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
 /* ═══════════════════════════════════════════════════════════════════════════
  * Hashing
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -416,7 +430,7 @@ CRYPTO_API CryptoBufferResult cryptolib_committing_decrypt(
 } CL_FAIL_BUFRES
 
 // ── MolecularVault ──────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
 CRYPTO_API CryptoBufferResult cryptolib_molecular_seal(
     const uint8_t* plaintext, size_t pt_len,
     const char* passphrase,
@@ -468,7 +482,7 @@ CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
-#else  // !CRYPTOLIB_HAS_OPENSSL — ABI-stable stubs when GCM-SIV is unavailable
+#else  // stubs when the native combiners or GCM-SIV are unavailable
 static CryptoBufferResult molecular_unavailable() {
     return err_buf("MolecularVault requires OpenSSL (AES-256-GCM-SIV) — not compiled in");
 }
@@ -491,11 +505,8 @@ CRYPTO_API CryptoBufferResult cryptolib_molecular_open_with_key(
 #endif // CRYPTOLIB_HAS_OPENSSL
 
 // ── Suite — one-call advanced combinations ──────────────────────────────────
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
 namespace {
-std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
-    return aad ? sp(aad, len) : std::span<const uint8_t>{};
-}
 // Serialise Shamir shares to a flat blob: each record = index(1) | ylen(4 LE) | y.
 CryptoBuffer serialise_shares(const std::vector<crypto::Shamir::Share>& shares) {
     std::vector<uint8_t> out;
@@ -1040,6 +1051,7 @@ CRYPTO_API CryptoVaultHandle cryptolib_vault_create(
     return static_cast<CryptoVaultHandle>(h);
 } CL_FAIL_PTR
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoVaultHandle cryptolib_vault_from_entropy(
     CryptoEntropyHandle entropy, int kdf_preset) try
 {
@@ -1053,6 +1065,7 @@ CRYPTO_API CryptoVaultHandle cryptolib_vault_from_entropy(
     auto* h = new VaultImpl{std::move(r.value())};
     return static_cast<CryptoVaultHandle>(h);
 } CL_FAIL_PTR
+#endif
 
 static CryptoPacket packet_from_cpp(const crypto::EncryptedPacket& pkt) {
     return {
@@ -1091,6 +1104,7 @@ CRYPTO_API CryptoPacket cryptolib_vault_seal(
     return packet_from_cpp(r.value());
 } CL_FAIL_PKT
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoPacket cryptolib_vault_seal_boosted(
     CryptoVaultHandle vault,
     const uint8_t* plaintext, size_t pt_len,
@@ -1113,6 +1127,7 @@ CRYPTO_API CryptoPacket cryptolib_vault_seal_boosted(
     if (out_error) *out_error = nullptr;
     return packet_from_cpp(r.value());
 } CL_FAIL_PKT
+#endif
 
 CRYPTO_API CryptoBufferResult cryptolib_vault_open(
     CryptoVaultHandle vault,
@@ -1126,6 +1141,7 @@ CRYPTO_API CryptoBufferResult cryptolib_vault_open(
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoBufferResult cryptolib_vault_open_boosted(
     CryptoVaultHandle vault,
     const CryptoPacket* packet, const char* aad,
@@ -1141,6 +1157,7 @@ CRYPTO_API CryptoBufferResult cryptolib_vault_open_boosted(
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
+#endif
 
 CRYPTO_API CryptoBufferResult cryptolib_vault_public_key(CryptoVaultHandle vault) try {
     if (!vault) return err_buf("null handle");
@@ -1231,6 +1248,7 @@ CRYPTO_API CryptoBufferResult cryptolib_asym_vault_open(
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 /* ═══════════════════════════════════════════════════════════════════════════
  * Media Entropy
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -1367,12 +1385,15 @@ CRYPTO_API void cryptolib_entropy_free(CryptoEntropyHandle h) {
 
 /* ─── Entropy convenience functions ───────────────────────────────────────── */
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoBufferResult cryptolib_key_from_file(const char* path) try {
     auto r = crypto::entropy::key_from_file(path);
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
+#endif
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoPacket cryptolib_seal_from_file(
     const char* path, const char* plaintext, const char* aad, char** out_error) try
 {
@@ -1386,7 +1407,9 @@ CRYPTO_API CryptoPacket cryptolib_seal_from_file(
     if (out_error) *out_error = nullptr;
     return packet_from_cpp(r.value());
 } CL_FAIL_PKT
+#endif
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoBufferResult cryptolib_open_from_file(
     const char* path, const CryptoPacket* packet, const char* aad) try
 {
@@ -1398,7 +1421,9 @@ CRYPTO_API CryptoBufferResult cryptolib_open_from_file(
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
+#endif
 
+#endif // CRYPTOLIB_HAS_MEDIA_ENTROPY
 /* ═══════════════════════════════════════════════════════════════════════════
  * BLAKE3
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -1770,7 +1795,7 @@ CRYPTO_API CryptoBufferResult cryptolib_ml_kem_decapsulate(
 } CL_FAIL_BUFRES
 
 CRYPTO_API CryptoKeyPair cryptolib_hybrid_kem_keygen(void) try {
-#ifdef CRYPTOLIB_HAS_PQ
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
     auto r = crypto::pq::HybridKem::generate_keypair();
     if (r.is_err()) return { null_buf(), null_buf() };
     return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
@@ -1781,7 +1806,7 @@ CRYPTO_API CryptoKeyPair cryptolib_hybrid_kem_keygen(void) try {
 
 CRYPTO_API CryptoKemEncapsResult cryptolib_hybrid_kem_encapsulate(
     const uint8_t* public_key, size_t pk_len, char** out_error) try {
-#ifdef CRYPTOLIB_HAS_PQ
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
     auto r = crypto::pq::HybridKem::encapsulate(sp(public_key, pk_len));
     if (r.is_err()) {
         if (out_error) *out_error = dup_str(r.error().message);
@@ -1799,7 +1824,7 @@ CRYPTO_API CryptoKemEncapsResult cryptolib_hybrid_kem_encapsulate(
 CRYPTO_API CryptoBufferResult cryptolib_hybrid_kem_decapsulate(
     const uint8_t* ciphertext, size_t ct_len,
     const uint8_t* secret_key, size_t sk_len) try {
-#ifdef CRYPTOLIB_HAS_PQ
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
     auto r = crypto::pq::HybridKem::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
@@ -1810,6 +1835,7 @@ CRYPTO_API CryptoBufferResult cryptolib_hybrid_kem_decapsulate(
 } CL_FAIL_BUFRES
 
 // ── Hybrid KEM (X25519 + sntrup761) ─────────────────────────────────────────
+#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
 CRYPTO_API CryptoKeyPair cryptolib_sntrup_x25519_keygen(void) try {
 #ifdef CRYPTOLIB_HAS_PQ
     auto r = crypto::pq::SntrupX25519::generate_keypair();
@@ -1819,7 +1845,9 @@ CRYPTO_API CryptoKeyPair cryptolib_sntrup_x25519_keygen(void) try {
     return { null_buf(), null_buf() };
 #endif
 } CL_FAIL_KP
+#endif
 
+#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
 CRYPTO_API CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(
     const uint8_t* public_key, size_t pk_len, char** out_error) try {
 #ifdef CRYPTOLIB_HAS_PQ
@@ -1836,7 +1864,9 @@ CRYPTO_API CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(
     return { null_buf(), null_buf() };
 #endif
 } CL_FAIL_KEM
+#endif
 
+#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
 CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
     const uint8_t* ciphertext, size_t ct_len,
     const uint8_t* secret_key, size_t sk_len) try {
@@ -1849,9 +1879,10 @@ CRYPTO_API CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(
     return err_buf("PQ not enabled");
 #endif
 } CL_FAIL_BUFRES
+#endif
 
 // ── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ──────────
-#ifdef CRYPTOLIB_HAS_PQ
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
 namespace { struct SessionImpl { crypto::Session session; }; }
 
 CRYPTO_API CryptoKeyPair cryptolib_session_generate_prekey(void) try {
@@ -2951,6 +2982,7 @@ CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
 #endif
 } CL_FAIL_BUFRES
 
+#ifdef CRYPTOLIB_HAS_STEGO
 /* ═══════════════════════════════════════════════════════════════════════════
  * Steganography
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -3259,6 +3291,7 @@ CRYPTO_API void cryptolib_fortuna_free(CryptoFortunaHandle h) {
     delete static_cast<FortunaImpl*>(h);
 }
 
+#endif // CRYPTOLIB_HAS_STEGO
 /* ═══════════════════════════════════════════════════════════════════════════
  * Keyring — envelope encryption with key-slots
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -3366,6 +3399,698 @@ CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(
 CRYPTO_API void cryptolib_keyring_free(CryptoKeyringHandle kr) {
     delete static_cast<KeyringImpl*>(kr);
 }
+
+#endif // CRYPTOLIB_HAS_SODIUM_CRYPTO
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Standards-track KEMs and the v2 envelopes (M4, M5, M6)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#if defined(CRYPTOLIB_HAS_SODIUM_CRYPTO) && defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#define CL_HAVE_V2 1
+#endif
+
+static const char* const kNotInProfile = "not available in this build profile";
+
+CRYPTO_API CryptoKeyPair cryptolib_xwing_keygen(void) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cryptolib_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::keypair_from_seed(sp(seed, seed_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)seed; (void)seed_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKemEncapsResult cryptolib_xwing_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::encapsulate(sp(public_key, pk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return { null_buf(), null_buf() }; }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+
+CRYPTO_API CryptoBufferResult cryptolib_xwing_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len, const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+#ifdef CL_HAVE_V2
+static bool hpke_kem_of(int kem, crypto::Hpke::Kem& out) {
+    switch (kem) {
+        case 0x0020: out = crypto::Hpke::Kem::DhkemX25519; return true;
+        case 0x0041: out = crypto::Hpke::Kem::MlKem768; return true;
+        case 0x647A: out = crypto::Hpke::Kem::XWing; return true;
+        default: return false;
+    }
+}
+#endif
+
+CRYPTO_API int cryptolib_hpke_kem_available(int kem) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    return hpke_kem_of(kem, k) ? 1 : 0;
+#else
+    (void)kem;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cryptolib_hpke_keygen_kem(int kem) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) return { null_buf(), null_buf() };
+    auto r = crypto::Hpke::generate_keypair(k);
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)kem;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cryptolib_hpke_derive_keypair_kem(int kem, const uint8_t* ikm, size_t ikm_len) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) return { null_buf(), null_buf() };
+    auto r = crypto::Hpke::derive_keypair(k, sp(ikm, ikm_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)kem; (void)ikm; (void)ikm_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_s_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) { if (out_error) *out_error = dup_str("hpke: unknown KEM id"); return nullptr; }
+    auto r = k == crypto::Hpke::Kem::DhkemX25519
+        ? crypto::Hpke::setup_s(hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+              sp(pkR, pkR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len))
+        : crypto::Hpke::setup_s(k, hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+              sp(pkR, pkR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    if (out_error) *out_error = nullptr;
+    return new HpkeCtxImpl{ std::move(r.value().ctx) };
+#else
+    (void)kem; (void)kdf; (void)aead; (void)mode; (void)pkR; (void)pkR_len; (void)info; (void)info_len;
+    (void)psk; (void)psk_len; (void)psk_id; (void)psk_id_len; (void)skS; (void)skS_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_r_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) { if (out_error) *out_error = dup_str("hpke: unknown KEM id"); return nullptr; }
+    auto r = k == crypto::Hpke::Kem::DhkemX25519
+        ? crypto::Hpke::setup_r(hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead), sp(enc, enc_len),
+              sp(skR, skR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len), sp(pkS, pkS_len))
+        : crypto::Hpke::setup_r(k, hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead), sp(enc, enc_len),
+              sp(skR, skR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_error) *out_error = nullptr;
+    return new HpkeCtxImpl{ std::move(r.value()) };
+#else
+    (void)kem; (void)kdf; (void)aead; (void)mode; (void)enc; (void)enc_len; (void)skR; (void)skR_len;
+    (void)info; (void)info_len; (void)psk; (void)psk_len; (void)psk_id; (void)psk_id_len; (void)pkS; (void)pkS_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cryptolib_suite2_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_secret, size_t ssk_len,
+    const uint8_t* aad, size_t aad_len, int suite) try {
+#ifdef CL_HAVE_V2
+    if (suite < 0 || suite > 0xff) return err_buf("Suite2: bad suite id");
+    auto r = crypto::Suite2::seal(sp(plaintext, pt_len), sp(recipient_kem_public, rpk_len),
+        sp(signer_sig_secret, ssk_len), opt_aad(aad, aad_len), static_cast<uint8_t>(suite));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)plaintext; (void)pt_len; (void)recipient_kem_public; (void)rpk_len; (void)signer_sig_secret; (void)ssk_len;
+    (void)aad; (void)aad_len; (void)suite;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_suite2_open(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t rsk_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_public, size_t spk_len,
+    const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::Suite2::open(sp(envelope, env_len), sp(recipient_kem_secret, rsk_len),
+        sp(recipient_kem_public, rpk_len), sp(signer_sig_public, spk_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)envelope; (void)env_len; (void)recipient_kem_secret; (void)rsk_len; (void)recipient_kem_public; (void)rpk_len;
+    (void)signer_sig_public; (void)spk_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_suite2_suite_of(const uint8_t* envelope, size_t env_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::Suite2::suite_of(sp(envelope, env_len));
+    return r.is_err() ? 0 : r.value();
+#else
+    (void)envelope; (void)env_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+#ifdef CL_HAVE_V2
+namespace {
+struct Session2Impl { crypto::SessionV2::Channel channel; crypto::PublicBuffer handshake; };
+crypto::pq::HybridSig::KeyPair sig_pair(const uint8_t* pk, size_t pk_len, const uint8_t* sk, size_t sk_len) {
+    return { crypto::SecureBuffer(pk, pk_len), crypto::SecureBuffer(sk, sk_len) };
+}
+}
+#endif
+
+CRYPTO_API CryptoKeyPair cryptolib_session2_generate_prekey(
+    const uint8_t* responder_sig_secret, size_t ssk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::generate_prekey(sp(responder_sig_secret, ssk_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().bundle), to_cbuf(r.value().pair.secret_key) };
+#else
+    (void)responder_sig_secret; (void)ssk_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_session2_verify_prekey(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::verify_prekey(sp(bundle, bundle_len), sp(responder_sig_public, rpk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)bundle; (void)bundle_len; (void)responder_sig_public; (void)rpk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cryptolib_session2_initiate(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* initiator_sig_public, size_t ipk_len,
+    const uint8_t* initiator_sig_secret, size_t isk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CL_HAVE_V2
+    auto id = sig_pair(initiator_sig_public, ipk_len, initiator_sig_secret, isk_len);
+    auto r = crypto::SessionV2::initiate(sp(bundle, bundle_len), sp(responder_sig_public, rpk_len), id);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new Session2Impl{ std::move(r.value().channel), std::move(r.value().handshake) });
+#else
+    (void)bundle; (void)bundle_len; (void)responder_sig_public; (void)rpk_len;
+    (void)initiator_sig_public; (void)ipk_len; (void)initiator_sig_secret; (void)isk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_session2_handshake(CryptoSession h) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    return ok_buf(impl->handshake);
+#else
+    (void)h;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_session2_claimed_initiator(
+    const uint8_t* handshake, size_t hs_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::claimed_initiator(sp(handshake, hs_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)handshake; (void)hs_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cryptolib_session2_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* prekey_secret, size_t psk_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* responder_sig_secret, size_t rsk_len,
+    const uint8_t* expected_initiator_sig_public, size_t ipk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CL_HAVE_V2
+    auto pair = crypto::pq::XWing::keypair_from_seed(sp(prekey_secret, psk_len));
+    if (pair.is_err()) { if (out_error) *out_error = dup_str(pair.error().message); return nullptr; }
+    crypto::SessionV2::Prekey prekey{ std::move(pair.value()), crypto::PublicBuffer(bundle, bundle_len) };
+    auto id = sig_pair(responder_sig_public, rpk_len, responder_sig_secret, rsk_len);
+    auto r = crypto::SessionV2::accept(sp(handshake, hs_len), prekey, id, sp(expected_initiator_sig_public, ipk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new Session2Impl{ std::move(r.value()), crypto::PublicBuffer() });
+#else
+    (void)handshake; (void)hs_len; (void)bundle; (void)bundle_len; (void)prekey_secret; (void)psk_len;
+    (void)responder_sig_public; (void)rpk_len; (void)responder_sig_secret; (void)rsk_len;
+    (void)expected_initiator_sig_public; (void)ipk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cryptolib_session2_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    auto r = impl->channel.encrypt(sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)pt; (void)pt_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_session2_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    auto r = impl->channel.decrypt(sp(msg, msg_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)msg; (void)msg_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_session2_free(CryptoSession h) {
+#ifdef CL_HAVE_V2
+    delete static_cast<Session2Impl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FIPS profile (C3)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+namespace {
+bool fips_hash_of(int h, crypto::fips::Hash& out) {
+    switch (h) {
+        case 0: out = crypto::fips::Hash::Sha256; return true;
+        case 1: out = crypto::fips::Hash::Sha384; return true;
+        case 2: out = crypto::fips::Hash::Sha512; return true;
+        case 3: out = crypto::fips::Hash::Sha3_256; return true;
+        default: return false;
+    }
+}
+struct FipsEnvelopeImpl { crypto::fips::Envelope env; };
+CryptoResult fips_result(const crypto::Result<void>& r) {
+    return r.is_err() ? CryptoResult{0, dup_str(r.error().message)} : CryptoResult{1, nullptr};
+}
+}
+#define CL_FIPS_UNAVAILABLE "fips: not built; use -DCRYPTOLIB_PROFILE=fips"
+#endif
+
+CRYPTO_API int cryptolib_fips_available(void) {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+CRYPTO_API CryptoResult cryptolib_fips_init(const char* module_dir, const char* config_file) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Provider::Location where;
+    if (module_dir) where.module_directory = module_dir;
+    if (config_file) where.config_file = config_file;
+    return fips_result(crypto::fips::Provider::init(where));
+#else
+    (void)module_dir; (void)config_file;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoFipsStatus cryptolib_fips_status(void) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto s = crypto::fips::Provider::status();
+    return CryptoFipsStatus{ s.loaded ? 1 : 0, s.self_tests_passed ? 1 : 0, s.approved_mode ? 1 : 0,
+        dup_str(s.provider_name), dup_str(s.provider_version), dup_str(s.module_directory), dup_str(s.config_file) };
+#else
+    return CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr };
+#endif
+} catch (...) { return CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr }; }
+
+CRYPTO_API void cryptolib_fips_status_free(CryptoFipsStatus* s) {
+    if (!s) return;
+    std::free(s->provider_name); std::free(s->provider_version);
+    std::free(s->module_directory); std::free(s->config_file);
+    *s = CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr };
+}
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_digest(int hash, const uint8_t* data, size_t len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Digest::compute(h, sp(data, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)data; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_hmac(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Hmac::compute(h, sp(key, key_len), sp(data, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)key; (void)key_len; (void)data; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_fips_hmac_verify(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len, const uint8_t* tag, size_t tag_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return 0;
+    return crypto::fips::Hmac::verify(h, sp(key, key_len), sp(data, len), sp(tag, tag_len)) ? 1 : 0;
+#else
+    (void)hash; (void)key; (void)key_len; (void)data; (void)len; (void)tag; (void)tag_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_hkdf(int hash,
+    const uint8_t* ikm, size_t ikm_len, const uint8_t* salt, size_t salt_len,
+    const uint8_t* info, size_t info_len, size_t out_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Hkdf::derive(h, sp(ikm, ikm_len), sp(salt, salt_len), sp(info, info_len), out_len);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)ikm; (void)ikm_len; (void)salt; (void)salt_len; (void)info; (void)info_len; (void)out_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_pbkdf2(int hash,
+    const uint8_t* password, size_t password_len, const uint8_t* salt, size_t salt_len,
+    unsigned iterations, size_t out_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Pbkdf2::derive(h, sp(password, password_len), sp(salt, salt_len), iterations, out_len);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)password; (void)password_len; (void)salt; (void)salt_len; (void)iterations; (void)out_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_random(size_t n) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Random::bytes(n);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)n;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_aes_gcm_encrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Aes256Gcm::encrypt(sp(key, key_len), sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)key; (void)key_len; (void)pt; (void)pt_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_aes_gcm_decrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* wire, size_t wire_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Aes256Gcm::decrypt(sp(key, key_len), sp(wire, wire_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)key; (void)key_len; (void)wire; (void)wire_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cryptolib_fips_p256_keygen(void) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().private_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_ecdh(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* peer_public, size_t pk_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::ecdh(sp(private_key, sk_len), sp(peer_public, pk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len; (void)peer_public; (void)pk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_sign(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* message, size_t msg_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::sign(sp(private_key, sk_len), sp(message, msg_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len; (void)message; (void)msg_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_fips_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    return crypto::fips::P256::verify(sp(public_key, pk_len), sp(message, msg_len), sp(signature, sig_len)) ? 1 : 0;
+#else
+    (void)public_key; (void)pk_len; (void)message; (void)msg_len; (void)signature; (void)sig_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_public_key(const uint8_t* private_key, size_t sk_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::public_key_of(sp(private_key, sk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoFipsEnvelope cryptolib_fips_envelope_create(char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Envelope::create();
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoFipsEnvelope>(new FipsEnvelopeImpl{ std::move(r.value()) });
+#else
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoFipsEnvelope cryptolib_fips_envelope_deserialise(
+    const uint8_t* blob, size_t blob_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Envelope::deserialise(sp(blob, blob_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoFipsEnvelope>(new FipsEnvelopeImpl{ std::move(r.value()) });
+#else
+    (void)blob; (void)blob_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoResult cryptolib_fips_envelope_add_passphrase_slot(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len, unsigned iterations) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.add_passphrase_slot(sp(passphrase, len), iterations));
+#else
+    (void)h; (void)passphrase; (void)len; (void)iterations;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoResult cryptolib_fips_envelope_add_key_slot(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.add_key_slot(sp(factor, len)));
+#else
+    (void)h; (void)factor; (void)len;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_unlock_with_passphrase(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    auto r = impl->env.unlock_with_passphrase(sp(passphrase, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)passphrase; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_unlock_with_key(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    auto r = impl->env.unlock_with_key(sp(factor, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)factor; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoResult cryptolib_fips_envelope_remove_slot(CryptoFipsEnvelope h, size_t index) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.remove_slot(index));
+#else
+    (void)h; (void)index;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API size_t cryptolib_fips_envelope_slot_count(CryptoFipsEnvelope h) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    return impl ? impl->env.slot_count() : 0;
+#else
+    (void)h;
+    return 0;
+#endif
+} CL_FAIL_SIZE
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_serialise(CryptoFipsEnvelope h) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    return ok_buf(impl->env.serialise());
+#else
+    (void)h;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cryptolib_fips_envelope_free(CryptoFipsEnvelope h) {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    delete static_cast<FipsEnvelopeImpl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_hpke_p256_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len, CryptoBuffer* out_enc) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::HpkeP256::seal(sp(pkR, pkR_len), sp(info, info_len), opt_aad(aad, aad_len), sp(pt, pt_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    return ok_buf(r.value().ct);
+#else
+    (void)pkR; (void)pkR_len; (void)info; (void)info_len; (void)aad; (void)aad_len; (void)pt; (void)pt_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_fips_hpke_p256_open(
+    const uint8_t* enc, size_t enc_len, const uint8_t* skR, size_t skR_len,
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len) try {
+#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::HpkeP256::open(sp(enc, enc_len), sp(skR, skR_len), sp(pkR, pkR_len),
+        sp(info, info_len), opt_aad(aad, aad_len), sp(ct, ct_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)enc; (void)enc_len; (void)skR; (void)skR_len; (void)pkR; (void)pkR_len; (void)info; (void)info_len;
+    (void)aad; (void)aad_len; (void)ct; (void)ct_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Version

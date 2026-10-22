@@ -27,6 +27,7 @@
 #ifdef CRYPTOLIB_HAS_PQ
 
 #include "types.hpp"
+#include "detail/ct.hpp"
 #include <oqs/oqs.h>
 #include <memory>
 #include <string_view>
@@ -127,7 +128,9 @@ public:
 
         SecureBuffer ss(kem->length_shared_secret);
 
-        if (OQS_KEM_decaps(kem.get(), ss.data(), ciphertext.data(), secret_key.data()) != OQS_SUCCESS)
+        const int rc = OQS_KEM_decaps(kem.get(), ss.data(), ciphertext.data(), secret_key.data());
+        detail::ct_declassify(&rc, sizeof rc);
+        if (rc != OQS_SUCCESS)
             return Result<SecureBuffer>::err("ML-KEM: decapsulation failed");
 
         return Result<SecureBuffer>::ok(std::move(ss));

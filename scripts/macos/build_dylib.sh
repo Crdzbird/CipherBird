@@ -17,7 +17,7 @@ OUT="$REPO_ROOT/build/desktop"
 mkdir -p "$OUT"
 log "Linking libcryptolib_c.dylib against the pinned macosx dependency set"
 $(arch_clangxx "$SLICE" arm64) -std=c++20 -O2 -dynamiclib \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_BLS=1 \
+    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 \
     -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 -DCRYPTOLIB_BUILD_SHARED \
     -I "$REPO_ROOT/include" -I "$DEPS/include" \
     -install_name "@rpath/libcryptolib_c.dylib" \

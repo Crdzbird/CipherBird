@@ -1,0 +1,17 @@
+# Valgrind suppressions for the constant-time probe (tests/ct/ct_probe.cpp).
+# Only verdict branches that are public by construction belong here.
+{
+   libsodium xchacha20poly1305 tag verdict
+   Memcheck:Cond
+   fun:crypto_aead_xchacha20poly1305_ietf_decrypt_detached
+}
+{
+   libsodium aes256gcm tag verdict
+   Memcheck:Cond
+   fun:crypto_aead_aes256gcm_decrypt_detached
+}
+{
+   libsodium secretstream tag verdict
+   Memcheck:Cond
+   fun:crypto_secretstream_xchacha20poly1305_pull
+}

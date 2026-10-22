@@ -13,7 +13,7 @@
 
 #include "test_framework.hpp"
 
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
 #include <cryptolib/flagship.hpp>
 #include <cryptolib/suite.hpp>
 #endif
@@ -210,6 +210,7 @@ std::vector<uint8_t> huge_sig_inner() {
 }
 
 // Suite signed envelope: sig_len near 2^32 must not wrap the bounds check.
+#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
 TEST("hardening/suite/huge-sig-len-rejected") {
     auto rk = crypto::pq::HybridKem::generate_keypair();
     auto sk = crypto::pq::HybridSig::generate_keypair();
@@ -277,6 +278,7 @@ TEST("hardening/flagship/huge-sig-len-rejected") {
     CHECK(opened.is_err());
 }
 #endif
+#endif
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_hardening() {
@@ -291,9 +293,15 @@ void run_tests_hardening() {
     RUN("hardening/asym-vault/short-sender-box-key-rejected-by-open");
     RUN("hardening/asym-vault/short-recipient-key-rejected-by-seal");
 #if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
     RUN("hardening/suite/huge-sig-len-rejected");
+#endif
+#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
     RUN("hardening/suite/huge-kem-ct-len-rejected");
+#endif
+#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
     RUN("hardening/flagship/huge-sig-len-rejected");
+#endif
 #endif
 #ifdef CRYPTOLIB_HAS_BLS
     RUN("hardening/bls/duplicate-message-rejected");

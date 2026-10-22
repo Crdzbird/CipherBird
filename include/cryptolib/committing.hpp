@@ -30,6 +30,7 @@
 #include "hash.hpp"        // crypto::hash::HkdfSha256
 #include "symmetric.hpp"   // crypto::symmetric::XChaCha20Poly1305
 
+#include "detail/ct.hpp"
 #include <sodium.h>        // sodium_memcmp (constant-time)
 #include <cstring>
 #include <span>
@@ -86,7 +87,9 @@ public:
         auto k_com = okm.value().span().subspan(32, 32);
 
         // CONST-TIME: commitment check must not branch on secret-dependent data.
-        if (sodium_memcmp(wire.data(), k_com.data(), COMMIT_BYTES) != 0)
+        const int verdict = sodium_memcmp(wire.data(), k_com.data(), COMMIT_BYTES);
+        detail::ct_declassify(&verdict, sizeof verdict);
+        if (verdict != 0)
             return Result<SecureBuffer>::err("CommittingAead: authentication failed");
 
         return XChaCha20Poly1305::decrypt(wire.subspan(COMMIT_BYTES), k_enc, aad);

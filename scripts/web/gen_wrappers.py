@@ -18,6 +18,7 @@ HANDLE_TYPES = {
     'CryptoStreamDecHandle', 'CryptoKeyringHandle', 'CryptoDrbgHandle',
     'CryptoFortunaHandle', 'CryptoBlake3Handle', 'CryptoNoiseHandle',
     'CryptoSealedSealer', 'CryptoSealedOpener', 'CryptoSession', 'CryptoHpkeContext',
+    'CryptoFipsEnvelope',
 }
 
 

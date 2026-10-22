@@ -90,6 +90,7 @@ TEST("types/result/securebuffer-ok") {
     CHECK(r.value().size() == 8);
 }
 
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
 // ─── EncryptedPacket serialise / deserialise ──────────────────────────────────
 
 TEST("types/packet/round-trip") {
@@ -130,6 +131,7 @@ TEST("types/packet/truncated") {
     auto r2 = crypto::EncryptedPacket::deserialise({trunc2, 4});
     CHECK_ERR(r2);
 }
+#endif
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_types() {
@@ -145,6 +147,8 @@ void run_tests_types() {
     RUN("types/result/void-ok");
     RUN("types/result/void-err");
     RUN("types/result/securebuffer-ok");
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     RUN("types/packet/round-trip");
     RUN("types/packet/truncated");
+#endif
 }

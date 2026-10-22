@@ -4,10 +4,12 @@ using namespace test;
 
 static const char* ENTROPY_FILE = "/tmp/test_vault_entropy.ppm";
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 static void ensure_entropy_cover() {
     if (!std::filesystem::exists(ENTROPY_FILE))
         (void)crypto::stego::MediaGenerator::generate_ppm(ENTROPY_FILE, 64, 64);
 }
+#endif
 
 // ─── SecureVault — basic pipeline ─────────────────────────────────────────────
 
@@ -88,6 +90,7 @@ TEST("vault/secure/empty-plaintext") {
 //   (d) different entropy sources produce different ciphertexts (but same plain)
 //   (e) the MediaEntropy convenience overload works identically to span overload
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 TEST("vault/secure/entropy-boost/round-trip-span") {
     // Use a deterministic entropy object so both seal and open derive the same boost
     ensure_entropy_cover();
@@ -223,6 +226,8 @@ TEST("vault/secure/entropy-boost/no-boost-same-as-before") {
 
 // ─── AsymmetricVault — basic pipeline ─────────────────────────────────────────
 
+#endif
+
 TEST("vault/asym/round-trip") {
     using AV   = crypto::AsymmetricVault;
     auto alice = AV::generate_bundle();
@@ -267,6 +272,7 @@ TEST("vault/asym/wrong-recipient-rejected") {
 
 // ─── AsymmetricVault — entropy boost ──────────────────────────────────────────
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 TEST("vault/asym/entropy-boost/round-trip") {
     ensure_entropy_cover();
     auto me_r = crypto::entropy::MediaEntropy::from_file_deterministic(ENTROPY_FILE);
@@ -336,6 +342,8 @@ TEST("vault/asym/entropy-boost/missing-boost-fails") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+#endif
+
 void run_tests_vault() {
     RUN("vault/secure/round-trip");
     RUN("vault/secure/wrong-aad-rejected");
@@ -344,19 +352,37 @@ void run_tests_vault() {
     RUN("vault/secure/packet-serialise-round-trip");
     RUN("vault/secure/empty-plaintext");
     // Entropy boost
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/round-trip-span");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/round-trip-media-entropy-overload");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/missing-boost-fails-open");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/spurious-boost-fails-open");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/changes-ciphertext");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/secure/entropy-boost/no-boost-same-as-before");
+#endif
     // AsymmetricVault
     RUN("vault/asym/round-trip");
     RUN("vault/asym/forge-rejected");
     RUN("vault/asym/wrong-aad-rejected");
     RUN("vault/asym/wrong-recipient-rejected");
     // AsymmetricVault entropy boost
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/asym/entropy-boost/round-trip");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/asym/entropy-boost/media-entropy-overload");
+#endif
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     RUN("vault/asym/entropy-boost/missing-boost-fails");
+#endif
 }

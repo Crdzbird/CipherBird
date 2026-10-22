@@ -12,6 +12,7 @@
  */
 
 #include "types.hpp"
+#include "detail/ct.hpp"
 #include <sodium.h>
 #ifdef CRYPTOLIB_HAS_OPENSSL
 #include <openssl/evp.h>
@@ -83,11 +84,14 @@ public:
         std::size_t    ct_len = ciphertext_with_nonce.size() - NONCE_BYTES;
         SecureBuffer out(ct_len - MAC_BYTES);
         unsigned long long pt_len = 0;
-        if (crypto_aead_xchacha20poly1305_ietf_decrypt(
+        const int verdict = crypto_aead_xchacha20poly1305_ietf_decrypt(
                 out.data(), &pt_len, nullptr,
                 ct, ct_len,
                 aad.empty() ? nullptr : aad.data(), aad.size(),
-                nonce, key.data()) != 0)
+                nonce, key.data());
+        detail::ct_declassify(&verdict, sizeof verdict);
+        detail::ct_declassify(&pt_len, sizeof pt_len);
+        if (verdict != 0)
             return Result<SecureBuffer>::err("XChaCha20: decryption failed (tampered?)");
         out.resize(static_cast<std::size_t>(pt_len));
         return Result<SecureBuffer>::ok(std::move(out));
@@ -169,11 +173,14 @@ public:
         std::size_t    ct_len = ciphertext_with_nonce.size() - NONCE_BYTES;
         SecureBuffer out(ct_len - MAC_BYTES);
         unsigned long long pt_len = 0;
-        if (crypto_aead_aes256gcm_decrypt(
+        const int verdict = crypto_aead_aes256gcm_decrypt(
                 out.data(), &pt_len, nullptr,
                 ct, ct_len,
                 aad.empty() ? nullptr : aad.data(), aad.size(),
-                nonce, key.data()) != 0)
+                nonce, key.data());
+        detail::ct_declassify(&verdict, sizeof verdict);
+        detail::ct_declassify(&pt_len, sizeof pt_len);
+        if (verdict != 0)
             return Result<SecureBuffer>::err("AES-256-GCM: decryption failed (tampered?)");
         out.resize(static_cast<std::size_t>(pt_len));
         return Result<SecureBuffer>::ok(std::move(out));
@@ -354,10 +361,13 @@ public:
             SecureBuffer pt(ciphertext.size() - MAC_BYTES);
             uint8_t tag = 0;
             unsigned long long pt_len = 0;
-            if (crypto_secretstream_xchacha20poly1305_pull(
+            const int verdict = crypto_secretstream_xchacha20poly1305_pull(
                     &st_, pt.data(), &pt_len, &tag,
                     ciphertext.data(), ciphertext.size(),
-                    aad.empty() ? nullptr : aad.data(), aad.size()) != 0)
+                    aad.empty() ? nullptr : aad.data(), aad.size());
+            detail::ct_declassify(&verdict, sizeof verdict);
+            detail::ct_declassify(&pt_len, sizeof pt_len);
+            if (verdict != 0)
                 return Result<PullResult>::err("SecretStream: authentication failed");
             pt.resize(static_cast<std::size_t>(pt_len));
             return Result<PullResult>::ok(PullResult{ std::move(pt), tag });

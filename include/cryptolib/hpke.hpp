@@ -23,6 +23,12 @@
 
 #include "types.hpp"
 #include "hash.hpp"          // HkdfSha256 / HkdfSha512
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#include "xwing.hpp"
+#include "detail/sha3_evp.hpp"
+#include <oqs/oqs.h>
+#endif
+#include <utility>
 #include "asymmetric.hpp"    // X25519
 
 #include <sodium.h>
@@ -46,6 +52,12 @@ public:
     // ── Ciphersuite identifiers (RFC 9180 §7) ─────────────────────────────────
     static constexpr uint16_t KEM_ID = 0x0020;   // DHKEM(X25519, HKDF-SHA256)
 
+    /// The KEM of a suite. DHKEM(X25519) is RFC 9180; ML-KEM-768 and X-Wing are
+    /// draft-ietf-hpke-pq (IANA ids 0x0041 and 0x647A), base and PSK modes
+    /// only, with the 64-byte seed and 32-byte seed decapsulation keys the
+    /// draft specifies. They need liboqs and libcrypto.
+    enum class Kem : uint16_t { DhkemX25519 = 0x0020, MlKem768 = 0x0041, XWing = 0x647A };
+
     enum class Kdf : uint16_t { HkdfSha256 = 0x0001, HkdfSha512 = 0x0003 };
     enum class Aead : uint16_t {
         Aes128Gcm = 0x0001, Aes256Gcm = 0x0002, ChaCha20Poly1305 = 0x0003, ExportOnly = 0xFFFF
@@ -56,6 +68,11 @@ public:
     static constexpr std::size_t NPK = 32, NSK = 32, NENC = 32; // X25519 sizes
 
     struct KeyPair { SecureBuffer public_key; SecureBuffer secret_key; };
+
+    static constexpr std::size_t kem_npk(Kem k) { return k == Kem::MlKem768 ? 1184 : k == Kem::XWing ? 1216 : NPK; }
+    static constexpr std::size_t kem_nsk(Kem k) { return k == Kem::MlKem768 ? 64 : NSK; }
+    static constexpr std::size_t kem_nenc(Kem k) { return k == Kem::MlKem768 ? 1088 : k == Kem::XWing ? 1120 : NENC; }
+    static constexpr bool kem_supports_auth(Kem k) { return k == Kem::DhkemX25519; }
 
     // ── An established HPKE context (one direction) ───────────────────────────
     // Holds the derived AEAD key, base nonce, sequence counter and exporter
@@ -134,6 +151,39 @@ public:
     struct Sealed { PublicBuffer enc; PublicBuffer ct; };
 
     // ── Key generation ────────────────────────────────────────────────────────
+    /// A key pair for [kem]. Post-quantum secret keys are the seeds of
+    /// draft-ietf-hpke-pq: 64 bytes (d || z) for ML-KEM-768, 32 for X-Wing.
+    [[nodiscard]] static Result<KeyPair> generate_keypair(Kem kem) {
+        if (kem == Kem::DhkemX25519) return Result<KeyPair>::ok(generate_keypair());
+        KeyPair kp;
+        kp.secret_key = SecureBuffer(kem_nsk(kem));
+        randombytes_buf(kp.secret_key.data(), kp.secret_key.size());
+        auto pk = pq_public_key(kem, kp.secret_key.span());
+        if (pk.is_err()) return Result<KeyPair>::err(pk.error().message);
+        kp.public_key = std::move(pk.value());
+        return Result<KeyPair>::ok(std::move(kp));
+    }
+
+    /// DeriveKeyPair for [kem]: HKDF for DHKEM, SHAKE256 of the ikm into the
+    /// seed for the post-quantum KEMs (draft-ietf-hpke-pq section 5).
+    [[nodiscard]] static Result<KeyPair> derive_keypair(Kem kem, std::span<const uint8_t> ikm) {
+        if (kem == Kem::DhkemX25519) return derive_keypair(ikm);
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        if (ikm.size() < 32) return Result<KeyPair>::err("HPKE: ikm must be at least 32 bytes");
+        KeyPair kp;
+        kp.secret_key = SecureBuffer(kem_nsk(kem));
+        if (!detail::shake256(ikm, kp.secret_key.data(), kp.secret_key.size()))
+            return Result<KeyPair>::err("HPKE: SHAKE256 failed");
+        auto pk = pq_public_key(kem, kp.secret_key.span());
+        if (pk.is_err()) return Result<KeyPair>::err(pk.error().message);
+        kp.public_key = std::move(pk.value());
+        return Result<KeyPair>::ok(std::move(kp));
+#else
+        (void)ikm;
+        return Result<KeyPair>::err("HPKE: post-quantum KEMs need liboqs and libcrypto");
+#endif
+    }
+
     [[nodiscard]] static KeyPair generate_keypair() {
         KeyPair kp;
         kp.secret_key = SecureBuffer(NSK);
@@ -237,6 +287,49 @@ public:
         return setup_r_impl(mode, kdf, aead, enc, skR, info, psk, psk_id, pkS);
     }
 
+    // ── The same, with the KEM chosen (base and PSK modes for the PQ KEMs) ───
+    [[nodiscard]] static Result<SenderContext>
+    setup_s(Kem kem, Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> pkR,
+            std::span<const uint8_t> info, std::span<const uint8_t> psk = {},
+            std::span<const uint8_t> psk_id = {}) {
+        if (kem == Kem::DhkemX25519) return setup_s_impl(mode, kdf, aead, pkR, info, psk, psk_id, {}, {});
+        if (mode == Mode::Auth || mode == Mode::AuthPsk)
+            return Result<SenderContext>::err("HPKE: this KEM has no AuthEncap");
+        auto e = pq_encap(kem, pkR);
+        if (e.is_err()) return Result<SenderContext>::err(e.error().message);
+        auto ctx = key_schedule(kem, mode, kdf, aead, e.value().first.span(), info, psk, psk_id);
+        if (ctx.is_err()) return Result<SenderContext>::err(ctx.error().message);
+        return Result<SenderContext>::ok(SenderContext{ std::move(e.value().second), std::move(ctx.value()) });
+    }
+    [[nodiscard]] static Result<Context>
+    setup_r(Kem kem, Mode mode, Kdf kdf, Aead aead, std::span<const uint8_t> enc,
+            std::span<const uint8_t> skR, std::span<const uint8_t> info,
+            std::span<const uint8_t> psk = {}, std::span<const uint8_t> psk_id = {}) {
+        if (kem == Kem::DhkemX25519) return setup_r_impl(mode, kdf, aead, enc, skR, info, psk, psk_id, {});
+        if (mode == Mode::Auth || mode == Mode::AuthPsk)
+            return Result<Context>::err("HPKE: this KEM has no AuthDecap");
+        auto shared = pq_decap(kem, enc, skR);
+        if (shared.is_err()) return Result<Context>::err(shared.error().message);
+        return key_schedule(kem, mode, kdf, aead, shared.value().span(), info, psk, psk_id);
+    }
+    [[nodiscard]] static Result<Sealed>
+    seal_base(Kem kem, Kdf kdf, Aead aead, std::span<const uint8_t> pkR, std::span<const uint8_t> info,
+              std::span<const uint8_t> aad, std::span<const uint8_t> pt) {
+        auto s = setup_s(kem, Mode::Base, kdf, aead, pkR, info);
+        if (s.is_err()) return Result<Sealed>::err(s.error().message);
+        auto ct = s.value().ctx.seal(aad, pt);
+        if (ct.is_err()) return Result<Sealed>::err(ct.error().message);
+        const auto& enc = s.value().enc;
+        return Result<Sealed>::ok(Sealed{ PublicBuffer(enc.data(), enc.size()), std::move(ct.value()) });
+    }
+    [[nodiscard]] static Result<SecureBuffer>
+    open_base(Kem kem, Kdf kdf, Aead aead, std::span<const uint8_t> enc, std::span<const uint8_t> skR,
+              std::span<const uint8_t> info, std::span<const uint8_t> aad, std::span<const uint8_t> ct) {
+        auto r = setup_r(kem, Mode::Base, kdf, aead, enc, skR, info);
+        if (r.is_err()) return Result<SecureBuffer>::err(r.error().message);
+        return r.value().open(aad, ct);
+    }
+
 #ifdef CRYPTOLIB_TESTING
     // ── Deterministic setup (test vectors): caller supplies the ephemeral sk ──
     // Test builds only: a caller-chosen ephemeral key has no place in
@@ -262,16 +355,77 @@ private:
         return { reinterpret_cast<const uint8_t*>(s.data()), s.size() };
     }
 
-    static std::vector<uint8_t> kem_suite_id() {
-        return { 'K', 'E', 'M', static_cast<uint8_t>(KEM_ID >> 8), static_cast<uint8_t>(KEM_ID & 0xff) };
+    static std::vector<uint8_t> kem_suite_id() { return kem_suite_id(Kem::DhkemX25519); }
+    static std::vector<uint8_t> kem_suite_id(Kem kem) {
+        auto id = static_cast<uint16_t>(kem);
+        return { 'K', 'E', 'M', static_cast<uint8_t>(id >> 8), static_cast<uint8_t>(id & 0xff) };
     }
-    static std::vector<uint8_t> hpke_suite_id(Kdf kdf, Aead aead) {
+    static std::vector<uint8_t> hpke_suite_id(Kdf kdf, Aead aead) { return hpke_suite_id(Kem::DhkemX25519, kdf, aead); }
+    static std::vector<uint8_t> hpke_suite_id(Kem kem, Kdf kdf, Aead aead) {
+        auto id = static_cast<uint16_t>(kem);
         auto k = static_cast<uint16_t>(kdf);
         auto a = static_cast<uint16_t>(aead);
         return { 'H', 'P', 'K', 'E',
-                 static_cast<uint8_t>(KEM_ID >> 8), static_cast<uint8_t>(KEM_ID & 0xff),
+                 static_cast<uint8_t>(id >> 8), static_cast<uint8_t>(id & 0xff),
                  static_cast<uint8_t>(k >> 8), static_cast<uint8_t>(k & 0xff),
                  static_cast<uint8_t>(a >> 8), static_cast<uint8_t>(a & 0xff) };
+    }
+
+    // ── Post-quantum KEM plumbing (draft-ietf-hpke-pq) ────────────────────────
+    static Result<SecureBuffer> pq_public_key(Kem kem, std::span<const uint8_t> sk) {
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        if (kem == Kem::XWing) {
+            auto kp = pq::XWing::keypair_from_seed(sk);
+            if (kp.is_err()) return Result<SecureBuffer>::err(kp.error().message);
+            return Result<SecureBuffer>::ok(std::move(kp.value().public_key));
+        }
+        if (kem == Kem::MlKem768) {
+            if (sk.size() != 64) return Result<SecureBuffer>::err("HPKE: ML-KEM-768 secret key must be the 64-byte seed");
+            SecureBuffer pk(1184), full(OQS_KEM_ml_kem_768_length_secret_key);
+            if (OQS_KEM_ml_kem_768_keypair_derand(pk.data(), full.data(), sk.data()) != OQS_SUCCESS)
+                return Result<SecureBuffer>::err("HPKE: ML-KEM-768 key generation failed");
+            return Result<SecureBuffer>::ok(std::move(pk));
+        }
+#endif
+        (void)kem; (void)sk;
+        return Result<SecureBuffer>::err("HPKE: unsupported KEM");
+    }
+    // (shared_secret, enc)
+    static Result<std::pair<SecureBuffer, SecureBuffer>> pq_encap(Kem kem, std::span<const uint8_t> pkR) {
+        using R = Result<std::pair<SecureBuffer, SecureBuffer>>;
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        if (kem == Kem::XWing) {
+            auto e = pq::XWing::encapsulate(pkR);
+            if (e.is_err()) return R::err(e.error().message);
+            return R::ok({ std::move(e.value().shared_secret), std::move(e.value().ciphertext) });
+        }
+        if (kem == Kem::MlKem768) {
+            if (pkR.size() != 1184) return R::err("HPKE: ML-KEM-768 public key must be 1184 bytes");
+            SecureBuffer ct(1088), ss(32);
+            if (OQS_KEM_ml_kem_768_encaps(ct.data(), ss.data(), pkR.data()) != OQS_SUCCESS)
+                return R::err("HPKE: ML-KEM-768 encapsulation failed");
+            return R::ok({ std::move(ss), std::move(ct) });
+        }
+#endif
+        (void)kem; (void)pkR;
+        return R::err("HPKE: unsupported KEM");
+    }
+    static Result<SecureBuffer> pq_decap(Kem kem, std::span<const uint8_t> enc, std::span<const uint8_t> skR) {
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        if (kem == Kem::XWing) return pq::XWing::decapsulate(enc, skR);
+        if (kem == Kem::MlKem768) {
+            if (skR.size() != 64) return Result<SecureBuffer>::err("HPKE: ML-KEM-768 secret key must be the 64-byte seed");
+            if (enc.size() != 1088) return Result<SecureBuffer>::err("HPKE: ML-KEM-768 ciphertext must be 1088 bytes");
+            SecureBuffer pk(1184), full(OQS_KEM_ml_kem_768_length_secret_key), ss(32);
+            if (OQS_KEM_ml_kem_768_keypair_derand(pk.data(), full.data(), skR.data()) != OQS_SUCCESS)
+                return Result<SecureBuffer>::err("HPKE: ML-KEM-768 key generation failed");
+            if (OQS_KEM_ml_kem_768_decaps(ss.data(), enc.data(), full.data()) != OQS_SUCCESS)
+                return Result<SecureBuffer>::err("HPKE: ML-KEM-768 decapsulation failed");
+            return Result<SecureBuffer>::ok(std::move(ss));
+        }
+#endif
+        (void)kem; (void)enc; (void)skR;
+        return Result<SecureBuffer>::err("HPKE: unsupported KEM");
     }
 
     // ── HKDF dispatch on the chosen KDF ───────────────────────────────────────
@@ -375,6 +529,13 @@ private:
                                         std::span<const uint8_t> info,
                                         std::span<const uint8_t> psk,
                                         std::span<const uint8_t> psk_id) {
+        return key_schedule(Kem::DhkemX25519, mode, kdf, aead, shared_secret, info, psk, psk_id);
+    }
+    static Result<Context> key_schedule(Kem kem, Mode mode, Kdf kdf, Aead aead,
+                                        std::span<const uint8_t> shared_secret,
+                                        std::span<const uint8_t> info,
+                                        std::span<const uint8_t> psk,
+                                        std::span<const uint8_t> psk_id) {
         // VerifyPSKInputs: PSK and PSK-id must be jointly present or absent.
         bool got_psk = !psk.empty(), got_id = !psk_id.empty();
         if (got_psk != got_id)
@@ -383,7 +544,7 @@ private:
         if (mode_needs_psk != got_psk)
             return Result<Context>::err("HPKE: PSK presence does not match the mode");
 
-        auto suite_id = hpke_suite_id(kdf, aead);
+        auto suite_id = hpke_suite_id(kem, kdf, aead);
         auto psk_id_hash = labeled_extract(kdf, suite_id, {}, "psk_id_hash", psk_id);
         auto info_hash   = labeled_extract(kdf, suite_id, {}, "info_hash", info);
 

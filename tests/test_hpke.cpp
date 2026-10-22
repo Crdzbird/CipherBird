@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <utility>
 
 using crypto::Hpke;
 
@@ -304,6 +305,54 @@ TEST("hpke/e2e/auth-multi-message") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+TEST("hpke/pq/ml-kem-768-and-x-wing-round-trip") {
+    for (auto kem : { Hpke::Kem::MlKem768, Hpke::Kem::XWing }) {
+        auto bob = Hpke::generate_keypair(kem);
+        REQUIRE(bob.is_ok());
+        CHECK(bob.value().public_key.size() == Hpke::kem_npk(kem));
+        CHECK(bob.value().secret_key.size() == Hpke::kem_nsk(kem));
+        auto info = unhex("6170702d696e666f");
+        auto aad  = unhex("6d657461");
+        auto pt   = unhex("746f702d736563726574206d657373616765");
+        auto sealed = Hpke::seal_base(kem, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
+            bob.value().public_key.span(), sp(info), sp(aad), sp(pt));
+        REQUIRE(sealed.is_ok());
+        CHECK(sealed.value().enc.size() == Hpke::kem_nenc(kem));
+        auto opened = Hpke::open_base(kem, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
+            sealed.value().enc.span(), bob.value().secret_key.span(), sp(info), sp(aad), sealed.value().ct.span());
+        REQUIRE(opened.is_ok());
+        CHECK(vec(opened.value()) == pt);
+        auto tampered = vec(sealed.value().enc);
+        tampered[tampered.size() - 1] ^= 0x01;
+        CHECK(Hpke::open_base(kem, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
+            sp(tampered), bob.value().secret_key.span(), sp(info), sp(aad), sealed.value().ct.span()).is_err());
+        auto other = Hpke::generate_keypair(kem);
+        CHECK(Hpke::open_base(kem, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
+            sealed.value().enc.span(), other.value().secret_key.span(), sp(info), sp(aad), sealed.value().ct.span()).is_err());
+        CHECK(!Hpke::kem_supports_auth(kem));
+    }
+}
+
+TEST("hpke/pq/derive-keypair-deterministic-and-kem-ids-distinct") {
+    auto ikm = unhex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+    for (auto kem : { Hpke::Kem::MlKem768, Hpke::Kem::XWing }) {
+        auto a = Hpke::derive_keypair(kem, sp(ikm));
+        auto b = Hpke::derive_keypair(kem, sp(ikm));
+        REQUIRE(a.is_ok()); REQUIRE(b.is_ok());
+        CHECK(vec(a.value().public_key) == vec(b.value().public_key));
+        CHECK(vec(a.value().secret_key) == vec(b.value().secret_key));
+    }
+    CHECK(static_cast<uint16_t>(Hpke::Kem::DhkemX25519) == 0x0020);
+    CHECK(static_cast<uint16_t>(Hpke::Kem::MlKem768) == 0x0041);
+    CHECK(static_cast<uint16_t>(Hpke::Kem::XWing) == 0x647A);
+    auto xw = std::move(Hpke::generate_keypair(Hpke::Kem::XWing).value());
+    CHECK(Hpke::seal_base(Hpke::Kem::MlKem768, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
+        xw.public_key.span(), {}, {}, sp(ikm)).is_err());
+}
+#endif
+
 void run_tests_hpke() {
     RUN("hpke/kat/base-chacha20");
     RUN("hpke/kat/base-hkdf-sha512");
@@ -316,4 +365,8 @@ void run_tests_hpke() {
 #endif
     RUN("hpke/e2e/base-single-shot");
     RUN("hpke/e2e/auth-multi-message");
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+    RUN("hpke/pq/ml-kem-768-and-x-wing-round-trip");
+    RUN("hpke/pq/derive-keypair-deterministic-and-kem-ids-distinct");
+#endif
 }

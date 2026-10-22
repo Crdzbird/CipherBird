@@ -140,9 +140,9 @@ public:
         }
     }
 
-#ifdef CRYPTOLIB_TESTING
-    /// Test builds only: a secret rendered as text leaves an unwiped copy
-    /// in a std::string, so production code has no such helper.
+#if defined(CRYPTOLIB_TESTING) || defined(CRYPTOLIB_ALLOW_SECRET_TEXT)
+    /// Test builds and demos only: a secret rendered as text leaves an
+    /// unwiped copy in a std::string, so production code has no such helper.
     [[nodiscard]] std::string to_hex() const { return hex_encode(data_); }
 
     [[nodiscard]] std::string to_string() const {
