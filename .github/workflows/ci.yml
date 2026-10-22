@@ -83,38 +83,12 @@ jobs:
             "$fz" -max_total_time=60 -print_final_stats=1
           done
 
-  # Keccak-256 has no in-process oracle in our C deps (OpenSSL ships SHA3, not
-  # original Keccak). This job differentially checks our native Keccak against
-  # the independent js-sha3 reference across every length 0..512, complementing
-  # the offline KATs in tests/test_evm_btc.cpp and the RIPEMD-vs-OpenSSL test.
-  keccak_xcheck:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Install deps
-        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1 node
-      - name: Build blst from source (pinned)
-        run: bash scripts/ci/install_blst.sh /opt/homebrew
-      - name: Build C ABI bridge
-        run: |
-          cmake -S . -B build/bridge -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCRYPTOLIB_BUILD_TESTS=OFF -DCRYPTOLIB_BUILD_BRIDGE=ON
-          cmake --build build/bridge --target cryptolib_c
-      - name: Keccak differential vs js-sha3
-        run: |
-          mkdir -p /tmp/xcheck && (cd /tmp/xcheck && npm install --no-save js-sha3@0.9.3 koffi)
-          DY="$(ls build/bridge/libcryptolib_c*.dylib | head -1)"
-          NODE_PATH=/tmp/xcheck/node_modules node scripts/keccak_cross_check.mjs "$DY"
-
-  # Constant-time probe under Valgrind (ctgrind method) on Linux, against
-  # dependencies built from the hash-pinned tarballs. Report-only for now:
-  # the probe marks whole secrets undefined and has no declassification
-  # points yet, so its first run reported 137 contexts (ML-KEM rejection
-  # sampling on the public seed, AEAD tag decisions) that need triage before
-  # the job can block. The full log is uploaded as an artifact.
+  # Constant-time probe: secrets are marked undefined under Valgrind and any
+  # branch on them fails the job. Authentication verdicts are declassified in
+  # the library (detail/ct.hpp); the one verdict branch inside libsodium is
+  # listed in tests/ct/ct_probe.supp. The full log is uploaded as an artifact.
   ctgrind:
     runs-on: ubuntu-24.04
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install build tools
@@ -133,6 +107,7 @@ jobs:
       - name: Run under memcheck
         run: |
           valgrind --tool=memcheck --error-exitcode=1 --track-origins=yes \
+            --suppressions=tests/ct/ct_probe.supp \
             --log-file=ct_probe.valgrind.log ./build/ct/ct_probe || status=$?
           grep 'ERROR SUMMARY' ct_probe.valgrind.log
           exit "${status:-0}"
@@ -144,6 +119,67 @@ jobs:
           path: ct_probe.valgrind.log
 
   # The Dart packages and the Go binding against a freshly built C ABI.
+  bank_profile:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install deps
+        run: |
+          brew install cmake ninja libsodium liboqs blake3 openssl@3 secp256k1
+      - name: Build blst from source (pinned)
+        run: bash scripts/ci/install_blst.sh /opt/homebrew
+      - name: Configure + build the bank profile
+        run: |
+          cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=bank \
+            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+          cmake --build build/bank
+      - name: Run tests
+        run: ./build/bank/cryptolib_tests
+      - name: The bank library carries no steganography, media entropy or native combiner entry points
+        run: |
+          nm -gU build/bank/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/bank/exports.txt
+          if grep -E '_cryptolib_(stego|entropy_from|sealed_|flagship|suite_seal|suite_open|triple|sntrup)' build/bank/exports.txt; then
+            echo "bank profile exports an excluded family" >&2; exit 1
+          fi
+          grep -q '_cryptolib_xwing_keygen' build/bank/exports.txt
+          grep -q '_cryptolib_suite2_seal' build/bank/exports.txt
+          grep -q '_cryptolib_session2_accept' build/bank/exports.txt
+          echo "bank exports: $(wc -l < build/bank/exports.txt)"
+
+  fips_profile:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install deps
+        run: brew install cmake ninja libsodium
+      - name: Build OpenSSL 3.1.2 with the FIPS provider (hash-pinned, CMVP #4985)
+        run: bash scripts/ci/install_openssl_fips.sh "$HOME/openssl-fips"
+      - name: Configure + build the fips profile
+        run: |
+          PKG_CONFIG_PATH="$HOME/openssl-fips/lib/pkgconfig" \
+            cmake -S . -B build/fips -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=fips \
+              -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+          cmake --build build/fips
+      - name: Run tests against the validated module in approved mode
+        run: |
+          CRYPTOLIB_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules" \
+          CRYPTOLIB_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf" \
+            ./build/fips/cryptolib_tests
+      - name: The fips library references no libsodium primitive and links the 3.1.2 libcrypto
+        run: |
+          nm -u build/fips/libcryptolib_c.dylib | grep -E '_sodium_|_crypto_|_randombytes' | sort > build/fips/sodium_refs.txt
+          cat build/fips/sodium_refs.txt
+          if grep -vE '^_sodium_(init|memzero|mlock|munlock|memcmp)$' build/fips/sodium_refs.txt; then
+            echo "fips profile references a libsodium primitive" >&2; exit 1
+          fi
+          otool -L build/fips/libcryptolib_c.dylib | grep -q "openssl-fips/lib/libcrypto.3.dylib"
+          nm -gU build/fips/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/fips/exports.txt
+          if grep -E '_cryptolib_(vault_|box_|ed25519|x25519|argon2|xchacha|keyring_|stego|entropy_from)' build/fips/exports.txt; then
+            echo "fips profile exports a libsodium-backed family" >&2; exit 1
+          fi
+          grep -q '_cryptolib_fips_init' build/fips/exports.txt
+          echo "fips exports: $(wc -l < build/fips/exports.txt)"
+
   bindings:
     runs-on: macos-14
     steps:

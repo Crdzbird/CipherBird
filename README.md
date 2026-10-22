@@ -282,7 +282,7 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test) |
 | Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
-| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCRYPTOLIB_CT_VALGRIND=ON`, run manually on Linux; no CI job yet) |
+| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCRYPTOLIB_CT_VALGRIND=ON`); the Linux `ctgrind` CI job blocks on any secret-dependent branch |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |
 | Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model section 8) |
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
@@ -294,9 +294,27 @@ The full threat model, assets, AI-assisted adversary, security arguments for
 the original compositions (Vault, Keyring, hybrid KEM combiner, committing
 AEAD), zeroization audit, lives in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
-**Pending before regulated production:** an external audit of the original
-compositions, and FIPS 140-3 validation if your deployment requires it. The
-primitives themselves come from vetted upstreams.
+**Build profiles.** `-DCRYPTOLIB_PROFILE=full` (default) builds everything.
+`bank` drops steganography, media entropy and the library-native combiners
+and makes X-Wing, HPKE with ML-KEM and the v2 envelopes (Suite v2, Session
+v2) the defaults; it is the audit target in [`docs/AUDIT_SCOPE.md`](docs/AUDIT_SCOPE.md).
+`fips` compiles only operations the OpenSSL FIPS Provider (CMVP #4985,
+OpenSSL 3.1.2) performs in approved mode and references no libsodium
+primitive; see the `bank_profile` and `fips_profile` CI jobs.
+
+**Validated modules on devices.** `package:cipherbird/cipherbird_fips.dart`
+(`DeviceFips`) performs the approved operations (SHA-2, HMAC, HKDF, PBKDF2,
+DRBG, AES-256-GCM, P-256) inside the module the platform already validated:
+Apple corecrypto behind CryptoKit on iOS and macOS, the Android platform
+providers on Android, and the OpenSSL FIPS Provider when the engine is the
+fips profile. The web build is approved for ephemeral data only and
+`CipherBird.requireApprovedFor` enforces it.
+
+**Pending before regulated production:** the external audit scoped in
+`docs/AUDIT_SCOPE.md` has to be performed by an independent reviewer; every
+control that repository can hold (signed commits and tags, code-owner
+review, blocking constant-time job, validated-module routing) is in place.
+The primitives themselves come from vetted upstreams.
 
 > **Standard warranty disclaimer applies.** The software is provided **as is**,
 > without warranty of any kind. Cryptography is high-stakes; deployments are
@@ -487,7 +505,7 @@ vendored merged static archive (see `PUBLISHING.md`).
 # Native dependencies (macOS)
 brew install cmake ninja libsodium liboqs blake3 openssl@3
 
-# Build + run the C++ test suite (500 cases, ASan and UBSan clean)
+# Build + run the C++ test suite (526 cases, ASan and UBSan clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
 cmake --build build/test --target cryptolib_tests

@@ -1,0 +1,11 @@
+# Every change needs a review from a code owner before it merges to main.
+# The cryptographic core, the C ABI and the release machinery are owned by
+# the maintainers listed here; add the second reviewer's account on the same
+# line once it exists so GitHub requires their approval.
+*                       @Crdzbird
+/include/cryptolib/     @Crdzbird
+/bridge/                @Crdzbird
+/scripts/release/       @Crdzbird
+/.github/workflows/     @Crdzbird
+/docs/AUDIT_SCOPE.md    @Crdzbird
+/docs/THREAT_MODEL.md   @Crdzbird

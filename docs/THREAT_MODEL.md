@@ -187,3 +187,92 @@ Reviewed every secret-bearing intermediate in the core constructions:
 
 Finding: no plaintext-secret survives its scope. Re-run this audit when new
 secret-handling code lands.
+
+## 9. Mobile banking deployments (assessment r2, M9)
+
+A banking app runs the library on a device the bank does not control. This
+section names the attacks that matter there, says which the library resists,
+which it only narrows, and which belong to the application or the platform.
+The adversary model of section 3 still applies; everything here is in
+addition to it.
+
+### 9.1 Hostile device
+
+The phone may be rooted or jailbroken, run a repackaged copy of the app, or
+carry a malicious accessibility service or overlay.
+
+| Attack | Library control | What the application must add |
+|---|---|---|
+| Key material read from the app sandbox at rest | `Keyring` hardware slots wrap the master secret under a Secure Enclave or StrongBox key (`HardwareKey` in cipherbird); the stored blob is useless without that device | Pin the hardware slot as the only unlock path on enrolled devices; keep passphrase slots for recovery only |
+| Repackaged or modified app binary | iOS App Attest assertion over the hardware key (`HardwareKey.attest`) lets the server tie a key to a genuine app on a genuine device; on Android the Play Integrity verdict plays the same role (not a library feature) | Verify attestations server side before trusting a device key |
+| Modified native library | The Flutter plugin verifies the bundled engine's hash before loading it (`engine_integrity.dart`); every release engine is built and attested on CI | Ship the attested engines unchanged; verify the release signature on download |
+| Fake server or fake recipient | Suite v2 signatures bind the recipient KEM key, the KEM ciphertext and the AAD, so a sealed message cannot be re-addressed; Session v2 verifies a signed prekey and the initiator identity before any key is derived | Pin the bank's identity keys (certificate or directory); never accept an unpinned identity from the wire |
+
+### 9.2 Memory dumps
+
+An attacker with a debugger, a process dump, or a cold device image reads the
+app's memory.
+
+- Secrets live in `SecureBuffer` (locked with `sodium_mlock` where the OS
+  allows it, wiped on destruction) and the C ABI wipes every secret buffer
+  before freeing it; the Dart edge wipes its copies (`SecretBytes`, byte
+  passphrases) as soon as the native call returns. Section 8 is the audit.
+- What the library cannot do: keep a secret out of memory while it is in use.
+  A debugger attached during a transaction sees the session key. Hardware
+  keyring slots and hardware-backed signing keys reduce the exposure to the
+  one derived secret in use, never the long-term key.
+- `String` passphrases in Dart are immutable and garbage collected; the
+  byte-passphrase APIs exist so the application can wipe them. Use them.
+
+### 9.3 Hooking and instrumentation
+
+Frida, Xposed, substrate hooks, or a patched runtime intercept calls at the
+Dart, FFI, or native layer.
+
+- The library has no anti-hooking defence and does not claim one; a hook on
+  `cryptolib_vault_open` sees the plaintext. Detection and response belong to
+  the application's runtime protection and to the platform attestation above.
+- The controls that survive a hooked client are the ones that move trust
+  off the device: hardware-attested keys (the hook cannot export the key),
+  server-side verification of attestations and signatures, and short-lived
+  session keys (Session v2 forward secrecy limits what one captured key
+  reveals).
+- A hooked client that lies about `HardwareBacking` is caught by the server
+  only through attestation, never by a client-side flag. Treat
+  `HardwareBacking.software` and any unattested device as untrusted.
+
+### 9.4 Profile guidance
+
+- Build the `bank` profile (`-DCRYPTOLIB_PROFILE=bank`): no steganography,
+  no media entropy, no library-native combiners; X-Wing and HPKE with ML-KEM
+  are the defaults and Suite v2 and Session v2 the envelopes.
+- Where the regulator requires validated cryptography, the `fips` profile
+  routes every operation through the OpenSSL FIPS Provider on servers, and
+  `DeviceFips` (package `cipherbird_fips.dart`) routes the same operations
+  through the platform module on devices: Apple corecrypto behind CryptoKit
+  on iOS and macOS, the Android platform providers (Conscrypt, BoringCrypto)
+  on Android. `DeviceFips.module()` reports what served each call, so an app
+  can refuse a device whose provider is not the validated one (see
+  `docs/AUDIT_SCOPE.md` for the certificate numbers and the exact boundary).
+- Regardless of profile: Argon2id cost is capped by the library, so a hostile
+  envelope cannot force the app to allocate gigabytes; headers are parsed
+  with explicit bounds; and every failure is reported as a single
+  "authentication failed" to deny oracles.
+
+### 9.5 Web approval boundary (assessment r2, M3)
+
+In a browser the engine's linear memory is readable by every script on the
+page, the worker cannot wipe JavaScript strings, and there is no platform
+key module. The byte-passphrase APIs, the zeroing allocator and the worker
+wipe (Phase 2) shrink the exposure; they cannot remove it. The approval
+boundary is therefore explicit and enforced:
+
+- The web build is approved for `ProtectedDataClass.ephemeral` only:
+  session keys and payloads that live for one exchange.
+- `CipherBird.approvedFor(ProtectedDataClass)` answers the question at run
+  time and `requireApprovedFor` throws on a web build asked to protect
+  `longLivedKeys` or `cardData`. Call it once at startup with the most
+  sensitive class the app handles, so a web build of a banking app fails
+  closed instead of storing a keyring in a browser.
+- Long-lived keys and cardholder data stay on native builds, where
+  `HardwareKey` and `DeviceFips` are available.
