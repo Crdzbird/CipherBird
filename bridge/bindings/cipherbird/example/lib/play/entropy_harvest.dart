@@ -1,18 +1,10 @@
 part of 'entropy_playground.dart';
 
 extension on EntropyPlayground {
-  String get _ext => _source.picked('tone WAV') ? 'wav' : 'ppm';
   String get _name => 'source.$_ext';
   String get _path => _files.path(_name);
   String get _otherPath => _files.path('other.ppm');
   bool get _deterministic => _mode.value.startsWith('deterministic');
-
-  Uint8List _sourceBytes() => switch (_source.value) {
-    'photo PPM' => photoPpm(256),
-    'flat colour PPM (weak)' => flatPpm(256),
-    'noise PPM' => noisePpm(256),
-    _ => toneWav(4),
-  };
 
   /// A harvest under the policy the fields describe; the caller frees it.
   dynamic _harvest(String path) => _lib.entropyFromFileWithPolicy(
@@ -35,7 +27,7 @@ extension on EntropyPlayground {
     final bytes = _sourceBytes();
     _files.write(_name, bytes);
     _files.write('other.ppm', photoPpm(256, seed: 7));
-    _picture.image.value = _ext == 'ppm' ? await ppmImage(bytes) : null;
+    _picture.image.value = await previewImage(bytes, _ext);
     say('source ${_source.value}: ${bytes.length} bytes');
     await assess();
   });

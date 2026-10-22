@@ -12,7 +12,7 @@ this platform (grey, with the reason).
 | Envelopes | Suite v2 seal and open, re-addressing rejected, Session v2 handshake and ratchet, an unexpected initiator refused |
 | Hardware keys | Secure Enclave or Android Keystore key, wrap and unwrap, a keyring hardware slot, attestation |
 | Validated module | DeviceFips through Apple corecrypto or the Android providers: SHA-256, HMAC, HKDF and PBKDF2 against their RFC vectors, AES-256-GCM, P-256 |
-| Play | interactive playgrounds: type your own input, press the buttons, read the log. Hashes and MACs, symmetric encryption with a bit flip, signatures, HPKE with a chosen KEM, Suite v2 with Bob and Carol, a Session v2 chat with Mallory, steganography (a generated photo or sound as the carrier, seven ways to hide a secret including a custom recipe pipeline, wrong-key and damaged-file reveals, inspection and detection), LavaRand media entropy (health report, policy-gated harvest, derived keys, DRBG and Fortuna seeding, file-keyed seals and recipes), hardware keys, the validated module |
+| Play | interactive playgrounds: type your own input, press the buttons, read the log. Hashes and MACs, symmetric encryption with a bit flip, signatures, HPKE with a chosen KEM, Suite v2 with Bob and Carol, a Session v2 chat with Mallory, steganography (a generated photo or sound, or any image, sound or video picked from the device, as the carrier, seven ways to hide a secret including a custom recipe pipeline, wrong-key and damaged-file reveals, inspection and detection), LavaRand media entropy (any file picked from the device or a generated source, health report, policy-gated harvest, derived keys, DRBG and Fortuna seeding, file-keyed seals and recipes), hardware keys, the validated module |
 
 Run it:
 

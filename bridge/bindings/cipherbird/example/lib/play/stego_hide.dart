@@ -1,7 +1,6 @@
 part of 'stego_playground.dart';
 
 extension on StegoPlayground {
-  String get _ext => _carrier.value.contains('WAV') ? 'wav' : 'ppm';
   String get _coverName => 'cover.$_ext';
   String get _hiddenName => 'hidden.$_ext';
   String get _coverPath => _files.path(_coverName);
@@ -11,16 +10,8 @@ extension on StegoPlayground {
   Uint8List get _keyBytes => bytesOfHex(_key.text);
   Uint8List get _aadBytes => ascii(_aad.text);
 
-  Uint8List _carrierBytes() => switch (_carrier.value) {
-    'photo 512x512 PPM' => photoPpm(512),
-    'photo 1024x1024 PPM' => photoPpm(1024),
-    'photo 256x256 PPM' => photoPpm(256),
-    'tone 10 s WAV' => toneWav(10),
-    _ => toneWav(2),
-  };
-
   Future<void> _show(PlayPicture p, String name) async {
-    p.image.value = _ext == 'ppm' ? await ppmImage(_files.read(name)) : null;
+    p.image.value = await previewImage(_files.read(name), _ext);
   }
 
   Future<void> newCarrier() => attemptWithFiles('new carrier', () async {

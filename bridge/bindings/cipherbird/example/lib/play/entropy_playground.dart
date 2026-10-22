@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird_example/play/media/carrier_audio.dart';
 import 'package:cipherbird_example/play/media/carrier_images.dart';
+import 'package:cipherbird_example/play/media/file_pick.dart';
+import 'package:cipherbird_example/play/media/picked_media.dart';
 import 'package:cipherbird_example/play/play_action.dart';
 import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
@@ -13,6 +15,7 @@ import 'package:cipherbird_example/play/recipe_options.dart';
 import 'package:cipherbird_example/util/bytes.dart';
 
 part 'entropy_harvest.dart';
+part 'entropy_pick.dart';
 part 'entropy_use.dart';
 
 /// Turn a photo or a sound into keys: judge the source first, harvest it
@@ -23,12 +26,14 @@ final class EntropyPlayground extends Playground {
   final CipherBird _lib;
   final RecipeOptions _recipe;
   late final PlayFiles _files = PlayFiles('entropy');
+  PickedMedia? _picked;
 
   final _source = PlayChoice('Source', [
     'photo PPM',
     'flat colour PPM (weak)',
     'noise PPM',
     'tone WAV',
+    'picked file',
   ]);
   final _mode = PlayChoice('Harvest', [
     'fresh (LavaRand: the file mixed with system randomness)',
@@ -51,7 +56,8 @@ final class EntropyPlayground extends Playground {
 
   @override
   String get blurb =>
-      'Make a source, read its health report, harvest it under the policy '
+      'Make a source or pick any file on this device, read its health '
+      'report, harvest it under the policy '
       'you set (lower the floor or drop the test to accept the flat image), '
       'then use what came out: derived keys, a DRBG, Fortuna, a file-keyed '
       'seal and a custom recipe keyed by the file.';
@@ -67,6 +73,7 @@ final class EntropyPlayground extends Playground {
 
   @override
   List<PlayAction> get actions => [
+    PlayAction('Pick a file', pickFile),
     PlayAction('New source', newSource),
     PlayAction('Assess health', assess),
     PlayAction('Harvest', harvest),

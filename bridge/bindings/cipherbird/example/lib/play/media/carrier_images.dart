@@ -48,6 +48,23 @@ Uint8List noisePpm(int size, {int seed = 11}) {
   );
 }
 
+/// An image for display when [bytes] are a PPM or a format the platform
+/// decodes (PNG, JPEG, GIF, BMP, WebP); null for sounds and other files.
+Future<ui.Image?> previewImage(Uint8List bytes, String extension) async {
+  if (extension == 'ppm') {
+    return ppmImage(bytes);
+  }
+  if (!const {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}.contains(extension)) {
+    return null;
+  }
+  try {
+    final codec = await ui.instantiateImageCodec(bytes);
+    return (await codec.getNextFrame()).image;
+  } on Object {
+    return null;
+  }
+}
+
 /// Decodes a binary PPM into an image for display.
 Future<ui.Image> ppmImage(Uint8List ppm) {
   final tokens = <String>[];

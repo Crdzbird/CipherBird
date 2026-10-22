@@ -20,14 +20,16 @@
   the FLAC reader). Every image carrier now caps at 67 million pixels and
   the PNG and JPEG readers validate the declared size before decoding.
 - The example app's Play tab gains two playgrounds. Steganography generates
-  a photo or a sound, hides a secret seven ways (plain, keyed placement,
+  a photo or a sound, or takes any image, sound or video picked from the
+  device, hides a secret seven ways (plain, keyed placement,
   encrypted, physical seal, HPKE, image factor, or a recipe whose profile,
   layers, error correction, signature and key source are each a pick),
   shows the carrier before and after, reveals with the right and the wrong
   key, inspects, runs detection and damages the file. LavaRand reads a
   source's health report, harvests it under the policy the developer sets,
   derives keys, seeds a DRBG and Fortuna, and seals with the file directly
-  or through a recipe keyed by it.
+  or through a recipe keyed by it. Both take any file the system picker
+  offers.
 
 ## 1.2.0
 

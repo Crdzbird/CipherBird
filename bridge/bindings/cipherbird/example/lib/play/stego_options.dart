@@ -5,6 +5,7 @@ const stegoCarriers = [
   'photo 256x256 PPM',
   'tone 10 s WAV',
   'tone 2 s WAV',
+  'picked file',
 ];
 
 /// The ways the steganography playground can hide a secret.
