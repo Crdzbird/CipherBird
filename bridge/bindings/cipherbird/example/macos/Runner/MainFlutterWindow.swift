@@ -25,6 +25,9 @@ final class LiveCamera: NSObject, FlutterStreamHandler,
   private let queue = DispatchQueue(label: "dev.cipherbird.example.livecamera")
   private var sink: FlutterEventSink?
   private var configured = false
+  private var targetWidth = 320
+  private var frameCounter = 0
+  private var lastSent = CFAbsoluteTimeGetCurrent()
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let camera = LiveCamera()
@@ -82,9 +85,17 @@ final class LiveCamera: NSObject, FlutterStreamHandler,
       session.commitConfiguration()
       configured = true
     }
+    let wanted: [AVCaptureSession.Preset] =
+      preset == "high" ? [.hd1280x720, .vga640x480]
+      : preset == "medium" ? [.vga640x480, .hd1280x720]
+      : [.cif352x288, .vga640x480, .hd1280x720]
     session.beginConfiguration()
-    session.sessionPreset = preset == "high" ? .hd1280x720 : preset == "medium" ? .vga640x480 : .cif352x288
+    if let usable = wanted.first(where: { session.canSetSessionPreset($0) }) {
+      session.sessionPreset = usable
+    }
     session.commitConfiguration()
+    targetWidth = preset == "high" ? 640 : preset == "medium" ? 480 : 320
+    frameCounter = 0
     session.startRunning()
     let dims = CMVideoFormatDescriptionGetDimensions(
       (session.inputs.first as! AVCaptureDeviceInput).device.activeFormat.formatDescription)
@@ -104,16 +115,32 @@ final class LiveCamera: NSObject, FlutterStreamHandler,
   func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                      from connection: AVCaptureConnection) {
     guard let sink = sink, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+    // At most ten frames a second reach Dart, and never more than about
+    // targetWidth columns: the source is assessed, not displayed in full.
+    let now = CFAbsoluteTimeGetCurrent()
+    if now - lastSent < 0.1 { return }
+    lastSent = now
     CVPixelBufferLockBaseAddress(pixels, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
     guard let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0) else { return }
-    let width = CVPixelBufferGetWidthOfPlane(pixels, 0)
-    let height = CVPixelBufferGetHeightOfPlane(pixels, 0)
+    let fullWidth = CVPixelBufferGetWidthOfPlane(pixels, 0)
+    let fullHeight = CVPixelBufferGetHeightOfPlane(pixels, 0)
     let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+    let step = max(1, fullWidth / targetWidth)
+    let width = fullWidth / step
+    let height = fullHeight / step
     var luma = Data(count: width * height)
     luma.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) in
+      let out = dst.baseAddress!.assumingMemoryBound(to: UInt8.self)
+      let src = base.assumingMemoryBound(to: UInt8.self)
       for row in 0..<height {
-        memcpy(dst.baseAddress! + row * width, base + row * stride, width)
+        let srcRow = src + row * step * stride
+        let dstRow = out + row * width
+        if step == 1 {
+          memcpy(dstRow, srcRow, width)
+        } else {
+          for col in 0..<width { dstRow[col] = srcRow[col * step] }
+        }
       }
     }
     DispatchQueue.main.async {

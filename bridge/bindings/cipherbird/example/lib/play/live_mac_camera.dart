@@ -24,9 +24,10 @@ extension on LivePlayground {
       }
     }, onError: (Object e) => say('camera: ${Playground.reason(e)}'));
     say(
-      'camera streaming at ${w}x$h; the luma plane of each frame is one '
-      'chunk. Move something in front of it: a still scene has blank runs '
-      'the policy refuses',
+      'camera streaming at ${w}x$h, delivered subsampled at up to ten '
+      'frames a second; the luma plane of each frame is one chunk. Move '
+      'something in front of it: a still scene has blank runs the policy '
+      'refuses',
     );
   });
 
