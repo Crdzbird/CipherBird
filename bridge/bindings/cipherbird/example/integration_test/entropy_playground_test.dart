@@ -15,7 +15,7 @@ void main() {
 
   testWidgets('a photo passes the policy and feeds every consumer', (_) async {
     final d = PlayDriver(EntropyPlayground(CipherBird.instance));
-    await d.expectLine('New source', 'repetition-count test passed');
+    await d.expectLine('New source', 'cutoff 31 for the floor: passed');
     await d.expectLine('Harvest', 'harvested fresh');
     await d.expectLine('Harvest twice', 'two fresh harvests differ');
     d.pick('Harvest', 'deterministic (the file alone, reproducible)');
@@ -34,14 +34,14 @@ void main() {
   testWidgets('a flat image is refused until the policy is relaxed', (_) async {
     final d = PlayDriver(EntropyPlayground(CipherBird.instance));
     d.pick('Source', 'flat colour PPM (weak)');
-    await d.expectLine('New source', 'repetition-count test FAILED');
+    await d.expectLine('New source', 'cutoff 31 for the floor: FAILED');
     await d.expectLine('Harvest', 'policy refused the source');
     d.set('Policy floor, min-entropy bits per byte', '0');
     await d.expectLine('Harvest', 'policy refused the source');
     d.pick('Repetition-count test', 'reported only');
     await d.expectLine('Harvest', 'harvested fresh');
     d.pick('Source', 'tone WAV');
-    await d.expectLine('New source', 'repetition-count test passed');
+    await d.expectLine('New source', 'cutoff 601 for the floor: passed');
     await d.expectLine('Harvest', 'harvested fresh');
   });
 }

@@ -66,6 +66,7 @@ typedef void* CryptoStreamDecHandle;
 typedef void* CryptoKeyringHandle;
 typedef void* CryptoDrbgHandle;     /**< HMAC-DRBG (SP 800-90A) accumulator */
 typedef void* CryptoFortunaHandle;  /**< Fortuna-style entropy pool */
+typedef void* CryptoLiveEntropyHandle; /**< continuous source fed by a live stream */
 typedef void* CryptoBlake3Handle;   /**< Incremental BLAKE3 hasher */
 typedef void* CryptoNoiseHandle;    /**< Noise XX handshake / transport state */
 
@@ -1634,6 +1635,94 @@ typedef struct {
  *  deterministic key source. */
 CRYPTO_API CryptoHealthReport cryptolib_entropy_assess_file_health(
     const char* path, size_t max_bytes);
+
+/** The full SP 800-90B verdict with every number behind it. `floor_bits_per_byte`
+ *  is the min-entropy the caller intends to claim (the plain harvests use 1.0);
+ *  the two cutoffs are calibrated against it, so `rct_cutoff` = 1 + ceil(30 /
+ *  floor) and a run that long fails the repetition-count test. `summary` is a
+ *  human-readable explanation, one line per signal. Free `summary` and `error`
+ *  with cryptolib_str_free. */
+typedef struct {
+    double   min_entropy_per_byte; /**< min of the two estimates, 0..8 */
+    double   mcv_bits_per_byte;    /**< Most-Common-Value estimate (6.3.1) */
+    double   markov_bits_per_byte; /**< Markov estimate over the bit expansion (6.3.3) */
+    double   floor_bits_per_byte;  /**< the claim the cutoffs are calibrated for */
+    uint64_t sample_bytes;         /**< bytes the estimates and tests looked at */
+    uint64_t longest_run;          /**< longest run of one identical byte */
+    uint64_t rct_cutoff;           /**< a run this long fails the repetition-count test */
+    uint64_t max_window_count;     /**< peak same-value count in any window */
+    uint64_t apt_cutoff;           /**< a count this high fails the adaptive-proportion test */
+    uint64_t apt_window;           /**< window size, 512 */
+    int      rct_passed;           /**< 1 = passed */
+    int      apt_passed;           /**< 1 = passed */
+    char*    summary;              /**< one line per signal; NULL on error */
+    char*    error;                /**< NULL on success */
+} CryptoHealthReport2;
+
+/** Assess a media file under a floor; `max_bytes` 0 means 1 MiB. */
+CRYPTO_API CryptoHealthReport2 cryptolib_entropy_assess_file_health_v2(
+    const char* path, size_t max_bytes, double floor_bits_per_byte);
+
+/* ── LiveEntropy — a continuous source fed by a live stream ─────────────────
+ * Feed chunks as they arrive (camera frames, audio buffers, packets). Each
+ * chunk is assessed under the policy with the repetition-count run carried
+ * across chunks; a chunk that passes is credited min_entropy_per_byte * size
+ * bits, one that fails is mixed in but credited nothing and the report says
+ * why. Output is an SP 800-90A HMAC-DRBG seeded once `min_credited_bits`
+ * (256 by default) have been earned, with an operating-system nonce, and
+ * reseeded every time that much credit arrives again. Generate fails closed
+ * before the first seed. Not thread-safe. */
+
+/** What one feed did. Free `reason` and `error` with cryptolib_str_free. */
+typedef struct {
+    int      accepted;             /**< 1 = credited under the policy */
+    double   credited_bits;        /**< this chunk's credit */
+    double   credited_bits_total;  /**< since the handle was created */
+    int      ready;                /**< 1 = generate would succeed */
+    double   min_entropy_per_byte; /**< this chunk's estimate */
+    uint64_t longest_run;          /**< including the run carried from the previous chunk */
+    uint64_t rct_cutoff;
+    int      rct_passed;
+    int      apt_passed;
+    char*    reason;               /**< why the chunk was not credited; NULL when accepted */
+    char*    error;                /**< NULL on success */
+} CryptoLiveFeedReport;
+
+/** Where the source stands. Free `last_reason` and `error` with cryptolib_str_free. */
+typedef struct {
+    uint64_t chunks_fed;
+    uint64_t chunks_accepted;
+    uint64_t chunks_rejected;
+    uint64_t bytes_fed;
+    uint64_t reseeds;                    /**< DRBG seedings so far */
+    double   credited_bits_total;
+    double   credited_bits_since_reseed;
+    double   min_credited_bits;
+    int      ready;
+    double   last_min_entropy_per_byte;
+    uint64_t last_longest_run;
+    uint64_t last_rct_cutoff;
+    char*    last_reason;                /**< NULL when the last chunk was credited */
+    char*    error;                      /**< NULL on success */
+} CryptoLiveStatus;
+
+/** Create a source under a policy (floor in bits per byte, whether the
+ *  repetition-count test refuses) that seeds after `min_credited_bits`
+ *  (0 means 256). Free with cryptolib_live_entropy_free. */
+CRYPTO_API CryptoLiveEntropyHandle cryptolib_live_entropy_new(
+    double min_bits_per_byte, int require_rct, double min_credited_bits, char** out_error);
+
+/** Feed one chunk from logical source `source_id`. */
+CRYPTO_API CryptoLiveFeedReport cryptolib_live_entropy_feed(
+    CryptoLiveEntropyHandle h, const uint8_t* data, size_t len, uint8_t source_id);
+
+/** Draw `num_bytes` (at most 65536); errs until the first seed is earned. */
+CRYPTO_API CryptoBufferResult cryptolib_live_entropy_generate(
+    CryptoLiveEntropyHandle h, size_t num_bytes);
+
+CRYPTO_API CryptoLiveStatus cryptolib_live_entropy_status(CryptoLiveEntropyHandle h);
+
+CRYPTO_API void cryptolib_live_entropy_free(CryptoLiveEntropyHandle h);
 
 /* ── ImageFactorSeal — a shared reference image as an OPRF-gated 2nd factor ──
  * Two factors to open: the OPRF secret (know) AND the exact reference image
