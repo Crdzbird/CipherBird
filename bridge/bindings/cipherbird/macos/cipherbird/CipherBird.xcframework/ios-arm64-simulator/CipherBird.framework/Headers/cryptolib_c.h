@@ -1800,6 +1800,205 @@ CRYPTO_API CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(
 CRYPTO_API void cryptolib_keyring_free(CryptoKeyringHandle kr);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Standards-track KEMs and the v2 envelopes (assessment r2: M4, M5, M6)
+ *   Available in the full and bank profiles. In the fips profile every call
+ *   here fails with "not available in this build profile".
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* X-Wing (draft-connolly-cfrg-xwing-kem-11): ML-KEM-768 + X25519 with the
+ * draft's combiner. Public key 1216 B, secret key 32 B (the seed),
+ * ciphertext 1120 B, shared secret 32 B. */
+CRYPTO_API CryptoKeyPair cryptolib_xwing_keygen(void);
+CRYPTO_API CryptoKeyPair cryptolib_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len);
+CRYPTO_API CryptoKemEncapsResult cryptolib_xwing_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cryptolib_xwing_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len, const uint8_t* secret_key, size_t sk_len);
+
+/* HPKE with a selectable KEM. kem is the IANA HPKE KEM id:
+ *   0x0020 DHKEM(X25519, HKDF-SHA256)   pk 32, sk 32, enc 32, all four modes
+ *   0x0041 ML-KEM-768                   pk 1184, sk 64 (seed), enc 1088, base and psk
+ *   0x647A X-Wing                       pk 1216, sk 32 (seed), enc 1120, base and psk
+ * The kdf, aead, mode and remaining arguments follow cryptolib_hpke_setup_s /
+ * cryptolib_hpke_setup_r; the returned context works with cryptolib_hpke_seal,
+ * cryptolib_hpke_open, cryptolib_hpke_export and cryptolib_hpke_context_free. */
+CRYPTO_API int cryptolib_hpke_kem_available(int kem);
+CRYPTO_API CryptoKeyPair cryptolib_hpke_keygen_kem(int kem);
+CRYPTO_API CryptoKeyPair cryptolib_hpke_derive_keypair_kem(int kem, const uint8_t* ikm, size_t ikm_len);
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_s_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error);
+CRYPTO_API CryptoHpkeContext cryptolib_hpke_setup_r_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error);
+
+/* Suite v2 ("CSV2"): signed sealed envelopes whose Ed25519 + ML-DSA-65
+ * signature binds the recipient KEM public key, the KEM ciphertext and the
+ * AAD together with the plaintext, so a signed message cannot be re-sealed to
+ * another recipient. Suite ids: */
+#define CRYPTOLIB_SUITE2_XWING_SIG  0x11  /* X-Wing (default, every profile) */
+#define CRYPTOLIB_SUITE2_HYBRID_SIG 0x12  /* library-native X25519 + ML-KEM-768 combiner, full profile only */
+CRYPTO_API CryptoBufferResult cryptolib_suite2_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_secret, size_t ssk_len,
+    const uint8_t* aad, size_t aad_len, int suite);
+CRYPTO_API CryptoBufferResult cryptolib_suite2_open(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t rsk_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_public, size_t spk_len,
+    const uint8_t* aad, size_t aad_len);
+/** The suite id of a v2 envelope, or 0 when it is not one. */
+CRYPTO_API int cryptolib_suite2_suite_of(const uint8_t* envelope, size_t env_len);
+
+/* Session v2 ("RTC2"): the forward-secret ratchet over X-Wing with an
+ * authenticated handshake. The responder's prekey is signed by its identity
+ * (Ed25519 + ML-DSA-65, cryptolib_hybrid_sig_keygen); the initiator proves its
+ * own identity in the handshake and the responder accepts only the identity
+ * it expects. Pin that identity through a directory, a certificate or a prior
+ * session; the library verifies, it does not decide who to trust. */
+/** Responder: public_key is the signed prekey bundle to publish, secret_key
+ *  the 32-byte X-Wing seed to keep until the handshake arrives. */
+CRYPTO_API CryptoKeyPair cryptolib_session2_generate_prekey(
+    const uint8_t* responder_sig_secret, size_t ssk_len);
+/** The X-Wing public key inside a bundle, after its signature verified. */
+CRYPTO_API CryptoBufferResult cryptolib_session2_verify_prekey(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len);
+/** Initiator: verify the bundle, key to it, and sign the handshake. The
+ *  returned handle's cryptolib_session2_handshake() goes to the responder. */
+CRYPTO_API CryptoSession cryptolib_session2_initiate(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* initiator_sig_public, size_t ipk_len,
+    const uint8_t* initiator_sig_secret, size_t isk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cryptolib_session2_handshake(CryptoSession h);
+/** The initiator identity a handshake claims, before any verification. Use it
+ *  to look up the expected identity, never to trust it. */
+CRYPTO_API CryptoBufferResult cryptolib_session2_claimed_initiator(
+    const uint8_t* handshake, size_t hs_len);
+/** Responder: accept a handshake only from expected_initiator_sig_public. */
+CRYPTO_API CryptoSession cryptolib_session2_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* prekey_secret, size_t psk_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* responder_sig_secret, size_t rsk_len,
+    const uint8_t* expected_initiator_sig_public, size_t ipk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cryptolib_session2_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_session2_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API void cryptolib_session2_free(CryptoSession h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FIPS profile (assessment r2: C3)
+ *   Built with -DCRYPTOLIB_PROFILE=fips, every operation below runs inside the
+ *   OpenSSL FIPS Provider (CMVP certificate #4985, OpenSSL 3.1.2) fetched with
+ *   "fips=yes"; nothing libsodium-backed is compiled in. In the other profiles
+ *   cryptolib_fips_available() returns 0 and every call fails. The provider
+ *   must be initialised once with cryptolib_fips_init before any other call.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    int   loaded;              /**< the fips provider is loaded */
+    int   self_tests_passed;   /**< its power-up self tests ran and passed */
+    int   approved_mode;       /**< default fetches are restricted to fips=yes */
+    char* provider_name;       /**< heap strings; free with cryptolib_fips_status_free */
+    char* provider_version;
+    char* module_directory;
+    char* config_file;
+} CryptoFipsStatus;
+
+/** 1 when this library was built in the fips profile. */
+CRYPTO_API int cryptolib_fips_available(void);
+/** Load the validated module from module_dir (fips.so / fips.dylib) using the
+ *  OpenSSL config file that includes its fipsmodule.cnf, run the self tests
+ *  and enter approved mode. NULL arguments fall back to the environment
+ *  variables CRYPTOLIB_FIPS_MODULE_DIR and CRYPTOLIB_FIPS_CONFIG. */
+CRYPTO_API CryptoResult cryptolib_fips_init(const char* module_dir, const char* config_file);
+CRYPTO_API CryptoFipsStatus cryptolib_fips_status(void);
+CRYPTO_API void cryptolib_fips_status_free(CryptoFipsStatus* s);
+
+/* hash: 0 SHA-256, 1 SHA-384, 2 SHA-512, 3 SHA3-256. */
+CRYPTO_API CryptoBufferResult cryptolib_fips_digest(int hash, const uint8_t* data, size_t len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_hmac(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len);
+CRYPTO_API int cryptolib_fips_hmac_verify(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len, const uint8_t* tag, size_t tag_len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_hkdf(int hash,
+    const uint8_t* ikm, size_t ikm_len, const uint8_t* salt, size_t salt_len,
+    const uint8_t* info, size_t info_len, size_t out_len);
+/** PBKDF2 (SP 800-132): salt at least 16 B, iterations at least 1000, output at least 14 B. */
+CRYPTO_API CryptoBufferResult cryptolib_fips_pbkdf2(int hash,
+    const uint8_t* password, size_t password_len, const uint8_t* salt, size_t salt_len,
+    unsigned iterations, size_t out_len);
+/** Bytes from the module's CTR_DRBG. */
+CRYPTO_API CryptoBufferResult cryptolib_fips_random(size_t n);
+/** AES-256-GCM with the IV constructed inside the module: wire = iv(12) | ct | tag(16). */
+CRYPTO_API CryptoBufferResult cryptolib_fips_aes_gcm_encrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_aes_gcm_decrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* wire, size_t wire_len, const uint8_t* aad, size_t aad_len);
+/** P-256: public key 65 B uncompressed, private key 32 B; ECDH shared secret
+ *  32 B; ECDSA with SHA-256, DER signatures. */
+CRYPTO_API CryptoKeyPair cryptolib_fips_p256_keygen(void);
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_ecdh(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* peer_public, size_t pk_len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_sign(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* message, size_t msg_len);
+CRYPTO_API int cryptolib_fips_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len);
+/** The public point of a private scalar, computed by libcrypto outside the
+ *  module boundary; keep the public key the module exported instead when
+ *  the deployment forbids that. */
+CRYPTO_API CryptoBufferResult cryptolib_fips_p256_public_key(const uint8_t* private_key, size_t sk_len);
+
+/** Key envelope ("FKR1"): a 32-byte master secret wrapped by up to 16 slots
+ *  (PBKDF2-SHA256 passphrases or HKDF-SHA256 key factors), AES-256-GCM.
+ *  Opaque handle; free with cryptolib_fips_envelope_free. */
+typedef void* CryptoFipsEnvelope;
+CRYPTO_API CryptoFipsEnvelope cryptolib_fips_envelope_create(char** out_error);
+CRYPTO_API CryptoFipsEnvelope cryptolib_fips_envelope_deserialise(
+    const uint8_t* blob, size_t blob_len, char** out_error);
+/** Adding a slot needs an unlocked envelope (freshly created, or unlocked). */
+CRYPTO_API CryptoResult cryptolib_fips_envelope_add_passphrase_slot(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len, unsigned iterations);
+CRYPTO_API CryptoResult cryptolib_fips_envelope_add_key_slot(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_unlock_with_passphrase(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len);
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_unlock_with_key(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len);
+CRYPTO_API CryptoResult cryptolib_fips_envelope_remove_slot(CryptoFipsEnvelope h, size_t index);
+CRYPTO_API size_t cryptolib_fips_envelope_slot_count(CryptoFipsEnvelope h);
+CRYPTO_API CryptoBufferResult cryptolib_fips_envelope_serialise(CryptoFipsEnvelope h);
+CRYPTO_API void cryptolib_fips_envelope_free(CryptoFipsEnvelope h);
+
+/** HPKE (RFC 9180) base mode, DHKEM(P-256, HKDF-SHA256) + HKDF-SHA256 +
+ *  AES-256-GCM, one shot. seal writes the 65-byte enc to *out_enc. */
+CRYPTO_API CryptoBufferResult cryptolib_fips_hpke_p256_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len, CryptoBuffer* out_enc);
+CRYPTO_API CryptoBufferResult cryptolib_fips_hpke_p256_open(
+    const uint8_t* enc, size_t enc_len, const uint8_t* skR, size_t skR_len,
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Version
  * ═══════════════════════════════════════════════════════════════════════════ */
 
