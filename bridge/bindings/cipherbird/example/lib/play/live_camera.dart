@@ -30,13 +30,11 @@ extension on LivePlayground {
     );
   });
 
-  ResolutionPreset get _preset => switch (_resolution.value) {
-    'high' => ResolutionPreset.high,
-    'medium' => ResolutionPreset.medium,
-    _ => ResolutionPreset.low,
-  };
-
   Future<void> startCamera() => attempt('camera', () async {
+    if (_onMac) {
+      await startMacCamera();
+      return;
+    }
     if (_camera != null) {
       say('the camera is already running');
       return;
@@ -78,6 +76,10 @@ extension on LivePlayground {
   }
 
   Future<void> stopCamera() async {
+    if (_onMac) {
+      await stopMacCamera();
+      return;
+    }
     final c = _camera;
     _camera = null;
     if (c == null) {

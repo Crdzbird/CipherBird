@@ -1,6 +1,7 @@
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird_example/play/live_playground.dart';
-import 'package:flutter/foundation.dart';
+import 'package:cipherbird_example/play/playground_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -33,17 +34,28 @@ void main() {
     await d.expectLine('Decrypt', 'refused');
   });
 
-  testWidgets('the camera feeds frames where it is available', (_) async {
-    final d = PlayDriver(LivePlayground(CipherBird.instance));
+  testWidgets('the camera feeds frames where it is available', (tester) async {
+    final model = LivePlayground(CipherBird.instance);
+    final d = PlayDriver(model);
+    await tester.pumpWidget(MaterialApp(home: PlaygroundPage(model)));
     await d.press('New source');
     final line = await d.press('Start camera');
     if (!line.contains('streaming at')) {
       debugPrint('camera not exercised here: $line');
       return;
     }
-    await Future<void>.delayed(const Duration(seconds: 4));
+    for (var i = 0; i < 100 && model.meter.value.chunks < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (i % 10 == 9) {
+        debugPrint(
+          'camera wait ${i + 1}: ${model.meter.value.chunks} chunks, '
+          'last line: ${model.log.first}',
+        );
+      }
+    }
     await d.expectLine('Stop camera', 'camera stopped after');
-    expect(d.model.log.first, isNot(contains('after 0 frames')));
+    expect(d.model.log.first, isNot(contains('after 0 chunks')));
     await d.expectLine('Status', 'chunks fed');
   });
 }

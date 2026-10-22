@@ -10,7 +10,16 @@ extension on LivePlayground {
         : SizedBox(height: 180, child: CameraPreview(c));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [?camera, LiveMeter(meter)],
+      children: [
+        ValueListenableBuilder<ui.Image?>(
+          valueListenable: _macFrame,
+          builder: (context, img, _) => img == null
+              ? const SizedBox.shrink()
+              : SizedBox(height: 180, child: RawImage(image: img)),
+        ),
+        ?camera,
+        LiveMeter(meter),
+      ],
     );
   }
 

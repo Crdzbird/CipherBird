@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird_example/play/live/live_meter.dart';
 import 'package:cipherbird_example/play/live/live_meter_state.dart';
+import 'package:cipherbird_example/play/live/mac_camera.dart';
 import 'package:cipherbird_example/play/media/carrier_images.dart';
 import 'package:cipherbird_example/play/media/file_pick.dart';
 import 'package:cipherbird_example/play/media/picked_media.dart';
@@ -18,6 +21,7 @@ import 'package:flutter/widgets.dart';
 
 part 'live_camera.dart';
 part 'live_crypto.dart';
+part 'live_mac_camera.dart';
 part 'live_stream.dart';
 
 /// Randomness that never stops, in four visible steps: a stream feeds the
@@ -29,6 +33,8 @@ final class LivePlayground extends Playground {
   final CipherBird _lib;
   LiveEntropy? _live;
   CameraController? _camera;
+  StreamSubscription<MacFrame>? _macFrames;
+  final _macFrame = ValueNotifier<ui.Image?>(null);
   Timer? _stream;
   PickedMedia? _picked;
   SymmetricKey? _key;
@@ -83,8 +89,10 @@ final class LivePlayground extends Playground {
   void dispose() {
     stopStream();
     unawaited(stopCamera());
+    unawaited(stopMacCamera());
     _live?.close();
     meter.dispose();
+    _macFrame.dispose();
     super.dispose();
   }
 }

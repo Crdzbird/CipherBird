@@ -1,6 +1,12 @@
 part of 'live_playground.dart';
 
 extension on LivePlayground {
+  ResolutionPreset get _preset => switch (_resolution.value) {
+    'high' => ResolutionPreset.high,
+    'medium' => ResolutionPreset.medium,
+    _ => ResolutionPreset.low,
+  };
+
   Future<void> drawKey() => attempt('draw key', () async {
     final before = _source().status().reseeds;
     final Uint8List bytes;
