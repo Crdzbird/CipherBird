@@ -603,6 +603,14 @@ CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file(
 CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file_deterministic(
     const char* path, char** out_error);
 
+/** Harvest with an explicit source policy. deterministic != 0 skips the
+ *  system-entropy mix. min_bits_per_byte is the SP 800-90B min-entropy
+ *  floor (the default harvest uses 1.0; 0 accepts any file) and
+ *  require_rct != 0 refuses a file that fails the repetition-count test.
+ *  The adaptive-proportion test is always reported, never required here. */
+CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file_with_policy(
+    const char* path, int deterministic, double min_bits_per_byte, int require_rct, char** out_error);
+
 /**
  * Harvest entropy from multiple files (LavaRand mode).
  * Combined entropy exceeds any single source.
