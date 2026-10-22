@@ -6,8 +6,9 @@ import 'package:integration_test/integration_test.dart';
 
 import 'support/play_driver.dart';
 
-/// Streams a generated photo through the live source and checks the credit
-/// flows and the generator opens; then tries the camera, which counts only
+/// Streams a generated photo through the live source, checks the credit
+/// flows, draws a key, encrypts and decrypts under it, and shows a fresh
+/// key refuses the old ciphertext; then tries the camera, which counts only
 /// where one exists and the app may use it:
 /// `flutter test integration_test/live_playground_test.dart -d <device id>`.
 void main() {
@@ -19,16 +20,17 @@ void main() {
   ) async {
     final d = PlayDriver(LivePlayground(CipherBird.instance));
     await d.expectLine('New source', 'seeds after 256 credited bits');
-    await d.expectLine('Generate 32 bytes', 'refused: LiveEntropy: not ready');
+    await d.expectLine('Draw key', 'refused: LiveEntropy: not ready');
     await d.expectLine('Stream', 'streaming a generated 512x512 photo');
     await Future<void>.delayed(const Duration(seconds: 2));
     await d.expectLine('Stop stream', 'stream stopped');
     await d.expectLine('Status', 'ready');
     expect(d.model.log.first, contains('credited'));
-    await d.expectLine('Generate 32 bytes', 'generated: ');
-    final first = d.model.log.first;
-    await d.expectLine('Generate 32 bytes', 'generated: ');
-    expect(d.model.log.first, isNot(equals(first)));
+    await d.expectLine('Draw key', 'seeded first');
+    await d.expectLine('Encrypt', 'XChaCha20-Poly1305');
+    await d.expectLine('Decrypt', 'decrypted: pier 9 at dawn');
+    await d.expectLine('Draw key', 'key drawn from the stream');
+    await d.expectLine('Decrypt', 'refused');
   });
 
   testWidgets('the camera feeds frames where it is available', (_) async {

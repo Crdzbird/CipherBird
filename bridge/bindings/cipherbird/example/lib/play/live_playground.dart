@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:cipherbird/cipherbird.dart';
+import 'package:cipherbird_example/play/live/live_meter.dart';
+import 'package:cipherbird_example/play/live/live_meter_state.dart';
 import 'package:cipherbird_example/play/media/carrier_images.dart';
 import 'package:cipherbird_example/play/media/file_pick.dart';
 import 'package:cipherbird_example/play/media/picked_media.dart';
@@ -10,14 +12,17 @@ import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
 import 'package:cipherbird_example/play/playground.dart';
 import 'package:cipherbird_example/util/bytes.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 part 'live_camera.dart';
+part 'live_crypto.dart';
 part 'live_stream.dart';
 
-/// Randomness that never stops: camera frames or a streamed file feed a
-/// policy-gated source that seeds a DRBG and keeps reseeding it.
+/// Randomness that never stops, in four visible steps: a stream feeds the
+/// source, every chunk is assessed and credited or refused, the credit
+/// seeds a DRBG, and a key drawn from it encrypts a message.
 final class LivePlayground extends Playground {
   LivePlayground(this._lib);
 
@@ -26,21 +31,15 @@ final class LivePlayground extends Playground {
   CameraController? _camera;
   Timer? _stream;
   PickedMedia? _picked;
-  int _framesFed = 0;
+  SymmetricKey? _key;
+  final meter = ValueNotifier<LiveMeterState>(const LiveMeterState());
 
-  final _floor = PlayField(
-    'Policy floor, min-entropy bits per byte',
-    text: '1.0',
-  );
-  final _credit = PlayField(
-    'Credit needed to seed and to reseed, bits',
-    text: '256',
-  );
-  final _status = PlayField('Live status', lines: 4);
-  final _rct = PlayChoice('Repetition-count test', [
-    'required',
-    'reported only',
-  ]);
+  final _floor = PlayField('1. Policy floor, bits per byte', text: '1.0');
+  final _credit = PlayField('2. Credit to seed and reseed, bits', text: '256');
+  final _message = PlayField('3. Message', text: 'pier 9 at dawn', lines: 2);
+  final _keyHex = PlayField('Key drawn from the stream (hex, 32 bytes)');
+  final _cipher = PlayField('Ciphertext (base64)', lines: 3);
+  final _rct = PlayChoice('Repetition-count', ['required', 'reported only']);
   final _resolution = PlayChoice('Camera resolution', [
     'low',
     'medium',
@@ -52,22 +51,19 @@ final class LivePlayground extends Playground {
 
   @override
   String get blurb =>
-      'Point the camera at anything that moves, or stream a file. Every '
-      'frame is assessed, credited when it passes the policy, and the '
-      'status shows the credit flowing in. Generate draws from the DRBG the '
-      'stream keeps reseeding; it refuses until enough credit has arrived.';
+      'Step 1: Start camera or Stream a file; the meter draws every chunk. '
+      'Step 2: the credit bar fills until the generator seeds. Step 3: Draw '
+      'key takes 32 bytes from it. Step 4: Encrypt and Decrypt under that '
+      'key. Keep streaming and the generator keeps reseeding.';
 
   @override
-  List<PlayField> get fields => [_floor, _credit, _status];
+  List<PlayField> get fields => [_floor, _credit, _message, _keyHex, _cipher];
 
   @override
   List<PlayChoice> get choices => [_rct, _resolution];
 
   @override
-  Widget? get preview {
-    final c = _camera;
-    return c == null || !c.value.isInitialized ? null : CameraPreview(c);
-  }
+  Widget? get preview => previewOf();
 
   @override
   List<PlayAction> get actions => [
@@ -77,7 +73,9 @@ final class LivePlayground extends Playground {
     PlayAction('Pick a file to stream', pickFile),
     PlayAction('Stream', startStream),
     PlayAction('Stop stream', () async => stopStream()),
-    PlayAction('Generate 32 bytes', generate),
+    PlayAction('Draw key', drawKey),
+    PlayAction('Encrypt', encrypt),
+    PlayAction('Decrypt', decrypt),
     PlayAction('Status', showStatus),
   ];
 
@@ -86,6 +84,7 @@ final class LivePlayground extends Playground {
     stopStream();
     unawaited(stopCamera());
     _live?.close();
+    meter.dispose();
     super.dispose();
   }
 }

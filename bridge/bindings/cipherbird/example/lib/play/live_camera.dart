@@ -19,12 +19,14 @@ extension on LivePlayground {
     stopStream();
     _live?.close();
     _live = null;
-    _framesFed = 0;
+    _key = null;
+    _keyHex.text = '';
+    _cipher.text = '';
+    meter.value = const LiveMeterState();
     _source();
-    _status.text = 'fresh source, nothing fed yet';
     say(
       'new source: floor ${_floor.text} bits/byte, repetition-count test '
-      '${_rct.value}, seeds after ${_credit.text} credited bits',
+      '${_rct.value}, seeds after ${_credit.text} credited bits; now feed it',
     );
   });
 
@@ -43,11 +45,11 @@ extension on LivePlayground {
     try {
       cameras = await availableCameras();
     } on MissingPluginException {
-      say('camera: unsupported on this platform');
+      say('camera: unsupported on this platform, use Stream instead');
       return;
     }
     if (cameras.isEmpty) {
-      say('camera: unsupported here, no camera was found');
+      say('camera: unsupported here, no camera was found; use Stream instead');
       return;
     }
     final c = CameraController(
@@ -59,17 +61,20 @@ extension on LivePlayground {
     await c.initialize();
     _camera = c;
     await c.startImageStream(_onFrame);
-    say('camera ${cameras.first.name} streaming at ${_resolution.value}');
+    say(
+      'camera ${cameras.first.name} streaming at ${_resolution.value}; each '
+      'frame\'s luma plane is one chunk. Move the phone: a still scene has '
+      'blank runs the policy refuses',
+    );
+    refresh();
   });
 
   void _onFrame(CameraImage image) {
     final plane = image.planes.first.bytes;
-    final r = _source().feed(plane, sourceId: 1);
-    _framesFed++;
-    if (_framesFed % 10 == 1) {
-      _status.text = _describe(r, 'frame $_framesFed, ${plane.length} bytes');
-      refresh();
-    }
+    _fed(
+      _source().feed(plane, sourceId: 1),
+      'camera, ${plane.length} bytes a frame',
+    );
   }
 
   Future<void> stopCamera() async {
@@ -83,7 +88,8 @@ extension on LivePlayground {
         await c.stopImageStream();
       }
       await c.dispose();
-      say('camera stopped after $_framesFed frames');
+      say('camera stopped after ${meter.value.chunks} chunks');
+      refresh();
     });
   }
 }

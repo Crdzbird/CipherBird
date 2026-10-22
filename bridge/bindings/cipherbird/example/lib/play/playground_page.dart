@@ -53,7 +53,7 @@ final class PlaygroundPage extends StatelessWidget {
           if (model.preview != null)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: SizedBox(height: 220, child: model.preview),
+              child: model.preview,
             ),
           if (model.pictures.isNotEmpty)
             Padding(

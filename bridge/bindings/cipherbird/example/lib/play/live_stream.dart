@@ -3,14 +3,20 @@ part of 'live_playground.dart';
 extension on LivePlayground {
   static const int _chunk = 64 * 1024;
 
-  String _describe(LiveFeedReport r, String what) =>
-      '$what: ${r.accepted ? 'credited' : 'not credited'} '
-      '${r.creditedBits.toStringAsFixed(0)} bits '
-      '(${r.minEntropyPerByte.toStringAsFixed(2)} bits/byte, longest run '
-      '${r.longestRun} of cutoff ${r.rctCutoff}); total '
-      '${r.creditedBitsTotal.toStringAsFixed(0)} bits, '
-      '${r.ready ? 'ready' : 'not ready'}'
-      '${r.reason.isEmpty ? '' : '\n${r.reason}'}';
+  Widget previewOf() {
+    final c = _camera;
+    final camera = c == null || !c.value.isInitialized
+        ? null
+        : SizedBox(height: 180, child: CameraPreview(c));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [?camera, LiveMeter(meter)],
+    );
+  }
+
+  void _fed(LiveFeedReport r, String source) {
+    meter.value = meter.value.after(r, source, double.parse(_credit.text));
+  }
 
   Future<void> pickFile() => attempt('pick', () async {
     final p = await pickMedia();
@@ -32,7 +38,6 @@ extension on LivePlayground {
     final bytes = _picked?.bytes ?? photoPpm(512);
     final name = _picked?.name ?? 'a generated 512x512 photo';
     var offset = 0;
-    var n = 0;
     _stream = Timer.periodic(const Duration(milliseconds: 50), (_) {
       final end = offset + _chunk > bytes.length
           ? bytes.length
@@ -41,12 +46,10 @@ extension on LivePlayground {
         Uint8List.sublistView(bytes, offset, end),
         sourceId: 2,
       );
-      n++;
       offset = end >= bytes.length ? 0 : end;
-      _status.text = _describe(r, 'chunk $n of $name');
-      refresh();
+      _fed(r, '$name, 64 KiB chunks, 20 a second');
     });
-    say('streaming $name in 64 KiB chunks');
+    say('streaming $name in 64 KiB chunks; watch the meter');
   });
 
   void stopStream() {
@@ -54,17 +57,9 @@ extension on LivePlayground {
     _stream = null;
     if (t != null) {
       t.cancel();
-      say('stream stopped');
+      say('stream stopped after ${meter.value.chunks} chunks');
     }
   }
-
-  Future<void> generate() => attempt('generate', () async {
-    try {
-      say('generated: ${hexOf(_source().generate(32))}');
-    } on Object catch (e) {
-      say('refused: ${Playground.reason(e)}');
-    }
-  });
 
   Future<void> showStatus() => attempt('status', () async {
     final s = _source().status();
