@@ -213,14 +213,22 @@ private:
 
         WavData w{};
         bool found_data = false;
+        bool found_fmt = false;
         while (f && !found_data) {
             std::string chunk = read_tag();
             uint32_t chunk_size = read_u32();
             if (chunk == "fmt ") {
-                read_u16(); w.num_channels = read_u16(); w.sample_rate = read_u32();
-                read_u32(); read_u16(); read_u16();
+                if (chunk_size < 16) return Result<WavData>::err("WAV: fmt chunk too short");
+                const uint16_t format = read_u16();
+                w.num_channels = read_u16(); w.sample_rate = read_u32();
+                read_u32(); read_u16();
+                const uint16_t bits = read_u16();
+                if (format != 1 || bits != 16 || w.num_channels == 0 || w.num_channels > 8)
+                    return Result<WavData>::err("WAV: only 16-bit PCM with 1 to 8 channels is supported");
+                found_fmt = true;
                 if (chunk_size > 16) f.seekg(chunk_size - 16, std::ios::cur);
             } else if (chunk == "data") {
+                if (!found_fmt) return Result<WavData>::err("WAV: data chunk before fmt chunk");
                 // Clamp to bytes actually present (see stego_audio.hpp read_wav).
                 const std::streampos cur = f.tellg();
                 f.seekg(0, std::ios::end);
@@ -282,6 +290,7 @@ private:
         const std::vector<int16_t>& interleaved, uint16_t ch_count, uint16_t ch) {
         if (ch_count == 1) return interleaved;
         std::vector<int16_t> out;
+        if (ch_count == 0 || ch >= ch_count) return out;
         out.reserve(interleaved.size() / ch_count);
         for (std::size_t i = ch; i < interleaved.size(); i += ch_count)
             out.push_back(interleaved[i]);
@@ -292,6 +301,7 @@ private:
         std::vector<int16_t>& interleaved, const std::vector<int16_t>& channel,
         uint16_t ch_count, uint16_t ch) {
         if (ch_count == 1) { interleaved = channel; return; }
+        if (ch_count == 0 || ch >= ch_count) return;
         for (std::size_t i = 0, j = ch; j < interleaved.size(); ++i, j += ch_count)
             if (i < channel.size()) interleaved[j] = channel[i];
     }

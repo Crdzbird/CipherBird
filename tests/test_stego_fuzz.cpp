@@ -303,7 +303,36 @@ TEST("stego-fuzz/packet-deserialise-random") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+TEST("stego-fuzz/flac/wav-data-chunk-without-fmt-rejected") {
+    auto path = tmp_path("cstg_fuzz_nofmt.flac");
+    const uint8_t found[] = { 0x52,0x49,0x46,0x46, 0x7f,0x4c,0x46,0x46, 0x46,0x23,0x00,0x00,
+                              0x64,0x61,0x74,0x61, 0x00,0x64,0x61,0x01, 0x14,0x00,0x00,0x61 };
+    write_bytes(path, std::vector<uint8_t>(found, found + sizeof found));
+    auto r = crypto::stego::FlacSteganographer::extract(path);
+    CHECK(r.is_err());
+    std::filesystem::remove(path);
+}
+
+TEST("stego-fuzz/flac/wav-zero-channels-rejected") {
+    auto path = tmp_path("cstg_fuzz_zerochan.flac");
+    std::vector<uint8_t> v;
+    auto tag = [&](const char* s){ for (int i=0;i<4;++i) v.push_back(uint8_t(s[i])); };
+    tag("RIFF"); put_u32_le(v, 0); tag("WAVE");
+    tag("fmt "); put_u32_le(v, 16);
+    put_u16_le(v, 1); put_u16_le(v, 0); put_u32_le(v, 44100); put_u32_le(v, 0);
+    put_u16_le(v, 0); put_u16_le(v, 16);
+    tag("data"); put_u32_le(v, 8);
+    for (int i = 0; i < 8; ++i) v.push_back(uint8_t(i));
+    write_bytes(path, v);
+    auto r = crypto::stego::FlacSteganographer::extract(path);
+    CHECK(r.is_err());
+    std::filesystem::remove(path);
+}
+
 void run_tests_stego_fuzz() {
+    RUN("stego-fuzz/flac/wav-data-chunk-without-fmt-rejected");
+    RUN("stego-fuzz/flac/wav-zero-channels-rejected");
     RUN("stego-fuzz/mutation-smoke");
     RUN("stego-fuzz/packet-deserialise-random");
     RUN("stego-fuzz/ppm/oversized-dimensions-rejected");

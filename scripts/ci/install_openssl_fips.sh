@@ -39,7 +39,7 @@ fi
 
 tar -xzf "$WORK/$TARBALL" -C "$WORK"
 cd "$WORK/openssl-${VERSION}"
-./Configure enable-fips no-tests no-docs --prefix="$PREFIX" --openssldir="$PREFIX/ssl" >/dev/null
+./Configure enable-fips no-tests --prefix="$PREFIX" --openssldir="$PREFIX/ssl" >/dev/null
 make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" >/dev/null
 make install_sw install_ssldirs install_fips >/dev/null
 

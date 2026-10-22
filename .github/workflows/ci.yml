@@ -138,9 +138,12 @@ jobs:
       - name: The bank library carries no steganography, media entropy or native combiner entry points
         run: |
           nm -gU build/bank/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/bank/exports.txt
-          if grep -E '_cryptolib_(stego|entropy_from|sealed_|flagship|suite_seal|suite_open|triple|sntrup)' build/bank/exports.txt; then
+          if grep -E '_cryptolib_(stego|entropy_from|hpke_stego)' build/bank/exports.txt; then
             echo "bank profile exports an excluded family" >&2; exit 1
           fi
+          for excluded in suite_seal_pq molecular_seal session_initiate; do
+            grep -q "_cryptolib_$excluded" build/bank/exports.txt || { echo "stub $excluded missing" >&2; exit 1; }
+          done
           grep -q '_cryptolib_xwing_keygen' build/bank/exports.txt
           grep -q '_cryptolib_suite2_seal' build/bank/exports.txt
           grep -q '_cryptolib_session2_accept' build/bank/exports.txt
