@@ -38,6 +38,7 @@
  */
 
 #include <cryptolib/cryptolib.hpp>
+#include "bank_demo.hpp"
 
 #include <cassert>
 #include <cstdlib>
@@ -2108,6 +2109,10 @@ int main(int argc, char* argv[]) {
 #endif
     demo_hkdf_blake3();
     demo_keyring();
+#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+    section("14. Bank profile: X-Wing, HPKE with ML-KEM, Suite v2, Session v2");
+    bank_demo::run([](bool ok, const std::string& label) { CHECK(ok, label); });
+#endif
     demo_grand_finale(out_dir);
 
     // Summary

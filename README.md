@@ -511,6 +511,14 @@ cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build/test --target cryptolib_tests
 ./build/test/cryptolib_tests
 
+# Showcases: cryptolib_showcase walks every feature in the full profile,
+# cryptolib_showcase_bank the standards-track surface (full and bank profiles),
+# cryptolib_showcase_fips the OpenSSL FIPS Provider layer (fips profile).
+# The Flutter showcase lives in bridge/bindings/cipherbird/example (one screen
+# per capability, runs on iOS, Android, macOS and the web).
+cmake --build build/test --target cryptolib_showcase cryptolib_showcase_bank
+./build/test/cryptolib_showcase && ./build/test/cryptolib_showcase_bank
+
 # Build the shared C library used by every binding
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release --target cryptolib_c

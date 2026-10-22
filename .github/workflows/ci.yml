@@ -24,8 +24,12 @@ jobs:
           cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_EXAMPLE=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
           cmake --build build/test
-      - name: Run tests
-        run: ./build/test/cryptolib_tests
+      - name: Run tests and the showcases
+        run: |
+          ./build/test/cryptolib_tests
+          ./build/test/cryptolib_showcase "$RUNNER_TEMP/showcase" > "$RUNNER_TEMP/showcase.log"
+          tail -3 "$RUNNER_TEMP/showcase.log"
+          ./build/test/cryptolib_showcase_bank
 
   asan:
     runs-on: macos-14
@@ -133,8 +137,10 @@ jobs:
           cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=bank \
             -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
           cmake --build build/bank
-      - name: Run tests
-        run: ./build/bank/cryptolib_tests
+      - name: Run tests and the bank showcase
+        run: |
+          ./build/bank/cryptolib_tests
+          ./build/bank/cryptolib_showcase_bank
       - name: The bank library carries no steganography, media entropy or native combiner entry points
         run: |
           nm -gU build/bank/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/bank/exports.txt
@@ -165,9 +171,10 @@ jobs:
           cmake --build build/fips
       - name: Run tests against the validated module in approved mode
         run: |
-          CRYPTOLIB_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules" \
-          CRYPTOLIB_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf" \
-            ./build/fips/cryptolib_tests
+          export CRYPTOLIB_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules"
+          export CRYPTOLIB_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf"
+          ./build/fips/cryptolib_tests
+          ./build/fips/cryptolib_showcase_fips
       - name: The fips library references no libsodium primitive and links the 3.1.2 libcrypto
         run: |
           nm -u build/fips/libcryptolib_c.dylib | grep -E '_sodium_|_crypto_|_randombytes' | sort > build/fips/sodium_refs.txt

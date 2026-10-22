@@ -2,7 +2,6 @@
 // module end to end through the keyring.
 //
 //   flutter test integration_test -d <device id>
-import 'dart:typed_data';
 
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird/cipherbird_hardware.dart';

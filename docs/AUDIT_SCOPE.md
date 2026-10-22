@@ -168,6 +168,14 @@ All bindings end to end:
 bash scripts/verify_bindings.sh
 ```
 
+Walk-throughs for the reviewer: `cryptolib_showcase_bank` (full and bank
+profiles) exercises X-Wing, HPKE with ML-KEM-768 and X-Wing, Suite v2 and
+Session v2; `cryptolib_showcase_fips` (fips profile) exercises every
+approved operation against its known answer; the Flutter showcase in
+`bridge/bindings/cipherbird/example` runs the same surface plus the
+hardware keys and the device validated module on iOS, Android, macOS and
+the web.
+
 Fuzzers and the constant-time probe are described in `CMakeLists.txt`
 (`CRYPTOLIB_FUZZ`, `CRYPTOLIB_CT_VALGRIND`) and in the `fuzz` and `ctgrind`
 CI jobs.

@@ -1,61 +1,38 @@
-# cipherbird example
+# CipherBird showcase
 
-A minimal Flutter app that proves the package works on a device. It warms the
-library before the first frame, then runs a short self-test and shows one
-row per check.
+One screen per capability, run live on the platform the app is on. Every
+row is a check that either holds (green), fails (red) or cannot run on
+this platform (grey, with the reason).
 
-| Check | What it exercises |
+| Screen | What it shows |
 |---|---|
-| Library loaded | the bundled native library resolves and initialises |
-| SHA-256 known answer | the hash of `abc` matches the published vector |
-| SymmetricKey text round-trip | the key-committing AEAD through `encryptText` and `decryptText` |
-| Hybrid signature verifies | Ed25519 plus ML-DSA-65 through `SigningKey` and `VerifyKey` |
-| Hybrid KEM public-key encryption | X25519 plus ML-KEM-768 through `KemKeyPair.encryptTextFor` and `decryptText` |
-| Flagship sealed messaging | two identities, `sealText` and `openText` |
+| Overview | engine version, build kind, the approval boundary for each protected data class, the validated module this platform reports, the profile defaults |
+| Primitives | SHA-256, XChaCha20-Poly1305, the hybrid signature, the hybrid KEM, Flagship sealed messaging, a keyring passphrase slot |
+| Post-quantum | X-Wing key pairs and seeds, HPKE base mode with DHKEM(X25519), ML-KEM-768 and X-Wing, ML-DSA-65 |
+| Envelopes | Suite v2 seal and open, re-addressing rejected, Session v2 handshake and ratchet, an unexpected initiator refused |
+| Hardware keys | Secure Enclave or Android Keystore key, wrap and unwrap, a keyring hardware slot, attestation |
+| Validated module | DeviceFips through Apple corecrypto or the Android providers: SHA-256, HMAC, HKDF and PBKDF2 against their RFC vectors, AES-256-GCM, P-256 |
+| Play | interactive playgrounds: type your own input, press the buttons, read the log. Hashes and MACs, symmetric encryption with a bit flip, signatures, HPKE with a chosen KEM, Suite v2 with Bob and Carol, a Session v2 chat with Mallory, hardware keys, the validated module |
 
-The whole app is one file, [lib/main.dart](lib/main.dart). It prints
-`CIPHERBIRD_SELFTEST: OK` or `CIPHERBIRD_SELFTEST: FAILED` to the console so
-a headless run can be checked with `adb logcat` or `xcrun simctl launch
---console`.
-
-## Run
+Run it:
 
 ```bash
-flutter run
+flutter run -d macos
+flutter run -d <ios simulator or device id>
+flutter run -d <android device id>
+flutter run -d chrome
 ```
 
-Pick an Android device, an iOS simulator or macOS when asked. The native
-library comes with the package, so nothing has to be built or copied first.
+The startup self test prints `CIPHERBIRD_SELFTEST: OK` once the primitives
+screen holds, which the scripted verifications read.
 
-## Startup
+The same sections run headless as an integration test and fail on any red
+row:
 
-One await at startup, the same on every platform:
-
-```dart
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await CipherBird.preload();
-  runApp(const ExampleApp());
-}
+```bash
+flutter test integration_test/showcase_test.dart -d <device id>
 ```
 
-On Android, iOS and macOS the call returns immediately; the library opens
-synchronously on first use. In the browser the plugin registration has
-already started downloading the WebAssembly engine before `main` runs, so the
-await only covers whatever download time is left. The example's
-`web/index.html` includes the two engine scripts (added with
-`dart run cipherbird:web_setup`), which download and
-instantiate the engine while Flutter bootstraps; with them the package
-adopts the finished engine synchronously and the await in `main` returns at
-once, so it could be dropped on the web as well:
-
-```html
-<script src="assets/packages/cipherbird/assets/cipherbird.js" defer></script>
-<script src="assets/packages/cipherbird/assets/cipherbird_boot.js" defer></script>
-```
-
-Every call after it is synchronous.
-
-For an app to play with rather than a self-test, see the playground in the
-package repository, which adds buttons to encrypt, corrupt and decrypt text,
-sign and verify, encrypt to a public key and hash a passphrase on a worker.
+`integration_test/playground_test.dart` presses every playground button;
+`integration_test/hardware_test.dart` and `integration_test/fips_test.dart`
+are the focused device tests behind the hardware and module screens.
