@@ -85,9 +85,13 @@ public:
             std::vector<uint8_t> buf(static_cast<std::size_t>(sz));
             f.read(reinterpret_cast<char*>(buf.data()), sz);
             int w, h, c;
+            if (!stbi_info_from_memory(buf.data(), int(buf.size()), &w, &h, &c)) return {};
+            const auto byte_count = (w > 0 && h > 0)
+                ? checked_image_bytes(std::size_t(w), std::size_t(h)) : std::nullopt;
+            if (!byte_count) return {};
             uint8_t* d = stbi_load_from_memory(buf.data(), int(buf.size()), &w, &h, &c, 3);
             if (!d) return {};
-            std::vector<uint8_t> pix(d, d + w*h*3);
+            std::vector<uint8_t> pix(d, d + *byte_count);
             stbi_image_free(d);
             return pix;
         };

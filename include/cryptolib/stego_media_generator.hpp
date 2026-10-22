@@ -1324,6 +1324,13 @@ private:
         f.read(reinterpret_cast<char*>(buf.data()), sz);
 
         int w, h, channels;
+        const bool sized = stbi_info_from_memory(buf.data(), static_cast<int>(buf.size()),
+                                                 &w, &h, &channels) != 0;
+        const auto byte_count = (sized && w > 0 && h > 0)
+            ? checked_image_bytes(static_cast<std::size_t>(w), static_cast<std::size_t>(h))
+            : std::nullopt;
+        if (!byte_count) return Result<LoadedImage>::err(
+            "image dimensions out of range in '" + path + "'");
         uint8_t* data = stbi_load_from_memory(buf.data(), static_cast<int>(buf.size()),
                                                &w, &h, &channels, 3);
         if (!data) return Result<LoadedImage>::err(
@@ -1332,7 +1339,7 @@ private:
         LoadedImage img;
         img.w = static_cast<std::size_t>(w);
         img.h = static_cast<std::size_t>(h);
-        img.pixels.assign(data, data + w * h * 3);
+        img.pixels.assign(data, data + *byte_count);
         stbi_image_free(data);
         return Result<LoadedImage>::ok(std::move(img));
     }

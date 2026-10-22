@@ -1491,22 +1491,18 @@ CRYPTO_API CryptoBlake3Handle cryptolib_blake3_hasher_create(const uint8_t* key,
 #endif
 } CL_FAIL_PTR
 
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file_with_policy(
     const char* path, int deterministic, double min_bits_per_byte, int require_rct, char** out_error) try {
     if (out_error) *out_error = nullptr;
-#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     crypto::entropy::SourcePolicy policy{ min_bits_per_byte, require_rct != 0, false };
     auto r = deterministic
         ? crypto::entropy::MediaEntropy::from_file_deterministic(path ? path : "", policy)
         : crypto::entropy::MediaEntropy::from_file(path ? path : "", policy);
     if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
     return static_cast<CryptoEntropyHandle>(new EntropyImpl{std::move(r.value())});
-#else
-    (void)path; (void)deterministic; (void)min_bits_per_byte; (void)require_rct;
-    if (out_error) *out_error = dup_str(kNotInProfile);
-    return nullptr;
-#endif
 } CL_FAIL_PTR
+#endif
 
 CRYPTO_API int cryptolib_blake3_hasher_update(CryptoBlake3Handle h,
                                                const uint8_t* data, size_t len) try {
