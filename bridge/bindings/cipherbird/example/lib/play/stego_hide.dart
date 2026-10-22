@@ -13,6 +13,7 @@ extension on StegoPlayground {
 
   Uint8List _carrierBytes() => switch (_carrier.value) {
     'photo 512x512 PPM' => photoPpm(512),
+    'photo 1024x1024 PPM' => photoPpm(1024),
     'photo 256x256 PPM' => photoPpm(256),
     'tone 10 s WAV' => toneWav(10),
     _ => toneWav(2),

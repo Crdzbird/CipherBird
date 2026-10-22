@@ -1,6 +1,7 @@
 /// The carriers the steganography playground can generate.
 const stegoCarriers = [
   'photo 512x512 PPM',
+  'photo 1024x1024 PPM',
   'photo 256x256 PPM',
   'tone 10 s WAV',
   'tone 2 s WAV',

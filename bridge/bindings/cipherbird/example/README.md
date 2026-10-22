@@ -34,5 +34,8 @@ flutter test integration_test/showcase_test.dart -d <device id>
 ```
 
 `integration_test/playground_test.dart` presses every playground button;
+`integration_test/stego_playground_test.dart` and
+`integration_test/entropy_playground_test.dart` drive the steganography and
+LavaRand playgrounds through every mode and check what they log;
 `integration_test/hardware_test.dart` and `integration_test/fips_test.dart`
 are the focused device tests behind the hardware and module screens.
