@@ -47,14 +47,19 @@ class CipherbirdHardwarePlugin : FlutterPlugin, MethodChannel.MethodCallHandler,
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
+    private var fips: CipherbirdFipsChannel? = null
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, "cipherbird/hardware")
         channel.setMethodCallHandler(this)
+        fips = CipherbirdFipsChannel(binding.binaryMessenger)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        fips?.dispose()
+        fips = null
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) { activity = binding.activity }

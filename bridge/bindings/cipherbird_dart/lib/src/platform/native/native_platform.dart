@@ -26,6 +26,7 @@ part 'structs/cipher_bird_buffer_result.dart';
 part 'structs/cipher_bird_derived_keys.dart';
 part 'structs/cipher_bird_entropy_info.dart';
 part 'structs/cipher_bird_file_inspection.dart';
+part 'structs/cipher_bird_fips_status.dart';
 part 'structs/cipher_bird_frost_commit.dart';
 part 'structs/cipher_bird_frost_key_gen.dart';
 part 'structs/cipher_bird_health_report.dart';
@@ -42,3 +43,6 @@ part 'structs/cipher_bird_result.dart';
 part 'structs/cipher_bird_sealed_info.dart';
 part 'zeroing_allocator.dart';
 part 'zeroing_utf8.dart';
+
+/// False: this is the native layer.
+const bool platformIsWeb = false;
