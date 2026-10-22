@@ -5,3 +5,5 @@ library;
 
 export 'src/benchmark_table.dart';
 export 'src/suite.dart';
+export 'src/previous_results.dart';
+export 'src/time_summary.dart';

@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:cipherbird_benchmark/src/bank_rows.dart';
 import 'package:cipherbird_benchmark/src/benchmark_table.dart';
+import 'package:cipherbird_benchmark/src/hash_rows.dart';
 import 'package:cipherbird_benchmark/src/slow_rows.dart';
 import 'package:cipherbird_dart/cipherbird_dart.dart';
 import 'package:crypto/crypto.dart' as crypto;
@@ -13,6 +15,9 @@ Future<BenchmarkTable> runSuite(
   CipherBird lib, {
   required String label,
   required void Function(String line) log,
+  Map<String, double> previous = const {},
+  String previousLabel = '1.1.0',
+  bool bank = true,
 }) async {
   final rng = Random(7);
   Uint8List bytes(int n) =>
@@ -22,12 +27,12 @@ Future<BenchmarkTable> runSuite(
   final key = bytes(32);
   final nonce12 = bytes(12);
   final salt = bytes(16);
-  final table = BenchmarkTable([
-    label,
-    'pointycastle',
-    'cryptography',
-    'crypto',
-  ], log: log);
+  final table = BenchmarkTable(
+    [label, 'pointycastle', 'cryptography', 'crypto'],
+    log: log,
+    previous: previous,
+    previousLabel: previousLabel,
+  );
   pc.AEADParameters<pc.KeyParameter> aead() =>
       pc.AEADParameters(pc.KeyParameter(key), 128, nonce12, Uint8List(0));
   final cgAes = cg.AesGcm.with256bits();
@@ -45,24 +50,7 @@ Future<BenchmarkTable> runSuite(
   final cgSig = await ed.sign(kib, keyPair: edPair);
   const passphrase = 'correct horse battery staple';
 
-  await table.row('SHA-256, 1 MiB', [
-    () async => lib.sha256(mib),
-    () async => pc.SHA256Digest().process(mib),
-    () async => cg.Sha256().hash(mib),
-    () async => crypto.sha256.convert(mib),
-  ], size: 1 << 20);
-  await table.row('BLAKE2b-512, 1 MiB', [
-    () async => lib.blake2b(mib),
-    () async => pc.Blake2bDigest(digestSize: 64).process(mib),
-    null,
-    null,
-  ], size: 1 << 20);
-  await table.row('BLAKE3, 1 MiB', [
-    () async => lib.blake3(mib),
-    null,
-    null,
-    null,
-  ], size: 1 << 20);
+  await addHashRows(table, lib, mib: mib);
   await table.row('XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB', [
     () async => lib.xchacha20Encrypt(mib, key),
     () async => (pc.ChaCha20Poly1305(
@@ -98,5 +86,8 @@ Future<BenchmarkTable> runSuite(
     null,
   ]);
   await addSlowRows(table, lib, salt: salt, passphrase: passphrase);
+  if (bank) {
+    await addBankRows(table, lib, kib: kib);
+  }
   return table;
 }

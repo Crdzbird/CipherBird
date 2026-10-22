@@ -482,23 +482,65 @@ readiness, higher-level protocols or cross-language compatibility matter.
 
 The harness in `cipherbird_dart/benchmark/bench.dart` runs each operation
 for two seconds after one warm-up call and reports the mean. Apple M3 Max,
-macOS 26.6, Dart 3.13.5, pointycastle 3.9.1, cryptography 2.7.0, crypto
-3.0.6. Throughput rows are in MB/s on 1 MiB inputs; the rest are operations
-per second. Factors are relative to cipherbird.
+macOS 26.6, Dart 3.13.5, pointycastle 3.9.1, cryptography 2.9.0, crypto
+3.0.7, measured on 2026-10-22. Throughput rows are in MB/s on 1 MiB
+inputs; the rest are operations per second. Every cell also gives the mean
+time of one operation, and every comparison cell the factor and the time
+difference against cipherbird for that one operation (a positive
+difference is time the other package needs on top). The "vs 1.1.0 engine"
+column is the change against the 1.1.0 engine measured in the same session
+on the same machine state (`bench.dart --emit-json` on the old library,
+then `--previous`), so it reflects the engine rather than the machine.
+Another process was using about three cores during this session, which is
+why the absolute figures are lower than the 1.1.0 table for every column,
+the pure-Dart packages included; the differences within a table are fair.
 
-| Operation | cipherbird (native) | pointycastle | cryptography | crypto |
+| Operation | cipherbird (native) | vs 1.1.0 engine | pointycastle | cryptography | crypto |
+|---|---|---|---|---|---|
+| SHA-256, 1 MiB | 217 MB/s, 4.60 ms | -7% | 74 MB/s, 13.5 ms (2.9x slower, +8.87 ms) | 90 MB/s, 11.1 ms (2.4x slower, +6.49 ms) | 91 MB/s, 11.0 ms (2.4x slower, +6.40 ms) |
+| BLAKE2b-512, 1 MiB | 514 MB/s, 1.94 ms | +23% | 31 MB/s, 32.1 ms (16.5x slower, +30.2 ms) | n/a | n/a |
+| BLAKE3, 1 MiB | 820 MB/s, 1.22 ms | +3% | n/a | n/a | n/a |
+| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 296 MB/s, 3.38 ms | +14% | 46 MB/s, 21.6 ms (6.4x slower, +18.2 ms) | 26 MB/s, 38.5 ms (11.4x slower, +35.1 ms) | n/a |
+| AES-256-GCM encrypt, 1 MiB | 651 MB/s, 1.54 ms | +17% | 1 MB/s, 901.5 ms (586.7x slower, +900.0 ms) | 14 MB/s, 71.9 ms (46.8x slower, +70.3 ms) | n/a |
+| Ed25519 sign, 1 KiB | 49597 ops/s, 20.2 us | +20% | n/a | 424 ops/s, 2.36 ms (116.9x slower, +2.34 ms) | n/a |
+| Ed25519 verify, 1 KiB | 21576 ops/s, 46.3 us | +8% | n/a | 421 ops/s, 2.37 ms (51.2x slower, +2.33 ms) | n/a |
+| X25519 shared secret | 25549 ops/s, 39.1 us | +6% | n/a | 1501 ops/s, 666.1 us (17.0x slower, +627.0 us) | n/a |
+| Argon2id, 64 MiB, 2 passes | 14.1 ops/s, 70.7 ms | -3% | 1.8 ops/s, 563.8 ms (8.0x slower, +493.2 ms) | 2.6 ops/s, 386.4 ms (5.5x slower, +315.7 ms) | n/a |
+| ML-KEM-768 keygen + encapsulate + decapsulate | 14079 ops/s, 71.0 us | +9% | n/a | n/a | n/a |
+| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 4272 ops/s, 234.1 us | +10% | n/a | n/a | n/a |
+| ML-DSA-65 sign, 1 KiB | 2308 ops/s, 433.2 us | new | n/a | n/a | n/a |
+| ML-DSA-65 verify, 1 KiB | 9407 ops/s, 106.3 us | new | n/a | n/a | n/a |
+| Hybrid Ed25519 + ML-DSA-65 sign + verify, 1 KiB | 1614 ops/s, 619.5 us | new | n/a | n/a | n/a |
+| X-Wing keygen + encapsulate + decapsulate | 4425 ops/s, 226.0 us | new | n/a | n/a | n/a |
+| HPKE X-Wing seal + open, 1 KiB | 4309 ops/s, 232.1 us | new | n/a | n/a | n/a |
+| Suite v2 seal + open, 1 KiB | 1129 ops/s, 885.6 us | new | n/a | n/a | n/a |
+| Session v2 handshake (prekey, initiate, accept) | 573 ops/s, 1.75 ms | new | n/a | n/a | n/a |
+| Session v2 message encrypt + decrypt, 1 KiB | 11485 ops/s, 87.1 us | new | n/a | n/a | n/a |
+
+The same measurements as time only, against the fastest alternative for
+each operation:
+
+| Operation | cipherbird (native) | fastest alternative | time per operation | difference |
 |---|---|---|---|---|
-| SHA-256, 1 MiB | 282 MB/s | 80 MB/s (3.5x slower) | 96 MB/s (2.9x slower) | 98 MB/s (2.9x slower) |
-| BLAKE2b-512, 1 MiB | 671 MB/s | 31 MB/s (21.7x slower) | n/a | n/a |
-| BLAKE3, 1 MiB | 1347 MB/s | n/a | n/a | n/a |
-| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 299 MB/s | 46 MB/s (6.5x slower) | 26 MB/s (11.5x slower) | n/a |
-| AES-256-GCM encrypt, 1 MiB | 736 MB/s | 1 MB/s (659.2x slower) | 14 MB/s (53.2x slower) | n/a |
-| Ed25519 sign, 1 KiB | 42531 ops/s | n/a | 377 ops/s (112.7x slower) | n/a |
-| Ed25519 verify, 1 KiB | 18697 ops/s | n/a | 375 ops/s (49.8x slower) | n/a |
-| X25519 shared secret | 22822 ops/s | n/a | 1387 ops/s (16.5x slower) | n/a |
-| Argon2id, 64 MiB, 2 passes | 13.7 ops/s | 1.7 ops/s (8.0x slower) | 2.4 ops/s (5.8x slower) | n/a |
-| ML-KEM-768 keygen + encapsulate + decapsulate | 12061 ops/s | n/a | n/a | n/a |
-| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 3839 ops/s | n/a | n/a | n/a |
+| SHA-256, 1 MiB | 4.60 ms | crypto | 11.0 ms | +6.40 ms |
+| BLAKE2b-512, 1 MiB | 1.94 ms | pointycastle | 32.1 ms | +30.2 ms |
+| BLAKE3, 1 MiB | 1.22 ms | none | | |
+| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 3.38 ms | pointycastle | 21.6 ms | +18.2 ms |
+| AES-256-GCM encrypt, 1 MiB | 1.54 ms | cryptography | 71.9 ms | +70.3 ms |
+| Ed25519 sign, 1 KiB | 20.2 us | cryptography | 2.36 ms | +2.34 ms |
+| Ed25519 verify, 1 KiB | 46.3 us | cryptography | 2.37 ms | +2.33 ms |
+| X25519 shared secret | 39.1 us | cryptography | 666.1 us | +627.0 us |
+| Argon2id, 64 MiB, 2 passes | 70.7 ms | cryptography | 386.4 ms | +315.7 ms |
+| ML-KEM-768 keygen + encapsulate + decapsulate | 71.0 us | none | | |
+| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 234.1 us | none | | |
+| ML-DSA-65 sign, 1 KiB | 433.2 us | none | | |
+| ML-DSA-65 verify, 1 KiB | 106.3 us | none | | |
+| Hybrid Ed25519 + ML-DSA-65 sign + verify, 1 KiB | 619.5 us | none | | |
+| X-Wing keygen + encapsulate + decapsulate | 226.0 us | none | | |
+| HPKE X-Wing seal + open, 1 KiB | 232.1 us | none | | |
+| Suite v2 seal + open, 1 KiB | 885.6 us | none | | |
+| Session v2 handshake (prekey, initiate, accept) | 1.75 ms | none | | |
+| Session v2 message encrypt + decrypt, 1 KiB | 87.1 us | none | | |
 
 The same suite in Chrome 155, compiled with dart2js, against the
 WebAssembly engine (`dart test -p chrome` in `benchmark/`). Two columns
@@ -509,21 +551,55 @@ implementation on those rows; `pointycastle` and `crypto` stay pure Dart,
 and `pointycastle`'s ChaCha20 implementation does not run under dart2js. On
 everything Web Crypto does not offer, the engine remains the fast option in
 the browser: BLAKE2b, BLAKE3, XChaCha20-Poly1305, Argon2id and the
-post-quantum algorithms.
+post-quantum algorithms. The browser cannot swap engines in one session, so
+its change column compares against the figures published for 1.1.0, taken
+on an idle machine, and overstates the slowdown by the load noted above.
 
-| Operation | cipherbird (WebAssembly) | pointycastle | cryptography | crypto |
+| Operation | cipherbird (WebAssembly) | vs 1.1.0 published | pointycastle | cryptography | crypto |
+|---|---|---|---|---|---|
+| SHA-256, 1 MiB | 63 MB/s, 15.8 ms | -38% | 2 MB/s, 605.0 ms (38.3x slower, +589.2 ms) | 1452 MB/s, 688.7 us (23.0x faster, -15.1 ms) | 118 MB/s, 8.45 ms (1.9x faster, -7.36 ms) |
+| BLAKE2b-512, 1 MiB | 73 MB/s, 13.7 ms | -45% | 2 MB/s, 408.5 ms (29.8x slower, +394.8 ms) | n/a | n/a |
+| BLAKE3, 1 MiB | 72 MB/s, 13.9 ms | -45% | n/a | n/a | n/a |
+| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 63 MB/s, 15.8 ms | -39% | error: PlatformException | 36 MB/s, 27.6 ms (1.7x slower, +11.7 ms) | n/a |
+| AES-256-GCM encrypt, 1 MiB | 39 MB/s, 25.8 ms | -24% | 1 MB/s, 1.56 s (60.6x slower, +1.54 s) | 1708 MB/s, 585.5 us (44.0x faster, -25.2 ms) | n/a |
+| Ed25519 sign, 1 KiB | 15914 ops/s, 62.8 us | -13% | n/a | 13137 ops/s, 76.1 us (1.2x slower, +13.3 us) | n/a |
+| Ed25519 verify, 1 KiB | 7993 ops/s, 125.1 us | -6% | n/a | 16631 ops/s, 60.1 us (2.1x faster, -65.0 us) | n/a |
+| X25519 shared secret | 10129 ops/s, 98.7 us | -1% | n/a | 10532 ops/s, 95.0 us (1.0x faster, -3.77 us) | n/a |
+| Argon2id, 64 MiB, 2 passes | 11.9 ops/s, 84.3 ms | +1% | 0.1 ops/s, 18.83 s (223.4x slower, +18.75 s) | 0.3 ops/s, 3.56 s (42.2x slower, +3.47 s) | n/a |
+| ML-KEM-768 keygen + encapsulate + decapsulate | 4913 ops/s, 203.6 us | -16% | n/a | n/a | n/a |
+| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 1946 ops/s, 513.9 us | +5% | n/a | n/a | n/a |
+| ML-DSA-65 sign, 1 KiB | 2116 ops/s, 472.7 us | new | n/a | n/a | n/a |
+| ML-DSA-65 verify, 1 KiB | 5104 ops/s, 195.9 us | new | n/a | n/a | n/a |
+| Hybrid Ed25519 + ML-DSA-65 sign + verify, 1 KiB | 1293 ops/s, 773.5 us | new | n/a | n/a | n/a |
+| X-Wing keygen + encapsulate + decapsulate | 2150 ops/s, 465.1 us | new | n/a | n/a | n/a |
+| HPKE X-Wing seal + open, 1 KiB | 1993 ops/s, 501.8 us | new | n/a | n/a | n/a |
+| Suite v2 seal + open, 1 KiB | 807 ops/s, 1.24 ms | new | n/a | n/a | n/a |
+| Session v2 handshake (prekey, initiate, accept) | 391 ops/s, 2.56 ms | new | n/a | n/a | n/a |
+| Session v2 message encrypt + decrypt, 1 KiB | 7651 ops/s, 130.7 us | new | n/a | n/a | n/a |
+
+As time only, against the fastest alternative in the browser:
+
+| Operation | cipherbird (WebAssembly) | fastest alternative | time per operation | difference |
 |---|---|---|---|---|
-| SHA-256, 1 MiB | 102 MB/s | 2 MB/s (51.0x slower) | 1498 MB/s (14.7x faster) | 121 MB/s (1.2x faster) |
-| BLAKE2b-512, 1 MiB | 133 MB/s | 2 MB/s (66.5x slower) | n/a | n/a |
-| BLAKE3, 1 MiB | 131 MB/s | n/a | n/a | n/a |
-| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 103 MB/s | error: PlatformException | 34 MB/s (3.0x slower) | n/a |
-| AES-256-GCM encrypt, 1 MiB | 51 MB/s | 1 MB/s (51.0x slower) | 1806 MB/s (35.4x faster) | n/a |
-| Ed25519 sign, 1 KiB | 18192 ops/s | n/a | 13072 ops/s (1.4x slower) | n/a |
-| Ed25519 verify, 1 KiB | 8528 ops/s | n/a | 16640 ops/s (2.0x faster) | n/a |
-| X25519 shared secret | 10283 ops/s | n/a | 10520 ops/s (1.0x faster) | n/a |
-| Argon2id, 64 MiB, 2 passes | 11.8 ops/s | 0.1 ops/s (118.0x slower) | 0.3 ops/s (39.3x slower) | n/a |
-| ML-KEM-768 keygen + encapsulate + decapsulate | 5865 ops/s | n/a | n/a | n/a |
-| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 1858 ops/s | n/a | n/a | n/a |
+| SHA-256, 1 MiB | 15.8 ms | cryptography | 688.7 us | -15.1 ms |
+| BLAKE2b-512, 1 MiB | 13.7 ms | pointycastle | 408.5 ms | +394.8 ms |
+| BLAKE3, 1 MiB | 13.9 ms | none | | |
+| XChaCha20/ChaCha20-Poly1305 encrypt, 1 MiB | 15.8 ms | cryptography | 27.6 ms | +11.7 ms |
+| AES-256-GCM encrypt, 1 MiB | 25.8 ms | cryptography | 585.5 us | -25.2 ms |
+| Ed25519 sign, 1 KiB | 62.8 us | cryptography | 76.1 us | +13.3 us |
+| Ed25519 verify, 1 KiB | 125.1 us | cryptography | 60.1 us | -65.0 us |
+| X25519 shared secret | 98.7 us | cryptography | 95.0 us | -3.77 us |
+| Argon2id, 64 MiB, 2 passes | 84.3 ms | cryptography | 3.56 s | +3.47 s |
+| ML-KEM-768 keygen + encapsulate + decapsulate | 203.6 us | none | | |
+| Hybrid X25519 + ML-KEM-768 keygen + encapsulate + decapsulate | 513.9 us | none | | |
+| ML-DSA-65 sign, 1 KiB | 472.7 us | none | | |
+| ML-DSA-65 verify, 1 KiB | 195.9 us | none | | |
+| Hybrid Ed25519 + ML-DSA-65 sign + verify, 1 KiB | 773.5 us | none | | |
+| X-Wing keygen + encapsulate + decapsulate | 465.1 us | none | | |
+| HPKE X-Wing seal + open, 1 KiB | 501.8 us | none | | |
+| Suite v2 seal + open, 1 KiB | 1.24 ms | none | | |
+| Session v2 handshake (prekey, initiate, accept) | 2.56 ms | none | | |
+| Session v2 message encrypt + decrypt, 1 KiB | 130.7 us | none | | |
 
 Reading the numbers fairly:
 

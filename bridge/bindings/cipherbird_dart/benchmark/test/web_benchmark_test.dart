@@ -13,7 +13,10 @@ void main() {
       CipherBird.instance,
       label: 'cipherbird (WebAssembly)',
       log: print,
+      previous: previousWeb,
     );
-    print('RESULTS_BEGIN\n${table.render()}RESULTS_END');
+    print(
+      'RESULTS_BEGIN\n${table.render()}\n${renderTimeSummary(table)}RESULTS_END',
+    );
   });
 }

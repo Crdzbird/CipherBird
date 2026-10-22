@@ -27,9 +27,13 @@ void main() {
     final rows = <String, double>{
       'sha256 32 B': opsPerSecond(() => lib.sha256(msg)),
       'blake3 32 B': opsPerSecond(() => lib.blake3(msg)),
-      'xchacha20 encrypt 32 B': opsPerSecond(() => lib.xchacha20Encrypt(msg, key)),
+      'xchacha20 encrypt 32 B': opsPerSecond(
+        () => lib.xchacha20Encrypt(msg, key),
+      ),
       'hmac-sha256 32 B': opsPerSecond(() => lib.hmacSha256(msg, key)),
-      'ed25519 sign 32 B': opsPerSecond(() => lib.ed25519Sign(msg, ed.secretKey)),
+      'ed25519 sign 32 B': opsPerSecond(
+        () => lib.ed25519Sign(msg, ed.secretKey),
+      ),
       'randomBytes 32': opsPerSecond(() => lib.randomBytes(32)),
     };
     for (final e in rows.entries) {
