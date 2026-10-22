@@ -107,6 +107,9 @@ def entry(fn):
         elif p['kind'] == 'u64':
             params.append('int %s' % name)
             args.append('(%s %% 4294967296).toJS, (%s ~/ 4294967296).toJS' % (name, name))
+        elif p['kind'] == 'f64':
+            params.append('double %s' % name)
+            args.append('%s.toJS' % name)
         else:
             params.append('int %s' % name)
             args.append('%s.toJS' % name)

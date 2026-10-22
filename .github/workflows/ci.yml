@@ -147,7 +147,7 @@ jobs:
       - name: The bank library carries no steganography, media entropy or native combiner entry points
         run: |
           nm -gU build/bank/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/bank/exports.txt
-          if grep -E '_cryptolib_(stego|entropy_from|hpke_stego)' build/bank/exports.txt; then
+          if grep -E '_cryptolib_(stego|entropy_from|hpke_stego|live_entropy|entropy_assess)' build/bank/exports.txt; then
             echo "bank profile exports an excluded family" >&2; exit 1
           fi
           for excluded in suite_seal_pq molecular_seal session_initiate; do
@@ -187,7 +187,7 @@ jobs:
           fi
           otool -L build/fips/libcryptolib_c.dylib | grep -q "openssl-fips/lib/libcrypto.3.dylib"
           nm -gU build/fips/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/fips/exports.txt
-          if grep -E '_cryptolib_(vault_|box_|ed25519|x25519|argon2|xchacha|keyring_|stego|entropy_from)' build/fips/exports.txt; then
+          if grep -E '_cryptolib_(vault_|box_|ed25519|x25519|argon2|xchacha|keyring_|stego|entropy_from|live_entropy|entropy_assess)' build/fips/exports.txt; then
             echo "fips profile exports a libsodium-backed family" >&2; exit 1
           fi
           grep -q '_cryptolib_fips_init' build/fips/exports.txt

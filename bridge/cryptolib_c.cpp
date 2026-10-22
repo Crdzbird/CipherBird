@@ -157,6 +157,9 @@ struct StreamDecImpl { crypto::symmetric::SecretStream::Decryptor dec; };
 struct KeyringImpl   { crypto::Keyring kr; };
 struct DrbgImpl      { crypto::entropy::HmacDrbg d; };
 struct FortunaImpl   { crypto::entropy::FortunaPool p; };
+#ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
+struct LiveImpl      { crypto::entropy::LiveEntropy live; };
+#endif
 #endif
 #ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 struct EntropyImpl   { crypto::entropy::MediaEntropy me; };
@@ -1502,6 +1505,89 @@ CRYPTO_API CryptoEntropyHandle cryptolib_entropy_from_file_with_policy(
     if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
     return static_cast<CryptoEntropyHandle>(new EntropyImpl{std::move(r.value())});
 } CL_FAIL_PTR
+
+namespace {
+CryptoHealthReport2 health2_of(const crypto::entropy::HealthReport& v) {
+    return CryptoHealthReport2{
+        v.min_entropy_per_byte, v.mcv_bits_per_byte, v.markov_bits_per_byte, v.floor_bits_per_byte,
+        static_cast<uint64_t>(v.sample_bytes), static_cast<uint64_t>(v.longest_run),
+        static_cast<uint64_t>(v.rct_cutoff), static_cast<uint64_t>(v.max_window_count),
+        static_cast<uint64_t>(v.apt_cutoff), static_cast<uint64_t>(v.apt_window),
+        v.rct_passed ? 1 : 0, v.apt_passed ? 1 : 0, dup_str(v.explain()), nullptr };
+}
+CryptoHealthReport2 health2_error(const char* msg) {
+    return CryptoHealthReport2{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+CryptoLiveFeedReport feed_error(const char* msg) {
+    return CryptoLiveFeedReport{ 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+CryptoLiveStatus status_error(const char* msg) {
+    return CryptoLiveStatus{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+} // namespace
+
+CRYPTO_API CryptoHealthReport2 cryptolib_entropy_assess_file_health_v2(
+    const char* path, size_t max_bytes, double floor_bits_per_byte) try
+{
+    auto r = crypto::entropy::MediaEntropy::assess_file_health(
+        path ? path : "", max_bytes ? max_bytes : (1u << 20), floor_bits_per_byte);
+    if (r.is_err()) return health2_error(r.error().message.c_str());
+    return health2_of(r.value());
+} catch (...) {
+    return health2_error("internal error");
+}
+
+CRYPTO_API CryptoLiveEntropyHandle cryptolib_live_entropy_new(
+    double min_bits_per_byte, int require_rct, double min_credited_bits, char** out_error) try
+{
+    if (out_error) *out_error = nullptr;
+    crypto::entropy::SourcePolicy policy{ min_bits_per_byte, require_rct != 0, false };
+    return static_cast<CryptoLiveEntropyHandle>(new LiveImpl{
+        crypto::entropy::LiveEntropy(policy, min_credited_bits > 0 ? min_credited_bits : 256.0) });
+} catch (...) {
+    if (out_error) *out_error = dup_err_cstr("internal error");
+    return nullptr;
+}
+
+CRYPTO_API CryptoLiveFeedReport cryptolib_live_entropy_feed(
+    CryptoLiveEntropyHandle h, const uint8_t* data, size_t len, uint8_t source_id) try
+{
+    if (!h) return feed_error("LiveEntropy: null handle");
+    auto r = static_cast<LiveImpl*>(h)->live.feed(sp(data, len), source_id);
+    return CryptoLiveFeedReport{
+        r.accepted ? 1 : 0, r.credited_bits, r.credited_bits_total, r.ready ? 1 : 0,
+        r.health.min_entropy_per_byte, static_cast<uint64_t>(r.health.longest_run),
+        static_cast<uint64_t>(r.health.rct_cutoff), r.health.rct_passed ? 1 : 0,
+        r.health.apt_passed ? 1 : 0, r.reason.empty() ? nullptr : dup_str(r.reason), nullptr };
+} catch (...) {
+    return feed_error("internal error");
+}
+
+CRYPTO_API CryptoBufferResult cryptolib_live_entropy_generate(
+    CryptoLiveEntropyHandle h, size_t num_bytes) try
+{
+    if (!h) return err_buf("LiveEntropy: null handle");
+    auto r = static_cast<LiveImpl*>(h)->live.generate(num_bytes);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoLiveStatus cryptolib_live_entropy_status(CryptoLiveEntropyHandle h) try {
+    if (!h) return status_error("LiveEntropy: null handle");
+    auto s = static_cast<LiveImpl*>(h)->live.status();
+    return CryptoLiveStatus{
+        s.chunks_fed, s.chunks_accepted, s.chunks_rejected, s.bytes_fed, s.reseeds,
+        s.credited_bits_total, s.credited_bits_since_reseed, s.min_credited_bits, s.ready ? 1 : 0,
+        s.last_health.min_entropy_per_byte, static_cast<uint64_t>(s.last_health.longest_run),
+        static_cast<uint64_t>(s.last_health.rct_cutoff),
+        s.last_reason.empty() ? nullptr : dup_str(s.last_reason), nullptr };
+} catch (...) {
+    return status_error("internal error");
+}
+
+CRYPTO_API void cryptolib_live_entropy_free(CryptoLiveEntropyHandle h) {
+    delete static_cast<LiveImpl*>(h);
+}
 #endif
 
 CRYPTO_API int cryptolib_blake3_hasher_update(CryptoBlake3Handle h,

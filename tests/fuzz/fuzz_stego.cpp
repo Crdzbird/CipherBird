@@ -90,6 +90,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         (void)crypto::entropy::MediaEntropy::from_file_deterministic(
             p, crypto::entropy::SourcePolicy::permissive());
         (void)crypto::entropy::MediaEntropy::assess_file_health(p);
+        {
+            crypto::entropy::LiveEntropy live(crypto::entropy::SourcePolicy::permissive(), 64.0);
+            (void)live.feed(std::span<const uint8_t>(data, size));
+            (void)live.feed(std::span<const uint8_t>(data, size), 1);
+            (void)live.generate(32);
+        }
     }
     {
         const char* p = "/tmp/cryptolib_fuzz.avi";

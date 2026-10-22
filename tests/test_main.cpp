@@ -21,6 +21,7 @@ void run_tests_vault();
 void run_tests_media_entropy();
 void run_tests_entropy_drbg();
 void run_tests_entropy_health();
+void run_tests_entropy_live();
 void run_tests_entropy_fortuna();
 void run_tests_stego_encrypted();
 void run_tests_physical_seal();
@@ -108,6 +109,7 @@ int main() {
 #endif
 #ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
     run_suite("entropy_health", run_tests_entropy_health);
+    run_suite("entropy_live",   run_tests_entropy_live);
 #endif
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("entropy_fortuna", run_tests_entropy_fortuna);

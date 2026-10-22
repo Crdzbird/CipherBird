@@ -136,12 +136,32 @@ bound over the bit expansion of the first MiB) plus the Repetition-Count and
 Adaptive-Proportion tests, and refuses by default a file below one bit of
 min-entropy per byte or one that fails the repetition-count test
 (`SourcePolicy`; `permissive()` keeps the assessment but never refuses).
+The two local tests are calibrated against the floor the policy claims,
+not against the entropy measured: the repetition-count cutoff is
+1 + ceil(30 / floor), 31 bytes at the default floor, so a short run of
+padding in a container header passes while a blank region or an empty file
+still fails. Every report carries the estimates, the sample size, the
+longest run and both cutoffs, `explain()` prints them one per line, and a
+refusal names the number, the cutoff and the setting that would relax it.
 `info().entropy_bits_claimed` caps the claim at the 512-bit conditioner
 output. Two estimators are not the full 90B non-IID suite, and a file an
 attacker also holds has no entropy against that attacker whatever the
 estimate says: the deterministic mode is a password made of a file. `MediaEntropy::make_drbg()` exposes an SP 800-90A HMAC-DRBG
 beacon seeded from the conditioned entropy (deterministic mode reproducible,
 mixed mode folds in system entropy).
+
+`LiveEntropy` (`entropy_live.hpp`) is the continuous form for a stream:
+camera frames, audio buffers or packets are fed as they arrive, each chunk
+is assessed under the same policy with the repetition-count run carried
+across chunk boundaries, a passing chunk is credited
+`min_entropy_per_byte * size` bits and a failing one is mixed in but
+credited nothing, with the reason reported. The output is an SP 800-90A
+HMAC-DRBG instantiated once 256 credited bits (configurable) have been
+earned, with an operating-system nonce so the output is never weaker than
+the system generator, and reseeded every time that much credit arrives
+again; `generate` fails closed before the first seed. The credit is an
+estimate from two 90B estimators over the stream's own bytes, so a static
+scene or a highly compressible feed earns little, and the status says so.
 
 ## 7. Assurance posture (current → target)
 

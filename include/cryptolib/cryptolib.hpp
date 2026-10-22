@@ -142,6 +142,7 @@
 #include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
 #include "entropy_drbg.hpp"       // → HMAC-DRBG (opt-in beacon)
 #include "entropy_fortuna.hpp"    // → Fortuna pool (opt-in)
+#include "entropy_live.hpp"       // → continuous source for a live stream
 
 #ifdef CRYPTOLIB_HAS_MEDIA_ENTROPY
 #include "media_entropy.hpp"      // → steganography.hpp (idempotent via #pragma once)

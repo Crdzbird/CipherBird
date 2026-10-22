@@ -90,36 +90,6 @@ struct MediaInfo {
     double                   entropy_bits_claimed = 0.0; // the estimate capped at the 512-bit conditioner output
 };
 
-/// What a media source must satisfy before its content is trusted as
-/// entropy. The strict default refuses a file whose min-entropy estimate
-/// is below one bit per byte or that fails the repetition-count test; a
-/// permissive policy keeps the assessment but never refuses, for callers
-/// that only want the file-as-key convenience with eyes open. The
-/// adaptive-proportion test is reported but not required by default: it is
-/// defined for a noise source, and the smooth regions of any real photo
-/// trip it without saying anything about the file as a whole.
-struct SourcePolicy {
-    double min_bits_per_byte = 1.0;
-    bool   require_rct       = true;
-    bool   require_apt       = false;
-
-    [[nodiscard]] static constexpr SourcePolicy strict() noexcept { return {}; }
-    [[nodiscard]] static constexpr SourcePolicy permissive() noexcept { return {0.0, false, false}; }
-
-    [[nodiscard]] std::string reject(const HealthReport& h) const {
-        if (h.min_entropy_per_byte < min_bits_per_byte)
-            return "MediaEntropy: source min-entropy " + std::to_string(h.min_entropy_per_byte) +
-                   " bits/byte is below the policy floor of " + std::to_string(min_bits_per_byte) +
-                   " (use SourcePolicy::permissive() to accept a weak source)";
-        if (require_rct && !h.rct_passed)
-            return "MediaEntropy: source failed the repetition-count test (longest run " +
-                   std::to_string(h.longest_run) + ")";
-        if (require_apt && !h.apt_passed)
-            return "MediaEntropy: source failed the adaptive-proportion test";
-        return {};
-    }
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DerivedKeys — all domain-specific keys produced from the harvested entropy
 // ─────────────────────────────────────────────────────────────────────────────
@@ -222,7 +192,7 @@ public:
         std::uintmax_t total_bytes = 0;
 
         for (const auto& p : paths) {
-            auto result = stream_file_into_hash(state, p);
+            auto result = stream_file_into_hash(state, p, policy.min_bits_per_byte);
             if (result.is_err())
                 return Result<MediaEntropy>::err(result.error().message);
             if (auto why = policy.reject(result.value().health); !why.empty())
@@ -360,7 +330,8 @@ public:
     ///   if (!h.healthy(1.0)) { /* reject: too little entropy per byte */ }
     [[nodiscard]] static Result<HealthReport>
     assess_file_health(const std::filesystem::path& path,
-                       std::size_t max_bytes = (1u << 20)) {
+                       std::size_t max_bytes = (1u << 20),
+                       double floor_bits_per_byte = 1.0) {
         std::error_code ec;
         auto file_size = std::filesystem::file_size(path, ec);
         if (ec)
@@ -376,7 +347,7 @@ public:
         std::vector<uint8_t> sample(want);
         file.read(reinterpret_cast<char*>(sample.data()), static_cast<std::streamsize>(want));
         sample.resize(static_cast<std::size_t>(file.gcount()));
-        auto report = assess_health({ sample.data(), sample.size() });
+        auto report = assess_health({ sample.data(), sample.size() }, floor_bits_per_byte);
         sodium_memzero(sample.data(), sample.size());
         return Result<HealthReport>::ok(report);
     }
@@ -489,7 +460,8 @@ private:
     // Does NOT load the full file into memory — safe for multi-GB video files.
     [[nodiscard]] static Result<MediaInfo>
     stream_file_into_hash(crypto_generichash_state& state,
-                          const std::filesystem::path& path) {
+                          const std::filesystem::path& path,
+                          double floor_bits_per_byte = 1.0) {
         // Validate path
         std::error_code ec;
         if (!std::filesystem::exists(path, ec) || ec)
@@ -545,7 +517,7 @@ private:
 
         // Two SP 800-90B estimators over the sampled prefix and the
         // Most-Common-Value bound over the whole file; the smaller wins.
-        HealthReport health = assess_health(sample);
+        HealthReport health = assess_health(sample, floor_bits_per_byte);
         sodium_memzero(sample.data(), sample.size());
         health.mcv_bits_per_byte = std::min(health.mcv_bits_per_byte, mcv_bits_per_byte(hist, total));
         health.min_entropy_per_byte = std::min(health.min_entropy_per_byte, health.mcv_bits_per_byte);
@@ -567,7 +539,7 @@ private:
         crypto_generichash_state state{};
         crypto_generichash_init(&state, nullptr, 0, ENTROPY_BYTES);
 
-        auto info = stream_file_into_hash(state, path);
+        auto info = stream_file_into_hash(state, path, policy.min_bits_per_byte);
         if (info.is_err())
             return Result<MediaEntropy>::err(info.error().message);
         if (auto why = policy.reject(info.value().health); !why.empty())

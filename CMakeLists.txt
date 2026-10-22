@@ -279,7 +279,7 @@ if(CRYPTOLIB_BUILD_TESTS)
     set(_STEGO_TESTS stego_image stego_audio stego_video stego_engine stego_keyed stego_keyed_formats
         stego_fec stego_analysis stego_encrypted stego_fuzz physical_seal oprf_image_seal hpke_stego_seal
         vault_stego entropy_stego asym_stego)
-    set(_MEDIA_TESTS media_entropy entropy_health)
+    set(_MEDIA_TESTS media_entropy entropy_health entropy_live)
     set(_COMBINER_TESTS molecular_vault triple_hybrid_kem triple_sig sntrup_x25519 suite flagship hybrid session)
     set(_EXCLUDED_TESTS "")
     if(NOT CRYPTOLIB_PROFILE STREQUAL "full")
