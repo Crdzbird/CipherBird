@@ -1,7 +1,53 @@
-## 1.1.3-dev.1
+## 1.2.0
 
-Supply-chain and loader hardening from the bank-readiness assessment; no
-API or wire-format change. A pre-release for testing.
+The bank-readiness release: the standards-track post-quantum surface, the
+validated-module routing, the explicit approval boundary, and the
+supply-chain and loader hardening from the assessment. Existing APIs and
+wire formats are unchanged; the new envelopes carry new ids and versions.
+
+- Standards-track post-quantum surface from the bank-readiness assessment
+  (findings M4, M5, M6): X-Wing (draft-connolly-cfrg-xwing-kem-11) with
+  `xwingKeygen`, `xwingKeypairFromSeed`, `xwingEncapsulate` and
+  `xwingDecapsulate`; HPKE with a chosen KEM through `HpkeKem`
+  (DHKEM(X25519), ML-KEM-768, X-Wing), `hpkeKeygenKem`,
+  `hpkeDeriveKeypairKem`, `hpkeSetupSKem` and `hpkeSetupRKem`; Suite v2
+  envelopes (`suite2Seal`, `suite2Open`, `suite2SuiteOf`, `Suite2Id`), whose
+  signature binds the recipient key, the KEM ciphertext and the associated
+  data so an envelope cannot be re-addressed; and Session v2 (`Session2`,
+  `generateSession2Prekey`, `verifySession2Prekey`, `initiateSession2`,
+  `claimedSession2Initiator`, `acceptSession2`), a forward-secret ratchet
+  over X-Wing behind a handshake that authenticates both identities. Every
+  `SecurityProfile` selects X-Wing (`hpkeKem`, `suite2`). The version 1
+  Suite and Session stay available and unchanged.
+- The engine's FIPS layer for engines built with `CRYPTOLIB_PROFILE=fips`
+  (OpenSSL FIPS Provider, CMVP certificate #4985): `fipsAvailable`,
+  `fipsInit`, `fipsStatus` and the `fips*` family (digest, HMAC, HKDF,
+  PBKDF2, DRBG, AES-256-GCM, P-256, a key envelope, HPKE P-256). On the
+  bundled full-profile engine `fipsAvailable` is false and every call
+  throws.
+- The approval boundary is explicit (finding M3): `ProtectedDataClass`,
+  `CipherBird.approvedFor`, `requireApprovedFor` and `isWebBuild`. The web
+  build is approved for ephemeral data only and `requireApprovedFor` fails
+  closed for long-lived keys and card data.
+- Engines carry the 320-function C ABI, every slice built and attested on
+  CI from hash-pinned sources. Engine fixes: a WAV file without a valid
+  format chunk is rejected by the FLAC steganographer (found by the now
+  blocking fuzz job), and authentication verdicts are declassified for the
+  blocking constant-time job.
+- `DeviceFips` (`package:cipherbird/cipherbird_fips.dart`) performs the
+  approved operations (SHA-2, HMAC, HKDF, PBKDF2, DRBG, AES-256-GCM, P-256
+  ECDH and ECDSA) inside the module the platform already validated: Apple
+  corecrypto behind CryptoKit and CommonCrypto on iOS and macOS, the
+  Android platform providers (Conscrypt, BoringCrypto) on Android, or the
+  OpenSSL FIPS Provider when the engine is the fips profile.
+  `DeviceFips.module()` reports what served the calls; on Android the
+  HKDF and PBKDF2 loops run in the app around the provider's HMAC and are
+  reported as composed. Flutter only; the browser has no validated module.
+- The example app is a showcase with one screen per capability and a
+  Play tab of interactive playgrounds (hashes, symmetric encryption,
+  signatures, HPKE with a chosen KEM, Suite v2, a Session v2 chat,
+  hardware keys, the validated module), with integration tests that run
+  every section and press every button on a device.
 
 - Hardware-backed keys (`package:cipherbird/cipherbird_hardware.dart`):
   `HardwareKey` lives in the Secure Enclave on iOS and macOS or the Android

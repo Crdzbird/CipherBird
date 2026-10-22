@@ -108,7 +108,8 @@ synchronously. This is off by default because it trusts the
 await where the first use may run before the boot script finishes; it
 returns at once when the engine is already there.
 
-The browser build is not approved for long-lived keys or card data: the
+The browser build is not approved for long-lived keys or card data, and
+`CipherBird.requireApprovedFor` fails closed for them on the web: the
 engine's linear memory is readable by every script on the page, so keys
 that outlive one operation belong on the native platforms, where the
 package wipes its native copies on free and `SecretBytes` gives key
@@ -179,7 +180,7 @@ final databaseKey = key.derive('database');
 
 ## Full API
 
-All 265 native operations are reachable on `CipherBird`, flat or through
+All 320 native operations are reachable on `CipherBird`, flat or through
 grouped views. Every operation takes and returns `Uint8List`, throws on
 failure and never returns partial data.
 
@@ -188,12 +189,38 @@ failure and never returns partial data.
 | `lib.hash` | SHA-256, SHA-512, BLAKE2b, BLAKE3, HMAC, HKDF, Argon2id |
 | `lib.aead` | XChaCha20-Poly1305, AES-256-GCM, committing AEAD, SecretStream |
 | `lib.asym` | Ed25519, X25519, boxes, sealed boxes |
-| `lib.pq` | `mlKem`, `mlDsa`, `slhDsa`, `hybridKem`, `hybridSig`, `sntrup` |
+| `lib.pq` | `mlKem`, `mlDsa`, `slhDsa`, `hybridKem`, `hybridSig`, `sntrup`, X-Wing |
 | `lib.sealed`, `lib.channel`, `lib.session` | sealed messaging, Noise XX, forward-secret ratchet |
 | `lib.hpke`, `lib.opaque`, `lib.oprf` | HPKE, OPAQUE login, OPRF |
 | `lib.bbs`, `lib.frost`, `lib.ecvrf`, `lib.bls` | anonymous credentials, threshold Ed25519, VRF, BLS12-381 |
 | `lib.vault`, `lib.keyring`, `lib.suite`, `lib.composed` | vaults, keyrings, one-call combinations |
 | `lib.entropy`, `lib.stego`, `lib.rng`, `lib.chain` | media entropy, steganography, DRBG and Fortuna, Keccak and secp256k1 |
+
+## Post-quantum envelopes
+
+The standards-track surface a regulated deployment uses, all over X-Wing
+(ML-KEM-768 + X25519) with the Ed25519 + ML-DSA-65 hybrid signature:
+
+```dart
+final bob = lib.xwingKeygen();
+final alice = lib.hybridSigKeygen();
+final env = lib.suite2Seal(message, bob.publicKey, alice.secretKey, aad: ctx);
+final plain = lib.suite2Open(env, bob.secretKey, bob.publicKey, alice.publicKey, aad: ctx);
+```
+
+The Suite v2 signature covers the recipient key, the KEM ciphertext and the
+associated data, so an envelope cannot be re-addressed. Session v2 is the
+forward-secret ratchet behind an authenticated handshake: the responder
+publishes a prekey bundle signed by its identity (`generateSession2Prekey`),
+the initiator verifies it and signs the handshake (`initiateSession2`), and
+the responder accepts only the identity it expects (`acceptSession2`), which
+the application pins through a directory, a certificate or a prior session.
+HPKE takes a KEM of your choice through `HpkeKem` and the `*Kem` setup
+calls, and every `SecurityProfile` selects X-Wing.
+
+`ProtectedDataClass` with `approvedFor` and `requireApprovedFor` state what a
+build is approved to protect: native builds everything, the web build
+ephemeral data only.
 
 ## Profiles and recipes
 
@@ -302,7 +329,7 @@ cross-language recipe interop.
 ## Engine
 
 The engine is a header-only C++20 core with a
-pure C ABI of 265 functions, bindings for ten languages, known-answer tests
+pure C ABI of 320 functions, bindings for ten languages, known-answer tests
 from the official sources, and a cross-language conformance harness. Its
 repository holds the build, the tests, the benchmark and the design notes.
 Everything is MIT licensed; the vendored dependencies are BSD, MIT, Apache

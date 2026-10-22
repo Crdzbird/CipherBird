@@ -81,6 +81,9 @@ echo "   installed from hosted source into $CACHED ($(du -sh "$CACHED" | cut -f1
 # 4. The package's own test suite, run on the device from the installed copy.
 mkdir -p "$APP/integration_test/suites"
 cp "$CACHED"/test/*_test.dart "$APP/integration_test/suites/"
+# web_setup_test drives the package CLI with a host dart; a sandboxed app cannot spawn it.
+rm -f "$APP/integration_test/suites/web_setup_test.dart"
+[ -d "$CACHED/test/support" ] && cp -R "$CACHED/test/support" "$APP/integration_test/suites/support"
 python3 - "$APP/integration_test" <<'PY'
 import os,re,sys; d=sys.argv[1]
 fs=sorted(f for f in os.listdir(f"{d}/suites") if f.endswith('_test.dart'))

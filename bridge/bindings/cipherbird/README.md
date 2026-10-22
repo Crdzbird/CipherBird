@@ -188,7 +188,7 @@ Strings and bytes convert in place:
 
 ## Full API
 
-All 265 native operations are reachable on `CipherBird`, flat or through
+All 320 native operations are reachable on `CipherBird`, flat or through
 grouped views that keep autocomplete usable. Every operation takes and
 returns `Uint8List`, throws on failure and never returns partial data.
 
@@ -205,11 +205,12 @@ final opened = lib.pq.hybridKem.decapsulate(ciphertext, pair.secretKey);
 | `lib.hash` | SHA-256, SHA-512, BLAKE2b, BLAKE3 hash, keyed, derive key and incremental hasher, HMAC with constant-time verify, HKDF extract, expand and derive, Argon2id hash, verify and derive |
 | `lib.aead` | XChaCha20-Poly1305, AES-256-GCM, committing AEAD, SecretStream, key generation |
 | `lib.asym` | Ed25519 keys, sign, verify; X25519; boxes and sealed boxes |
-| `lib.pq` | `mlKem`, `mlDsa`, `slhDsa`, `hybridKem`, `hybridSig`, `sntrup` |
+| `lib.pq` | `mlKem`, `mlDsa`, `slhDsa`, `hybridKem`, `hybridSig`, `sntrup`, X-Wing |
 | `lib.sealed` | identities, seal, open, streaming, envelope inspection, recipient matching |
 | `lib.channel` | Noise XX handshake and transport with re-entrant decryption by counter |
-| `lib.session` | post-quantum forward-secret session ratchet |
-| `lib.hpke` | HPKE in all four modes, single-shot and context forms |
+| `lib.session` | post-quantum forward-secret session ratchet, version 1 and the authenticated Session v2 |
+| Suite v2, `fips*` | recipient-bound signed envelopes; the engine's FIPS Provider layer |
+| `lib.hpke` | HPKE in all four modes, single-shot and context forms, with DHKEM(X25519), ML-KEM-768 or X-Wing |
 | `lib.opaque`, `lib.oprf` | OPAQUE password login and the OPRF it builds on |
 | `lib.bbs` | BBS signatures, selective disclosure, pseudonyms, blind issuance |
 | `lib.frost`, `lib.ecvrf`, `lib.bls` | threshold Ed25519, verifiable random function, BLS12-381 |
@@ -217,6 +218,32 @@ final opened = lib.pq.hybridKem.decapsulate(ciphertext, pair.secretKey);
 | `lib.suite`, `lib.composed` | one-call combinations: post-quantum messages, threshold vaults, file-as-key vaults, physical-media seals, HPKE into a carrier |
 | `lib.entropy`, `lib.stego`, `lib.rng` | media entropy and health, DRBG, Fortuna, steganography, forward error correction |
 | `lib.chain` | Keccak-256, secp256k1 sign and recover, EVM addresses |
+
+## Post-quantum envelopes
+
+The standards-track surface a regulated deployment uses, all over X-Wing
+(ML-KEM-768 + X25519) with the Ed25519 + ML-DSA-65 hybrid signature:
+
+```dart
+final bob = lib.xwingKeygen();
+final alice = lib.hybridSigKeygen();
+final env = lib.suite2Seal(message, bob.publicKey, alice.secretKey, aad: ctx);
+final plain = lib.suite2Open(env, bob.secretKey, bob.publicKey, alice.publicKey, aad: ctx);
+```
+
+The Suite v2 signature covers the recipient key, the KEM ciphertext and the
+associated data, so an envelope cannot be re-addressed. Session v2 is the
+forward-secret ratchet behind an authenticated handshake: the responder
+publishes a prekey bundle signed by its identity (`generateSession2Prekey`),
+the initiator verifies it and signs the handshake (`initiateSession2`), and
+the responder accepts only the identity it expects (`acceptSession2`), which
+the application pins through a directory, a certificate or a prior session.
+HPKE takes a KEM of your choice through `HpkeKem` and the `*Kem` setup
+calls, and every `SecurityProfile` selects X-Wing.
+
+`ProtectedDataClass` with `approvedFor` and `requireApprovedFor` state what a
+build is approved to protect: native builds everything, the web build
+ephemeral data only.
 
 ## Profiles and recipes
 
@@ -353,6 +380,30 @@ which requires the host app to be signed with a Team ID (an ad-hoc or
 "sign to run locally" build fails with `errSecMissingEntitlement`,
 status -34018).
 
+## Validated modules
+
+`package:cipherbird/cipherbird_fips.dart` performs the approved operations
+(SHA-2, HMAC, HKDF, PBKDF2, DRBG, AES-256-GCM, P-256 ECDH and ECDSA) inside
+the module the platform already validated, so a regulated app keeps them in a
+CMVP boundary on every platform it ships to: Apple corecrypto behind
+CryptoKit on iOS and macOS, the Android platform providers on Android, and
+the OpenSSL FIPS Provider (certificate #4985) when the engine was built as
+the fips profile.
+
+```dart
+final fips = DeviceFips.platform();
+final info = await fips.module();
+final tag = await fips.hmac(FipsHash.sha256, key, message);
+```
+
+`module()` reports what served the calls so the app can refuse a device
+whose provider is not the expected one. On Android the HKDF and PBKDF2
+loops run in the app around the provider's HMAC and are reported as
+composed. Flutter only; the browser has no validated module. The same
+operations are on the engine as the `fips*` family when the engine was
+built with `CRYPTOLIB_PROFILE=fips`; on the bundled engine `fipsAvailable`
+is false.
+
 ## Web
 
 The same package runs in the browser. The engine is compiled to WebAssembly
@@ -370,7 +421,8 @@ asynchronously, so there are two ways to run:
   adopts it synchronously, so no await is needed; see Install for what that
   trusts.
 
-The browser build is not approved for long-lived keys or card data. The
+The browser build is not approved for long-lived keys or card data, and
+`CipherBird.requireApprovedFor` fails closed for them on the web. The
 engine's linear memory is readable by every script on the page, so a key
 that outlives one operation, or cardholder data at rest, belongs on the
 native platforms (where the package wipes its native copies on free and
@@ -508,11 +560,15 @@ language and opens them in every other one, 72 pairs, on every change.
 
 ## Example and playground
 
-The [example](example) checks the library on a device: it loads the engine,
-verifies a SHA-256 known answer and round-trips a hybrid key agreement, a
-hybrid signature, a sealed message and a MolecularVault.
+The [example](example) is a showcase with one screen per capability
+(overview and approvals, primitives, post-quantum, envelopes, hardware keys,
+the validated module), each row a live check, plus a Play tab of
+interactive playgrounds: hashes and MACs, symmetric encryption with a bit
+flip, signatures, HPKE with a chosen KEM, Suite v2 with Bob and Carol, a
+Session v2 chat with Mallory, hardware keys and the validated module. Its
+integration tests run every section and press every button on a device.
 
-The [playground](playground) is the app to play with: buttons to encrypt,
+The [playground](playground) is the earlier single-screen app: encrypt,
 corrupt and decrypt text with the committing AEAD, sign and verify with the
 hybrid signature, encrypt to a hybrid KEM public key and hash a passphrase
 with Argon2id on a worker.
@@ -575,7 +631,7 @@ architecture for the simulator in the consuming app or add a universal slice.
 ## Engine
 
 The engine is a header-only C++20 core with a
-pure C ABI of 265 functions, bindings for ten languages, a custom test runner
+pure C ABI of 320 functions, bindings for ten languages, a custom test runner
 with known-answer tests from the official sources, and a cross-language
 conformance harness. Its repository holds the build, the tests, the
 benchmark and the design notes. Everything is MIT licensed; the vendored

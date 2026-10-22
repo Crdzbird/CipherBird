@@ -1,6 +1,6 @@
 name: cipherbird_dart
 description: "Native cryptography for Dart over dart:ffi: hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys, engine bundled."
-version: 1.1.3-dev.1
+version: 1.2.0
 homepage: https://github.com/Crdzbird/CipherBird
 repository: https://github.com/Crdzbird/CipherBird
 documentation: https://github.com/Crdzbird/CipherBird/blob/main/bridge/bindings/cipherbird_dart/README.md
