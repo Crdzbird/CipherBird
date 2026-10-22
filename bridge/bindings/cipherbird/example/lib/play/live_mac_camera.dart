@@ -1,8 +1,8 @@
 part of 'live_playground.dart';
 
 /// The macOS camera through the example's own AVFoundation grabber: the
-/// luma plane of each frame is one chunk, as on a phone, and every sixth
-/// frame is drawn as the preview.
+/// luma plane of each frame is one chunk, as on a phone, and each frame is
+/// drawn as the preview as soon as the previous one is on screen.
 extension on LivePlayground {
   bool get _onMac => !kIsWeb && Platform.isMacOS;
 
@@ -13,19 +13,20 @@ extension on LivePlayground {
     }
     const camera = MacCamera();
     final (w, h) = await camera.start(_resolution.value);
-    var n = 0;
+    var drawing = false;
     _macFrames = camera.frames.listen((f) {
       _fed(
         _source().feed(f.luma, sourceId: 1),
         'camera, ${f.width}x${f.height}, ${f.luma.length} bytes a frame',
       );
-      if (n++ % 6 == 0) {
-        unawaited(_drawLuma(f));
+      if (!drawing) {
+        drawing = true;
+        unawaited(_drawLuma(f).whenComplete(() => drawing = false));
       }
     }, onError: (Object e) => say('camera: ${Playground.reason(e)}'));
     say(
-      'camera streaming at ${w}x$h, delivered subsampled at up to ten '
-      'frames a second; the luma plane of each frame is one chunk. Move '
+      'camera streaming at ${w}x$h, delivered subsampled at up to '
+      'fifteen frames a second; the luma plane of each frame is one chunk. Move '
       'something in front of it: a still scene has blank runs the policy '
       'refuses',
     );

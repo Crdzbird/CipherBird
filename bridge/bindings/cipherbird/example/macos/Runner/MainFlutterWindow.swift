@@ -115,10 +115,10 @@ final class LiveCamera: NSObject, FlutterStreamHandler,
   func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                      from connection: AVCaptureConnection) {
     guard let sink = sink, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-    // At most ten frames a second reach Dart, and never more than about
+    // At most fifteen frames a second reach Dart, and never more than about
     // targetWidth columns: the source is assessed, not displayed in full.
     let now = CFAbsoluteTimeGetCurrent()
-    if now - lastSent < 0.1 { return }
+    if now - lastSent < 1.0 / 15.0 { return }
     lastSent = now
     CVPixelBufferLockBaseAddress(pixels, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
