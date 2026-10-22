@@ -104,10 +104,14 @@ TEST("live/reseeds-as-credit-arrives-and-rejects-small-chunks") {
 
 TEST("live/run-carried-across-chunk-boundaries") {
     LiveEntropy live(SourcePolicy::strict(), 256.0);
+    // The bytes next to the planted runs are pinned so the runs are exact:
+    // random neighbours would extend them one time in 256.
     auto head = noise(4096);
     for (std::size_t i = 4096 - 20; i < 4096; ++i) head[i] = 0x55;
+    head[4096 - 21] = 0xAA;
     auto tail = noise(4096);
     for (std::size_t i = 0; i < 20; ++i) tail[i] = 0x55;
+    tail[20] = 0xAA;
     auto r1 = live.feed(head);
     CHECK(r1.accepted);
     CHECK(r1.health.longest_run == 20);
