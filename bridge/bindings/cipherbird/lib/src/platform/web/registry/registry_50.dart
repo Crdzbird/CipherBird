@@ -1,89 +1,79 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry50 = {
-  'cryptolib_fips_aes_gcm_decrypt':
+  'cryptolib_fips_hkdf':
+      (
+        int hash,
+        Pointer<NativeType> ikm,
+        int ikmLen,
+        Pointer<NativeType> salt,
+        int saltLen,
+        Pointer<NativeType> info,
+        int infoLen,
+        int outLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_fips_hkdf',
+        [
+          hash.toJS,
+          ikm.address.toJS,
+          ikmLen.toJS,
+          salt.address.toJS,
+          saltLen.toJS,
+          info.address.toJS,
+          infoLen.toJS,
+          outLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_fips_pbkdf2':
+      (
+        int hash,
+        Pointer<NativeType> password,
+        int passwordLen,
+        Pointer<NativeType> salt,
+        int saltLen,
+        int iterations,
+        int outLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_fips_pbkdf2',
+        [
+          hash.toJS,
+          password.address.toJS,
+          passwordLen.toJS,
+          salt.address.toJS,
+          saltLen.toJS,
+          iterations.toJS,
+          outLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_fips_random': (int n) => WebEngine.current.callStruct(
+    '_cbw_cryptolib_fips_random',
+    [n.toJS],
+    CipherBirdBufferResult.size,
+    CipherBirdBufferResult._new,
+  ),
+  'cryptolib_fips_aes_gcm_encrypt':
       (
         Pointer<NativeType> key,
         int keyLen,
-        Pointer<NativeType> wire,
-        int wireLen,
+        Pointer<NativeType> pt,
+        int ptLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_aes_gcm_decrypt',
+        '_cbw_cryptolib_fips_aes_gcm_encrypt',
         [
           key.address.toJS,
           keyLen.toJS,
-          wire.address.toJS,
-          wireLen.toJS,
+          pt.address.toJS,
+          ptLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_p256_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_fips_p256_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_fips_p256_ecdh':
-      (
-        Pointer<NativeType> privateKey,
-        int skLen,
-        Pointer<NativeType> peerPublic,
-        int pkLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_ecdh',
-        [
-          privateKey.address.toJS,
-          skLen.toJS,
-          peerPublic.address.toJS,
-          pkLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_p256_sign':
-      (
-        Pointer<NativeType> privateKey,
-        int skLen,
-        Pointer<NativeType> message,
-        int msgLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_sign',
-        [
-          privateKey.address.toJS,
-          skLen.toJS,
-          message.address.toJS,
-          msgLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_p256_verify':
-      (
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        Pointer<NativeType> message,
-        int msgLen,
-        Pointer<NativeType> signature,
-        int sigLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_fips_p256_verify', [
-        publicKey.address.toJS,
-        pkLen.toJS,
-        message.address.toJS,
-        msgLen.toJS,
-        signature.address.toJS,
-        sigLen.toJS,
-      ]),
-  'cryptolib_fips_p256_public_key':
-      (Pointer<NativeType> privateKey, int skLen) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_fips_p256_public_key',
-            [privateKey.address.toJS, skLen.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
 };

@@ -22,4 +22,15 @@ extension type RngApi(CipherBird _l) {
   /// Create a new, unseeded Fortuna pool. Feed it via [Fortuna.addEntropy]
   /// before generating.
   Fortuna fortuna() => _l.fortuna();
+
+  /// A continuous source fed by a live stream; see [CipherBirdLiveEntropy.liveEntropy].
+  LiveEntropy live({
+    double minBitsPerByte = 1.0,
+    bool requireRct = true,
+    double minCreditedBits = 256.0,
+  }) => _l.liveEntropy(
+    minBitsPerByte: minBitsPerByte,
+    requireRct: requireRct,
+    minCreditedBits: minCreditedBits,
+  );
 }

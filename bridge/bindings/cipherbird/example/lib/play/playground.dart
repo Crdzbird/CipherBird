@@ -3,6 +3,7 @@ import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
 import 'package:cipherbird_example/play/play_picture.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// Fields the developer edits, actions that run the library on them, and
 /// a log of what happened. Every subclass is one capability.
@@ -18,6 +19,9 @@ abstract class Playground extends ChangeNotifier {
   /// Images shown above the log.
   List<PlayPicture> get pictures => const [];
 
+  /// A live widget shown above the pictures, such as a camera preview.
+  Widget? get preview => null;
+
   final List<String> log = [];
 
   void say(String line) {
@@ -29,6 +33,9 @@ abstract class Playground extends ChangeNotifier {
     log.clear();
     notifyListeners();
   }
+
+  /// Repaints the page after a field or the preview changed without a log line.
+  void refresh() => notifyListeners();
 
   /// Runs [op]; a throw becomes a log line instead of a crash.
   Future<void> attempt(String what, Future<void> Function() op) async {

@@ -19,7 +19,7 @@ channels and no setup. The Dart API carries the package name: `CipherBird`, `Cip
 | Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
 | Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchet | composition of the primitives above |
 | Storage | vaults, MolecularVault, keyring with device and passphrase slots | |
-| Media | media entropy, DRBG, Fortuna, steganography, forward error correction | |
+| Media | media entropy with a live stream source, DRBG, Fortuna, steganography, forward error correction | |
 
 Supported platforms: Android, iOS, macOS and the web, with the same API and
 byte-compatible output on all four. The same code is published for plain
@@ -714,3 +714,35 @@ benchmark and the design notes. Everything is MIT licensed; the vendored
 dependencies are BSD, MIT, Apache or public domain. The license requires that
 the copyright notice, which credits the author Crdzbird, is kept in every
 copy or substantial portion of this software.
+
+## Media entropy: the health report and a live source
+
+`assessFileHealth(path)` returns every number behind the verdict: the two
+SP 800-90B estimates (`mcvBitsPerByte`, `markovBitsPerByte`) and their
+minimum, the sample size, the longest run of one byte with the
+`rctCutoff` it is judged against, the peak window count with `aptCutoff`,
+both verdicts, and `summary`, the engine's own explanation one line per
+signal. The cutoffs are calibrated against `floorBitsPerByte` (1.0 by
+default, the same floor the harvests require), so a real photo with a
+short run of padding passes and a blank image fails; a refusal from
+`entropyFromFile` or `entropyFromFileWithPolicy` names the figure, the
+cutoff and the setting that would relax it.
+
+`liveEntropy()` (also `lib.rng.live()`) is the continuous form. Feed it
+camera frames, audio buffers or any bytes as they arrive:
+
+```dart
+final live = lib.liveEntropy(minBitsPerByte: 1.0, requireRct: true);
+final report = live.feed(frame.planes.first.bytes, sourceId: 1);
+if (!report.accepted) print(report.reason);
+if (report.ready) final key = live.generate(32);
+final status = live.status();
+live.close();
+```
+
+Each chunk is assessed under the policy, credited `minEntropyPerByte *
+length` bits when it passes and mixed in without credit when it does not,
+with the repetition-count run carried across chunks. `generate` draws from
+an HMAC-DRBG seeded once 256 credited bits have arrived (`minCreditedBits`)
+and reseeded every time that much arrives again; it throws until then.
+Chunks below 1024 bytes are mixed but never credited.

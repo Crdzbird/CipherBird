@@ -5,7 +5,7 @@ final Map<String, Function> _registry16 = {
       (
         Pointer<NativeType> path,
         int deterministic,
-        int minBitsPerByte,
+        double minBitsPerByte,
         int requireRct,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(

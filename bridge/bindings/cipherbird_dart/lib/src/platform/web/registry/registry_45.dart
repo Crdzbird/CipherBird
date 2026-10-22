@@ -1,82 +1,57 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry45 = {
-  'cryptolib_hpke_setup_s_kem':
-      (
-        int kem,
-        int kdf,
-        int aead,
-        int mode,
-        Pointer<NativeType> pkR,
-        int pkRLen,
-        Pointer<NativeType> info,
-        int infoLen,
-        Pointer<NativeType> psk,
-        int pskLen,
-        Pointer<NativeType> pskId,
-        int pskIdLen,
-        Pointer<NativeType> skS,
-        int skSLen,
-        Pointer<NativeType> outEnc,
-        Pointer<NativeType> outError,
-      ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_hpke_setup_s_kem', [
-          kem.toJS,
-          kdf.toJS,
-          aead.toJS,
-          mode.toJS,
-          pkR.address.toJS,
-          pkRLen.toJS,
-          info.address.toJS,
-          infoLen.toJS,
-          psk.address.toJS,
-          pskLen.toJS,
-          pskId.address.toJS,
-          pskIdLen.toJS,
-          skS.address.toJS,
-          skSLen.toJS,
-          outEnc.address.toJS,
-          outError.address.toJS,
-        ]),
+  'cryptolib_xwing_keypair_from_seed':
+      (Pointer<NativeType> seed, int seedLen) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_xwing_keypair_from_seed',
+        [seed.address.toJS, seedLen.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
       ),
-  'cryptolib_hpke_setup_r_kem':
+  'cryptolib_xwing_encapsulate':
       (
-        int kem,
-        int kdf,
-        int aead,
-        int mode,
-        Pointer<NativeType> enc,
-        int encLen,
-        Pointer<NativeType> skR,
-        int skRLen,
-        Pointer<NativeType> info,
-        int infoLen,
-        Pointer<NativeType> psk,
-        int pskLen,
-        Pointer<NativeType> pskId,
-        int pskIdLen,
-        Pointer<NativeType> pkS,
-        int pkSLen,
+        Pointer<NativeType> publicKey,
+        int pkLen,
         Pointer<NativeType> outError,
-      ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_hpke_setup_r_kem', [
-          kem.toJS,
-          kdf.toJS,
-          aead.toJS,
-          mode.toJS,
-          enc.address.toJS,
-          encLen.toJS,
-          skR.address.toJS,
-          skRLen.toJS,
-          info.address.toJS,
-          infoLen.toJS,
-          psk.address.toJS,
-          pskLen.toJS,
-          pskId.address.toJS,
-          pskIdLen.toJS,
-          pkS.address.toJS,
-          pkSLen.toJS,
-          outError.address.toJS,
-        ]),
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_xwing_encapsulate',
+        [publicKey.address.toJS, pkLen.toJS, outError.address.toJS],
+        CipherBirdKemEncapsResult.size,
+        CipherBirdKemEncapsResult._new,
       ),
+  'cryptolib_xwing_decapsulate':
+      (
+        Pointer<NativeType> ciphertext,
+        int ctLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_xwing_decapsulate',
+        [
+          ciphertext.address.toJS,
+          ctLen.toJS,
+          secretKey.address.toJS,
+          skLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_hpke_kem_available': (int kem) => WebEngine.current.callInt(
+    '_cbw_cryptolib_hpke_kem_available',
+    [kem.toJS],
+  ),
+  'cryptolib_hpke_keygen_kem': (int kem) => WebEngine.current.callStruct(
+    '_cbw_cryptolib_hpke_keygen_kem',
+    [kem.toJS],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_hpke_derive_keypair_kem':
+      (int kem, Pointer<NativeType> ikm, int ikmLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_hpke_derive_keypair_kem',
+            [kem.toJS, ikm.address.toJS, ikmLen.toJS],
+            CipherBirdKeyPair.size,
+            CipherBirdKeyPair._new,
+          ),
 };

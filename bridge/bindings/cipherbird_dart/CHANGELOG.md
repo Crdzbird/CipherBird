@@ -1,5 +1,23 @@
 ## Unreleased
 
+- The health report says everything behind its verdict: both SP 800-90B
+  estimates, the sample size, the longest run with the repetition-count
+  cutoff, the peak window count with the adaptive-proportion cutoff, the
+  floor the cutoffs were calibrated for, and a `summary` the engine writes
+  one line per signal. The cutoffs now follow the floor the policy claims
+  (31 identical bytes at the default one bit per byte) instead of the
+  entropy measured, so a real photograph with a short run of padding in
+  its header passes while a blank image still fails; a refusal names the
+  figure, the cutoff and the setting that would relax it.
+  `assessFileHealth` takes `floorBitsPerByte`.
+- `liveEntropy()` and `lib.rng.live()`: a continuous entropy source for a
+  stream. Feed camera frames, audio buffers or any bytes as they arrive;
+  each chunk is assessed under the policy, credited when it passes and
+  mixed in without credit when it does not, with the reason reported and
+  the repetition-count run carried across chunks. `generate` draws from an
+  HMAC-DRBG seeded after 256 credited bits and reseeded as credit keeps
+  arriving; it throws until the first seed. `status()` reports the credit,
+  the counters and the last verdict.
 - Media entropy assesses every source before trusting it: two SP 800-90B
   estimators (the Most-Common-Value bound over the whole file and the
   Markov bound over the bit expansion of the first MiB) with the

@@ -22,6 +22,9 @@ final Map<Type, int> structSizes = {
   CipherBirdFileInspection: CipherBirdFileInspection.size,
   CipherBirdHiddenDataReport: CipherBirdHiddenDataReport.size,
   CipherBirdHealthReport: CipherBirdHealthReport.size,
+  CipherBirdHealthReport2: CipherBirdHealthReport2.size,
+  CipherBirdLiveFeedReport: CipherBirdLiveFeedReport.size,
+  CipherBirdLiveStatus: CipherBirdLiveStatus.size,
   CipherBirdFipsStatus: CipherBirdFipsStatus.size,
 };
 
@@ -46,6 +49,9 @@ final Map<Type, Struct Function(Memory memory, int base)> _factories = {
   CipherBirdFileInspection: CipherBirdFileInspection._new,
   CipherBirdHiddenDataReport: CipherBirdHiddenDataReport._new,
   CipherBirdHealthReport: CipherBirdHealthReport._new,
+  CipherBirdHealthReport2: CipherBirdHealthReport2._new,
+  CipherBirdLiveFeedReport: CipherBirdLiveFeedReport._new,
+  CipherBirdLiveStatus: CipherBirdLiveStatus._new,
   CipherBirdFipsStatus: CipherBirdFipsStatus._new,
 };
 

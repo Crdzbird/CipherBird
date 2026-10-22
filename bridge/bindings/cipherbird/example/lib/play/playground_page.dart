@@ -50,6 +50,11 @@ final class PlaygroundPage extends StatelessWidget {
                 FilledButton.tonal(onPressed: a.run, child: Text(a.label)),
             ],
           ),
+          if (model.preview != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: SizedBox(height: 220, child: model.preview),
+            ),
           if (model.pictures.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),

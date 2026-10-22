@@ -33,12 +33,19 @@ extension on EntropyPlayground {
   });
 
   Future<void> assess() => attemptWithFiles('assess', () async {
-    final h = _lib.assessFileHealth(_path);
+    final h = _lib.assessFileHealth(
+      _path,
+      floorBitsPerByte: double.parse(_floor.text),
+    );
+    if (h.summary.isNotEmpty) {
+      say(h.summary);
+      return;
+    }
     say(
       'health: ${h.minEntropyPerByte.toStringAsFixed(2)} bits of min-entropy '
       'per byte, longest run ${h.longestRun}, repetition-count test '
       '${h.rctPassed ? 'passed' : 'FAILED'}, adaptive-proportion test '
-      '${h.aptPassed ? 'passed' : 'failed (photos often do, it is informational)'}',
+      '${h.aptPassed ? 'passed' : 'failed'} (an older engine, no cutoffs)',
     );
   });
 

@@ -61,31 +61,26 @@ final Map<String, Function> _registry40 = {
         CipherBirdHealthReport.size,
         CipherBirdHealthReport._new,
       ),
-  'cryptolib_image_factor_seal':
+  'cryptolib_entropy_assess_file_health_v2':
+      (Pointer<NativeType> path, int maxBytes, double floorBitsPerByte) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_entropy_assess_file_health_v2',
+            [path.address.toJS, maxBytes.toJS, floorBitsPerByte.toJS],
+            CipherBirdHealthReport2.size,
+            CipherBirdHealthReport2._new,
+          ),
+  'cryptolib_live_entropy_new':
       (
-        Pointer<NativeType> oprfSecretSeed,
-        int seedLen,
-        Pointer<NativeType> referenceImagePath,
-        Pointer<NativeType> plaintext,
-        int ptLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-        Pointer<NativeType> coverPath,
-        Pointer<NativeType> outputPath,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_image_factor_seal',
-        [
-          oprfSecretSeed.address.toJS,
-          seedLen.toJS,
-          referenceImagePath.address.toJS,
-          plaintext.address.toJS,
-          ptLen.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          coverPath.address.toJS,
-          outputPath.address.toJS,
-        ],
-        CipherBirdResult.size,
-        CipherBirdResult._new,
+        double minBitsPerByte,
+        int requireRct,
+        double minCreditedBits,
+        Pointer<NativeType> outError,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_live_entropy_new', [
+          minBitsPerByte.toJS,
+          requireRct.toJS,
+          minCreditedBits.toJS,
+          outError.address.toJS,
+        ]),
       ),
 };

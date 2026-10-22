@@ -1,79 +1,81 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry49 = {
-  'cryptolib_fips_hkdf':
+  'cryptolib_session2_decrypt':
       (
-        int hash,
-        Pointer<NativeType> ikm,
-        int ikmLen,
-        Pointer<NativeType> salt,
-        int saltLen,
-        Pointer<NativeType> info,
-        int infoLen,
-        int outLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_hkdf',
-        [
-          hash.toJS,
-          ikm.address.toJS,
-          ikmLen.toJS,
-          salt.address.toJS,
-          saltLen.toJS,
-          info.address.toJS,
-          infoLen.toJS,
-          outLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_pbkdf2':
-      (
-        int hash,
-        Pointer<NativeType> password,
-        int passwordLen,
-        Pointer<NativeType> salt,
-        int saltLen,
-        int iterations,
-        int outLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_pbkdf2',
-        [
-          hash.toJS,
-          password.address.toJS,
-          passwordLen.toJS,
-          salt.address.toJS,
-          saltLen.toJS,
-          iterations.toJS,
-          outLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_random': (int n) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_fips_random',
-    [n.toJS],
-    CipherBirdBufferResult.size,
-    CipherBirdBufferResult._new,
-  ),
-  'cryptolib_fips_aes_gcm_encrypt':
-      (
-        Pointer<NativeType> key,
-        int keyLen,
-        Pointer<NativeType> pt,
-        int ptLen,
+        Pointer<NativeType> h,
+        Pointer<NativeType> msg,
+        int msgLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_aes_gcm_encrypt',
+        '_cbw_cryptolib_session2_decrypt',
         [
-          key.address.toJS,
-          keyLen.toJS,
-          pt.address.toJS,
-          ptLen.toJS,
+          h.address.toJS,
+          msg.address.toJS,
+          msgLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
+  'cryptolib_session2_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cryptolib_session2_free', [h.address.toJS]),
+  'cryptolib_fips_available': () =>
+      WebEngine.current.callInt('_cbw_cryptolib_fips_available', []),
+  'cryptolib_fips_init':
+      (Pointer<NativeType> moduleDir, Pointer<NativeType> configFile) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_fips_init',
+            [moduleDir.address.toJS, configFile.address.toJS],
+            CipherBirdResult.size,
+            CipherBirdResult._new,
+          ),
+  'cryptolib_fips_status': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_fips_status',
+    [],
+    CipherBirdFipsStatus.size,
+    CipherBirdFipsStatus._new,
+  ),
+  'cryptolib_fips_status_free': (Pointer<NativeType> s) => WebEngine.current
+      .callVoid('_cbw_cryptolib_fips_status_free', [s.address.toJS]),
+  'cryptolib_fips_digest': (int hash, Pointer<NativeType> data, int len) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_fips_digest',
+        [hash.toJS, data.address.toJS, len.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_fips_hmac':
+      (
+        int hash,
+        Pointer<NativeType> key,
+        int keyLen,
+        Pointer<NativeType> data,
+        int len,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_fips_hmac',
+        [hash.toJS, key.address.toJS, keyLen.toJS, data.address.toJS, len.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_fips_hmac_verify':
+      (
+        int hash,
+        Pointer<NativeType> key,
+        int keyLen,
+        Pointer<NativeType> data,
+        int len,
+        Pointer<NativeType> tag,
+        int tagLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_fips_hmac_verify', [
+        hash.toJS,
+        key.address.toJS,
+        keyLen.toJS,
+        data.address.toJS,
+        len.toJS,
+        tag.address.toJS,
+        tagLen.toJS,
+      ]),
 };
