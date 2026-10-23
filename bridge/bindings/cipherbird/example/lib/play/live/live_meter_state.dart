@@ -14,6 +14,7 @@ final class LiveMeterState {
     this.ready = false,
     this.lastReason = '',
     this.source = 'nothing yet',
+    this.keys = 0,
   });
 
   static const int keep = 48;
@@ -29,6 +30,9 @@ final class LiveMeterState {
   final bool ready;
   final String lastReason;
   final String source;
+
+  /// Keys drawn from the stream so far, by hand or by the refresh mode.
+  final int keys;
 
   /// Progress towards the first seed, or towards the next reseed.
   double get progress {
@@ -50,10 +54,11 @@ final class LiveMeterState {
       ready: r.ready,
       lastReason: r.reason,
       source: source,
+      keys: keys,
     );
   }
 
-  /// The state after the generator seeded or reseeded.
+  /// The state after a key was drawn, with the generator's seeding count.
   LiveMeterState seeded(int reseeds) => LiveMeterState(
     bars: bars,
     creditedBits: creditedBits,

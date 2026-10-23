@@ -48,8 +48,10 @@
   derives keys, seeds a DRBG and Fortuna, and seals with the file directly
   or through a recipe keyed by it. Both take any file the system picker
   offers, and the health line is the engine's own summary. A Live entropy
-  playground feeds camera frames or a streamed file into the live source
-  and shows the credit arriving, then generates from it.
+  playground feeds camera frames or any picked file into the live source,
+  shows every chunk and the credit arriving on a meter, and draws a key
+  and re-encrypts a message on every credited chunk, so the ciphertext
+  follows the stream; on every reseed or by hand are the other modes.
 
 ## 1.2.0
 

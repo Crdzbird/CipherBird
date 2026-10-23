@@ -59,6 +59,7 @@ final class LiveMeter extends StatelessWidget {
             '${s.ready ? 'ready' : 'not ready'}',
             style: small,
           ),
+          Text('${s.keys} keys drawn from the stream so far', style: small),
           if (s.lastReason.isNotEmpty)
             Text(
               'last refusal: ${s.lastReason}',

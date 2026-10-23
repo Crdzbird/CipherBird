@@ -12,6 +12,9 @@ final class PlayDriver {
   void set(String label, String text) =>
       model.fields.singleWhere((f) => f.label == label).text = text;
 
+  String read(String label) =>
+      model.fields.singleWhere((f) => f.label == label).text;
+
   void pick(String label, String option) =>
       model.choices.singleWhere((c) => c.label == label).selected.value =
           option;

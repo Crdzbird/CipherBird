@@ -46,6 +46,7 @@ final class LivePlayground extends Playground {
   final _keyHex = PlayField('Key drawn from the stream (hex, 32 bytes)');
   final _cipher = PlayField('Ciphertext (base64)', lines: 3);
   final _rct = PlayChoice('Repetition-count', ['required', 'reported only']);
+  final _refresh = PlayChoice('Key refresh', liveRefreshModes);
   final _resolution = PlayChoice('Camera resolution', [
     'low',
     'medium',
@@ -57,16 +58,17 @@ final class LivePlayground extends Playground {
 
   @override
   String get blurb =>
-      'Step 1: Start camera or Stream a file; the meter draws every chunk. '
-      'Step 2: the credit bar fills until the generator seeds. Step 3: Draw '
-      'key takes 32 bytes from it. Step 4: Encrypt and Decrypt under that '
-      'key. Keep streaming and the generator keeps reseeding.';
+      'Start camera, or pick any file and it streams at once; the meter '
+      'draws every chunk. The credit fills until the generator seeds, then '
+      'a key is drawn and the message re-encrypted on every credited chunk, '
+      'so the ciphertext follows what the camera or the file delivers. Draw '
+      'key and Encrypt do the same by hand; Decrypt opens the last one.';
 
   @override
   List<PlayField> get fields => [_floor, _credit, _message, _keyHex, _cipher];
 
   @override
-  List<PlayChoice> get choices => [_rct, _resolution];
+  List<PlayChoice> get choices => [_refresh, _rct, _resolution];
 
   @override
   Widget? get preview => previewOf();

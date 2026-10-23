@@ -25,6 +25,7 @@ extension on LivePlayground {
 
   void _fed(LiveFeedReport r, String source) {
     meter.value = meter.value.after(r, source, double.parse(_credit.text));
+    autoKey(r);
   }
 
   Future<void> pickFile() => attempt('pick', () async {
@@ -34,7 +35,9 @@ extension on LivePlayground {
       return;
     }
     _picked = p;
-    say('picked ${p.name}: ${p.bytes.length} bytes; press Stream');
+    stopStream();
+    say('picked ${p.name}: ${p.bytes.length} bytes; streaming it now');
+    await startStream();
   });
 
   /// Streams the picked file, or a generated photo when none was picked,

@@ -27,6 +27,15 @@ void main() {
     await d.expectLine('Stop stream', 'stream stopped');
     await d.expectLine('Status', 'ready');
     expect(d.model.log.first, contains('credited'));
+    expect(d.read('Key drawn from the stream (hex, 32 bytes)'), hasLength(64));
+    expect(d.read('Ciphertext (base64)'), isNotEmpty);
+    await d.expectLine('Decrypt', 'decrypted: pier 9 at dawn');
+    d.pick('Key refresh', 'manual');
+    await d.expectLine('New source', 'seeds after');
+    await d.expectLine('Stream', 'streaming');
+    await Future<void>.delayed(const Duration(seconds: 1));
+    await d.expectLine('Stop stream', 'stream stopped');
+    expect(d.read('Key drawn from the stream (hex, 32 bytes)'), isEmpty);
     await d.expectLine('Draw key', 'seeded first');
     await d.expectLine('Encrypt', 'XChaCha20-Poly1305');
     await d.expectLine('Decrypt', 'decrypted: pier 9 at dawn');
