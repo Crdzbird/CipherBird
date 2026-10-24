@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Heavy work off the main thread on every platform: `EngineCallJob`
+  describes one engine entry point by symbol as plain data, the web worker
+  runs any such call on its own engine, and the asynchronous methods
+  (`mlDsaSignAsync`, `slhDsaSignAsync`, `hybridSigSignAsync`,
+  `suite2SealAsync`, `stegoEmbedBytesAsync` and the rest) use it through
+  the runner seam, a background isolate natively.
 - Steganography, media entropy and the composed seals on bytes, on every
   platform including the browser: `stegoEmbedBytes` and the rest of the
   byte-based twins of the file-taking methods, `entropyFromBytes`,

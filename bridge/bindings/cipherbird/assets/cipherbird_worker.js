@@ -84,8 +84,86 @@ function split64(value) {
   return [value % 4294967296, Math.floor(value / 4294967296)];
 }
 
+// Scratch files for the generic call: written to the worker's in-memory
+// file system before the call and removed after it.
+var fileCounter = 0;
+function fsPath(module, ext) {
+  if (fileCounter === 0) { try { module.FS.mkdir('/w'); } catch (e) {} }
+  return '/w/' + (fileCounter++) + '.' + ext;
+}
+
+// Drains a CryptoKeyPair written at out: {public_key{data,len}@0, secret_key{data,len}@8}.
+function takeKeyPair(module, out) {
+  var pk = module.HEAPU32[out >> 2], pkLen = module.HEAPU32[(out + 4) >> 2];
+  var sk = module.HEAPU32[(out + 8) >> 2], skLen = module.HEAPU32[(out + 12) >> 2];
+  if (pk === 0 || sk === 0) { module._cbw_cryptolib_keypair_free(out); throw new Error('key generation failed'); }
+  var pkCopy = new Uint8Array(pkLen); pkCopy.set(module.HEAPU8.subarray(pk, pk + pkLen));
+  var skCopy = new Uint8Array(skLen); skCopy.set(module.HEAPU8.subarray(sk, sk + skLen));
+  module._cbw_cryptolib_keypair_free(out);
+  return { pk: pkCopy, sk: skCopy };
+}
+
+// Drains a CryptoResult written at out: {ok@0, error@4}.
+function takeResult(module, out) {
+  var error = module.HEAPU32[(out + 4) >> 2];
+  if (error !== 0) {
+    var message = readCString(module, error);
+    module._cbw_cryptolib_str_free(error);
+    throw new Error(message);
+  }
+  return module.HEAPU32[out >> 2] !== 0;
+}
+
+// One engine entry point by symbol. args: [{k: 'bytes'|'str'|'i32'|'u64'|'f64'|'file'|'out', v, ext}];
+// ret: 'buffer'|'keypair'|'result'|'int'|'void'. Files written for 'out' come back as bytes.
+function genericCall(module, a) {
+  var fn = module['_cbw_' + a.symbol];
+  if (!fn) { throw new Error('cipherbird: no engine entry point ' + a.symbol); }
+  var scratchPtrs = [], paths = [], outPaths = [], argv = [];
+  var outSize = { buffer: 12, keypair: 16, result: 8 }[a.ret] || 0;
+  var out = outSize ? module._malloc(outSize) : 0;
+  if (out) { argv.push(out); }
+  try {
+    (a.args || []).forEach(function (arg) {
+      if (arg.k === 'bytes') {
+        var view = arg.v instanceof Uint8Array ? arg.v : new Uint8Array(arg.v);
+        var p = cBytes(module, view); scratchPtrs.push(p); argv.push(p, view.length);
+      } else if (arg.k === 'str') {
+        var sp = cString(module, arg.v); scratchPtrs.push(sp); argv.push(sp);
+      } else if (arg.k === 'u64') {
+        var pair = split64(arg.v); argv.push(pair[0], pair[1]);
+      } else if (arg.k === 'file') {
+        var path = fsPath(module, arg.ext);
+        module.FS.writeFile(path, arg.v instanceof Uint8Array ? arg.v : new Uint8Array(arg.v));
+        paths.push(path); var pp = cString(module, path); scratchPtrs.push(pp); argv.push(pp);
+      } else if (arg.k === 'out') {
+        var op = fsPath(module, arg.ext);
+        paths.push(op); outPaths.push(op); var opp = cString(module, op); scratchPtrs.push(opp); argv.push(opp);
+      } else {
+        argv.push(arg.v);
+      }
+    });
+    var raw = fn.apply(null, argv);
+    var value;
+    if (a.ret === 'buffer') { value = takeBuffer(module, out); }
+    else if (a.ret === 'keypair') { value = takeKeyPair(module, out); }
+    else if (a.ret === 'result') { value = takeResult(module, out); }
+    else if (a.ret === 'int') { value = raw; }
+    else { value = null; }
+    var files = outPaths.map(function (p) {
+      var bytes = module.FS.readFile(p); var copy = new Uint8Array(bytes.length); copy.set(bytes); return copy;
+    });
+    return { value: value, files: files };
+  } finally {
+    if (out) { module._free(out); }
+    scratchPtrs.forEach(function (p) { release(module, p); });
+    paths.forEach(function (p) { try { module.FS.unlink(p); } catch (e) {} });
+  }
+}
+
 var ops = {
   ready: function () { return true; },
+  call: genericCall,
   argon2id_derive: function (module, a) {
     var password = cString(module, a.password);
     var salt = cBytes(module, a.salt);

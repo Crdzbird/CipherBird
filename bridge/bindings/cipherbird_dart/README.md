@@ -467,3 +467,27 @@ In the browser the bytes pass through the engine's in-memory file system
 and are removed afterwards; natively they pass through a private temporary
 directory and are overwritten before removal. The path-taking methods
 stay as they were.
+
+## Off the main thread
+
+The runner seam moves heavy work to a background isolate natively and to
+the engine worker in the browser, where the worker holds its own copy of
+the engine. `EngineCallJob` describes one engine entry point by symbol,
+with its arguments as plain data (bytes, strings, integers, a scratch file
+or an output file) and how it returns, so any entry point can run on a
+worker; the asynchronous methods are built on it: `mlDsaKeygenAsync`,
+`mlDsaSignAsync`, `slhDsaKeygenAsync`, `slhDsaSignAsync`,
+`hybridSigSignAsync`, `suite2SealAsync`, `suite2OpenAsync`,
+`stegoEmbedBytesAsync`, `stegoExtractBytesAsync`,
+`stegoEmbedEncryptedBytesAsync`, `stegoExtractDecryptBytesAsync`,
+`keyFromBytesAsync`, next to the Argon2id ones.
+
+```dart
+final sig = await lib.slhDsaSignAsync(message, sk, SlhDsaLevel.fast128, SlhDsaHash.shake);
+final carrier = await lib.stegoEmbedEncryptedBytesAsync(photo, MediaFormat.pngImage, secret, key);
+```
+
+Each takes a `runner`; the default is `CipherBirdIsolateRunner`, and
+`CipherBirdInlineRunner` keeps tests deterministic. Handles such as
+sessions and live sources belong to the engine that made them and stay on
+the calling thread.

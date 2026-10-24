@@ -16,7 +16,7 @@ final class EngineIntegrity {
 
   /// Digest of `cipherbird_worker.js`.
   static const String worker =
-      'sha384-SQQhNIZG7m2IUolEbsIO1STgwbY8JZm/bKz5AzdcVuJ3oVoGGGnB07LxFSNzjM9U';
+      'sha384-YMZdsueU5c9F5GOddJovFtu0ufSNsiwu7V7Ux3zOdvfSF5AMaUrPa6SYoJZQGXTJ';
 
   /// Digest of `cipherbird_boot.js`.
   static const String boot =

@@ -31,6 +31,10 @@ import 'package:cipherbird/src/platform/native/native_platform.dart'
 import 'package:cipherbird/src/runner/cipher_bird_inline_runner.dart';
 import 'package:cipherbird/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird/src/runner/cipher_bird_runner.dart';
+import 'package:cipherbird/src/runner/engine_call_job.dart';
+import 'package:cipherbird/src/runner/engine_reply.dart';
+import 'package:cipherbird/src/runner/job_arg.dart';
+import 'package:cipherbird/src/runner/job_return.dart';
 
 export 'package:cipherbird/src/platform/native/native_platform.dart'
     if (dart.library.js_interop) 'package:cipherbird/src/platform/web/web_platform.dart'
@@ -63,6 +67,10 @@ export 'package:cipherbird/src/runner/cipher_bird_inline_runner.dart'
 export 'package:cipherbird/src/runner/cipher_bird_job.dart' show CipherBirdJob;
 export 'package:cipherbird/src/runner/cipher_bird_runner.dart'
     show CipherBirdRunner;
+export 'package:cipherbird/src/runner/engine_call_job.dart' show EngineCallJob;
+export 'package:cipherbird/src/runner/engine_reply.dart' show EngineReply;
+export 'package:cipherbird/src/runner/job_arg.dart' show JobArg;
+export 'package:cipherbird/src/runner/job_return.dart' show JobReturn;
 
 part 'api/approval.dart';
 part 'api/asymmetric.dart';
@@ -103,6 +111,11 @@ part 'api/entropy/cipher_bird_entropy/open_from_file.dart';
 part 'api/entropy/cipher_bird_entropy_health.dart';
 part 'api/entropy/cipher_bird_entropy_policy.dart';
 part 'api/entropy/cipher_bird_entropy_bytes.dart';
+part 'api/async/cipher_bird_async_signatures.dart';
+part 'api/async/cipher_bird_async_envelopes.dart';
+part 'api/async/cipher_bird_async_media.dart';
+part 'api/async/cipher_bird_async_media_keyed.dart';
+part 'api/async/cipher_bird_async_hybrid.dart';
 part 'api/entropy/health_report.dart';
 part 'api/evm_btc.dart';
 part 'api/evm_btc/secp256k1_verify.dart';
