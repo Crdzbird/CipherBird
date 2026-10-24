@@ -27,6 +27,8 @@ TEST("health/rct-cutoff-follows-the-floor-not-the-measurement") {
     // Noise with a 10-byte zero run, like EXIF padding in a photo file.
     auto v = noise(65536);
     for (std::size_t i = 100; i < 110; ++i) v[i] = 0;
+    v[99] = 0xA5;
+    v[110] = 0xA5;
     auto h1 = assess_health({ v.data(), v.size() }, 1.0);
     CHECK(h1.rct_cutoff == 31);
     CHECK(h1.longest_run == 10);
@@ -45,6 +47,7 @@ TEST("health/rct-cutoff-follows-the-floor-not-the-measurement") {
 TEST("health/explain-and-refusals-carry-every-number") {
     auto v = noise(65536);
     for (std::size_t i = 0; i < 40; ++i) v[i] = 7;
+    v[40] = 0xA5;
     auto h = assess_health({ v.data(), v.size() }, 1.0);
     const auto text = h.explain();
     CHECK(text.find("cutoff 31") != std::string::npos);
