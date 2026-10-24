@@ -129,3 +129,9 @@ Everything else is demand-driven: add it when a target application needs it, and
 always behind the same discipline — vetted implementation, KATs before ship,
 constant-time verified, no new wire format without a versioned, self-describing
 envelope.
+
+## Web
+
+The browser build has its own plan, [WEB_IMPROVEMENT_PLAN.md](WEB_IMPROVEMENT_PLAN.md):
+six phases from byte-based media APIs and a generic worker to a WebCrypto
+layer, a smaller engine, a stronger posture and a Chrome CI job.
