@@ -12,7 +12,7 @@ final class EngineIntegrity {
 
   /// Digest of `cipherbird.wasm`.
   static const String wasm =
-      'sha384-ar64Fk6z7QuR5BM2m2FIYClYBbuhAQOncSWKZNkrgoh/oIp/021ha/pRXaqg5iza';
+      'sha384-a0N+0Q1R2rgU4qW4XGl0cgQW+CJviY3rmJUsR8HaIK6gSbHXsNGmPSqtM4TsFG5S';
 
   /// Digest of `cipherbird_worker.js`.
   static const String worker =
