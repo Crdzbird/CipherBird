@@ -445,16 +445,44 @@ What differs in the browser:
   the other way round.
 - There are no isolates, so `CipherBirdIsolateRunner` uses a web worker
   instead: `assets/cipherbird_worker.js` loads a second copy of the engine
-  and runs the Argon2id jobs behind the asynchronous helpers off the main
-  thread. The worker is spawned through a blob when the engine loads, which a
-  strict Content Security Policy must allow (`worker-src blob:`).
-- APIs that take a file path (media entropy from a file, key files, suite
-  calls with a file, steganography carriers on disk) are unavailable; the
-  browser has no filesystem. The in-memory variants of the same operations
-  work.
+  and runs every job off the main thread, the Argon2id ones and any
+  `EngineCallJob` behind the asynchronous methods. The worker is spawned
+  through a blob when the engine loads, which a strict Content Security
+  Policy must allow (`worker-src blob:`).
+- The browser has no filesystem, so the methods that take a file path
+  (media entropy from a file, key files, suite calls with a file,
+  steganography carriers on disk) have byte-based twins that work there
+  through the engine's in-memory file system; see "Media on bytes" below.
+- `DeviceFips` runs on WebCrypto, the browser's own crypto; `module()`
+  states that it is not a validated module as exposed to pages.
 - AES-256-GCM uses OpenSSL's portable implementation because WebAssembly has
   no AES instructions. Output is byte-identical to the hardware path.
 - 64-bit integer parameters are exact up to 2^53.
+
+`dart run cipherbird:web_setup --check` reads the page and reports what it has
+and lacks: the two tags and whether their digests are current, a preload
+link, and a Content Security Policy that lets the worker spawn, plus the
+host settings it cannot see.
+
+### Serving the engine
+
+The engine is fetched with its subresource integrity digest and
+instantiated from the verified bytes, so the host can serve it as any
+static file. Three settings make it fast:
+
+- Compress with Brotli (or gzip): the 2.99 MB engine is about 0.9 MB on
+  the wire under Brotli.
+- Send `Cache-Control: public, max-age=31536000, immutable` for
+  `cipherbird.wasm` and `cipherbird.js`; a new package version ships new
+  digests, so a cached engine is never used with the wrong digest.
+- Add `<link rel="preload" href=".../cipherbird.wasm" as="fetch" crossorigin>`
+  next to the two boot tags so the download starts with the page.
+
+A Content Security Policy without `unsafe-eval` is enough: the engine is
+instantiated from bytes, not evaluated. The cross-origin isolation
+headers (`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`) are not needed by this
+engine; they will select a threaded engine when one ships.
 
 ## How it compares
 

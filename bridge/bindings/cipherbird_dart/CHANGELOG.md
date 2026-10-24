@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `web_setup --check` reports what a page has and lacks for the engine;
+  the READMEs gain hosting guidance (Brotli, an immutable cache header, a
+  preload link, the Content Security Policy the worker needs), and a Pages
+  workflow publishes the showcase for the browser.
 - The WebAssembly engine is 37% smaller (4.78 MB to 2.99 MB): OpenSSL is
   trimmed as in the native builds and secp256k1 uses the small
   precomputed tables, at the same speed.

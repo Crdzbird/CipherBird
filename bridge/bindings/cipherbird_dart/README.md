@@ -118,12 +118,38 @@ material a definite end of life.
 For a deployment that does not serve `packages/`, copy the two files next to
 the app and pass their location: `CipherBird.preload(library:
 '/engine/cipherbird.js')`. In the browser there are no isolates, so
-`CipherBirdIsolateRunner` runs the Argon2id jobs behind the asynchronous
-helpers in a web worker (`cipherbird_worker.js`, spawned when the engine
-loads)
-instead; there are no file-path APIs, and AES-256-GCM uses OpenSSL's
-portable implementation with byte-identical output. Everything else,
+`CipherBirdIsolateRunner` runs every job, the Argon2id ones and any
+`EngineCallJob` behind the asynchronous methods, in a web worker
+(`cipherbird_worker.js`, spawned when the engine loads) that holds its own
+engine; the file-path methods have byte-based twins that work in the
+browser through the engine's in-memory file system, and AES-256-GCM uses
+OpenSSL's portable implementation with byte-identical output. Everything else,
 including every envelope and key format, matches the native build.
+
+`dart run cipherbird_dart:web_setup --check` reads the page and reports what it has
+and lacks: the two tags and whether their digests are current, a preload
+link, and a Content Security Policy that lets the worker spawn, plus the
+host settings it cannot see.
+
+### Serving the engine
+
+The engine is fetched with its subresource integrity digest and
+instantiated from the verified bytes, so the host can serve it as any
+static file. Three settings make it fast:
+
+- Compress with Brotli (or gzip): the 2.99 MB engine is about 0.9 MB on
+  the wire under Brotli.
+- Send `Cache-Control: public, max-age=31536000, immutable` for
+  `cipherbird.wasm` and `cipherbird.js`; a new package version ships new
+  digests, so a cached engine is never used with the wrong digest.
+- Add `<link rel="preload" href=".../cipherbird.wasm" as="fetch" crossorigin>`
+  next to the two boot tags so the download starts with the page.
+
+A Content Security Policy without `unsafe-eval` is enough: the engine is
+instantiated from bytes, not evaluated. The cross-origin isolation
+headers (`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`) are not needed by this
+engine; they will select a threaded engine when one ships.
 
 ## Quick start
 

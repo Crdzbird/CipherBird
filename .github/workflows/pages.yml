@@ -1,0 +1,43 @@
+name: Showcase on Pages
+
+# Builds the Flutter showcase for the web and publishes it with GitHub Pages
+# so every capability can be tried in a browser without building. The
+# engine is served from the package assets with its integrity digests.
+# Enable Pages with "GitHub Actions" as the source once, then run this.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+      - name: Build the showcase for the web
+        run: |
+          cd bridge/bindings/cipherbird/example
+          flutter pub get
+          flutter build web --release --base-href "/${GITHUB_REPOSITORY#*/}/"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          path: bridge/bindings/cipherbird/example/build/web
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

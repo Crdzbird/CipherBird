@@ -3,6 +3,8 @@ library;
 
 import 'dart:io';
 
+import 'package:cipherbird_dart/src/engine_integrity.dart';
+import 'package:cipherbird_dart/src/web/web_page_check.dart';
 import 'package:test/test.dart';
 
 const _page = '''
@@ -88,5 +90,30 @@ void main() {
   test('a missing page is reported', () async {
     final result = await _run(const ['web/missing.html'], dir);
     expect(result.exitCode, 2);
+  });
+
+  group('WebPageCheck', () {
+    const check = WebPageCheck();
+    test('reports a bare page as missing the engine tag', () {
+      final lines = check.report('<html><head></head><body></body></html>');
+      expect(lines.first, startsWith('missing engine tag'));
+      expect(check.passes('<html></html>'), isFalse);
+    });
+    test('passes a page web_setup produced and flags a bad policy', () {
+      const page =
+          '<html><head> '
+          '<script src="packages/cipherbird_dart/assets/cipherbird.js" '
+          'integrity="${EngineIntegrity.engine}" crossorigin="anonymous" defer></script> '
+          '<script src="packages/cipherbird_dart/assets/cipherbird_boot.js" '
+          'integrity="${EngineIntegrity.boot}" crossorigin="anonymous" defer></script> '
+          '<script src="flutter_bootstrap.js" async></script></head></html>';
+      expect(check.passes(page), isTrue);
+      expect(check.report(page).where((l) => l.startsWith('ok')).length, 2);
+      final strict = page.replaceFirst(
+        '<head>',
+        '<head><meta http-equiv="Content-Security-Policy" content="worker-src none">',
+      );
+      expect(check.passes(strict), isFalse);
+    });
   });
 }

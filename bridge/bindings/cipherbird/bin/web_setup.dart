@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cipherbird/src/engine_integrity.dart';
+import 'package:cipherbird/src/web/web_page_check.dart';
 
 const String _engineTag =
     '<script src="assets/packages/cipherbird/assets/cipherbird.js" '
@@ -20,8 +21,10 @@ const String _bootstrapTag = '<script src="flutter_bootstrap.js"';
 ///
 ///     dart run cipherbird:web_setup
 ///     dart run cipherbird:web_setup --boot
+///     dart run cipherbird:web_setup --check
 void main(List<String> arguments) {
   final remove = arguments.contains('--remove');
+  final check = arguments.contains('--check');
   final boot = arguments.contains('--boot');
   final path = arguments.firstWhere(
     (a) => !a.startsWith('--'),
@@ -34,6 +37,12 @@ void main(List<String> arguments) {
       'of a Flutter project with web support',
     );
     exitCode = 2;
+    return;
+  }
+  if (check) {
+    final report = const WebPageCheck().report(file.readAsStringSync());
+    report.forEach(stdout.writeln);
+    exitCode = report.any((String l) => l.startsWith('missing')) ? 1 : 0;
     return;
   }
   final updated = remove

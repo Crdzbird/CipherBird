@@ -23,6 +23,7 @@ for t in "$SRC"/test/*_test.dart; do
   case "$(basename "$t")" in hardware_test.dart|device_fips_test.dart|web_crypto_fips_test.dart) continue ;; esac
   sed -e "s#package:flutter_test/flutter_test.dart#package:test/test.dart#" \
       -e "s#package:cipherbird/cipherbird.dart#package:cipherbird_dart/cipherbird_dart.dart#" \
+      -e "s#package:cipherbird/src/#package:cipherbird_dart/src/#g" \
       -e "s#assets/packages/cipherbird/assets/#packages/cipherbird_dart/assets/#g" \
       "$t" > "$DST/test/$(basename "$t")"
 done
