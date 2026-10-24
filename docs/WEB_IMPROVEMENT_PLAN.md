@@ -190,6 +190,11 @@ exposed to pages and the documentation says so.
 
 ### W4. A smaller engine, and threads where the host allows
 
+Progress (2026-10-24): OpenSSL trimmed and the small secp256k1 tables
+take the engine from 4.78 MB to 2.99 MB at the same speed; the profiling attribution shows
+liboqs at 0.25 MB with its SLH-DSA sets sharing code, so the second
+module is dropped from the plan. SIMD is on since W3. Threads remain.
+
 Goal: a first paint that does not wait for 4.5 MB, and parallel work for
 pages that opt in.
 

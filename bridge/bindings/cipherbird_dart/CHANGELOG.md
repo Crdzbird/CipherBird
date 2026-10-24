@@ -1,5 +1,8 @@
 ## Unreleased
 
+- The WebAssembly engine is 37% smaller (4.78 MB to 2.99 MB): OpenSSL is
+  trimmed as in the native builds and secp256k1 uses the small
+  precomputed tables, at the same speed.
 - The WebAssembly engine and its dependencies are built with SIMD:
   Argon2id takes 38% less time and ML-KEM-768 11% less in Chrome, the
   hashes and ciphers are unchanged, the engine is 5% larger.

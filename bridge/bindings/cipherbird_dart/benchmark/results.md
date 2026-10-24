@@ -112,3 +112,25 @@ do not move; Argon2id and the lattice arithmetic vectorise. The engine
 grows from 4.54 MB to 4.78 MB. WebCrypto stays the fast path for bulk
 SHA-2 and AES-GCM in the browser (23x and 40x), reached through
 `DeviceFips` there.
+
+### WebAssembly engine size (2026-10-24)
+
+| Build | wasm | code section | data section |
+|---|---|---|---|
+| SIMD, untrimmed dependencies | 4.78 MB | 2.99 MB | 1.77 MB |
+| SIMD, OpenSSL trimmed as natively, small secp256k1 tables | 2.99 MB | 2.47 MB | 0.50 MB |
+
+The data section held the default secp256k1 precomputed tables; the
+window-12 and 22 KB generator tables the native builds use remove 1.27 MB,
+and the OpenSSL trim removes about half a megabyte of code. Performance is
+unchanged from the SIMD table above (Argon2id 52.9 ms, ML-KEM-768 169 us,
+SHA-256 65 MB/s, AES-256-GCM 39 MB/s). A first attempt that exported the
+SIMD flag without an optimisation level built libsodium unoptimised
+(Argon2id 997 ms); the build driver now exports both.
+A profiling link attributes the remaining code to the engine's own C++
+(0.70 MB), OpenSSL (0.49 MB), liboqs (0.25 MB for ML-KEM, ML-DSA, sntrup
+and all twelve SLH-DSA sets, which share their code), the Emscripten
+runtime (0.24 MB), secp256k1 (0.19 MB), libsodium (0.19 MB), blst and
+BLAKE3 (0.05 MB), with 0.85 MB in functions whose names do not match a
+library prefix. Splitting the SLH-DSA parameter sets into a second module
+would save little and is not planned.

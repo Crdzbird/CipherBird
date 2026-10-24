@@ -7,8 +7,10 @@ source "$_SDIR/lib/common.sh"
 # percent more engine; the portable hashes and ciphers do not change. Set
 # CIPHERBIRD_WASM_SIMD=0 for a scalar build.
 if [ "${CIPHERBIRD_WASM_SIMD:-1}" != "0" ]; then
-    export CFLAGS="${CFLAGS:-} -msimd128"
-    export CXXFLAGS="${CXXFLAGS:-} -msimd128"
+    # autoconf builds take CFLAGS as the whole set, so the optimisation level
+    # goes here too or libsodium compiles unoptimised.
+    export CFLAGS="${CFLAGS:--O3} -msimd128"
+    export CXXFLAGS="${CXXFLAGS:--O3} -msimd128"
     export CIPHERBIRD_WASM_FLAGS="${CIPHERBIRD_WASM_FLAGS:-} -msimd128"
 fi
 for dep in libsodium blake3 secp256k1 blst openssl liboqs; do

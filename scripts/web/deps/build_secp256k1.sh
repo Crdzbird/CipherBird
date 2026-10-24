@@ -7,6 +7,7 @@ ARCHIVE="$(fetch_tarball "https://github.com/bitcoin-core/secp256k1/archive/refs
 WORK="$BUILD_ROOT/deps/secp256k1"
 extract_fresh "$ARCHIVE" "$WORK/src"
 emcmake cmake -S "$WORK/src" -B "$WORK/build" -G Ninja \
+    -DSECP256K1_ECMULT_WINDOW_SIZE=12 -DSECP256K1_ECMULT_GEN_KB=22 \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
     -DSECP256K1_BUILD_BENCHMARK=OFF -DSECP256K1_BUILD_TESTS=OFF \
     -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=OFF -DSECP256K1_BUILD_EXAMPLES=OFF \
