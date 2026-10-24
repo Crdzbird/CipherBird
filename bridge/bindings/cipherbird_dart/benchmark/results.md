@@ -89,3 +89,26 @@ In Chrome 155 (dart2js), against the WebAssembly engine; `cryptography` uses the
 | Suite v2 seal + open, 1 KiB | 1.24 ms | none | | |
 | Session v2 handshake (prekey, initiate, accept) | 2.56 ms | none | | |
 | Session v2 message encrypt + decrypt, 1 KiB | 130.7 us | none | | |
+
+### WebAssembly SIMD (2026-10-24)
+
+The engine and every dependency are now compiled with `-msimd128`. Measured
+in the same Chrome session against the scalar build, 1 MiB inputs:
+
+| Operation | scalar | SIMD | change |
+|---|---|---|---|
+| SHA-256 | 65 MB/s | 64 MB/s | none |
+| BLAKE2b-512 | 76 MB/s | 76 MB/s | none |
+| BLAKE3 | 75 MB/s | 73 MB/s | none |
+| XChaCha20-Poly1305 | 65 MB/s | 63 MB/s | none |
+| AES-256-GCM | 40 MB/s | 40 MB/s | none |
+| Argon2id 64 MiB, 2 passes | 83.8 ms | 52.3 ms | 38% less time |
+| ML-KEM-768 round trip | 190.7 us | 169.7 us | 11% less time |
+| Hybrid X25519 + ML-KEM-768 | 477.4 us | 446.6 us | 6% less time |
+| ML-DSA-65 sign | 445.4 us | 434.3 us | 2% less time |
+
+The portable C of the hashes and ciphers has no wasm SIMD paths, so they
+do not move; Argon2id and the lattice arithmetic vectorise. The engine
+grows from 4.54 MB to 4.78 MB. WebCrypto stays the fast path for bulk
+SHA-2 and AES-GCM in the browser (23x and 40x), reached through
+`DeviceFips` there.

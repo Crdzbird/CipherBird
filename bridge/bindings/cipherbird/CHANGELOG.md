@@ -1,5 +1,8 @@
 ## Unreleased
 
+- The WebAssembly engine and its dependencies are built with SIMD:
+  Argon2id takes 38% less time and ML-KEM-768 11% less in Chrome, the
+  hashes and ciphers are unchanged, the engine is 5% larger.
 - `DeviceFips` in the browser runs on WebCrypto, the platform's own
   crypto: SHA-2, HMAC, HKDF, PBKDF2, random bytes, AES-256-GCM in the
   engine's wire layout, and P-256 ECDH and ECDSA with DER signatures, with

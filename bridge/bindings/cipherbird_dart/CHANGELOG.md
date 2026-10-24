@@ -1,5 +1,8 @@
 ## Unreleased
 
+- The WebAssembly engine and its dependencies are built with SIMD:
+  Argon2id takes 38% less time and ML-KEM-768 11% less in Chrome, the
+  hashes and ciphers are unchanged, the engine is 5% larger.
 - Heavy work off the main thread on every platform: `EngineCallJob`
   describes one engine entry point by symbol as plain data, the web worker
   runs any such call on its own engine, and the asynchronous methods
