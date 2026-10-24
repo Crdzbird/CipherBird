@@ -72,7 +72,11 @@ TEST("live/fails-closed-until-credited-then-flows") {
     CHECK(!r1.accepted);
     CHECK(r1.credited_bits == 0.0);
     CHECK(r1.reason.find("mixed in but not credited") != std::string::npos);
-    auto r2 = live.feed(noise(4096), 1);
+    // The noise starts with a non-zero byte so the run of zeros carried
+    // from the blank chunk ends there, which it would not one time in 256.
+    auto second = noise(4096);
+    second[0] = 0xA5;
+    auto r2 = live.feed(second, 1);
     CHECK(r2.accepted);
     CHECK(r2.credited_bits > 256.0);
     CHECK(r2.ready);
@@ -146,6 +150,7 @@ TEST("c-abi/live-entropy-and-health-v2") {
     CHECK(r1.rct_cutoff == 31 && r1.longest_run == 4096);
     cryptolib_str_free(r1.reason);
     auto rnd = noise(8192);
+    rnd[0] = 0xA5;
     auto r2 = cryptolib_live_entropy_feed(h, rnd.data(), rnd.size(), 1);
     CHECK(r2.accepted == 1 && r2.reason == nullptr && r2.ready == 1);
     CHECK(r2.credited_bits > 256.0);

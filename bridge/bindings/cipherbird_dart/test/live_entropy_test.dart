@@ -23,7 +23,8 @@ Future<void> main() async {
           expect(blank.accepted, isFalse);
           expect(blank.rctCutoff, 31);
           expect(blank.reason, contains('mixed in but not credited'));
-          final good = live.feed(lib.randomBytes(8192), sourceId: 1);
+          final noise = lib.randomBytes(8192)..[0] = 0xA5;
+          final good = live.feed(noise, sourceId: 1);
           expect(good.accepted, isTrue);
           expect(good.ready, isTrue);
           expect(good.creditedBits, greaterThan(256));
