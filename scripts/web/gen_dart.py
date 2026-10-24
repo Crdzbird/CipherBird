@@ -14,7 +14,7 @@ from pathlib import Path
 RESERVED = {'in', 'is', 'as', 'if', 'do', 'for', 'new', 'var', 'this', 'with', 'class'}
 HANDWRITTEN = [
     'allocator', 'array', 'cipher_bird_isolate_runner', 'double_type', 'dynamic_library',
-    'asset_fetch', 'engine_instantiation', 'engine_loader', 'engine_module', 'engine_worker', 'engine_worker_boot', 'heap_memory', 'int32', 'local_memory', 'memory',
+    'asset_fetch', 'engine_instantiation', 'engine_loader', 'engine_module', 'engine_worker', 'engine_worker_boot', 'heap_memory', 'int32', 'local_memory', 'media_scratch', 'memory',
     'native_type', 'page_engine', 'platform_flags', 'pointer', 'pointer_extensions', 'script_injection', 'size', 'size_of', 'struct', 'uint16', 'uint32',
     'uint64', 'uint8', 'utf8', 'utf8_extensions', 'void_type', 'web_engine',
 ]

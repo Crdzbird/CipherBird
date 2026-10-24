@@ -6,6 +6,9 @@ import 'package:camera/camera.dart';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird_example/play/live/live_meter.dart';
 import 'package:cipherbird_example/play/live/live_meter_state.dart';
+import 'package:cipherbird_example/play/live/browser_camera.dart';
+import 'package:cipherbird_example/play/live/frame_camera.dart';
+import 'package:cipherbird_example/play/live/luma_frame.dart';
 import 'package:cipherbird_example/play/live/mac_camera.dart';
 import 'package:cipherbird_example/play/media/carrier_images.dart';
 import 'package:cipherbird_example/play/media/file_pick.dart';
@@ -33,7 +36,8 @@ final class LivePlayground extends Playground {
   final CipherBird _lib;
   LiveEntropy? _live;
   CameraController? _camera;
-  StreamSubscription<MacFrame>? _macFrames;
+  StreamSubscription<LumaFrame>? _macFrames;
+  FrameCamera? _camOnFrames;
   final _macFrame = ValueNotifier<ui.Image?>(null);
   Timer? _stream;
   PickedMedia? _picked;
@@ -89,12 +93,7 @@ final class LivePlayground extends Playground {
 
   @override
   void dispose() {
-    stopStream();
-    unawaited(stopCamera());
-    unawaited(stopMacCamera());
-    _live?.close();
-    meter.dispose();
-    _macFrame.dispose();
+    tearDown();
     super.dispose();
   }
 }

@@ -221,3 +221,20 @@ jobs:
       - name: Go binding
         working-directory: bridge/bindings/go
         run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cryptolib/
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+      - name: Plugin suite in Chrome against the bundled WebAssembly engine
+        run: |
+          cd bridge/bindings/cipherbird && flutter pub get
+          cd "$GITHUB_WORKSPACE" && bash scripts/web/test_chrome.sh
+      - name: Twin suite in Chrome, dart2js and dart2wasm
+        run: |
+          cd bridge/bindings/cipherbird_dart && dart pub get
+          dart test -p chrome
+          dart test -p chrome -c dart2wasm

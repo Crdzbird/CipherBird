@@ -2,9 +2,28 @@ part of 'stego_playground.dart';
 
 extension on StegoPlayground {
   String get _ext => switch (_carrier.value) {
-    'picked file' => _picked?.extension ?? 'bin',
+    'picked file' =>
+      _picked == null ? 'bin' : carrierExtension(_picked!.name) ?? 'bin',
     final c when c.contains('WAV') => 'wav',
     _ => 'ppm',
+  };
+
+  /// The carrier format the engine dispatches on, from the extension.
+  MediaFormat get _format => switch (_ext) {
+    'ppm' => MediaFormat.ppmImage,
+    'wav' => MediaFormat.wavAudio,
+    'png' => MediaFormat.pngImage,
+    'bmp' => MediaFormat.bmpImage,
+    'gif' => MediaFormat.gifImage,
+    'jpg' || 'jpeg' => MediaFormat.jpegImage,
+    'flac' => MediaFormat.flacAudio,
+    'mp3' => MediaFormat.mp3Audio,
+    'mp4' => MediaFormat.mp4Video,
+    'avi' => MediaFormat.aviVideo,
+    'crvf' => MediaFormat.crvfVideo,
+    _ => throw StateError(
+      'pick a PPM, PNG, BMP, GIF, JPEG, WAV, FLAC, MP3, MP4, AVI or CRVF file',
+    ),
   };
 
   Uint8List _carrierBytes() => switch (_carrier.value) {
@@ -26,7 +45,7 @@ extension on StegoPlayground {
 
   /// Chooses any file on the device as the carrier: PPM, PNG, BMP, GIF,
   /// JPEG, WAV, FLAC, MP3, MP4, AVI or CRVF.
-  Future<void> pickFile() => attemptWithFiles('pick', () async {
+  Future<void> pickFile() => attempt('pick', () async {
     final p = await pickMedia();
     if (p == null) {
       say('no file picked');

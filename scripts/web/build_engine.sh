@@ -24,7 +24,8 @@ em++ -O3 -fwasm-exceptions "$BUILD_ROOT/cryptolib_c.o" "$BUILD_ROOT/wrappers.o" 
     --no-entry \
     -sMODULARIZE=1 -sEXPORT_NAME=createCipherBird \
     -sEXPORTED_FUNCTIONS=@"$GEN/exports.json" \
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,HEAPF64 \
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,HEAPF64,FS \
+    -sFORCE_FILESYSTEM=1 \
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=32MB -sMAXIMUM_MEMORY=4GB -sSTACK_SIZE=8MB \
     -sENVIRONMENT=web,worker,node -sTEXTDECODER=2 -sASSERTIONS=0 \
     -o "$OUT/cipherbird.js" > "$BUILD_ROOT/link.log" 2>&1 \

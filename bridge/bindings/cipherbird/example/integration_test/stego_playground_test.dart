@@ -56,7 +56,7 @@ void main() {
     d.pick('Recipe signature', 'hybrid Ed25519 + ML-DSA');
     final described = await d.press('Describe recipe');
     expect(described, contains('hamming74'));
-    expect(described, contains('keyFile'));
+    expect(described, contains('keyBytes'));
     await d.expectLine('Hide', 'carrier bytes changed');
     await d.expectLine('Reveal', secret);
     await d.expectLine('Reveal with the wrong key', 'refused');

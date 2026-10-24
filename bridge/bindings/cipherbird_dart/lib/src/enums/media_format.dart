@@ -23,6 +23,22 @@ enum MediaFormat {
   /// Wire value used by the C ABI.
   final int value;
 
+  /// The file extension the engine dispatches on for this format.
+  String get extension => switch (this) {
+    ppmImage => 'ppm',
+    wavAudio => 'wav',
+    crvfVideo => 'crvf',
+    bmpImage => 'bmp',
+    pngImage => 'png',
+    flacAudio => 'flac',
+    aviVideo => 'avi',
+    gifImage => 'gif',
+    jpegImage => 'jpg',
+    mp3Audio => 'mp3',
+    mp4Video => 'mp4',
+    unknown => 'bin',
+  };
+
   /// Map a raw C ABI value, falling back to [unknown].
   static MediaFormat fromValue(int v) => MediaFormat.values.firstWhere(
     (f) => f.value == v,

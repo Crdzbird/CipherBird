@@ -56,7 +56,8 @@ export 'package:cipherbird_dart/src/platform/native/native_platform.dart'
         CipherBirdOprfBlind,
         CipherBirdPacket,
         CipherBirdResult,
-        CipherBirdSealedInfo;
+        CipherBirdSealedInfo,
+        MediaScratch;
 export 'package:cipherbird_dart/src/runner/cipher_bird_inline_runner.dart'
     show CipherBirdInlineRunner;
 export 'package:cipherbird_dart/src/runner/cipher_bird_job.dart'
@@ -92,6 +93,8 @@ part 'api/composed/image_factor_open.dart';
 part 'api/composed/image_factor_seal.dart';
 part 'api/composed/physical_open.dart';
 part 'api/composed/physical_seal.dart';
+part 'api/composed/bytes/cipher_bird_composed_bytes.dart';
+part 'api/composed/bytes/cipher_bird_image_factor_bytes.dart';
 part 'api/core.dart';
 part 'api/ecvrf.dart';
 part 'api/ecvrf/verify.dart';
@@ -100,6 +103,7 @@ part 'api/entropy/cipher_bird_entropy/derivation.dart';
 part 'api/entropy/cipher_bird_entropy/open_from_file.dart';
 part 'api/entropy/cipher_bird_entropy_health.dart';
 part 'api/entropy/cipher_bird_entropy_policy.dart';
+part 'api/entropy/cipher_bird_entropy_bytes.dart';
 part 'api/entropy/health_report.dart';
 part 'api/evm_btc.dart';
 part 'api/evm_btc/secp256k1_verify.dart';
@@ -212,6 +216,8 @@ part 'api/steganography/cipher_bird_stego.dart';
 part 'api/steganography/cipher_bird_stego_advanced.dart';
 part 'api/steganography/cipher_bird_stego_advanced/encrypted.dart';
 part 'api/steganography/cipher_bird_stego_advanced/inspection.dart';
+part 'api/steganography/bytes/cipher_bird_stego_bytes.dart';
+part 'api/steganography/bytes/cipher_bird_stego_bytes_keyed.dart';
 part 'api/steganography/stego_file_inspection.dart';
 part 'api/steganography/stego_hidden_data_report.dart';
 part 'api/suite.dart';
@@ -354,6 +360,7 @@ part 'security/custom_ids.dart';
 part 'security/ed25519_signature.dart';
 part 'security/hybrid_signature.dart';
 part 'security/key_file_source.dart';
+part 'security/key_bytes_source.dart';
 part 'security/key_source.dart';
 part 'security/molecular_layer.dart';
 part 'security/parsed_header.dart';

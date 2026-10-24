@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Steganography, media entropy and the composed seals on bytes, on every
+  platform including the browser: `stegoEmbedBytes` and the rest of the
+  byte-based twins of the file-taking methods, `entropyFromBytes`,
+  `assessHealthOf`, `keyFromBytes`, `sealWithBytes`, `openWithBytes` and
+  `KeyBytesSource`, each taking the carrier's `MediaFormat`. The engine
+  carries an in-memory file system for the web; natively a private
+  temporary directory is used and wiped. The Chrome suites of both
+  packages now run in CI.
 - The health report says everything behind its verdict: both SP 800-90B
   estimates, the sample size, the longest run with the repetition-count
   cutoff, the peak window count with the adaptive-proportion cutoff, the
@@ -51,7 +59,9 @@
   playground feeds camera frames or any picked file into the live source,
   shows every chunk and the credit arriving on a meter, and draws a key
   and re-encrypts a message on every credited chunk, so the ciphertext
-  follows the stream; on every reseed or by hand are the other modes.
+  follows the stream; on every reseed or by hand are the other modes. The
+  three media playgrounds run in the browser too, with the camera through
+  getUserMedia.
 
 ## 1.2.0
 

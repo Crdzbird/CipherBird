@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:cipherbird_dart/src/runner/cipher_bird_job.dart';
 import 'package:cipherbird_dart/src/runner/cipher_bird_runner.dart';
@@ -20,6 +21,7 @@ export 'package:ffi/ffi.dart' hide StringUtf8Pointer, calloc, malloc;
 part 'bundled_library.dart';
 part 'cipher_bird_isolate_runner.dart';
 part 'engine_loader.dart';
+part 'media_scratch.dart';
 part 'structs/cipher_bird_asym_bundle.dart';
 part 'structs/cipher_bird_buffer.dart';
 part 'structs/cipher_bird_buffer_result.dart';

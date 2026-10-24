@@ -25,7 +25,7 @@ extension on EntropyPlayground {
 
   /// Chooses any file on the device as the source: a photo, a recording, a
   /// video, or anything else, since the harvest reads bytes.
-  Future<void> pickFile() => attemptWithFiles('pick', () async {
+  Future<void> pickFile() => attempt('pick', () async {
     final p = await pickMedia();
     if (p == null) {
       say('no file picked');

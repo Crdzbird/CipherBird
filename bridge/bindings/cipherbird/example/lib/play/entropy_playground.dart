@@ -8,7 +8,6 @@ import 'package:cipherbird_example/play/media/picked_media.dart';
 import 'package:cipherbird_example/play/play_action.dart';
 import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
-import 'package:cipherbird_example/play/play_files.dart';
 import 'package:cipherbird_example/play/play_picture.dart';
 import 'package:cipherbird_example/play/playground.dart';
 import 'package:cipherbird_example/play/recipe_options.dart';
@@ -18,15 +17,17 @@ part 'entropy_harvest.dart';
 part 'entropy_pick.dart';
 part 'entropy_use.dart';
 
-/// Turn a photo or a sound into keys: judge the source first, harvest it
-/// under a policy, then derive keys, seed generators and seal with it.
+/// Turn a photo, a sound or any file into keys: judge the source first,
+/// harvest it under a policy, then derive keys, seed generators and seal
+/// with it. Everything is bytes in memory, so it runs in the browser too.
 final class EntropyPlayground extends Playground {
   EntropyPlayground(this._lib) : _recipe = RecipeOptions(_lib);
 
   final CipherBird _lib;
   final RecipeOptions _recipe;
-  late final PlayFiles _files = PlayFiles('entropy');
   PickedMedia? _picked;
+  Uint8List _bytes = Uint8List(0);
+  late final Uint8List _other = photoPpm(256, seed: 7);
 
   final _source = PlayChoice('Source', [
     'photo PPM',
@@ -57,10 +58,10 @@ final class EntropyPlayground extends Playground {
   @override
   String get blurb =>
       'Make a source or pick any file on this device, read its health '
-      'report, harvest it under the policy '
-      'you set (lower the floor or drop the test to accept the flat image), '
-      'then use what came out: derived keys, a DRBG, Fortuna, a file-keyed '
-      'seal and a custom recipe keyed by the file.';
+      'report, harvest it under the policy you set (lower the floor or drop '
+      'the test to accept the flat image), then use what came out: derived '
+      'keys, a DRBG, Fortuna, a file-keyed seal and a custom recipe keyed by '
+      'the file.';
 
   @override
   List<PlayField> get fields => [_floor, _message, _aad];

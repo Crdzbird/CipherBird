@@ -1,23 +1,23 @@
 part of 'entropy_playground.dart';
 
 extension on EntropyPlayground {
-  Future<void> sealWithFile() => attemptWithFiles('seal with file', () async {
-    final pkt = _lib.sealFromFile(_path, _message.text, _aad.text);
+  Future<void> sealWithFile() => attempt('seal with file', () async {
+    final pkt = _lib.sealWithBytes(_have, _message.text, _aad.text);
     say(
       'sealed with the file as the key: ${pkt.ciphertext.length} bytes of '
       'ciphertext, salt ${hexOf(pkt.kdfSalt)}',
     );
-    final back = _lib.openFromFile(_path, pkt, _aad.text);
+    final back = _lib.openWithBytes(_have, pkt, _aad.text);
     say('opened with the same file: ${String.fromCharCodes(back)}');
     try {
-      _lib.openFromFile(_otherPath, pkt, _aad.text);
+      _lib.openWithBytes(_other, pkt, _aad.text);
       say('another photo opened it, which must not happen');
     } on Object catch (e) {
       say('another photo refused: ${Playground.reason(e)}');
     }
   });
 
-  Future<void> seedDrbg() => attemptWithFiles('drbg', () async {
+  Future<void> seedDrbg() => attempt('drbg', () async {
     final raw = _raw();
     final a = _lib.drbg(raw, personalization: ascii('playground'));
     final b = _lib.drbg(raw, personalization: ascii('playground'));
@@ -37,7 +37,7 @@ extension on EntropyPlayground {
     }
   });
 
-  Future<void> feedFortuna() => attemptWithFiles('fortuna', () async {
+  Future<void> feedFortuna() => attempt('fortuna', () async {
     final f = _lib.fortuna();
     try {
       f.addEntropy(1, _raw());
@@ -52,8 +52,8 @@ extension on EntropyPlayground {
     }
   });
 
-  Future<void> recipeWithFile() => attemptWithFiles('recipe', () async {
-    final recipe = _recipe.build(KeyFileSource(_path));
+  Future<void> recipeWithFile() => attempt('recipe', () async {
+    final recipe = _recipe.build(KeyBytesSource(_have));
     say(recipe.describe().trimRight());
     final clock = Stopwatch()..start();
     final envelope = recipe.seal(ascii(_message.text));
@@ -63,7 +63,7 @@ extension on EntropyPlayground {
     );
     say('opened: ${String.fromCharCodes(recipe.open(envelope))}');
     try {
-      _recipe.build(KeyFileSource(_otherPath)).open(envelope);
+      _recipe.build(KeyBytesSource(_other)).open(envelope);
       say('another photo opened it, which must not happen');
     } on Object catch (e) {
       say('another photo refused: ${Playground.reason(e)}');

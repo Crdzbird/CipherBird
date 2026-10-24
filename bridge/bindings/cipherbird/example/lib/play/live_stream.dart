@@ -3,6 +3,16 @@ part of 'live_playground.dart';
 extension on LivePlayground {
   static const int _chunk = 64 * 1024;
 
+  /// Stops every feed and releases the source and the preview.
+  void tearDown() {
+    stopStream();
+    unawaited(stopCamera());
+    unawaited(stopMacCamera());
+    _live?.close();
+    meter.dispose();
+    _macFrame.dispose();
+  }
+
   Widget previewOf() {
     final c = _camera;
     final camera = c == null || !c.value.isInitialized

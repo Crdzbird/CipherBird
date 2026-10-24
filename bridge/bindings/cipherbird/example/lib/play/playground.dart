@@ -2,7 +2,6 @@ import 'package:cipherbird_example/play/play_action.dart';
 import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
 import 'package:cipherbird_example/play/play_picture.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// Fields the developer edits, actions that run the library on them, and
@@ -44,15 +43,6 @@ abstract class Playground extends ChangeNotifier {
     } on Object catch (e) {
       say('$what: $e');
     }
-  }
-
-  /// Runs [op] where there is a file system; the browser has none.
-  Future<void> attemptWithFiles(String what, Future<void> Function() op) {
-    if (kIsWeb) {
-      say('$what: unsupported in the browser, there is no file system');
-      return Future<void>.value();
-    }
-    return attempt(what, op);
   }
 
   /// A short printable form of a long value.

@@ -1,21 +1,26 @@
 part of 'entropy_playground.dart';
 
 extension on EntropyPlayground {
-  String get _name => 'source.$_ext';
-  String get _path => _files.path(_name);
-  String get _otherPath => _files.path('other.ppm');
   bool get _deterministic => _mode.value.startsWith('deterministic');
 
+  Uint8List get _have {
+    if (_bytes.isEmpty) {
+      throw StateError('press New source first');
+    }
+    return _bytes;
+  }
+
   /// A harvest under the policy the fields describe; the caller frees it.
-  dynamic _harvest(String path) => _lib.entropyFromFileWithPolicy(
-    path,
+  dynamic _harvest(Uint8List bytes) => _lib.entropyFromBytes(
+    bytes,
     deterministic: _deterministic,
     minBitsPerByte: double.parse(_floor.text),
     requireRct: _rct.picked('required'),
+    extension: _ext,
   );
 
   Uint8List _raw() {
-    final h = _harvest(_path);
+    final h = _harvest(_have);
     try {
       return _lib.entropyRaw(h);
     } finally {
@@ -23,18 +28,16 @@ extension on EntropyPlayground {
     }
   }
 
-  Future<void> newSource() => attemptWithFiles('new source', () async {
-    final bytes = _sourceBytes();
-    _files.write(_name, bytes);
-    _files.write('other.ppm', photoPpm(256, seed: 7));
-    _picture.image.value = await previewImage(bytes, _ext);
-    say('source ${_source.value}: ${bytes.length} bytes');
+  Future<void> newSource() => attempt('new source', () async {
+    _bytes = _sourceBytes();
+    _picture.image.value = await previewImage(_bytes, _ext);
+    say('source ${_source.value}: ${_bytes.length} bytes');
     await assess();
   });
 
-  Future<void> assess() => attemptWithFiles('assess', () async {
-    final h = _lib.assessFileHealth(
-      _path,
+  Future<void> assess() => attempt('assess', () async {
+    final h = _lib.assessHealthOf(
+      _have,
       floorBitsPerByte: double.parse(_floor.text),
     );
     if (h.summary.isNotEmpty) {
@@ -49,9 +52,9 @@ extension on EntropyPlayground {
     );
   });
 
-  Future<void> harvest() => attemptWithFiles('harvest', () async {
+  Future<void> harvest() => attempt('harvest', () async {
     try {
-      final h = _harvest(_path);
+      final h = _harvest(_have);
       try {
         final info = _lib.entropyInfo(h);
         say(
@@ -68,7 +71,7 @@ extension on EntropyPlayground {
     }
   });
 
-  Future<void> harvestTwice() => attemptWithFiles('harvest twice', () async {
+  Future<void> harvestTwice() => attempt('harvest twice', () async {
     final a = _raw();
     final b = _raw();
     say(
@@ -78,8 +81,8 @@ extension on EntropyPlayground {
     );
   });
 
-  Future<void> deriveKeys() => attemptWithFiles('derive', () async {
-    final h = _harvest(_path);
+  Future<void> deriveKeys() => attempt('derive', () async {
+    final h = _harvest(_have);
     try {
       final k = _lib.entropyDeriveAll(h);
       say('symmetric key ${Playground.brief(hexOf(k.symmetricKey))}');

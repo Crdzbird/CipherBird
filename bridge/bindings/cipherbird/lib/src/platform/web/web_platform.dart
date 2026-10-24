@@ -29,6 +29,7 @@ part 'engine_worker_boot.dart';
 part 'heap_memory.dart';
 part 'int32.dart';
 part 'local_memory.dart';
+part 'media_scratch.dart';
 part 'memory.dart';
 part 'native_type.dart';
 part 'page_engine.dart';

@@ -3,25 +3,37 @@ part of 'stego_playground.dart';
 extension on StegoPlayground {
   KeySource _sourceFor({required bool right}) => switch (_recipeKey.value) {
     'raw key' => RawKeySource(_keyFor(right)),
-    'key photo' => KeyFileSource(right ? _keyPhoto : _otherPhoto),
+    'key photo' => KeyBytesSource(right ? _keyPhoto : _otherPhoto),
     _ => PassphraseKeySource(right ? _passphrase.text : 'wrong $_passphrase'),
   };
 
-  Future<void> inspect() => attemptWithFiles('inspect', () async {
-    for (final name in [_coverName, _hiddenName]) {
-      final r = _lib.stegoInspect(_files.path(name));
+  Future<void> inspect() => attempt('inspect', () async {
+    for (final (name, bytes) in [
+      ('cover', _coverBytes),
+      ('hidden', _hiddenBytes),
+    ]) {
+      if (bytes.isEmpty) {
+        say('$name: nothing yet');
+        continue;
+      }
+      final r = _lib.stegoInspectBytes(bytes, _format);
       say(
         '$name: ${r.parses ? 'parses' : 'does not parse'} as '
-        '${r.format.name}, ${r.width}x${r.height}, ${r.fileSize} bytes, '
-        'extension ${r.extensionMatches ? 'matches' : 'lies'}'
+        '${r.format.name}, ${r.width}x${r.height}, ${r.fileSize} bytes'
         '${r.detail.isEmpty ? '' : ', ${r.detail}'}',
       );
     }
   });
 
-  Future<void> detectHidden() => attemptWithFiles('detect', () async {
-    for (final name in [_coverName, _hiddenName]) {
-      final r = _lib.stegoDetectHidden(_files.path(name));
+  Future<void> detectHidden() => attempt('detect', () async {
+    for (final (name, bytes) in [
+      ('cover', _coverBytes),
+      ('hidden', _hiddenBytes),
+    ]) {
+      if (bytes.isEmpty) {
+        continue;
+      }
+      final r = _lib.stegoDetectHiddenBytes(bytes, _format);
       say(
         '$name: unkeyed cipherbird payload ${r.cipherbirdPayload ? 'found' : 'not found'}, '
         'LSB likelihood ${r.lsbEmbeddingLikelihood.toStringAsFixed(2)} over '
@@ -34,23 +46,22 @@ extension on StegoPlayground {
     );
   });
 
-  Future<void> damage({required bool heavy}) =>
-      attemptWithFiles('damage', () async {
-        final n = _files.corrupt(
-          _hiddenName,
-          header: _ext == 'ppm' ? 20 : 44,
-          count: heavy ? 4096 : 32,
-          mask: heavy ? 0xF0 : 0x01,
-        );
-        await _show(_hidden, _hiddenName);
-        say(
-          '$n bytes ${heavy ? 'rewritten' : 'nudged by one'} across the '
-          'middle of the file; press Reveal to see whether the payload '
-          'survived',
-        );
-      });
+  Future<void> damage({required bool heavy}) => attempt('damage', () async {
+    final (bytes, n) = damaged(
+      _hiddenBytes,
+      header: _ext == 'ppm' ? 20 : 44,
+      count: heavy ? 4096 : 32,
+      mask: heavy ? 0xF0 : 0x01,
+    );
+    _hiddenBytes = bytes;
+    await _show(_hidden, bytes);
+    say(
+      '$n bytes ${heavy ? 'rewritten' : 'nudged by one'} across the '
+      'middle of the file; press Reveal to see whether the payload survived',
+    );
+  });
 
-  Future<void> describeRecipe() => attemptWithFiles('describe', () async {
+  Future<void> describeRecipe() => attempt('describe', () async {
     say(_recipe.build(_sourceFor(right: true)).describe().trimRight());
   });
 }

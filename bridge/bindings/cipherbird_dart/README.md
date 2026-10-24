@@ -444,3 +444,26 @@ with the repetition-count run carried across chunks. `generate` draws from
 an HMAC-DRBG seeded once 256 credited bits have arrived (`minCreditedBits`)
 and reseeded every time that much arrives again; it throws until then.
 Chunks below 1024 bytes are mixed but never credited.
+
+## Media on bytes, on every platform
+
+Every file-taking media entry point has a byte-based twin, so a carrier or
+a key photo picked in a browser, or held in memory, works the same on the
+web as on a phone: `stegoEmbedBytes`, `stegoExtractBytes`,
+`stegoCapacityOf`, `stegoInspectBytes`, `stegoDetectHiddenBytes`,
+`stegoContentDigestOf`, the keyed and encrypted forms,
+`physicalSealBytes` and `physicalOpenBytes`, `hpkeStegoSealBytes` and
+`hpkeStegoOpenBytes`, `imageFactorSealBytes` and `imageFactorOpenBytes`,
+`entropyFromBytes`, `assessHealthOf`, `keyFromBytes`, `sealWithBytes`,
+`openWithBytes`, and `KeyBytesSource` for a recipe. Each takes the
+carrier's `MediaFormat`, since the engine dispatches on the container.
+
+```dart
+final carrier = lib.stegoEmbedEncryptedBytes(photo, MediaFormat.pngImage, secret, key);
+final back = lib.stegoExtractDecryptBytes(carrier, MediaFormat.pngImage, key);
+```
+
+In the browser the bytes pass through the engine's in-memory file system
+and are removed afterwards; natively they pass through a private temporary
+directory and are overwritten before removal. The path-taking methods
+stay as they were.

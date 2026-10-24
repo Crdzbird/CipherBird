@@ -3,12 +3,12 @@ import 'dart:typed_data';
 import 'package:cipherbird/cipherbird.dart';
 import 'package:cipherbird_example/play/media/carrier_audio.dart';
 import 'package:cipherbird_example/play/media/carrier_images.dart';
+import 'package:cipherbird_example/play/media/damage.dart';
 import 'package:cipherbird_example/play/media/file_pick.dart';
 import 'package:cipherbird_example/play/media/picked_media.dart';
 import 'package:cipherbird_example/play/play_action.dart';
 import 'package:cipherbird_example/play/play_choice.dart';
 import 'package:cipherbird_example/play/play_field.dart';
-import 'package:cipherbird_example/play/play_files.dart';
 import 'package:cipherbird_example/play/play_picture.dart';
 import 'package:cipherbird_example/play/playground.dart';
 import 'package:cipherbird_example/play/recipe_options.dart';
@@ -20,8 +20,10 @@ part 'stego_hide.dart';
 part 'stego_pick.dart';
 part 'stego_reveal.dart';
 
-/// Hide a secret in a generated photo or sound, seven different ways, then
-/// try to get it back with the right key, the wrong key and a damaged file.
+/// Hide a secret in a generated photo or sound, or any media picked on
+/// the device, seven different ways, then try to get it back with the
+/// right key, the wrong key and a damaged file. Everything is bytes in
+/// memory, so it runs in the browser too.
 final class StegoPlayground extends Playground {
   StegoPlayground(this._lib) : _recipe = RecipeOptions(_lib) {
     _key.text = SymmetricKey.generate(_lib).hex;
@@ -29,10 +31,13 @@ final class StegoPlayground extends Playground {
 
   final CipherBird _lib;
   final RecipeOptions _recipe;
-  late final PlayFiles _files = PlayFiles('stego');
   late final KeyPairResult _bob = _lib.hpkeKeygen();
   late final KeyPairResult _carol = _lib.hpkeKeygen();
   late final Uint8List _oprfSeed = _lib.randomBytes(32);
+  late final Uint8List _keyPhoto = photoPpm(256, seed: 99);
+  late final Uint8List _otherPhoto = photoPpm(256, seed: 7);
+  Uint8List _coverBytes = Uint8List(0);
+  Uint8List _hiddenBytes = Uint8List(0);
   Uint8List _enc = Uint8List(0);
   PickedMedia? _picked;
 
@@ -59,10 +64,9 @@ final class StegoPlayground extends Playground {
   @override
   String get blurb =>
       'Generate a carrier or pick any image, sound or video on this device, '
-      'choose a mode, hide the secret and look at the '
-      'result: the picture is unchanged to the eye, the log counts the bytes '
-      'that moved. Reveal with the right key, then the wrong one, then '
-      'damage the file and see what survives.';
+      'choose a mode, hide the secret and look at the result: the picture '
+      'is unchanged to the eye, the log counts the bytes that moved. Reveal '
+      'with the right key, then the wrong one, then damage the file.';
 
   @override
   List<PlayField> get fields => [_secret, _key, _passphrase, _aad];
