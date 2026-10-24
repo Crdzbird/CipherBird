@@ -12,13 +12,13 @@ log "Generating the flat boundary"
 python3 "$_SDIR/gen_wrappers.py" "$REPO_ROOT/bridge/cryptolib_c.h" "$GEN"
 DEFS="-DCRYPTOLIB_BUILD_SHARED -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1"
 log "Compiling the engine"
-em++ -std=c++20 -O3 -fwasm-exceptions $DEFS -I "$REPO_ROOT/include" -I "$PREFIX/include" \
+em++ -std=c++20 -O3 ${CIPHERBIRD_WASM_FLAGS:-} -fwasm-exceptions $DEFS -I "$REPO_ROOT/include" -I "$PREFIX/include" \
     -c "$REPO_ROOT/bridge/cryptolib_c.cpp" -o "$BUILD_ROOT/cryptolib_c.o" > "$BUILD_ROOT/engine.log" 2>&1 \
     || { tail -40 "$BUILD_ROOT/engine.log"; die "engine compile failed"; }
-emcc -O3 -I "$REPO_ROOT/bridge" -c "$GEN/cipherbird_wrappers.c" -o "$BUILD_ROOT/wrappers.o" > "$BUILD_ROOT/wrappers.log" 2>&1 \
+emcc -O3 ${CIPHERBIRD_WASM_FLAGS:-} -I "$REPO_ROOT/bridge" -c "$GEN/cipherbird_wrappers.c" -o "$BUILD_ROOT/wrappers.o" > "$BUILD_ROOT/wrappers.log" 2>&1 \
     || { tail -40 "$BUILD_ROOT/wrappers.log"; die "wrapper compile failed"; }
 log "Linking cipherbird.wasm"
-em++ -O3 -fwasm-exceptions "$BUILD_ROOT/cryptolib_c.o" "$BUILD_ROOT/wrappers.o" \
+em++ -O3 ${CIPHERBIRD_WASM_FLAGS:-} -fwasm-exceptions "$BUILD_ROOT/cryptolib_c.o" "$BUILD_ROOT/wrappers.o" \
     "$PREFIX/lib/libsodium.a" "$PREFIX/lib/libblake3.a" "$PREFIX/lib/liboqs.a" \
     "$PREFIX/lib/libcrypto.a" "$PREFIX/lib/libblst.a" "$PREFIX/lib/libsecp256k1.a" \
     --no-entry \

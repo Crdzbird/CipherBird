@@ -399,8 +399,10 @@ final tag = await fips.hmac(FipsHash.sha256, key, message);
 `module()` reports what served the calls so the app can refuse a device
 whose provider is not the expected one. On Android the HKDF and PBKDF2
 loops run in the app around the provider's HMAC and are reported as
-composed. Flutter only; the browser has no validated module. The same
-operations are on the engine as the `fips*` family when the engine was
+composed. In the browser the same facade runs on WebCrypto, the
+platform's own crypto, with the same wire formats, and `module()` states
+that it is not a validated module as exposed to pages. Flutter only. The
+same operations are on the engine as the `fips*` family when the engine was
 built with `CRYPTOLIB_PROFILE=fips`; on the bundled engine `fipsAvailable`
 is false.
 

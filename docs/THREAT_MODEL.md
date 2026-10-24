@@ -296,6 +296,9 @@ boundary is therefore explicit and enforced:
 
 - The web build is approved for `ProtectedDataClass.ephemeral` only:
   session keys and payloads that live for one exchange.
+- The device FIPS facade runs on WebCrypto in the browser, the platform's
+  own crypto, in the same wire formats as the device modules; it is not a
+  validated module as exposed to pages and reports itself as such.
 - `CipherBird.approvedFor(ProtectedDataClass)` answers the question at run
   time and `requireApprovedFor` throws on a web build asked to protect
   `longLivedKeys` or `cardData`. Call it once at startup with the most

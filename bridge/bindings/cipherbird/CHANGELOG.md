@@ -1,5 +1,11 @@
 ## Unreleased
 
+- `DeviceFips` in the browser runs on WebCrypto, the platform's own
+  crypto: SHA-2, HMAC, HKDF, PBKDF2, random bytes, AES-256-GCM in the
+  engine's wire layout, and P-256 ECDH and ECDSA with DER signatures, with
+  known-answer and engine-interoperability tests in Chrome. `module()`
+  states that it is the browser platform crypto and not a validated module
+  as exposed to pages.
 - Heavy work off the main thread on every platform: `EngineCallJob`
   describes one engine entry point by symbol as plain data, the web worker
   runs any such call on its own engine, and the asynchronous methods
