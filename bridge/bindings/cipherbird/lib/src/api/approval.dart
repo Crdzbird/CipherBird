@@ -9,8 +9,11 @@ extension CipherBirdApproval on CipherBird {
   bool get isWebBuild => platformIsWeb;
 
   /// Whether this build is approved to protect [dataClass].
-  bool approvedFor(ProtectedDataClass dataClass) =>
-      !platformIsWeb || dataClass == ProtectedDataClass.ephemeral;
+  bool approvedFor(ProtectedDataClass dataClass) => switch (dataClass) {
+    ProtectedDataClass.ephemeral => true,
+    ProtectedDataClass.longLivedKeys => !platformIsWeb || engineWorkerOnly,
+    ProtectedDataClass.cardData => !platformIsWeb,
+  };
 
   /// Throws [UnsupportedError] unless this build is approved for
   /// [dataClass]; call it once at startup for the most sensitive class the
@@ -21,7 +24,8 @@ extension CipherBirdApproval on CipherBird {
     }
     throw UnsupportedError(
       'cipherbird: the web build is not approved for ${dataClass.name}; '
-      'keep long-lived keys and card data on a native build',
+      'long-lived keys need preload(workerOnly: true) in the browser and '
+      'card data a native build',
     );
   }
 }

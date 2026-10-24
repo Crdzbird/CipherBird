@@ -15,13 +15,24 @@ final class WebEngine {
 
   static WebEngine? _current;
 
+  /// Set by `preload(workerOnly: true)`: the page has no engine, the
+  /// worker holds the only one, and every call goes through a job.
+  static bool workerOnly = false;
+
+  /// The engine directory the worker loads from in worker-only mode.
+  static String? workerBase;
+
   /// The engine, or a clear error when it was never loaded.
   static WebEngine get current {
     final engine = _current;
     if (engine == null) {
       throw StateError(
-        'cipherbird: the WebAssembly engine is not loaded; '
-        'await CipherBird.ready before the first use on the web',
+        workerOnly
+            ? 'cipherbird: the engine runs in the worker only '
+                  '(preload(workerOnly: true)); use the asynchronous methods, '
+                  'the synchronous ones have no engine on this page'
+            : 'cipherbird: the WebAssembly engine is not loaded; '
+                  'await CipherBird.ready before the first use on the web',
       );
     }
     return engine;

@@ -223,6 +223,12 @@ single-threaded one in the benchmark.
 
 ### W5. A better security posture for the browser
 
+Progress (2026-10-24): items 1 (engine-in-worker mode through
+`preload(workerOnly: true)`) and 3 (a non-extractable WebCrypto key in
+IndexedDB as the browser key module) are built and tested in Chrome, and
+the approval boundary admits long-lived keys in worker-only mode (item 5).
+Item 2, the passkey slot, and item 4, the header check, remain.
+
 Goal: raise what the web build can honestly be approved for.
 
 1. Engine-in-worker mode: an option to keep the only engine inside the

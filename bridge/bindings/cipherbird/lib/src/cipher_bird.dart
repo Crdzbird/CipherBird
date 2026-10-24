@@ -61,7 +61,8 @@ export 'package:cipherbird/src/platform/native/native_platform.dart'
         CipherBirdPacket,
         CipherBirdResult,
         CipherBirdSealedInfo,
-        MediaScratch;
+        MediaScratch,
+        engineWorkerOnly;
 export 'package:cipherbird/src/runner/cipher_bird_inline_runner.dart'
     show CipherBirdInlineRunner;
 export 'package:cipherbird/src/runner/cipher_bird_job.dart' show CipherBirdJob;
@@ -403,7 +404,7 @@ final class CipherBird {
   /// Process-wide instance, opened and initialised synchronously on first use.
   static CipherBird get instance {
     final lib = _singleton ??= CipherBird.load();
-    if (_initialized) {
+    if (_initialized || engineWorkerOnly) {
       return lib;
     }
     lib.init();
@@ -435,11 +436,12 @@ final class CipherBird {
   static Future<bool> preload({
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
     String? library,
+    bool workerOnly = false,
   }) async {
     if (!engineLoadsAsynchronously) {
       return true;
     }
-    await prepareEngine(library);
+    await prepareEngine(library, workerOnly: workerOnly);
     return true;
   }
 

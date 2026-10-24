@@ -294,8 +294,15 @@ key module. The byte-passphrase APIs, the zeroing allocator and the worker
 wipe (Phase 2) shrink the exposure; they cannot remove it. The approval
 boundary is therefore explicit and enforced:
 
-- The web build is approved for `ProtectedDataClass.ephemeral` only:
-  session keys and payloads that live for one exchange.
+- The web build is approved for `ProtectedDataClass.ephemeral` by
+  default: session keys and payloads that live for one exchange.
+- With `preload(workerOnly: true)` the page holds no engine, every call
+  runs in the worker and key material never sits in the page's linear
+  memory; with keyring slots wrapped by the browser key module, the web
+  build is then approved for `longLivedKeys` under this residual risk: a
+  script that runs on the page can still message the worker and use the
+  keys, and the browser key can be used, though not read, by any script
+  on the origin. `cardData` stays refused in the browser.
 - The device FIPS facade runs on WebCrypto in the browser, the platform's
   own crypto, in the same wire formats as the device modules; it is not a
   validated module as exposed to pages and reports itself as such.
@@ -306,7 +313,7 @@ boundary is therefore explicit and enforced:
   unchanged until the engine can live in the worker alone.
 - `CipherBird.approvedFor(ProtectedDataClass)` answers the question at run
   time and `requireApprovedFor` throws on a web build asked to protect
-  `longLivedKeys` or `cardData`. Call it once at startup with the most
+  `cardData`, or `longLivedKeys` outside worker-only mode. Call it once at startup with the most
   sensitive class the app handles, so a web build of a banking app fails
   closed instead of storing a keyring in a browser.
 - Long-lived keys and cardholder data stay on native builds, where

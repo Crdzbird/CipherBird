@@ -33,4 +33,4 @@ DynamicLibrary openEngineLibrary(String? path) {
 const bool engineLoadsAsynchronously = false;
 
 /// Nothing to prepare on native platforms: the library opens synchronously.
-Future<void> prepareEngine(String? library) async {}
+Future<void> prepareEngine(String? library, {bool workerOnly = false}) async {}

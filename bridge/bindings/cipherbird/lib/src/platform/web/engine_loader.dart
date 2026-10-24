@@ -20,8 +20,14 @@ Future<void>? _inFlight;
 /// Every file is checked against the digests in [EngineIntegrity].
 /// Concurrent callers share one load; a caller with an explicit [library]
 /// retries with it only if the shared load failed.
-Future<void> prepareEngine(String? library) async {
-  if (WebEngine.isLoaded || adoptPageEngine()) {
+Future<void> prepareEngine(String? library, {bool workerOnly = false}) async {
+  if (workerOnly) {
+    WebEngine.workerOnly = true;
+  }
+  if (WebEngine.isLoaded || WebEngine.workerBase != null) {
+    return;
+  }
+  if (!WebEngine.workerOnly && adoptPageEngine()) {
     return;
   }
   final shared = _inFlight;
@@ -62,10 +68,16 @@ Future<void> _load(String? library) async {
     try {
       final absolute = Uri.base.resolve(url).toString();
       final base = absolute.substring(0, absolute.lastIndexOf('/') + 1);
+      if (WebEngine.workerOnly) {
+        WebEngine.workerBase = base;
+        await EngineWorker.start();
+        return;
+      }
       WebEngine._current = WebEngine._(await _instantiate(absolute), base);
       await EngineWorker.start();
       return;
     } on Object catch (error) {
+      WebEngine.workerBase = null;
       errors.add('$url: $error');
     }
   }

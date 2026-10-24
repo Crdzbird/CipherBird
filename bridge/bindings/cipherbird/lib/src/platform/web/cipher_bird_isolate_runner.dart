@@ -13,7 +13,7 @@ final class CipherBirdIsolateRunner implements CipherBirdRunner {
 
   @override
   Future<R> run<R>(CipherBirdJob<R> job) async {
-    if (job.cost < inlineThreshold) {
+    if (job.cost < inlineThreshold && !WebEngine.workerOnly) {
       return job.execute();
     }
     final worker = await EngineWorker.start();

@@ -19,6 +19,9 @@ final class DynamicLibrary {
 /// accepted for API symmetry only; the engine URL is chosen by
 /// [prepareEngine].
 DynamicLibrary openEngineLibrary(String? path) {
+  if (WebEngine.workerOnly) {
+    return DynamicLibrary._();
+  }
   adoptPageEngine();
   WebEngine.current;
   return DynamicLibrary._();

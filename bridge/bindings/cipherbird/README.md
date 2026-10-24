@@ -469,6 +469,17 @@ and lacks: the two tags and whether their digests are current, a preload
 link, and a Content Security Policy that lets the worker spawn, plus the
 host settings it cannot see.
 
+### Keeping the engine in the worker
+
+`CipherBird.preload(workerOnly: true)` loads no engine on the page: the
+worker holds the only one, every asynchronous method runs there, and the
+synchronous methods throw with a message that says so. Key material then
+never sits in the page's linear memory, which a script injected into the
+page could read; such a script can still message the worker, so this is
+defence in depth, not isolation. In this mode, with keyring slots wrapped
+by the browser key module, `approvedFor(ProtectedDataClass.longLivedKeys)`
+is true in the browser; card data stays refused there.
+
 ### Serving the engine
 
 The engine is fetched with its subresource integrity digest and

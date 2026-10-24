@@ -51,3 +51,6 @@ part 'zeroing_utf8.dart';
 
 /// False: this is the native layer.
 const bool platformIsWeb = false;
+
+/// Never natively: the engine is in the process.
+bool get engineWorkerOnly => false;

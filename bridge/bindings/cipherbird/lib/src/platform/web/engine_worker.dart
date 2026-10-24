@@ -13,7 +13,7 @@ final class EngineWorker {
 
   /// The shared worker, spawned on first use from the loaded engine's URL.
   static Future<EngineWorker> start() =>
-      _starting ??= _spawn(WebEngine.current.base);
+      _starting ??= _spawn(WebEngine.workerBase ?? WebEngine.current.base);
 
   static Future<EngineWorker> _spawn(String base) async {
     final worker = await _spawnWorker(base);

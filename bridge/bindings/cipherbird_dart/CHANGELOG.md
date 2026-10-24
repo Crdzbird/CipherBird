@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `preload(workerOnly: true)` keeps the only engine inside the worker:
+  the asynchronous methods run there, the synchronous ones throw and say
+  so, and key material never sits in the page's memory. In that mode the
+  web build is approved for long-lived keys; card data stays refused.
 - `web_setup --check` reports what a page has and lacks for the engine;
   the READMEs gain hosting guidance (Brotli, an immutable cache header, a
   preload link, the Content Security Policy the worker needs), and a Pages
