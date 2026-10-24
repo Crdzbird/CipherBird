@@ -20,7 +20,7 @@ mkdir -p "$DST/lib/assets"
 cp "$SRC/assets/cipherbird.js" "$SRC/assets/cipherbird.wasm" "$SRC/assets/cipherbird_worker.js" "$SRC/assets/cipherbird_boot.js" "$DST/lib/assets/"
 sed 's/^library;$/library;/' "$SRC/lib/cipherbird.dart" > "$DST/lib/cipherbird_dart.dart"
 for t in "$SRC"/test/*_test.dart; do
-  case "$(basename "$t")" in hardware_test.dart|device_fips_test.dart|web_crypto_fips_test.dart) continue ;; esac
+  case "$(basename "$t")" in hardware_test.dart|device_fips_test.dart|web_crypto_fips_test.dart|web_key_backend_test.dart) continue ;; esac
   sed -e "s#package:flutter_test/flutter_test.dart#package:test/test.dart#" \
       -e "s#package:cipherbird/cipherbird.dart#package:cipherbird_dart/cipherbird_dart.dart#" \
       -e "s#package:cipherbird/src/#package:cipherbird_dart/src/#g" \

@@ -379,6 +379,11 @@ On macOS the Secure Enclave key lives in the data protection keychain,
 which requires the host app to be signed with a Team ID (an ad-hoc or
 "sign to run locally" build fails with `errSecMissingEntitlement`,
 status -34018).
+In the browser `HardwareKey` is a non-extractable AES-256-GCM key made by
+WebCrypto and kept in IndexedDB: script on the origin can use it but never
+read its bytes, so a keyring slot at rest is wrapped by a key that cannot
+be exported. It is not a secure element, has no biometric gate and no
+attestation, and `backing` reports `HardwareBacking.browser`.
 
 ## Validated modules
 

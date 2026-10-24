@@ -14,6 +14,10 @@ enum HardwareBacking {
   /// without a hardware-backed keystore.
   software,
 
+  /// A non-extractable WebCrypto key in the browser's IndexedDB: usable by
+  /// script on the origin, never readable, not a secure element.
+  browser,
+
   /// No key module on this platform.
   none;
 
@@ -23,6 +27,7 @@ enum HardwareBacking {
     'strongbox' => HardwareBacking.strongBox,
     'tee' => HardwareBacking.trustedExecutionEnvironment,
     'software' => HardwareBacking.software,
+    'browser' => HardwareBacking.browser,
     _ => HardwareBacking.none,
   };
 

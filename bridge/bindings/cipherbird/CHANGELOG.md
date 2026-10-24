@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `HardwareKey` in the browser: a non-extractable AES-256-GCM key made
+  by WebCrypto and kept in IndexedDB wraps keyring slots, so a stored
+  keyring cannot be read out as bytes even by a script that reads the
+  database; `HardwareBacking.browser` names it, and the threat model says
+  it is not a secure element.
 - `web_setup --check` reports what a page has and lacks for the engine;
   the READMEs gain hosting guidance (Brotli, an immutable cache header, a
   preload link, the Content Security Policy the worker needs), and a Pages
