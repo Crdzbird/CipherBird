@@ -43,3 +43,10 @@ from a shell inherits the launcher's camera permission, so the camera is
 exercised only when the app is opened on its own);
 `integration_test/hardware_test.dart` and `integration_test/fips_test.dart`
 are the focused device tests behind the hardware and module screens.
+
+On Android the Live entropy playground asks for the camera once; to skip
+the prompt on a test device, run `scripts/android/grant_camera.sh <device id>`
+in the background before `flutter run` or `flutter test`: it grants the
+permission the moment the app is installed. On macOS the permission can
+only be granted through the system prompt or System Settings, and only an
+app opened on its own (not from a shell) is asked.
