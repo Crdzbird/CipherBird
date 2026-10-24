@@ -259,6 +259,12 @@ section 9.5.
 
 ### W6. Assurance and developer experience
 
+Progress (2026-10-24): the web CI job runs both Chrome suites under
+dart2js and dart2wasm and enforces a 3.4 MB ceiling on the bundled
+engine; `web_setup --check`, the hosting guidance and the Pages workflow
+are in. The web benchmark as a CI artifact and the hosted showcase (once
+Pages is enabled) remain.
+
 Goal: the browser is a first-class target in CI and easy to adopt.
 
 - A `web` CI job: both packages' Chrome suites under dart2js and

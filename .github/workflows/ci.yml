@@ -229,6 +229,11 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
+      - name: The bundled engine stays under its size ceiling
+        run: |
+          size=$(stat -c %s bridge/bindings/cipherbird/assets/cipherbird.wasm)
+          echo "cipherbird.wasm: $size bytes"
+          test "$size" -le 3400000 || { echo "engine grew past 3.4 MB; measure before raising the ceiling" >&2; exit 1; }
       - name: Plugin suite in Chrome against the bundled WebAssembly engine
         run: |
           cd bridge/bindings/cipherbird && flutter pub get
