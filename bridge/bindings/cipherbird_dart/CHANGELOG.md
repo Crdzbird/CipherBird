@@ -1,4 +1,10 @@
-## Unreleased
+## 1.3.0
+
+The web release: every file-based media method on bytes in the browser,
+heavy work off the main thread through one generic job, the device facade
+on WebCrypto, a 37% smaller SIMD engine, a browser key module and a
+worker-only mode that keeps key material out of the page, plus the
+explainable entropy health verdict and the live entropy source.
 
 - `preload(workerOnly: true)` keeps the only engine inside the worker:
   the asynchronous methods run there, the synchronous ones throw and say
