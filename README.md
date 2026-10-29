@@ -219,7 +219,7 @@ make flutter-recipes  # Flutter/Dart (5, via flutter test)
 
 Source: [`example/recipes.cpp`](example/recipes.cpp) ,
 [Go](bridge/bindings/go/recipes/main.go) ,
-[Node](bridge/bindings/cryptolib-node/recipes.js) ,
+[Node](bridge/bindings/cryptolib-node/recipes.js),
 [Swift](bridge/bindings/swift/cli/recipes.swift) ,
 [Flutter](bridge/bindings/cipherbird/test/recipes_test.dart).
 The same envelopes open across languages, a value sealed by the Go recipe opens
@@ -386,18 +386,22 @@ for the full guide, the comparison with other Dart packages and benchmarks.
 
 ### Node.js (npm)
 
-1. **Install.** Once published: `npm install cryptolib`. From source:
+1. **Install.** `npm install cipherbird` (macOS on Apple silicon in this
+   release; other platforms build the library from this repository and point
+   `CIPHERBIRD_LIBRARY` at it). From source:
    `cd bridge/bindings/cryptolib-node && npm install`.
 2. **Use.** The loader resolves the bundled binary from
-   `prebuilds/<platform>-<arch>/` automatically.
+   `prebuilds/<platform>-<arch>/` automatically; the surface is the same as
+   the Dart packages, flat and grouped by domain.
    ```js
-   const crypto = require('cryptolib');
-   crypto.init();
-   console.log('version:', crypto.version());                              // 3.0.0
-   const kp = crypto.hybridKemKeygen();
-   const { ciphertext, sharedSecret } = crypto.hybridKemEncapsulate(kp.publicKey);
-   const ssDec = crypto.hybridKemDecapsulate(ciphertext, kp.secretKey);
+   const cipherbird = require('cipherbird');
+   console.log('engine:', cipherbird.version());
+   const kp = cipherbird.pq.xwing.keygen();
+   const { ciphertext, sharedSecret } = cipherbird.pq.xwing.encapsulate(kp.publicKey);
+   const ssDec = cipherbird.pq.xwing.decapsulate(ciphertext, kp.secretKey);
    console.log('match:', sharedSecret.equals(ssDec), 'ss bytes:', sharedSecret.length);
+   const key = cipherbird.SymmetricKey.generate();
+   console.log(key.decryptText(key.encryptText('meet at dawn')));
    ```
 3. **Run.** `node your_script.js`. No `LD_LIBRARY_PATH`, no `--dlopen`.
 

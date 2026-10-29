@@ -1,10 +1,12 @@
-// BBS per-verifier pseudonym / blind-issuance verify — round-trips across the boundary.
-//   CRYPTOLIB_DYLIB=<path> node test/bbs_pseudonym.js
+/*
+ * BBS per-verifier pseudonym / blind-issuance verify: round-trips across the boundary.
+ * CRYPTOLIB_DYLIB=<path> node test/bbs_pseudonym.js
+ */
 const c = require('..');
 const { Bbs } = c;
 
 let pass = 0, fail = 0;
-const ck = (label, ok) => { console.log(`  ${ok ? '✓' : '✗'} ${label}`); ok ? pass++ : fail++; };
+const ck = (label, ok) => { console.log(`  ${ok ? 'ok' : 'FAIL'} ${label}`); ok ? pass++ : fail++; };
 const hx = (s) => Buffer.from(s, 'hex');
 
 c.init();
@@ -41,7 +43,7 @@ ck('proofVerifyWithPseudonym = VALID', Bbs.proofVerifyWithPseudonym(pk, proof, h
 const badctx = hx('aab4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a');
 ck('wrong-context proof rejected', !Bbs.proofVerifyWithPseudonym(pk, proof, header, ph, badctx, pseudonym, 2, 1, dm, [0, 1, 3, 4]));
 
-// ── Standalone blind issuance (no pseudonyms) ────────────────────────────────
+/* Standalone blind issuance (no pseudonyms) */
 {
   const skpk = c.Bbs.skToPk(sk);
   const signer2 = [Buffer.from('age>=18'), Buffer.from('region=EU')];
@@ -55,12 +57,12 @@ ck('wrong-context proof rejected', !Bbs.proofVerifyWithPseudonym(pk, proof, head
   ck('wrong blind rejected', !Bbs.verifyBlindSign(skpk, sig2, header, signer2, committed2, badBlind));
 }
 
-// ── Canonical scalar helpers (issue #5) ──────────────────────────────────────
+/* Canonical scalar helpers (issue #5) */
 {
   const htsMsg = hx('9872ad089e452c7b6e283dfac2a80d58e8d0ff71cc4d5e310a1debdda4a45f02');
   const htsDst = hx('4242535f424c53313233383147315f584d443a5348412d3235365f535357555f524f5f4832475f484d32535f4832535f');
   const scalar = Bbs.hashToScalar(htsMsg, htsDst);
-  ck('hashToScalar KAT (§D.2.3)', scalar.toString('hex') === '0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c');
+  ck('hashToScalar KAT (section D.2.3)', scalar.toString('hex') === '0f90cbee27beb214e6545becb8404640d3612da5d6758dffeccd77ed7169807c');
   const r1 = Bbs.randomScalar(), r2 = Bbs.randomScalar();
   ck('randomScalar distinct 32-byte', r1.length === 32 && !r1.equals(r2));
   console.log(`\n${pass} passed, ${fail} failed`);

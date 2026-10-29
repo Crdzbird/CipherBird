@@ -1,8 +1,10 @@
-// CryptoLib for Node — Suite: one-call advanced combinations.
-//
-// The Suite facade composes hybrid KEM, hybrid signatures, MolecularVault, media
-// entropy, keyring, Shamir and Keccak into single calls. Run against the build:
-//   CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node suite.js
+/*
+ * CryptoLib for Node: Suite: one-call advanced combinations.
+ *
+ * The Suite facade composes hybrid KEM, hybrid signatures, MolecularVault, media
+ * entropy, keyring, Shamir and Keccak into single calls. Run against the build:
+ * CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node suite.js
+ */
 'use strict';
 const os = require('node:os');
 const path = require('node:path');
@@ -11,14 +13,14 @@ const c = require('./index.js');
 
 c.init();
 let pass = 0, fail = 0;
-const ck = (n, ok) => { console.log(`   ${ok ? '✓' : '✗'} ${n}`); ok ? pass++ : fail++; };
+const ck = (n, ok) => { console.log(`   ${ok ? 'ok' : 'FAIL'} ${n}`); ok ? pass++ : fail++; };
 const section = (n) => console.log(`\n${n}`);
 const B = (s) => Buffer.from(s);
 const aad = B('suite/v1');
 
-console.log(`CryptoLib ${c.version()} — Suite (Node)`);
+console.log(`CryptoLib ${c.version()}: Suite (Node)`);
 
-// 1. Post-quantum message: one call to seal to a recipient's KEM public key.
+/* 1. Post-quantum message: one call to seal to a recipient's KEM public key. */
 section('1. Post-quantum message  (suiteSealPq / suiteOpenPq)');
 {
   const bob = c.hybridKemKeygen();
@@ -27,8 +29,8 @@ section('1. Post-quantum message  (suiteSealPq / suiteOpenPq)');
      c.suiteOpenPq(env, bob.secretKey, aad).toString() === 'see you at dawn');
 }
 
-// 2. Flagship: post-quantum confidentiality AND authenticity in one call.
-section('2. Signed + PQ  (suiteSealSignedPq — the flagship)');
+/* 2. Flagship: post-quantum confidentiality AND authenticity in one call. */
+section('2. Signed + PQ  (suiteSealSignedPq: the flagship)');
 {
   const bob = c.hybridKemKeygen(), signer = c.hybridSigKeygen();
   const pt = B('transfer 100 to acct #42');
@@ -41,7 +43,7 @@ section('2. Signed + PQ  (suiteSealSignedPq — the flagship)');
   ck('rejects a wrong signer (fails closed)', rejected);
 }
 
-// 3. File-as-key: the file's deterministic entropy is the key.
+/* 3. File-as-key: the file's deterministic entropy is the key. */
 section('3. File-as-key  (suiteSealWithFile / suiteOpenWithFile)');
 {
   const tmp = path.join(os.tmpdir(), 'cryptolib_node_suite_key.bin');
@@ -53,7 +55,7 @@ section('3. File-as-key  (suiteSealWithFile / suiteOpenWithFile)');
   } finally { fs.unlinkSync(tmp); }
 }
 
-// 4. Keyring-guarded: master never at rest in plaintext; either slot opens.
+/* 4. Keyring-guarded: master never at rest in plaintext; either slot opens. */
 section('4. Keyring-guarded  (suiteSeal/Open_with_keyring_*)');
 {
   const deviceKey = c.randomBytes(32);
@@ -66,7 +68,7 @@ section('4. Keyring-guarded  (suiteSeal/Open_with_keyring_*)');
   c.keyringFree(kr);
 }
 
-// 5. Threshold (k-of-n): distribute shares, any k reconstruct.
+/* 5. Threshold (k-of-n): distribute shares, any k reconstruct. */
 section('5. Threshold  (suiteSealThreshold / suiteOpenThreshold, 3-of-5)');
 {
   const { envelope, shares } = c.suiteSealThreshold(B('board resolution'), 5, 3, aad);
@@ -78,7 +80,7 @@ section('5. Threshold  (suiteSealThreshold / suiteOpenThreshold, 3-of-5)');
   ck('below quorum fails', below);
 }
 
-// 6. EVM address in one call.
+/* 6. EVM address in one call. */
 section('6. EVM address  (suiteEvmAddress)');
 {
   const w = c.secp256k1Keygen();
@@ -87,5 +89,5 @@ section('6. EVM address  (suiteEvmAddress)');
   ck('derives a 20-byte address', addr.length === 20);
 }
 
-console.log(`\n${pass} passed, ${fail} failed — suite ${fail === 0 ? 'OK' : 'FAILED'}`);
+console.log(`\n${pass} passed, ${fail} failed: suite ${fail === 0 ? 'OK' : 'FAILED'}`);
 process.exit(fail === 0 ? 0 : 1);

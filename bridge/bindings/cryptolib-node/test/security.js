@@ -1,12 +1,14 @@
-// SecurityProfile presets and the composable Recipe pipeline.
-//   CRYPTOLIB_DYLIB=<path> node test/security.js
+/*
+ * SecurityProfile presets and the composable Recipe pipeline.
+ * CRYPTOLIB_DYLIB=<path> node test/security.js
+ */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const c = require('..');
 
 let pass = 0, fail = 0;
-const ck = (label, ok) => { console.log(`  ${ok ? '✓' : '✗'} ${label}`); ok ? pass++ : fail++; };
+const ck = (label, ok) => { console.log(`  ${ok ? 'ok' : 'FAIL'} ${label}`); ok ? pass++ : fail++; };
 const throws = (f) => { try { f(); return false; } catch { return true; } };
 const cheap = (r) => r.argon2Cost({ ops: 1, memoryBytes: 8 * 1024 * 1024 });
 
@@ -25,7 +27,7 @@ c.init();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl_sec_'));
 const secret = Buffer.from('the treaty text nobody may read');
 
-// ── Profiles ─────────────────────────────────────────────────────────────────
+/* Profiles */
 const max = c.SecurityProfile.params('maximum');
 ck('maximum picks the strongest options',
    max.mlKemLevel === 2 && max.mlDsaLevel === 2 && max.slhDsaHash === 1 && max.kdfPreset === 1);
@@ -34,7 +36,7 @@ ck('maximum cascade ends key-committing',
 ck('profiles are ordered',
    c.SecurityProfile.params('balanced').argon2Memory < max.argon2Memory);
 
-// ── Round-trips ──────────────────────────────────────────────────────────────
+/* Round-trips */
 const key = c.Rng.bytes(32);
 const r = c.recipe('high').withKey(key);
 ck('raw key round-trip', r.open(r.seal(secret)).equals(secret));
@@ -48,7 +50,7 @@ const sealedByFile = c.recipe().withKeyFile(keyFile).seal(secret);
 ck('key file reproducible across recipe objects',
    c.recipe().withKeyFile(keyFile).open(sealedByFile).equals(secret));
 
-// ── Composition ──────────────────────────────────────────────────────────────
+/* Composition */
 const mol = c.recipe().withKey(key).withLayers([c.ProtectionLayer.molecular]);
 ck('MolecularVault as one layer', mol.open(mol.seal(secret)).equals(secret));
 
@@ -74,7 +76,7 @@ ck('wrong signer rejected',
 ck('signed envelope refuses to open unverified',
    throws(() => c.recipe('high').withKey(key).open(senv)));
 
-// ── FEC + carrier ────────────────────────────────────────────────────────────
+/* FEC + carrier */
 const fr = c.recipe().withKey(key).withFec(c.FecScheme.repetition3);
 const fenv = fr.seal(secret);
 fenv[Math.floor(fenv.length / 2)] ^= 1;
@@ -88,7 +90,7 @@ cr.sealIntoCarrier(secret, { coverPath: cover, outputPath: carrier });
 ck('pipeline hides itself in a carrier', cr.openFromCarrier(carrier).equals(secret));
 ck('carrier is still a valid image', c.StegoAdvanced.inspect(carrier).format === 'ppmImage');
 
-// ── Fails closed ─────────────────────────────────────────────────────────────
+/* Fails closed */
 const tenv = r.seal(secret); tenv[tenv.length - 1] ^= 1;
 ck('flipped ciphertext byte rejected', throws(() => r.open(tenv)));
 const henv = r.seal(secret); henv[7] = 1;

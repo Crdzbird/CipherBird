@@ -1,12 +1,14 @@
-// Incremental BLAKE3 + Noise XX through the C ABI.
-//   CRYPTOLIB_DYLIB=<path> node test/noise.js
+/*
+ * Incremental BLAKE3 + Noise XX through the C ABI.
+ * CRYPTOLIB_DYLIB=<path> node test/noise.js
+ */
 const c = require('..');
 let pass = 0, fail = 0;
-const ck = (l, ok) => { console.log(`  ${ok ? '✓' : '✗'} ${l}`); ok ? pass++ : fail++; };
+const ck = (l, ok) => { console.log(`  ${ok ? 'ok' : 'FAIL'} ${l}`); ok ? pass++ : fail++; };
 const throws = (f) => { try { f(); return false; } catch { return true; } };
 c.init();
 
-// ── Noise XX ─────────────────────────────────────────────────────────────────
+/* Noise XX */
 const iks = c.x25519Keygen(), rks = c.x25519Keygen();
 const ini = c.noise(true, iks.publicKey, iks.secretKey, Buffer.from('pro'));
 const res = c.noise(false, rks.publicKey, rks.secretKey, Buffer.from('pro'));
@@ -27,9 +29,11 @@ ck('reverse direction', ini.decrypt(res.encrypt(Buffer.from('reply'))).toString(
 const bad = Buffer.from(ct); bad[0] ^= 1;
 ck('tampered record rejected', throws(() => res.decrypt(bad, Buffer.from('ad'))));
 
-// decryptAt: out of order, counter untouched, wrong counter + reserved nonce refused.
-// 'first record' already consumed sender counter 0, so recs[i] was sealed at
-// counter i + BASE — the caller must supply the counter the SENDER used.
+/*
+ * decryptAt: out of order, counter untouched, wrong counter + reserved nonce refused.
+ * 'first record' already consumed sender counter 0, so recs[i] was sealed at
+ * counter i + BASE: the caller must supply the counter the SENDER used.
+ */
 const BASE = 1;
 const texts = ['r0', 'record one', 'r2', 'r3'];
 const recs = texts.map((t) => ini.encrypt(Buffer.from(t)));
@@ -40,9 +44,9 @@ ck('sequential counter untouched', res.decrypt(recs[0]).toString() === 'r0');
 ck('wrong counter rejected', throws(() => res.decryptAt(0, recs[0])));
 ck('reserved nonce rejected', throws(() => res.decryptAt(2n ** 64n - 1n, recs[0])));
 ck('encrypt before split fails', throws(() => c.noise(true, iks.publicKey, iks.secretKey).encrypt(Buffer.from('x'))));
-ini.close(); res.close(); res.close(); // idempotent
+ini.close(); res.close(); res.close(); /* idempotent */
 
-// ── Incremental BLAKE3 ───────────────────────────────────────────────────────
+/* Incremental BLAKE3 */
 const msg = Buffer.from('incremental hashing across several chunks of input');
 const want = c.blake3(msg);
 const h = c.blake3Hasher();

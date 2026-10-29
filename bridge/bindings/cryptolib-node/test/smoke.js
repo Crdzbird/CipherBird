@@ -1,8 +1,8 @@
-// Smoke test: require the package (no path) and round-trip across the boundary.
+/* Smoke test: require the package (no path) and round-trip across the boundary. */
 const c = require('..');
 
 let pass = 0, fail = 0;
-const ck = (label, ok) => { console.log(`  ${ok ? '✓' : '✗'} ${label}`); ok ? pass++ : fail++; };
+const ck = (label, ok) => { console.log(`  ${ok ? 'ok' : 'FAIL'} ${label}`); ok ? pass++ : fail++; };
 
 c.init();
 ck('version == 3.0.0', c.version() === '3.0.0');

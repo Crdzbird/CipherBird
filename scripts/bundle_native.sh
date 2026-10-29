@@ -29,7 +29,7 @@ RID="osx-$ARCH"; [ "$OS" = linux ] && RID="linux-$ARCH"
 copy() { mkdir -p "$(dirname "$1")"; cp "$2" "$1"; echo "   → ${1#"$ROOT"/}"; }
 
 echo "== refreshing bundled dylibs ($OS-$ARCH) =="
-copy "$B/cryptolib-node/prebuilds/$OS-$ARCH/libcryptolib_c.$EXT"          "$DYLIB"
+copy "$B/cryptolib-node/prebuilds/$OS-$ARCH/libcipherbird.$EXT"            "$DYLIB"
 copy "$B/cryptolib-python/cryptolib/_native/$OS-$ARCH/libcryptolib_c.$EXT" "$DYLIB"
 copy "$B/cryptolib-ruby/lib/cryptolib/native/$OS-$ARCH/libcryptolib_c.$EXT" "$DYLIB"
 copy "$B/cryptolib-rust/native/$OS-$ARCH/libcryptolib_c.$EXT"             "$DYLIB"

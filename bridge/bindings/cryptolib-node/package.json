@@ -1,22 +1,66 @@
 {
-  "name": "cryptolib",
-  "version": "3.0.0",
-  "description": "CryptoLib for Node.js — hashing, AEAD, asymmetric, vaults, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring, via koffi FFI. The native library is bundled and loaded automatically.",
+  "name": "cipherbird",
+  "version": "1.3.0",
+  "description": "CipherBird for Node.js: hashing, authenticated encryption, public-key cryptography, post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA, X-Wing), hybrid key agreement, sealed messaging, Noise, HPKE, OPAQUE, BBS, FROST, vaults, a keyring, media entropy and steganography from one bundled native engine. The same API as the cipherbird Dart packages.",
   "main": "index.js",
   "types": "index.d.ts",
   "files": [
     "index.js",
     "index.d.ts",
-    "prebuilds/"
+    "lib/",
+    "prebuilds/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node test/preload.test.js && node test/abi_parity.js && node test/bytes.js && node test/easy.js && node test/namespaces.js && node test/async.js && node test/security.js && node test/noise.js && node test/extensibility.js && node test/bbs_pseudonym.js && node recipes.js && node suite.js && node sealed.js"
   },
   "engines": {
     "node": ">=18"
   },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "dependencies": {
     "koffi": "^2.9.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Crdzbird/CipherBird.git",
+    "directory": "bridge/bindings/cryptolib-node"
+  },
+  "homepage": "https://github.com/Crdzbird/CipherBird#readme",
+  "bugs": {
+    "url": "https://github.com/Crdzbird/CipherBird/issues"
+  },
+  "keywords": [
+    "cryptography",
+    "post-quantum",
+    "ml-kem",
+    "ml-dsa",
+    "slh-dsa",
+    "x-wing",
+    "xchacha20",
+    "aes-gcm",
+    "argon2",
+    "blake3",
+    "ed25519",
+    "x25519",
+    "hpke",
+    "noise",
+    "opaque",
+    "bbs",
+    "frost",
+    "steganography",
+    "entropy",
+    "libsodium",
+    "liboqs",
+    "ffi"
+  ],
+  "author": "Crdzbird (https://github.com/Crdzbird)",
   "license": "MIT"
 }

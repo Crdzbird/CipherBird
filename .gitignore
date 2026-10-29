@@ -26,6 +26,8 @@ bridge/bindings/cryptolib-wasm/dist/
 bridge/bindings/*/native/
 bridge/bindings/go/cryptolib/native/
 bridge/bindings/*/prebuilds/
+!bridge/bindings/cryptolib-node/prebuilds/
+!bridge/bindings/cryptolib-node/prebuilds/**
 bridge/bindings/*/out/
 bridge/bindings/cryptolib-python/cryptolib/_native/
 bridge/bindings/cryptolib-ruby/lib/cryptolib/native/

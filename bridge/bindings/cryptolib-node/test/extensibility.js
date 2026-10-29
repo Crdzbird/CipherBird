@@ -1,5 +1,5 @@
 'use strict';
-// Extension points: custom ProtectionLayer / CascadeLayer / KeySource / SignatureScheme.
+/* Extension points: custom ProtectionLayer / CascadeLayer / KeySource / SignatureScheme. */
 const assert = require('assert');
 const c = require('..');
 c.init();
@@ -79,7 +79,7 @@ t('reserved ids are refused for custom parts', () => {
 });
 
 t('re-registering an id under another wireName is refused', () => {
-  ProtectionLayer.register(new MyLayer()); // idempotent
+  ProtectionLayer.register(new MyLayer()); /* idempotent */
   assert.throws(() => ProtectionLayer.register(new CascadeLayer({ id: 200, wireName: 'other', layers: [ProtectionLayer.xchacha20Poly1305] })), /already registered/);
 });
 

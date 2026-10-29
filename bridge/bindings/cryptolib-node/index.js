@@ -1,41 +1,52 @@
-// CryptoLib for Node.js — koffi FFI bindings.
-//
-// The native library is bundled in this package under prebuilds/<platform>-<arch>/
-// and loaded automatically; consumers never provide a path:
-//
-//   const crypto = require('cryptolib');
-//   crypto.init();
-//   crypto.sha256(Buffer.from('abc')).toString('hex');
-//
-// NOTE for publishing: the bundled binary must be self-contained (statically
-// link libsodium / liboqs / blst / OpenSSL) so it runs without those libs
-// installed on the consumer's machine. See PUBLISHING.md.
-
+/*
+ * CipherBird for Node.js: koffi FFI bindings over the CryptoLib engine.
+ *
+ * The native engine is bundled in this package under prebuilds/<platform>-<arch>/
+ * and loaded automatically; consumers never provide a path:
+ *
+ * const cipherbird = require('cipherbird');
+ * cipherbird.sha256(Buffer.from('abc')).toString('hex');
+ *
+ * The bundled binary is self-contained (libsodium, liboqs, blst, OpenSSL and
+ * BLAKE3 are linked statically) so nothing has to be installed on the
+ * consumer's machine. CIPHERBIRD_LIBRARY points at another build for
+ * development.
+ */
 'use strict';
 const path = require('node:path');
 const koffi = require('koffi');
 
-// ── Resolve the bundled native library for this platform/arch ────────────────
+/* Resolve the bundled native library for this platform and architecture. */
+const fs = require('node:fs');
 function resolveLibPath() {
-  if (process.env.CRYPTOLIB_DYLIB) return process.env.CRYPTOLIB_DYLIB; // dev override
+  const override = process.env.CIPHERBIRD_LIBRARY || process.env.CRYPTOLIB_DYLIB;
+  if (override) return override;
   const ext = process.platform === 'darwin' ? 'dylib'
             : process.platform === 'win32' ? 'dll'
             : 'so';
   const triple = `${process.platform}-${process.arch}`;
-  return path.join(__dirname, 'prebuilds', triple, `libcryptolib_c.${ext}`);
+  const bundled = path.join(__dirname, 'prebuilds', triple, `libcipherbird.${ext}`);
+  if (!fs.existsSync(bundled)) {
+    throw new Error(`cipherbird: no bundled engine for ${triple} in this release; `
+      + 'build libcipherbird from https://github.com/Crdzbird/CipherBird and point '
+      + 'CIPHERBIRD_LIBRARY at it');
+  }
+  return bundled;
 }
 
-// ── Lazy native binding ──────────────────────────────────────────────────────
-// The native library is loaded on FIRST USE (or warmed early via preload()),
-// never at require() time — so importing this module is cheap and never blocks
-// the event loop. All public methods are synchronous; the first one to run
-// triggers the (memoized) load. No `await` is ever required to call crypto.
+/*
+ * Lazy native binding
+ * The native library is loaded on FIRST USE (or warmed early via preload()),
+ * never at require() time: so importing this module is cheap and never blocks
+ * the event loop. All public methods are synchronous; the first one to run
+ * triggers the (memoized) load. No `await` is ever required to call crypto.
+ */
 let _native = null;
 function ensureLoaded() {
   if (_native) return _native;
   const lib = koffi.load(resolveLibPath());
 
-  // Structs (registered once, on first load).
+  /* Structs (registered once, on first load). */
   const CryptoBuffer = koffi.struct('CryptoBuffer', { data: 'void *', len: 'size_t' });
   const CryptoBufferResult = koffi.struct('CryptoBufferResult', { buf: CryptoBuffer, error: 'void *' });
   koffi.struct('CryptoPacket', { ciphertext: CryptoBuffer, signature: CryptoBuffer, kdf_salt: CryptoBuffer });
@@ -57,6 +68,10 @@ function ensureLoaded() {
   koffi.struct('CryptoOpaqueKe2', { ke2: CryptoBuffer, server_state: CryptoBuffer, error: 'void *' });
   koffi.struct('CryptoOpaqueKe3', { ke3: CryptoBuffer, session_key: CryptoBuffer, export_key: CryptoBuffer, error: 'void *' });
 
+  koffi.struct('CryptoHealthReport2', { min_entropy_per_byte: 'double', mcv_bits_per_byte: 'double', markov_bits_per_byte: 'double', floor_bits_per_byte: 'double', sample_bytes: 'uint64_t', longest_run: 'uint64_t', rct_cutoff: 'uint64_t', max_window_count: 'uint64_t', apt_cutoff: 'uint64_t', apt_window: 'uint64_t', rct_passed: 'int', apt_passed: 'int', summary: 'void *', error: 'void *' });
+  koffi.struct('CryptoLiveFeedReport', { accepted: 'int', credited_bits: 'double', credited_bits_total: 'double', ready: 'int', min_entropy_per_byte: 'double', longest_run: 'uint64_t', rct_cutoff: 'uint64_t', rct_passed: 'int', apt_passed: 'int', reason: 'void *', error: 'void *' });
+  koffi.struct('CryptoLiveStatus', { chunks_fed: 'uint64_t', chunks_accepted: 'uint64_t', chunks_rejected: 'uint64_t', bytes_fed: 'uint64_t', reseeds: 'uint64_t', credited_bits_total: 'double', credited_bits_since_reseed: 'double', min_credited_bits: 'double', ready: 'int', last_min_entropy_per_byte: 'double', last_longest_run: 'uint64_t', last_rct_cutoff: 'uint64_t', last_reason: 'void *', error: 'void *' });
+  koffi.struct('CryptoFipsStatus', { loaded: 'int', self_tests_passed: 'int', approved_mode: 'int', provider_name: 'void *', provider_version: 'void *', module_directory: 'void *', config_file: 'void *' });
   const f = (sig) => lib.func(sig);
   _native = {
   init: f('int cryptolib_init()'), version: f('const char *cryptolib_version()'),
@@ -89,17 +104,17 @@ function ensureLoaded() {
   sealEnc: f('CryptoBufferResult cryptolib_sealedbox_encrypt(uint8_t*, size_t, uint8_t*, size_t)'),
   sealDec: f('CryptoBufferResult cryptolib_sealedbox_decrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   vCreate: f('void *cryptolib_vault_create(uint8_t*, size_t, int)'),
-  vSeal: f('CryptoPacket cryptolib_vault_seal(void*, uint8_t*, size_t, const char*, _Out_ char**)'),
+  vSeal: f('CryptoPacket cryptolib_vault_seal(void*, uint8_t*, size_t, const char*, _Out_ void**)'),
   vOpen: f('CryptoBufferResult cryptolib_vault_open(void*, CryptoPacket*, const char*)'),
   vFree: f('void cryptolib_vault_free(void*)'),
   kemKeygen: f('CryptoKeyPair cryptolib_ml_kem_keygen(int)'),
-  kemEncaps: f('CryptoKemEncapsResult cryptolib_ml_kem_encapsulate(uint8_t*, size_t, int, _Out_ char**)'),
+  kemEncaps: f('CryptoKemEncapsResult cryptolib_ml_kem_encapsulate(uint8_t*, size_t, int, _Out_ void**)'),
   kemDecaps: f('CryptoBufferResult cryptolib_ml_kem_decapsulate(uint8_t*, size_t, uint8_t*, size_t, int)'),
   hyKeygen: f('CryptoKeyPair cryptolib_hybrid_kem_keygen()'),
-  hyEncaps: f('CryptoKemEncapsResult cryptolib_hybrid_kem_encapsulate(uint8_t*, size_t, _Out_ char**)'),
+  hyEncaps: f('CryptoKemEncapsResult cryptolib_hybrid_kem_encapsulate(uint8_t*, size_t, _Out_ void**)'),
   hyDecaps: f('CryptoBufferResult cryptolib_hybrid_kem_decapsulate(uint8_t*, size_t, uint8_t*, size_t)'),
   snKeygen: f('CryptoKeyPair cryptolib_sntrup_x25519_keygen()'),
-  snEncaps: f('CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(uint8_t*, size_t, _Out_ char**)'),
+  snEncaps: f('CryptoKemEncapsResult cryptolib_sntrup_x25519_encapsulate(uint8_t*, size_t, _Out_ void**)'),
   snDecaps: f('CryptoBufferResult cryptolib_sntrup_x25519_decapsulate(uint8_t*, size_t, uint8_t*, size_t)'),
   dsaKeygen: f('CryptoKeyPair cryptolib_ml_dsa_keygen(int)'),
   dsaSign: f('CryptoBufferResult cryptolib_ml_dsa_sign(uint8_t*, size_t, uint8_t*, size_t, int)'),
@@ -112,7 +127,7 @@ function ensureLoaded() {
   krAddPw: f('int cryptolib_keyring_add_passphrase_slot(void*, const char*, int)'),
   krCount: f('size_t cryptolib_keyring_slot_count(void*)'),
   krSer: f('CryptoBufferResult cryptolib_keyring_serialise(void*)'),
-  krDeser: f('void *cryptolib_keyring_deserialise(uint8_t*, size_t, _Out_ char**)'),
+  krDeser: f('void *cryptolib_keyring_deserialise(uint8_t*, size_t, _Out_ void**)'),
   krUnlockDev: f('CryptoBufferResult cryptolib_keyring_unlock_with_device(void*, uint8_t*, size_t)'),
   krUnlockPw: f('CryptoBufferResult cryptolib_keyring_unlock_with_passphrase(void*, const char*)'),
   krAddPwZ: f('int cryptolib_keyring_add_passphrase_slot(void*, uint8_t*, int)'),
@@ -127,7 +142,7 @@ function ensureLoaded() {
   derivedFree: f('void cryptolib_derived_keys_free(CryptoDerivedKeys*)'),
   entInfoFree: f('void cryptolib_entropy_info_free(CryptoEntropyInfo*)'),
 
-  // Hash / KDF
+  /* Hash / KDF */
   blake3Keyed: f('CryptoBufferResult cryptolib_blake3_keyed(uint8_t*, size_t, uint8_t*, size_t, size_t)'),
   blake3Derive: f('CryptoBufferResult cryptolib_blake3_derive_key(const char*, uint8_t*, size_t, size_t)'),
   hmac512: f('CryptoBufferResult cryptolib_hmac_sha512(uint8_t*, size_t, uint8_t*, size_t)'),
@@ -137,7 +152,7 @@ function ensureLoaded() {
   argonDerive: f('CryptoBufferResult cryptolib_argon2id_derive(const char*, uint8_t*, size_t, size_t, uint64_t, size_t)'),
   argonDeriveZ: f('CryptoBufferResult cryptolib_argon2id_derive(uint8_t*, uint8_t*, size_t, size_t, uint64_t, size_t)'),
 
-  // Symmetric — committing AEAD + streaming
+  /* Symmetric: committing AEAD + streaming */
   cmtEnc: f('CryptoBufferResult cryptolib_committing_encrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   cmtDec: f('CryptoBufferResult cryptolib_committing_decrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   streamEncCreate: f('void *cryptolib_stream_enc_create(uint8_t*)'),
@@ -148,11 +163,11 @@ function ensureLoaded() {
   streamDecPull: f('CryptoBufferResult cryptolib_stream_dec_pull(void*, uint8_t*, size_t, _Out_ uint8_t*)'),
   streamDecFree: f('void cryptolib_stream_dec_free(void*)'),
 
-  // Asymmetric extras
+  /* Asymmetric extras */
   edKeygenSeed: f('CryptoKeyPair cryptolib_ed25519_keygen_from_seed(uint8_t*, size_t)'),
   secureEqual: f('int cryptolib_secure_equal(uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // Post-quantum — SLH-DSA + hybrid signatures
+  /* Post-quantum: SLH-DSA + hybrid signatures */
   slhKeygen: f('CryptoKeyPair cryptolib_slh_dsa_keygen(int, int)'),
   slhSign: f('CryptoBufferResult cryptolib_slh_dsa_sign(uint8_t*, size_t, uint8_t*, size_t, int, int)'),
   slhVerify: f('int cryptolib_slh_dsa_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, int, int)'),
@@ -160,45 +175,45 @@ function ensureLoaded() {
   hsSign: f('CryptoBufferResult cryptolib_hybrid_sig_sign(uint8_t*, size_t, uint8_t*, size_t)'),
   hsVerify: f('int cryptolib_hybrid_sig_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // BLS extras
+  /* BLS extras */
   blsKeygenIkm: f('CryptoKeyPair cryptolib_bls_keygen_from_ikm(uint8_t*, size_t)'),
   blsAgg: f('CryptoBufferResult cryptolib_bls_aggregate(const uint8_t**, size_t*, size_t)'),
   blsAggVerify: f('int cryptolib_bls_aggregate_verify(const uint8_t**, size_t*, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
 
-  // Vault + packet serialisation
+  /* Vault + packet serialisation */
   vFromEntropy: f('void *cryptolib_vault_from_entropy(void*, int)'),
   vPubKey: f('CryptoBufferResult cryptolib_vault_public_key(void*)'),
-  vSealBoost: f('CryptoPacket cryptolib_vault_seal_boosted(void*, uint8_t*, size_t, const char*, void*, _Out_ char**)'),
+  vSealBoost: f('CryptoPacket cryptolib_vault_seal_boosted(void*, uint8_t*, size_t, const char*, void*, _Out_ void**)'),
   vOpenBoost: f('CryptoBufferResult cryptolib_vault_open_boosted(void*, CryptoPacket*, const char*, void*)'),
   pktSer: f('CryptoBufferResult cryptolib_packet_serialise(CryptoPacket*)'),
-  pktDeser: f('CryptoPacket cryptolib_packet_deserialise(uint8_t*, size_t, _Out_ char**)'),
+  pktDeser: f('CryptoPacket cryptolib_packet_deserialise(uint8_t*, size_t, _Out_ void**)'),
 
-  // Asymmetric vault
+  /* Asymmetric vault */
   asymBundleGen: f('CryptoAsymBundle cryptolib_asym_bundle_generate()'),
-  asymVSeal: f('CryptoPacket cryptolib_asym_vault_seal(CryptoAsymBundle*, uint8_t*, size_t, uint8_t*, size_t, const char*, _Out_ char**)'),
+  asymVSeal: f('CryptoPacket cryptolib_asym_vault_seal(CryptoAsymBundle*, uint8_t*, size_t, uint8_t*, size_t, const char*, _Out_ void**)'),
   asymVOpen: f('CryptoBufferResult cryptolib_asym_vault_open(CryptoPacket*, CryptoAsymBundle*, uint8_t*, size_t, const char*)'),
 
-  // Keyring extra
+  /* Keyring extra */
   krRemove: f('int cryptolib_keyring_remove_slot(void*, size_t)'),
 
-  // Media entropy
-  entFromFile: f('void *cryptolib_entropy_from_file(const char*, _Out_ char**)'),
-  entFromFileDet: f('void *cryptolib_entropy_from_file_deterministic(const char*, _Out_ char**)'),
-  entFromFiles: f('void *cryptolib_entropy_from_files(const char**, size_t, _Out_ char**)'),
-  entFromFilesDet: f('void *cryptolib_entropy_from_files_deterministic(const char**, size_t, _Out_ char**)'),
+  /* Media entropy */
+  entFromFile: f('void *cryptolib_entropy_from_file(const char*, _Out_ void**)'),
+  entFromFileDet: f('void *cryptolib_entropy_from_file_deterministic(const char*, _Out_ void**)'),
+  entFromFiles: f('void *cryptolib_entropy_from_files(const char**, size_t, _Out_ void**)'),
+  entFromFilesDet: f('void *cryptolib_entropy_from_files_deterministic(const char**, size_t, _Out_ void**)'),
   entDeriveAll: f('CryptoDerivedKeys cryptolib_entropy_derive_all(void*)'),
   entSymKey: f('CryptoBufferResult cryptolib_entropy_symmetric_key(void*)'),
   entRaw: f('CryptoBufferResult cryptolib_entropy_raw(void*)'),
   entBoost: f('CryptoBufferResult cryptolib_entropy_boost(void*)'),
   entInfo: f('CryptoEntropyInfo cryptolib_entropy_info(void*)'),
   entRefresh: f('void cryptolib_entropy_refresh(void*)'),
-  entAsymBundle: f('CryptoAsymBundle cryptolib_entropy_asym_bundle(void*, _Out_ char**)'),
+  entAsymBundle: f('CryptoAsymBundle cryptolib_entropy_asym_bundle(void*, _Out_ void**)'),
   entFree: f('void cryptolib_entropy_free(void*)'),
   keyFromFile: f('CryptoBufferResult cryptolib_key_from_file(const char*)'),
-  sealFromFile: f('CryptoPacket cryptolib_seal_from_file(const char*, const char*, const char*, _Out_ char**)'),
+  sealFromFile: f('CryptoPacket cryptolib_seal_from_file(const char*, const char*, const char*, _Out_ void**)'),
   openFromFile: f('CryptoBufferResult cryptolib_open_from_file(const char*, CryptoPacket*, const char*)'),
 
-  // EVM / Bitcoin interop
+  /* EVM / Bitcoin interop */
   keccak: f('CryptoBufferResult cryptolib_keccak256(uint8_t*, size_t)'),
   ripemd: f('CryptoBufferResult cryptolib_ripemd160(uint8_t*, size_t)'),
   secpKeygen: f('CryptoKeyPair cryptolib_secp256k1_keygen()'),
@@ -207,12 +222,12 @@ function ensureLoaded() {
   secpVerify: f('int cryptolib_secp256k1_verify(uint8_t*, uint8_t*, size_t, uint8_t*, size_t)'),
   secpRecover: f('CryptoBufferResult cryptolib_secp256k1_recover(uint8_t*, uint8_t*)'),
 
-  // Steganography
+  /* Steganography */
   stegoEmbed: f('CryptoResult cryptolib_stego_embed(const char*, uint8_t*, size_t, const char*)'),
   stegoExtract: f('CryptoBufferResult cryptolib_stego_extract(const char*)'),
   stegoCapacity: f('size_t cryptolib_stego_capacity(const char*)'),
 
-  // MolecularVault
+  /* MolecularVault */
   molSeal: f('CryptoBufferResult cryptolib_molecular_seal(uint8_t*, size_t, const char*, uint8_t*, size_t, uint64_t, size_t)'),
   molOpen: f('CryptoBufferResult cryptolib_molecular_open(uint8_t*, size_t, const char*, uint8_t*, size_t)'),
   molSealZ: f('CryptoBufferResult cryptolib_molecular_seal(uint8_t*, size_t, uint8_t*, uint8_t*, size_t, uint64_t, size_t)'),
@@ -220,7 +235,7 @@ function ensureLoaded() {
   molSealKey: f('CryptoBufferResult cryptolib_molecular_seal_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   molOpenKey: f('CryptoBufferResult cryptolib_molecular_open_with_key(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // Suite — one-call advanced combinations
+  /* Suite: one-call advanced combinations */
   suiteSealPq: f('CryptoBufferResult cryptolib_suite_seal_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteSealPqSntrup: f('CryptoBufferResult cryptolib_suite_seal_pq_sntrup(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteOpenPq: f('CryptoBufferResult cryptolib_suite_open_pq(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
@@ -236,32 +251,32 @@ function ensureLoaded() {
   suiteSealKrPwZ: f('CryptoBufferResult cryptolib_suite_seal_with_keyring_passphrase(uint8_t*, size_t, void*, uint8_t*, uint8_t*, size_t)'),
   suiteOpenKrPwZ: f('CryptoBufferResult cryptolib_suite_open_with_keyring_passphrase(uint8_t*, size_t, void*, uint8_t*, uint8_t*, size_t)'),
   suiteSealThr: f('CryptoBufferResult cryptolib_suite_seal_threshold(uint8_t*, size_t, uint8_t, uint8_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
-  // Flagship/Fortress sealed messaging (tier 0=Flagship, 1=Fortress).
+  /* Flagship/Fortress sealed messaging (tier 0=Flagship, 1=Fortress). */
   sealedGenRecip: f('CryptoKeyPair cryptolib_sealed_generate_recipient(int)'),
   sealedGenSender: f('CryptoKeyPair cryptolib_sealed_generate_sender(int)'),
   sealedSeal: f('CryptoBufferResult cryptolib_sealed_seal(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   sealedOpen: f('CryptoBufferResult cryptolib_sealed_open(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   sealedInspect: f('CryptoSealedInfo cryptolib_sealed_inspect(uint8_t*, size_t)'),
   sealedAddr: f('int cryptolib_sealed_addressed_to(uint8_t*, size_t, uint8_t*, size_t)'),
-  sealedSealerBegin: f('void *cryptolib_sealed_sealer_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sealedSealerBegin: f('void *cryptolib_sealed_sealer_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
   sealedSealerPreamble: f('CryptoBufferResult cryptolib_sealed_sealer_preamble(void *)'),
   sealedSealerPush: f('CryptoBufferResult cryptolib_sealed_sealer_push(void *, uint8_t*, size_t)'),
   sealedSealerFinalize: f('CryptoBufferResult cryptolib_sealed_sealer_finalize(void *, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
   sealedSealerFree: f('void cryptolib_sealed_sealer_free(void *)'),
-  sealedOpenerBegin: f('void *cryptolib_sealed_opener_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sealedOpenerBegin: f('void *cryptolib_sealed_opener_begin(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
   sealedOpenerPull: f('CryptoBufferResult cryptolib_sealed_opener_pull(void *, uint8_t*, size_t, _Out_ int*)'),
   sealedOpenerFinalize: f('CryptoBufferResult cryptolib_sealed_opener_finalize(void *, uint8_t*, size_t)'),
   sealedOpenerFree: f('void cryptolib_sealed_opener_free(void *)'),
-  // Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet).
+  /* Session: PQ forward-secret ratchet (hybrid KEM Double Ratchet). */
   sessGenPrekey: f('CryptoKeyPair cryptolib_session_generate_prekey()'),
-  sessInitiate: f('void *cryptolib_session_initiate(uint8_t*, size_t, _Out_ char**)'),
+  sessInitiate: f('void *cryptolib_session_initiate(uint8_t*, size_t, _Out_ void**)'),
   sessHandshake: f('CryptoBufferResult cryptolib_session_handshake(void *)'),
-  sessAccept: f('void *cryptolib_session_accept(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  sessAccept: f('void *cryptolib_session_accept(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
   sessEncrypt: f('CryptoBufferResult cryptolib_session_encrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
   sessDecrypt: f('CryptoBufferResult cryptolib_session_decrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
   sessFree: f('void cryptolib_session_free(void *)'),
 
-  // FROST(Ed25519, SHA-512) — RFC 9591 threshold signatures.
+  /* FROST(Ed25519, SHA-512): RFC 9591 threshold signatures. */
   frostKeygen: f('CryptoFrostKeyGen cryptolib_frost_keygen(uint16_t, uint16_t)'),
   frostKgFree: f('void cryptolib_frost_keygen_free(CryptoFrostKeyGen*)'),
   frostCommit: f('CryptoFrostCommit cryptolib_frost_commit(uint8_t*, size_t, uint16_t)'),
@@ -272,24 +287,24 @@ function ensureLoaded() {
   frostVerify: f('int cryptolib_frost_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   frostVerifyShare: f('int cryptolib_frost_verify_share(uint16_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint16_t*, uint8_t*, uint8_t*, size_t)'),
 
-  // HPKE (RFC 9180) — DHKEM(X25519, HKDF-SHA256).
+  /* HPKE (RFC 9180): DHKEM(X25519, HKDF-SHA256). */
   hpkeKeygen: f('CryptoKeyPair cryptolib_hpke_keygen()'),
   hpkeDerive: f('CryptoKeyPair cryptolib_hpke_derive_keypair(uint8_t*, size_t)'),
-  hpkeSetupS: f('void* cryptolib_hpke_setup_s(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*, _Out_ char**)'),
-  hpkeSetupR: f('void* cryptolib_hpke_setup_r(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  hpkeSetupS: f('void* cryptolib_hpke_setup_s(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*, _Out_ void**)'),
+  hpkeSetupR: f('void* cryptolib_hpke_setup_r(int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
   hpkeSeal: f('CryptoBufferResult cryptolib_hpke_seal(void*, uint8_t*, size_t, uint8_t*, size_t)'),
   hpkeOpen: f('CryptoBufferResult cryptolib_hpke_open(void*, uint8_t*, size_t, uint8_t*, size_t)'),
   hpkeExport: f('CryptoBufferResult cryptolib_hpke_export(void*, uint8_t*, size_t, size_t)'),
   hpkeCtxFree: f('void cryptolib_hpke_context_free(void*)'),
 
-  // ECVRF (RFC 9381) — verifiable random function.
+  /* ECVRF (RFC 9381): verifiable random function. */
   ecvrfKeygen: f('CryptoKeyPair cryptolib_ecvrf_keygen()'),
   ecvrfPubkey: f('CryptoBufferResult cryptolib_ecvrf_public_key(uint8_t*, size_t)'),
   ecvrfProve: f('CryptoBufferResult cryptolib_ecvrf_prove(uint8_t*, size_t, uint8_t*, size_t)'),
   ecvrfProofToHash: f('CryptoBufferResult cryptolib_ecvrf_proof_to_hash(uint8_t*, size_t)'),
   ecvrfVerify: f('CryptoBufferResult cryptolib_ecvrf_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // OPRF (RFC 9497) — oblivious pseudorandom function.
+  /* OPRF (RFC 9497): oblivious pseudorandom function. */
   oprfDerive: f('CryptoKeyPair cryptolib_oprf_derive_keypair(uint8_t*, size_t, uint8_t*, size_t)'),
   oprfBlind: f('CryptoOprfBlind cryptolib_oprf_blind(uint8_t*, size_t)'),
   oprfBlindScalar: f('CryptoOprfBlind cryptolib_oprf_blind_with_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
@@ -298,7 +313,7 @@ function ensureLoaded() {
   oprfFinalize: f('CryptoBufferResult cryptolib_oprf_finalize(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   oprfEvaluate: f('CryptoBufferResult cryptolib_oprf_evaluate(uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // OPAQUE aPAKE (OPAQUE-3DH, ristretto255-SHA-512).
+  /* OPAQUE aPAKE (OPAQUE-3DH, ristretto255-SHA-512). */
   opaqueRegRequest: f('CryptoOprfBlind cryptolib_opaque_registration_request(uint8_t*, size_t)'),
   opaqueRegResponse: f('CryptoBufferResult cryptolib_opaque_registration_response(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   opaqueFinalize: f('CryptoOpaqueRecord cryptolib_opaque_finalize_request(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
@@ -311,26 +326,26 @@ function ensureLoaded() {
   opaqueKe3Free: f('void cryptolib_opaque_ke3_free(CryptoOpaqueKe3*)'),
   opaqueServerFinish: f('CryptoBufferResult cryptolib_opaque_server_finish(uint8_t*, size_t, uint8_t*, size_t)'),
 
-  // BBS signatures + selective disclosure (BLS12-381-SHA-256).
+  /* BBS signatures + selective disclosure (BLS12-381-SHA-256). */
   bbsKeygen: f('CryptoKeyPair cryptolib_bbs_keygen(uint8_t*, size_t, uint8_t*, size_t)'),
   bbsSkToPk: f('CryptoBufferResult cryptolib_bbs_sk_to_pk(uint8_t*, size_t)'),
   bbsSign: f('CryptoBufferResult cryptolib_bbs_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsVerify: f('int cryptolib_bbs_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsProofGen: f('CryptoBufferResult cryptolib_bbs_proof_gen(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
   bbsProofVerify: f('int cryptolib_bbs_proof_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
-  // BBS per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02).
+  /* BBS per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02). */
   bbsCommitWithNym: f('CryptoBufferResult cryptolib_bbs_commit_with_nym(const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, _Out_ CryptoBuffer*)'),
   bbsBlindSignWithNym: f('CryptoBufferResult cryptolib_bbs_blind_sign_with_nym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t, uint64_t)'),
   bbsFinalizeNymSecrets: f('CryptoBufferResult cryptolib_bbs_finalize_nym_secrets(const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
   bbsCalculatePseudonym: f('CryptoBufferResult cryptolib_bbs_calculate_pseudonym(uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsProofGenWithPseudonym: f('CryptoBufferResult cryptolib_bbs_proof_gen_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t, uint64_t*, size_t, _Out_ CryptoBuffer*)'),
   bbsProofVerifyWithPseudonym: f('int cryptolib_bbs_proof_verify_with_pseudonym(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint64_t, uint64_t, const uint8_t**, size_t*, size_t, uint64_t*, size_t)'),
-  // Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no pseudonyms).
+  /* Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no pseudonyms). */
   bbsBlindCommit: f('CryptoBufferResult cryptolib_bbs_blind_commit(const uint8_t**, size_t*, size_t, _Out_ CryptoBuffer*)'),
   bbsBlindSign: f('CryptoBufferResult cryptolib_bbs_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t)'),
   bbsVerifyBlindSign: f('int cryptolib_bbs_verify_blind_sign(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, const uint8_t**, size_t*, size_t, const uint8_t**, size_t*, size_t, uint8_t*, size_t)'),
   bbsHashToScalar: f('CryptoBufferResult cryptolib_bbs_hash_to_scalar(uint8_t*, size_t, uint8_t*, size_t)'),
-  // Incremental BLAKE3 + Noise XX.
+  /* Incremental BLAKE3 + Noise XX. */
   b3Create: f('void *cryptolib_blake3_hasher_create(uint8_t*, size_t)'),
   b3Update: f('int cryptolib_blake3_hasher_update(void*, uint8_t*, size_t)'),
   b3Finalize: f('CryptoBufferResult cryptolib_blake3_hasher_finalize(void*, size_t)'),
@@ -346,8 +361,8 @@ function ensureLoaded() {
   noiseDec: f('CryptoBufferResult cryptolib_noise_decrypt(void*, uint8_t*, size_t, uint8_t*, size_t)'),
   noiseDecAt: f('CryptoBufferResult cryptolib_noise_decrypt_at(void*, uint64_t, uint8_t*, size_t, uint8_t*, size_t)'),
   noiseFree: f('void cryptolib_noise_free(void*)'),
-  // Stateful RNGs, advanced steganography, composed carriers and FEC.
-  drbgInstantiate: f('void *cryptolib_drbg_instantiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ char**)'),
+  /* Stateful RNGs, advanced steganography, composed carriers and FEC. */
+  drbgInstantiate: f('void *cryptolib_drbg_instantiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
   drbgGenerate: f('CryptoBufferResult cryptolib_drbg_generate(void*, size_t, uint8_t*, size_t)'),
   drbgReseed: f('CryptoResult cryptolib_drbg_reseed(void*, uint8_t*, size_t, uint8_t*, size_t)'),
   drbgFree: f('void cryptolib_drbg_free(void*)'),
@@ -376,15 +391,87 @@ function ensureLoaded() {
   bbsRandomScalar: f('CryptoBufferResult cryptolib_bbs_random_scalar()'),
   suiteOpenThr: f('CryptoBufferResult cryptolib_suite_open_threshold(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   suiteEvmAddr: f('CryptoBufferResult cryptolib_suite_evm_address(uint8_t*, size_t)'),
+  /* Media entropy with an explicit policy and the calibrated health report. */
+  entFromFilePolicy: f('void *cryptolib_entropy_from_file_with_policy(const char*, int, double, int, _Out_ void**)'),
+  assessFileHealth2: f('CryptoHealthReport2 cryptolib_entropy_assess_file_health_v2(const char*, size_t, double)'),
+  /* Live entropy: a continuous source fed by a stream. */
+  liveNew: f('void *cryptolib_live_entropy_new(double, int, double, _Out_ void**)'),
+  liveFeed: f('CryptoLiveFeedReport cryptolib_live_entropy_feed(void*, uint8_t*, size_t, uint8_t)'),
+  liveGenerate: f('CryptoBufferResult cryptolib_live_entropy_generate(void*, size_t)'),
+  liveStatus: f('CryptoLiveStatus cryptolib_live_entropy_status(void*)'),
+  liveFree: f('void cryptolib_live_entropy_free(void*)'),
+  /* Keyring hardware slots (a platform key module wraps the factor). */
+  krAddHw: f('CryptoBufferResult cryptolib_keyring_add_hardware_slot(void*, uint8_t*, size_t)'),
+  krSetHwBlob: f('int cryptolib_keyring_set_hardware_blob(void*, size_t, uint8_t*, size_t)'),
+  krSlotType: f('int cryptolib_keyring_slot_type(void*, size_t)'),
+  krHwSlot: f('int cryptolib_keyring_hardware_slot(void*, size_t, _Out_ CryptoBuffer*, _Out_ CryptoBuffer*)'),
+  krUnlockHw: f('CryptoBufferResult cryptolib_keyring_unlock_with_hardware(void*, size_t, uint8_t*, size_t)'),
+  /* X-Wing (ML-KEM-768 + X25519). */
+  xwKeygen: f('CryptoKeyPair cryptolib_xwing_keygen()'),
+  xwFromSeed: f('CryptoKeyPair cryptolib_xwing_keypair_from_seed(uint8_t*, size_t)'),
+  xwEncaps: f('CryptoKemEncapsResult cryptolib_xwing_encapsulate(uint8_t*, size_t, _Out_ void**)'),
+  xwDecaps: f('CryptoBufferResult cryptolib_xwing_decapsulate(uint8_t*, size_t, uint8_t*, size_t)'),
+  /* HPKE with a selectable KEM. */
+  hpkeKemAvail: f('int cryptolib_hpke_kem_available(int)'),
+  hpkeKeygenKem: f('CryptoKeyPair cryptolib_hpke_keygen_kem(int)'),
+  hpkeDeriveKem: f('CryptoKeyPair cryptolib_hpke_derive_keypair_kem(int, uint8_t*, size_t)'),
+  hpkeSetupSKem: f('void* cryptolib_hpke_setup_s_kem(int, int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*, _Out_ void**)'),
+  hpkeSetupRKem: f('void* cryptolib_hpke_setup_r_kem(int, int, int, int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
+  /* Suite v2 signed sealed envelopes. */
+  suite2Seal: f('CryptoBufferResult cryptolib_suite2_seal(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, int)'),
+  suite2Open: f('CryptoBufferResult cryptolib_suite2_open(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  suite2SuiteOf: f('int cryptolib_suite2_suite_of(uint8_t*, size_t)'),
+  /* Session v2: the X-Wing ratchet behind an authenticated handshake. */
+  sess2GenPrekey: f('CryptoKeyPair cryptolib_session2_generate_prekey(uint8_t*, size_t)'),
+  sess2VerifyPrekey: f('CryptoBufferResult cryptolib_session2_verify_prekey(uint8_t*, size_t, uint8_t*, size_t)'),
+  sess2Initiate: f('void *cryptolib_session2_initiate(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
+  sess2Handshake: f('CryptoBufferResult cryptolib_session2_handshake(void *)'),
+  sess2Claimed: f('CryptoBufferResult cryptolib_session2_claimed_initiator(uint8_t*, size_t)'),
+  sess2Accept: f('void *cryptolib_session2_accept(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ void**)'),
+  sess2Encrypt: f('CryptoBufferResult cryptolib_session2_encrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
+  sess2Decrypt: f('CryptoBufferResult cryptolib_session2_decrypt(void *, uint8_t*, size_t, uint8_t*, size_t)'),
+  sess2Free: f('void cryptolib_session2_free(void *)'),
+  /* FIPS profile (OpenSSL FIPS Provider); every call fails outside that profile. */
+  fipsAvailable: f('int cryptolib_fips_available()'),
+  fipsInit: f('CryptoResult cryptolib_fips_init(const char*, const char*)'),
+  fipsStatus: f('CryptoFipsStatus cryptolib_fips_status()'),
+  fipsStatusFree: f('void cryptolib_fips_status_free(CryptoFipsStatus*)'),
+  fipsDigest: f('CryptoBufferResult cryptolib_fips_digest(int, uint8_t*, size_t)'),
+  fipsHmac: f('CryptoBufferResult cryptolib_fips_hmac(int, uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsHmacVerify: f('int cryptolib_fips_hmac_verify(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsHkdf: f('CryptoBufferResult cryptolib_fips_hkdf(int, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, size_t)'),
+  fipsPbkdf2: f('CryptoBufferResult cryptolib_fips_pbkdf2(int, uint8_t*, size_t, uint8_t*, size_t, uint32_t, size_t)'),
+  fipsRandom: f('CryptoBufferResult cryptolib_fips_random(size_t)'),
+  fipsAesGcmEnc: f('CryptoBufferResult cryptolib_fips_aes_gcm_encrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsAesGcmDec: f('CryptoBufferResult cryptolib_fips_aes_gcm_decrypt(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsP256Keygen: f('CryptoKeyPair cryptolib_fips_p256_keygen()'),
+  fipsP256Ecdh: f('CryptoBufferResult cryptolib_fips_p256_ecdh(uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsP256Sign: f('CryptoBufferResult cryptolib_fips_p256_sign(uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsP256Verify: f('int cryptolib_fips_p256_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  fipsP256Pub: f('CryptoBufferResult cryptolib_fips_p256_public_key(uint8_t*, size_t)'),
+  fipsEnvCreate: f('void *cryptolib_fips_envelope_create(_Out_ void**)'),
+  fipsEnvDeser: f('void *cryptolib_fips_envelope_deserialise(uint8_t*, size_t, _Out_ void**)'),
+  fipsEnvAddPw: f('CryptoResult cryptolib_fips_envelope_add_passphrase_slot(void*, uint8_t*, size_t, uint32_t)'),
+  fipsEnvAddKey: f('CryptoResult cryptolib_fips_envelope_add_key_slot(void*, uint8_t*, size_t)'),
+  fipsEnvUnlockPw: f('CryptoBufferResult cryptolib_fips_envelope_unlock_with_passphrase(void*, uint8_t*, size_t)'),
+  fipsEnvUnlockKey: f('CryptoBufferResult cryptolib_fips_envelope_unlock_with_key(void*, uint8_t*, size_t)'),
+  fipsEnvRemove: f('CryptoResult cryptolib_fips_envelope_remove_slot(void*, size_t)'),
+  fipsEnvCount: f('size_t cryptolib_fips_envelope_slot_count(void*)'),
+  fipsEnvSer: f('CryptoBufferResult cryptolib_fips_envelope_serialise(void*)'),
+  fipsEnvFree: f('void cryptolib_fips_envelope_free(void*)'),
+  fipsHpkeSeal: f('CryptoBufferResult cryptolib_fips_hpke_p256_seal(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
+  fipsHpkeOpen: f('CryptoBufferResult cryptolib_fips_hpke_p256_open(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   };
   return _native;
 }
 
-// Proxy so existing `fn.xxx` call sites stay unchanged but trigger the lazy load
-// on first property access.
+/*
+ * Proxy so existing `fn.xxx` call sites stay unchanged but trigger the lazy load
+ * on first property access.
+ */
 const fn = new Proxy({}, { get: (_t, prop) => ensureLoaded()[prop] });
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+/* Helpers */
 const b = (cb) => (!cb.data || Number(cb.len) === 0) ? Buffer.alloc(0)
   : Buffer.from(koffi.decode(cb.data, 'uint8_t', Number(cb.len)));
 function consume(r) {
@@ -399,10 +486,12 @@ const u8 = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x);
 /** Overwrites a Buffer or typed array with zeros. Call it on key material you are done with. */
 function wipe(bytes) { if (bytes && typeof bytes.fill === 'function') bytes.fill(0); return bytes; }
 
-// Runs `use` with a NUL-terminated copy of a password (string or bytes) and
-// wipes the copy afterwards. koffi hands a Buffer to the engine by pointer,
-// so no further copy is made; a string password is marshalled by koffi into
-// memory nothing can wipe, which is why every password path goes through here.
+/*
+ * Runs `use` with a NUL-terminated copy of a password (string or bytes) and
+ * wipes the copy afterwards. koffi hands a Buffer to the engine by pointer,
+ * so no further copy is made; a string password is marshalled by koffi into
+ * memory nothing can wipe, which is why every password path goes through here.
+ */
 function withPassword(pw, use) {
   const z = Buffer.isBuffer(pw) || ArrayBuffer.isView(pw)
     ? Buffer.concat([Buffer.from(pw.buffer, pw.byteOffset, pw.byteLength), Buffer.alloc(1)])
@@ -421,12 +510,12 @@ class Secret {
   static take(bytes) { return new Secret(bytes); }
   /** A private copy; the caller still owns the original. */
   static copy(bytes) { return new Secret(Buffer.from(u8(bytes))); }
-  get bytes() { if (this._wiped) throw new Error('cryptolib: this secret was wiped'); return this._b; }
+  get bytes() { if (this._wiped) throw new Error('cipherbird: this secret was wiped'); return this._b; }
   get length() { return this._b.length; }
   get wiped() { return this._wiped; }
   wipe() { if (this._wiped) return; this._wiped = true; this._b.fill(0); }
 }
-// Parse [index(1)|ylen(4 LE)|y] records into individual distributable share records.
+/* Parse [index(1)|ylen(4 LE)|y] records into individual distributable share records. */
 function splitShareRecords(blob) {
   const out = [];
   for (let off = 0; off + 5 <= blob.length;) {
@@ -439,10 +528,10 @@ function splitShareRecords(blob) {
   return out;
 }
 
-// Throw if a `_Out_ char**` error slot was populated.
+/* Throw if a `_Out_ void**` error slot was populated. */
 function outErr(e) { if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); } }
 
-// CryptoAsymBundle ↔ JS { boxPublic, boxSecret, signPublic, signSecret }.
+/* CryptoAsymBundle <-> JS { boxPublic, boxSecret, signPublic, signSecret }. */
 function bundle(bd) {
   const out = { boxPublic: b(bd.box_public), boxSecret: b(bd.box_secret), signPublic: b(bd.sign_public), signSecret: b(bd.sign_secret) };
   fn.bundleFree(bd); return out;
@@ -450,32 +539,36 @@ function bundle(bd) {
 function bundleToC(x) {
   return { box_public: { data: u8(x.boxPublic), len: x.boxPublic.length }, box_secret: { data: u8(x.boxSecret), len: x.boxSecret.length }, sign_public: { data: u8(x.signPublic), len: x.signPublic.length }, sign_secret: { data: u8(x.signSecret), len: x.signSecret.length } };
 }
-// CryptoDerivedKeys → JS { symmetricKey, ... , rawEntropy }.
+/* CryptoDerivedKeys -> JS { symmetricKey, ... , rawEntropy }. */
 function derived(dk) {
   const out = { symmetricKey: b(dk.symmetric_key), vaultMasterKey: b(dk.vault_master_key), signingSeed: b(dk.signing_seed), boxSeed: b(dk.box_seed), streamKey: b(dk.stream_key), rawEntropy: b(dk.raw_entropy) };
   fn.derivedFree(dk); return out;
 }
-// CryptoPacket ↔ JS { ciphertext, signature, kdfSalt }.
+/* CryptoPacket <-> JS { ciphertext, signature, kdfSalt }. */
 function pktFrom(p) { const out = { ciphertext: b(p.ciphertext), signature: b(p.signature), kdfSalt: b(p.kdf_salt) }; fn.pktFree(p); return out; }
 function pktTo(p) { return { ciphertext: { data: u8(p.ciphertext), len: p.ciphertext.length }, signature: { data: u8(p.signature), len: p.signature.length }, kdf_salt: { data: u8(p.kdfSalt), len: p.kdfSalt.length } }; }
 
-// Internal: synchronously load + initialize the native lib. Used by the worker
-// in preload() and reachable from the main thread for the lazy fallback.
+/*
+ * Internal: synchronously load + initialize the native lib. Used by the worker
+ * in preload() and reachable from the main thread for the lazy fallback.
+ */
 function _warm() {
   const a = ensureLoaded();
-  if (a.init() !== 0) throw new Error('cryptolib init failed');
+  if (a.init() !== 0) throw new Error('cipherbird: init failed');
   a.version();
   return true;
 }
 
-// Optionally warm the native binding OFF the main thread.
-//
-// Spawns a short-lived worker_thread that loads the shared library and runs the
-// one-time libsodium init. dlopen mapping and libsodium init are process-global,
-// so this warms the path for the main thread's later lazy load — the first
-// synchronous crypto call then pays no load cost. Returns a Promise<boolean>
-// you may ignore (fire-and-forget) or await; the crypto API never requires
-// awaiting it. Falls back to a same-thread warm if workers are unavailable.
+/*
+ * Optionally warm the native binding OFF the main thread.
+ *
+ * Spawns a short-lived worker_thread that loads the shared library and runs the
+ * one-time libsodium init. dlopen mapping and libsodium init are process-global,
+ * so this warms the path for the main thread's later lazy load: the first
+ * synchronous crypto call then pays no load cost. Returns a Promise<boolean>
+ * you may ignore (fire-and-forget) or await; the crypto API never requires
+ * awaiting it. Falls back to a same-thread warm if workers are unavailable.
+ */
 function preload() {
   return new Promise((resolve) => {
     let settled = false;
@@ -496,11 +589,13 @@ function preload() {
   });
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
-// ═══ Flagship / Fortress — state-of-the-art sealed messaging ═══════════════════
-// Two assurance tiers of one construction (encapsulate → sign-then-encrypt inside
-// a key-committing cascade, recipient-bound, auth-first). A self-contained,
-// drop-in messaging layer.
+/*
+ * Public API
+ * Flagship / Fortress: state-of-the-art sealed messaging
+ * Two assurance tiers of one construction (encapsulate -> sign-then-encrypt inside
+ * a key-committing cascade, recipient-bound, auth-first). A self-contained,
+ * drop-in messaging layer.
+ */
 const SealedTier = Object.freeze({ Flagship: 0, Fortress: 1 });
 
 const _optA = (o) => (o && o.aad ? u8(o.aad) : null);
@@ -508,8 +603,10 @@ const _optAL = (o) => (o && o.aad ? u8(o.aad).length : 0);
 const _optP = (o) => (o && o.purpose ? u8(o.purpose) : null);
 const _optPL = (o) => (o && o.purpose ? u8(o.purpose).length : 0);
 
-// StreamSealer — encrypt a stream: preamble() once, push() each chunk,
-// finalize() for the last chunk + signed trailer; close() when done.
+/*
+ * StreamSealer: encrypt a stream: preamble() once, push() each chunk,
+ * finalize() for the last chunk + signed trailer; close() when done.
+ */
 class SealedStreamSealer {
   constructor(handle) { this._h = handle; }
   preamble() { return consume(fn.sealedSealerPreamble(this._h)); }
@@ -525,8 +622,10 @@ class SealedStreamSealer {
   close() { if (this._h) { fn.sealedSealerFree(this._h); this._h = null; } }
 }
 
-// StreamOpener — decrypt a stream: pull() each chunk ({plaintext, final}), then
-// finalize(trailer) to verify the sender signature over the whole stream.
+/*
+ * StreamOpener: decrypt a stream: pull() each chunk ({plaintext, final}), then
+ * finalize(trailer) to verify the sender signature over the whole stream.
+ */
 class SealedStreamOpener {
   constructor(handle) { this._h = handle; }
   pull(ct) {
@@ -538,9 +637,11 @@ class SealedStreamOpener {
   close() { if (this._h) { fn.sealedOpenerFree(this._h); this._h = null; } }
 }
 
-// Identity — the config/setup handle. Bundles a party's recipient (KEM) keypair
-// for receiving and sender (signature) keypair for signing. Publish the publics,
-// keep the secrets.
+/*
+ * Identity: the config/setup handle. Bundles a party's recipient (KEM) keypair
+ * for receiving and sender (signature) keypair for signing. Publish the publics,
+ * keep the secrets.
+ */
 class Identity {
   constructor(tier, recipientPublic, recipientSecret, senderPublic, senderSecret) {
     this.tier = tier;
@@ -569,7 +670,7 @@ class Identity {
     const h = fn.sealedSealerBegin(this.tier, u8(recipientPublic), u8(recipientPublic).length,
       u8(this.senderSecret), u8(this.senderSecret).length, _optP(opts), _optPL(opts), e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: stream sealer begin failed');
+    if (!h) throw new Error('cipherbird: stream sealer begin failed');
     return new SealedStreamSealer(h);
   }
   newStreamOpener(preamble, senderPublic, opts = null) {
@@ -579,13 +680,15 @@ class Identity {
       u8(this.recipientPublic), u8(this.recipientPublic).length,
       u8(senderPublic), u8(senderPublic).length, _optP(opts), _optPL(opts), e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: stream opener begin failed');
+    if (!h) throw new Error('cipherbird: stream opener begin failed');
     return new SealedStreamOpener(h);
   }
 }
 
-// ═══ Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ═══════════
-// A live channel with forward secrecy + post-compromise security, all PQ.
+/*
+ * Session: PQ forward-secret ratchet (hybrid KEM Double Ratchet)
+ * A live channel with forward secrecy + post-compromise security, all PQ.
+ */
 class Session {
   constructor(handle) { this._h = handle; }
 
@@ -597,7 +700,7 @@ class Session {
     const e = [null];
     const h = fn.sessInitiate(u8(responderPrekeyPublic), u8(responderPrekeyPublic).length, e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: session initiate failed');
+    if (!h) throw new Error('cipherbird: session initiate failed');
     return new Session(h);
   }
 
@@ -610,7 +713,7 @@ class Session {
     const h = fn.sessAccept(u8(handshake), u8(handshake).length,
       u8(prekeyPublic), u8(prekeyPublic).length, u8(prekeySecret), u8(prekeySecret).length, e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: session accept failed');
+    if (!h) throw new Error('cipherbird: session accept failed');
     return new Session(h);
   }
 
@@ -625,21 +728,23 @@ class Session {
   close() { if (this._h) { fn.sessFree(this._h); this._h = null; } }
 }
 
-// ═══ FROST(Ed25519, SHA-512) — t-of-n threshold signatures (RFC 9591) ══════════
-// t of n parties jointly produce ONE ordinary Ed25519 signature; no single party
-// can sign, any t can, and the result verifies with plain Ed25519 against the
-// group public key. Commitments/nonces are plain {hiding, binding} byte objects.
-//
-//   const kg = Frost.keygen(5, 3);                 // any 3-of-5 sign
-//   const r0 = Frost.commit(kg.secretShares[0], 1);
-//   const r1 = Frost.commit(kg.secretShares[1], 2);
-//   const r3 = Frost.commit(kg.secretShares[3], 4);
-//   const cs = [r0.commitment, r1.commitment, r3.commitment];
-//   const s0 = Frost.sign(1, kg.secretShares[0], kg.groupPublicKey, r0.nonces, msg, cs);
-//   const s1 = Frost.sign(2, kg.secretShares[1], kg.groupPublicKey, r1.nonces, msg, cs);
-//   const s3 = Frost.sign(4, kg.secretShares[3], kg.groupPublicKey, r3.nonces, msg, cs);
-//   const sig = Frost.aggregate(kg.groupPublicKey, msg, cs, [s0, s1, s3]);
-//   Frost.verify(msg, sig, kg.groupPublicKey);     // → true (standard Ed25519)
+/*
+ * FROST(Ed25519, SHA-512): t-of-n threshold signatures (RFC 9591)
+ * t of n parties jointly produce ONE ordinary Ed25519 signature; no single party
+ * can sign, any t can, and the result verifies with plain Ed25519 against the
+ * group public key. Commitments/nonces are plain {hiding, binding} byte objects.
+ *
+ * const kg = Frost.keygen(5, 3);                 any 3-of-5 sign
+ * const r0 = Frost.commit(kg.secretShares[0], 1);
+ * const r1 = Frost.commit(kg.secretShares[1], 2);
+ * const r3 = Frost.commit(kg.secretShares[3], 4);
+ * const cs = [r0.commitment, r1.commitment, r3.commitment];
+ * const s0 = Frost.sign(1, kg.secretShares[0], kg.groupPublicKey, r0.nonces, msg, cs);
+ * const s1 = Frost.sign(2, kg.secretShares[1], kg.groupPublicKey, r1.nonces, msg, cs);
+ * const s3 = Frost.sign(4, kg.secretShares[3], kg.groupPublicKey, r3.nonces, msg, cs);
+ * const sig = Frost.aggregate(kg.groupPublicKey, msg, cs, [s0, s1, s3]);
+ * Frost.verify(msg, sig, kg.groupPublicKey);     true (standard Ed25519)
+ */
 function frostCommitOut(c, identifier) {
   if (c.error) { const m = koffi.decode(c.error, 'char', -1); fn.frostCommitFree(c); throw new Error(m); }
   const nonces = { hiding: b(c.hiding_nonce), binding: b(c.binding_nonce) };
@@ -647,7 +752,7 @@ function frostCommitOut(c, identifier) {
   fn.frostCommitFree(c);
   return { nonces, commitment };
 }
-// Flatten commitments into the three parallel wire arrays.
+/* Flatten commitments into the three parallel wire arrays. */
 function frostBufs(cs) {
   return {
     ids: cs.map((c) => c.identifier),
@@ -688,7 +793,7 @@ const Frost = {
       u8(nonces.binding), u8(nonces.binding).length,
       u8(msg), u8(msg).length, ids, hid, bnd, commitments.length));
   },
-  /** Aggregate shares → one 64-byte Ed25519 signature. */
+  /** Aggregate shares -> one 64-byte Ed25519 signature. */
   aggregate(groupPublicKey, msg, commitments, sigShares) {
     const { ids, hid, bnd } = frostBufs(commitments);
     const flat = Buffer.concat(sigShares.map(u8));
@@ -711,10 +816,12 @@ const Frost = {
   },
 };
 
-// ═══ HPKE — Hybrid Public Key Encryption (RFC 9180) ════════════════════════════
-// The wire-standard hybrid PKE used by TLS ECH, MLS, Oblivious HTTP. KEM is
-// DHKEM(X25519, HKDF-SHA256); an envelope sealed here opens in any conformant
-// HPKE implementation.
+/*
+ * HPKE: Hybrid Public Key Encryption (RFC 9180)
+ * The wire-standard hybrid PKE used by TLS ECH, MLS, Oblivious HTTP. KEM is
+ * DHKEM(X25519, HKDF-SHA256); an envelope sealed here opens in any conformant
+ * HPKE implementation.
+ */
 const HpkeKdf = { Sha256: 1, Sha512: 3 };
 const HpkeAead = { Aes128Gcm: 1, Aes256Gcm: 2, ChaCha20Poly1305: 3, ExportOnly: 0xFFFF };
 const HpkeMode = { Base: 0, Psk: 1, Auth: 2, AuthPsk: 3 };
@@ -741,7 +848,7 @@ const Hpke = {
       u8(info), u8(info).length, optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId),
       optr(opts.skS), olen(opts.skS), encBox, e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: hpke setup_s failed');
+    if (!h) throw new Error('cipherbird: hpke setup_s failed');
     const enc = b(encBox[0]); fn.bufFree(encBox[0]);
     return { enc, context: new HpkeContext(h) };
   },
@@ -752,10 +859,10 @@ const Hpke = {
       u8(recipientSecret), u8(recipientSecret).length, u8(info), u8(info).length,
       optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId), optr(opts.pkS), olen(opts.pkS), e);
     if (e[0]) { const m = koffi.decode(e[0], 'char', -1); fn.strFree(e[0]); throw new Error(m); }
-    if (!h) throw new Error('cryptolib: hpke setup_r failed');
+    if (!h) throw new Error('cipherbird: hpke setup_r failed');
     return new HpkeContext(h);
   },
-  /** Single-shot base-mode encryption → { enc, ct }. */
+  /** Single-shot base-mode encryption -> { enc, ct }. */
   sealBase(kdf, aead, recipientPublic, info, plaintext, aad = null) {
     const s = Hpke.setupS(kdf, aead, HpkeMode.Base, recipientPublic, info);
     try { return { enc: s.enc, ct: s.context.seal(plaintext, aad) }; } finally { s.context.close(); }
@@ -767,9 +874,11 @@ const Hpke = {
   },
 };
 
-// ═══ ECVRF — Verifiable Random Function (RFC 9381) ═════════════════════════════
-// A public-key PRF: prove(sk, alpha) yields a unique 64-byte output plus a proof
-// anyone can verify with the public key. verify throws on an invalid proof.
+/*
+ * ECVRF: Verifiable Random Function (RFC 9381)
+ * A public-key PRF: prove(sk, alpha) yields a unique 64-byte output plus a proof
+ * anyone can verify with the public key. verify throws on an invalid proof.
+ */
 const Ecvrf = {
   keygen() { return kp(fn.ecvrfKeygen()); },
   publicKey(secretKey) { return consume(fn.ecvrfPubkey(u8(secretKey), u8(secretKey).length)); },
@@ -781,13 +890,15 @@ const Ecvrf = {
   },
 };
 
-// ═══ BBS — multi-message signatures + selective disclosure (BLS12-381) ═════════
-// Sign a vector of messages; derive a proof revealing only a chosen subset while
-// proving a valid signature covers all of them (anonymous credentials).
+/*
+ * BBS: multi-message signatures + selective disclosure (BLS12-381)
+ * Sign a vector of messages; derive a proof revealing only a chosen subset while
+ * proving a valid signature covers all of them (anonymous credentials).
+ */
 const Bbs = {
   keygen(keyMaterial, keyInfo = null) {
     const k = kp(fn.bbsKeygen(u8(keyMaterial), u8(keyMaterial).length, keyInfo ? u8(keyInfo) : null, keyInfo ? u8(keyInfo).length : 0));
-    if (k.publicKey.length === 0) throw new Error('cryptolib: bbs keygen failed (key material must be >= 32 bytes)');
+    if (k.publicKey.length === 0) throw new Error('cipherbird: bbs keygen failed (key material must be >= 32 bytes)');
     return k;
   },
   skToPk(secretKey) { return consume(fn.bbsSkToPk(u8(secretKey), u8(secretKey).length)); },
@@ -814,11 +925,13 @@ const Bbs = {
       disclosedIndexes, disclosedIndexes.length) === 1;
   },
 
-  // ── Per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02).
-  // The pseudonym ciphersuite is applied internally. Scalar inputs (proverNyms,
-  // nymSecrets, secretProverBlind, signerNymEntropy) are 32-byte big-endian.
+  /*
+   * Per-verifier pseudonyms + blind issuance (draft -per-verifier-linkability-02).
+   * The pseudonym ciphersuite is applied internally. Scalar inputs (proverNyms,
+   * nymSecrets, secretProverBlind, signerNymEntropy) are 32-byte big-endian.
+   */
 
-  /** Commit committedMessages + proverNyms → { commitmentWithProof, secretProverBlind }. */
+  /** Commit committedMessages + proverNyms -> { commitmentWithProof, secretProverBlind }. */
   commitWithNym(committedMessages, proverNyms) {
     const cm = committedMessages.map(u8); const pm = proverNyms.map(u8);
     const outBlind = {};
@@ -827,7 +940,7 @@ const Bbs = {
     const secretProverBlind = b(outBlind); fn.bufFree(outBlind);
     return { commitmentWithProof: cwp, secretProverBlind };
   },
-  /** Blind-sign over the commitment + signer messages → 80-byte signature. */
+  /** Blind-sign over the commitment + signer messages -> 80-byte signature. */
   blindSignWithNym(secretKey, publicKey, commitmentWithProof, header, messages, signerNymEntropy, lengthNymVector) {
     const m = messages.map(u8);
     return consume(fn.bbsBlindSignWithNym(u8(secretKey), u8(secretKey).length, u8(publicKey), u8(publicKey).length,
@@ -845,7 +958,7 @@ const Bbs = {
     const nm = nymSecrets.map(u8);
     return consume(fn.bbsCalculatePseudonym(u8(contextId), u8(contextId).length, nm, nm.map((x) => x.length), nm.length));
   },
-  /** Pseudonym-bound selective-disclosure proof → { proof, pseudonym }. */
+  /** Pseudonym-bound selective-disclosure proof -> { proof, pseudonym }. */
   proofGenWithPseudonym(publicKey, signature, header, ph, contextId, signerMessages, committedMessages,
     secretProverBlind, nymSecrets, disclosedSignerIndexes, disclosedCommittedIndexes) {
     const sm = signerMessages.map(u8); const cm = committedMessages.map(u8); const nm = nymSecrets.map(u8);
@@ -871,10 +984,12 @@ const Bbs = {
       m, m.map((x) => x.length), m.length, disclosedIndexes, disclosedIndexes.length) === 1;
   },
 
-  // ── Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
-  // pseudonyms). secretProverBlind is a 32-byte big-endian scalar.
+  /*
+   * Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+   * pseudonyms). secretProverBlind is a 32-byte big-endian scalar.
+   */
 
-  /** Commit committedMessages → { commitmentWithProof, secretProverBlind }. */
+  /** Commit committedMessages -> { commitmentWithProof, secretProverBlind }. */
   blindCommit(committedMessages) {
     const cm = committedMessages.map(u8);
     const outBlind = {};
@@ -882,7 +997,7 @@ const Bbs = {
     const secretProverBlind = b(outBlind); fn.bufFree(outBlind);
     return { commitmentWithProof: cwp, secretProverBlind };
   },
-  /** Blind-sign over the commitment + signer messages → 80-byte signature. */
+  /** Blind-sign over the commitment + signer messages -> 80-byte signature. */
   blindSign(secretKey, publicKey, commitmentWithProof, header, messages) {
     const m = messages.map(u8);
     return consume(fn.bbsBlindSign(u8(secretKey), u8(secretKey).length, u8(publicKey), u8(publicKey).length,
@@ -897,10 +1012,12 @@ const Bbs = {
       cm, cm.map((x) => x.length), cm.length, u8(secretProverBlind), u8(secretProverBlind).length) === 1;
   },
 
-  // ── Canonical scalar helpers (issue #5). Both return a 32-byte big-endian
-  // value strictly < r, ready to feed the pseudonym / blind-issuance API.
+  /*
+   * Canonical scalar helpers (issue #5). Both return a 32-byte big-endian
+   * value strictly < r, ready to feed the pseudonym / blind-issuance API.
+   */
 
-  /** Deterministically map (msg, dst) → canonical scalar in [0, r). Use for a
+  /** Deterministically map (msg, dst) -> canonical scalar in [0, r). Use for a
    *  stable per-holder nym seed: nymSeed = hashToScalar(memberSecret, dst). */
   hashToScalar(msg, dst) {
     return consume(fn.bbsHashToScalar(u8(msg), u8(msg).length, u8(dst), u8(dst).length));
@@ -909,13 +1026,15 @@ const Bbs = {
   randomScalar() { return consume(fn.bbsRandomScalar()); },
 };
 
-// ═══ OPRF — Oblivious Pseudorandom Function (RFC 9497) ═════════════════════════
-// Client blinds its input; server evaluates under its key without seeing it;
-// client unblinds to the PRF output. Privacy Pass, PSI, password hardening.
+/*
+ * OPRF: Oblivious Pseudorandom Function (RFC 9497)
+ * Client blinds its input; server evaluates under its key without seeing it;
+ * client unblinds to the PRF output. Privacy Pass, PSI, password hardening.
+ */
 const Oprf = {
   deriveKeyPair(seed, info = null) {
     const k = kp(fn.oprfDerive(u8(seed), u8(seed).length, info ? u8(info) : null, info ? u8(info).length : 0));
-    if (k.publicKey.length === 0) throw new Error('cryptolib: oprf derive_keypair failed');
+    if (k.publicKey.length === 0) throw new Error('cipherbird: oprf derive_keypair failed');
     return k;
   },
   blind(input) {
@@ -943,9 +1062,11 @@ const Oprf = {
   },
 };
 
-// ═══ OPAQUE — asymmetric PAKE (OPAQUE-3DH, ristretto255-SHA-512) ═══════════════
-// Client and server agree on a session key from a password that never leaves the
-// client and is never stored server-side. Registration, then a 3DH login.
+/*
+ * OPAQUE: asymmetric PAKE (OPAQUE-3DH, ristretto255-SHA-512)
+ * Client and server agree on a session key from a password that never leaves the
+ * client and is never stored server-side. Registration, then a 3DH login.
+ */
 const Opaque = {
   registrationRequest(password) {
     const r = fn.opaqueRegRequest(u8(password), u8(password).length);
@@ -997,10 +1118,10 @@ const Opaque = {
   },
 };
 
-// Public envelope metadata (no secrets).
+/* Public envelope metadata (no secrets). */
 function sealedInspect(envelope) {
   const i = fn.sealedInspect(u8(envelope), u8(envelope).length);
-  if (!i.ok) throw new Error('cryptolib: unrecognizable sealed envelope');
+  if (!i.ok) throw new Error('cipherbird: unrecognizable sealed envelope');
   return {
     version: i.version, suite: i.suite, streaming: i.streaming === 1,
     fingerprint: Buffer.from(i.fingerprint), kemCiphertextLen: Number(i.kem_ciphertext_len),
@@ -1011,7 +1132,7 @@ function sealedAddressedTo(envelope, recipientPublic) {
 }
 
 
-// ═══ Stateful RNGs, advanced steganography, composed carriers, FEC ════════════
+/* Stateful RNGs, advanced steganography, composed carriers, FEC */
 
 /** HMAC-DRBG (NIST SP 800-90A). Deterministic for a given seed. close() when done. */
 class Drbg {
@@ -1043,7 +1164,7 @@ class Fortuna {
 }
 
 const Rng = {
-  /** Cryptographically-secure bytes straight from the OS CSPRNG — the right default. */
+  /** Cryptographically-secure bytes straight from the OS CSPRNG: the right default. */
   bytes: (n) => consume(fn.random(n)),
   /** Instantiate an HMAC-DRBG from a caller-supplied seed. */
   drbg(entropy, { nonce = null, personalization = null } = {}) {
@@ -1051,13 +1172,13 @@ const Rng = {
     const h = fn.drbgInstantiate(u8(entropy), u8(entropy).length, optr(nonce), olen(nonce),
                                  optr(personalization), olen(personalization), e);
     outErr(e);
-    if (!h) throw new Error('cryptolib: drbg instantiate failed');
+    if (!h) throw new Error('cipherbird: drbg instantiate failed');
     return new Drbg(h);
   },
   /** Create a new, unseeded Fortuna pool. */
   fortuna() {
     const h = fn.fortunaNew();
-    if (!h) throw new Error('cryptolib: fortuna alloc failed');
+    if (!h) throw new Error('cipherbird: fortuna alloc failed');
     return new Fortuna(h);
   },
 };
@@ -1081,7 +1202,7 @@ const StegoAdvanced = {
   },
   /** Extract a keyed payload. Throws on the wrong key. */
   extractKeyed: (stegoPath, key) => consume(fn.stegoExtractKeyed(stegoPath, u8(key), u8(key).length)),
-  /** AEAD-encrypt then hide — the one to reach for by default. */
+  /** AEAD-encrypt then hide: the one to reach for by default. */
   embedEncrypted(coverPath, plaintext, outputPath, masterKey) {
     checkOk(fn.stegoEmbedEncrypted(coverPath, u8(plaintext), u8(plaintext).length, outputPath, u8(masterKey), u8(masterKey).length), 'stego embed_encrypted failed');
   },
@@ -1094,24 +1215,20 @@ const StegoAdvanced = {
     return { parses: r.parses === 1, format: MediaFormat[r.format] ?? 'unknown', extensionMatches: r.ext_matches === 1,
              width: Number(r.width), height: Number(r.height), fileSize: Number(r.file_size), detail: takeStr(r.detail) };
   },
-  /** Heuristic hidden-data probe. cryptolibPayload true is conclusive; the statistics never prove absence. */
+  /** Heuristic hidden-data probe. cipherbirdPayload true is conclusive; the statistics never prove absence. */
   detectHidden(path) {
     const r = fn.stegoDetectHidden(path);
     throwIfErr(r);
-    return { cryptolibPayload: r.cryptolib_payload === 1, lsbChiSquare: r.lsb_chi_square,
+    return { cipherbirdPayload: r.cryptolib_payload === 1, lsbChiSquare: r.lsb_chi_square,
              lsbEmbeddingLikelihood: r.lsb_embedding_likelihood, samplesAnalysed: Number(r.samples_analysed), note: takeStr(r.note) };
   },
-  /** Digest of decoded content rather than file bytes — stable across re-encoding. */
+  /** Digest of decoded content rather than file bytes: stable across re-encoding. */
   contentDigest: (path) => consume(fn.stegoContentDigest(path)),
 };
 
-/** SP 800-90B style health assessment of a file's entropy. */
-function assessFileHealth(path, maxBytes = 1 << 20) {
-  const r = fn.assessFileHealth(path, maxBytes);
-  throwIfErr(r);
-  return { minEntropyPerByte: r.min_entropy_per_byte, longestRun: Number(r.longest_run),
-           maxWindowCount: Number(r.max_window_count), rctPassed: r.rct_passed === 1, aptPassed: r.apt_passed === 1,
-           get healthy() { return this.rctPassed && this.aptPassed; } };
+/** SP 800-90B health assessment of a file's entropy: the calibrated report with every number behind the verdict and a summary. */
+function assessFileHealth(path, maxBytes = 1 << 20, floorBitsPerByte = 1.0) {
+  return assessFileHealthV2(path, maxBytes, floorBitsPerByte);
 }
 
 /** Forward error correction schemes. */
@@ -1136,7 +1253,7 @@ const Composed = {
   /** Recover an imageFactorSeal message. */
   imageFactorOpen: ({ oprfSecretSeed, referenceImagePath, stegoPath, aad = null }) =>
     consume(fn.imageFactorOpen(u8(oprfSecretSeed), u8(oprfSecretSeed).length, referenceImagePath, optr(aad), olen(aad), stegoPath)),
-  /** Seal to an HPKE public key and hide it. Returns `enc` — transmit it alongside the carrier. */
+  /** Seal to an HPKE public key and hide it. Returns `enc`: transmit it alongside the carrier. */
   hpkeStegoSeal: ({ recipientPublic, plaintext, coverPath, outputPath, aad = null, info = null }) =>
     consume(fn.hpkeStegoSeal(u8(recipientPublic), u8(recipientPublic).length, u8(plaintext), u8(plaintext).length,
             optr(aad), olen(aad), optr(info), olen(info), coverPath, outputPath)),
@@ -1147,55 +1264,61 @@ const Composed = {
 };
 
 
-// ═══ Security profiles and composable recipes ═════════════════════════════════
-//
-// SecurityProfile sets every algorithm parameter consistently, so "use the
-// strongest thing available" is one word rather than a dozen constants.
-//
-// Recipe stacks the library's protections in combination: derive a key, cascade
-// several AEADs, sign, add error correction, hide the result in a carrier.
-//
-// Composition only — every step is an existing, vetted operation. What the
-// recipe adds is the plumbing that is easy to get wrong by hand: every layer is
-// keyed by HKDF under a distinct info string so no key is reused, the header
-// describing the recipe is authenticated as AAD by every layer, the order
-// (sign → encrypt → correct → conceal) is fixed, and everything fails closed.
-//
-// The envelope is a library-native format, and is identical across every
-// CryptoLib binding: an envelope sealed here opens in Dart, Go or Swift.
+/*
+ * Security profiles and composable recipes
+ *
+ * SecurityProfile sets every algorithm parameter consistently, so "use the
+ * strongest thing available" is one word rather than a dozen constants.
+ *
+ * Recipe stacks the library's protections in combination: derive a key, cascade
+ * several AEADs, sign, add error correction, hide the result in a carrier.
+ *
+ * Composition only: every step is an existing, vetted operation. What the
+ * recipe adds is the plumbing that is easy to get wrong by hand: every layer is
+ * keyed by HKDF under a distinct info string so no key is reused, the header
+ * describing the recipe is authenticated as AAD by every layer, the order
+ * (sign -> encrypt -> correct -> conceal) is fixed, and everything fails closed.
+ *
+ * The envelope is a library-native format, and is identical across every
+ * CryptoLib binding: an envelope sealed here opens in Dart, Go or Swift.
+ */
 
-// ── Extension points ─────────────────────────────────────────────────────────
-//
-// Three base classes can be subclassed and plugged into a Recipe:
-//   ProtectionLayer  — one authenticated-encryption layer in the cascade.
-//   KeySource        — where the 32-byte root key comes from.
-//   SignatureScheme  — how the plaintext is signed and verified.
-// The library's own implementations extend the same classes, so a custom one
-// is a first-class citizen. To compose several ciphers into ONE layer, extend
-// CascadeLayer.
-//
-// What the recipe keeps for itself, whatever you plug in: a layer never chooses
-// its key (it receives a fresh 32-byte key per layer per envelope, HKDF-derived
-// under salt + wireName); a layer cannot opt out of the AAD; the order is fixed
-// (sign → encrypt → correct → conceal); a KeySource must return exactly 32
-// bytes; ids 0–127 are reserved — custom parts must use 128–255, enforced so a
-// custom part can never shadow a built-in.
-//
-// Cross-language: built-in ids open in every CryptoLib binding. A custom part
-// opens only where the same id + wireName + algorithm is registered — and since
-// wireName feeds the key derivation, a mismatched implementation fails the AEAD
-// tag rather than yielding garbage.
+/*
+ * Extension points
+ *
+ * Three base classes can be subclassed and plugged into a Recipe:
+ * ProtectionLayer : one authenticated-encryption layer in the cascade.
+ * KeySource       : where the 32-byte root key comes from.
+ * SignatureScheme : how the plaintext is signed and verified.
+ * The library's own implementations extend the same classes, so a custom one
+ * is a first-class citizen. To compose several ciphers into ONE layer, extend
+ * CascadeLayer.
+ *
+ * What the recipe keeps for itself, whatever you plug in: a layer never chooses
+ * its key (it receives a fresh 32-byte key per layer per envelope, HKDF-derived
+ * under salt + wireName); a layer cannot opt out of the AAD; the order is fixed
+ * (sign -> encrypt -> correct -> conceal); a KeySource must return exactly 32
+ * bytes; ids 0-127 are reserved: custom parts must use 128-255, enforced so a
+ * custom part can never shadow a built-in.
+ *
+ * Cross-language: built-in ids open in every CryptoLib binding. A custom part
+ * opens only where the same id + wireName + algorithm is registered: and since
+ * wireName feeds the key derivation, a mismatched implementation fails the AEAD
+ * tag rather than yielding garbage.
+ */
 
-// Module-private marker: only classes defined in this file carry it, so a
-// subclass cannot claim a reserved id by pretending to be built in.
-const BUILTIN = Symbol('cryptolib.builtin');
+/*
+ * Module-private marker: only classes defined in this file carry it, so a
+ * subclass cannot claim a reserved id by pretending to be built in.
+ */
+const BUILTIN = Symbol('cipherbird.builtin');
 const CUSTOM_ID_MIN = 128, CUSTOM_ID_MAX = 255;
 
 function requireValidId(part, what) {
-  if (part == null || typeof part.id !== 'number') throw new TypeError(`cryptolib: ${what} must have a numeric id`);
+  if (part == null || typeof part.id !== 'number') throw new TypeError(`cipherbird: ${what} must have a numeric id`);
   if (part[BUILTIN]) return;
   if (!Number.isInteger(part.id) || part.id < CUSTOM_ID_MIN || part.id > CUSTOM_ID_MAX) {
-    throw new RangeError(`cryptolib: custom ${what} ids must be in ${CUSTOM_ID_MIN}..${CUSTOM_ID_MAX} (0–127 are reserved), got ${part.id}`);
+    throw new RangeError(`cipherbird: custom ${what} ids must be in ${CUSTOM_ID_MIN}..${CUSTOM_ID_MAX} (0-127 are reserved), got ${part.id}`);
   }
 }
 
@@ -1203,11 +1326,11 @@ function requireValidId(part, what) {
  * One authenticated-encryption layer in a Recipe cascade.
  *
  * Subclass it to add your own layer, then ProtectionLayer.register() it (on
- * the opening side too — the envelope stores only the id). Contract: seal()
+ * the opening side too: the envelope stores only the id). Contract: seal()
  * must be authenticated encryption that binds `aad`, and open() must throw on
- * any modification. The key is fresh per layer per envelope — never reuse it.
+ * any modification. The key is fresh per layer per envelope: never reuse it.
  *
- *   class MyLayer extends cryptolib.ProtectionLayer {
+ *   class MyLayer extends cipherbird.ProtectionLayer {
  *     get id() { return 200; }
  *     get wireName() { return 'my-xchacha'; }
  *     seal(api, key, aad, pt) { return api.xchacha20Encrypt(pt, key, aad); }
@@ -1215,7 +1338,7 @@ function requireValidId(part, what) {
  *   }
  */
 class ProtectionLayer {
-  /** Recorded in the envelope header. Built-ins use 1–4; custom 128–255. */
+  /** Recorded in the envelope header. Built-ins use 1-4; custom 128-255. */
   get id() { throw new Error('ProtectionLayer.id not implemented'); }
   /** Feeds this layer's HKDF info string. Part of the wire format. */
   get wireName() { throw new Error('ProtectionLayer.wireName not implemented'); }
@@ -1227,13 +1350,13 @@ class ProtectionLayer {
     requireValidId(layer, 'layer');
     const existing = LAYER_REGISTRY.get(layer.id);
     if (existing && existing.wireName !== layer.wireName) {
-      throw new Error(`cryptolib: layer id ${layer.id} is already registered as '${existing.wireName}'`);
+      throw new Error(`cipherbird: layer id ${layer.id} is already registered as '${existing.wireName}'`);
     }
     LAYER_REGISTRY.set(layer.id, layer);
   }
   static _resolve(id) {
     const l = LAYER_REGISTRY.get(id);
-    if (!l) throw new Error(`cryptolib: unknown protection layer id ${id} — ProtectionLayer.register() it before opening`);
+    if (!l) throw new Error(`cipherbird: unknown protection layer id ${id}: ProtectionLayer.register() it before opening`);
     return l;
   }
 }
@@ -1275,12 +1398,12 @@ const LAYER_REGISTRY = new Map([
 ]);
 
 /**
- * A layer that is itself a mixture of layers — the way to compose several
+ * A layer that is itself a mixture of layers: the way to compose several
  * encryptions into one custom type.
  *
- *   class BeltAndBraces extends cryptolib.CascadeLayer {
+ *   class BeltAndBraces extends cipherbird.CascadeLayer {
  *     constructor() { super({ id: 201, wireName: 'belt-and-braces',
- *       layers: [cryptolib.ProtectionLayer.xchacha20Poly1305, new MyLayer()] }); }
+ *       layers: [cipherbird.ProtectionLayer.xchacha20Poly1305, new MyLayer()] }); }
  *   }
  *
  * Each inner layer receives its own sub-key, HKDF-derived from this layer's key
@@ -1290,7 +1413,7 @@ const LAYER_REGISTRY = new Map([
 class CascadeLayer extends ProtectionLayer {
   constructor({ id, wireName, layers }) {
     super();
-    if (!layers || layers.length === 0) throw new Error(`cryptolib: CascadeLayer '${wireName}' has no layers`);
+    if (!layers || layers.length === 0) throw new Error(`cipherbird: CascadeLayer '${wireName}' has no layers`);
     this._id = id; this._wireName = wireName; this.layers = [...layers];
   }
   get id() { return this._id; }
@@ -1312,11 +1435,11 @@ class CascadeLayer extends ProtectionLayer {
 
 /**
  * Where a Recipe's 32-byte root key comes from. Subclass it for a hardware
- * token, a KMS, a keyring unlock — anything that can produce the same 32 bytes
+ * token, a KMS, a keyring unlock: anything that can produce the same 32 bytes
  * again when opening. The recipe refuses any other length.
  */
 class KeySource {
-  /** Recorded in the envelope header. Built-ins use 0–2; custom 128–255. */
+  /** Recorded in the envelope header. Built-ins use 0-2; custom 128-255. */
   get id() { throw new Error('KeySource.id not implemented'); }
   get label() { throw new Error('KeySource.label not implemented'); }
   /** `salt` is fresh per envelope; ops/memory are the recipe's Argon2id cost. */
@@ -1327,7 +1450,7 @@ class RawKeySource extends KeySource {
   constructor(key) {
     super();
     const k = u8(key);
-    if (k.length !== 32) throw new Error(`cryptolib: root key must be exactly 32 bytes, got ${k.length}`);
+    if (k.length !== 32) throw new Error(`cipherbird: root key must be exactly 32 bytes, got ${k.length}`);
     this._key = Buffer.from(k);
   }
   get id() { return 0; } get label() { return 'raw'; }
@@ -1352,7 +1475,20 @@ class KeyFileSource extends KeySource {
     try { return api.entropySymmetricKey(h); } finally { api.entropyFree(h); }
   }
 }
-for (const C of [RawKeySource, PassphraseKeySource, KeyFileSource]) C.prototype[BUILTIN] = true;
+/**
+ * A media buffer as the key: the same bytes always yield the same key. The
+ * in-memory counterpart of KeyFileSource, for a photo held in memory; uses
+ * the deterministic entropy path for the same reason.
+ */
+class KeyBytesSource extends KeySource {
+  constructor(bytes) { super(); this._bytes = Buffer.from(u8(bytes)); }
+  get id() { return 3; } get label() { return 'keyBytes'; }
+  deriveRoot(api) {
+    const h = api.entropyFromBytes(this._bytes, { deterministic: true });
+    try { return api.entropySymmetricKey(h); } finally { api.entropyFree(h); }
+  }
+}
+for (const C of [RawKeySource, PassphraseKeySource, KeyFileSource, KeyBytesSource]) C.prototype[BUILTIN] = true;
 
 /**
  * How a Recipe signs and verifies the plaintext. Subclass it for another
@@ -1360,7 +1496,7 @@ for (const C of [RawKeySource, PassphraseKeySource, KeyFileSource]) C.prototype[
  * The signature is applied before encryption, so it stays confidential.
  */
 class SignatureScheme {
-  /** Recorded in the envelope header. Built-ins use 1–2; custom 128–255. */
+  /** Recorded in the envelope header. Built-ins use 1-2; custom 128-255. */
   get id() { throw new Error('SignatureScheme.id not implemented'); }
   get label() { throw new Error('SignatureScheme.label not implemented'); }
   sign(/* api, message */) { throw new Error('SignatureScheme.sign not implemented'); }
@@ -1374,7 +1510,7 @@ class Ed25519Signature extends SignatureScheme {
     this._pk = publicKey ? Buffer.from(u8(publicKey)) : null;
   }
   get id() { return 1; } get label() { return 'ed25519'; }
-  sign(api, m) { if (!this._sk) throw new Error('cryptolib: Ed25519Signature has no secret key'); return api.ed25519Sign(m, this._sk); }
+  sign(api, m) { if (!this._sk) throw new Error('cipherbird: Ed25519Signature has no secret key'); return api.ed25519Sign(m, this._sk); }
   verify(api, m, sig) { return !!this._pk && api.ed25519Verify(m, sig, this._pk); }
 }
 /** Ed25519 + ML-DSA-65: a forgery needs breaking both. */
@@ -1385,7 +1521,7 @@ class HybridSignature extends SignatureScheme {
     this._pk = publicKey ? Buffer.from(u8(publicKey)) : null;
   }
   get id() { return 2; } get label() { return 'hybrid'; }
-  sign(api, m) { if (!this._sk) throw new Error('cryptolib: HybridSignature has no secret key'); return api.hybridSigSign(m, this._sk); }
+  sign(api, m) { if (!this._sk) throw new Error('cipherbird: HybridSignature has no secret key'); return api.hybridSigSign(m, this._sk); }
   verify(api, m, sig) { return !!this._pk && api.hybridSigVerify(m, sig, this._pk); }
 }
 for (const C of [Ed25519Signature, HybridSignature]) C.prototype[BUILTIN] = true;
@@ -1429,9 +1565,9 @@ const RECIPE_SALT_LEN = 16;
  * A composable protection pipeline. Describe what you want once, then seal and
  * open with the same recipe; the envelope carries its own descriptor.
  *
- *   const r = cryptolib.recipe('maximum')
+ *   const r = cipherbird.recipe('maximum')
  *       .withPassphrase('correct horse battery staple')
- *       .signedBy(id.secretKey, cryptolib.SignatureAlgorithm.hybrid)
+ *       .signedBy(id.secretKey, cipherbird.SignatureAlgorithm.hybrid)
  *       .verifiedBy(id.publicKey);
  *   const env = r.seal(secret);
  */
@@ -1448,9 +1584,9 @@ class Recipe {
     this._fec = FecScheme.none;
   }
 
-  /** Use any KeySource — a built-in or your own subclass. */
+  /** Use any KeySource: a built-in or your own subclass. */
   withKeySource(source) {
-    if (!(source instanceof KeySource)) throw new TypeError('cryptolib: withKeySource expects a KeySource');
+    if (!(source instanceof KeySource)) throw new TypeError('cipherbird: withKeySource expects a KeySource');
     requireValidId(source, 'key source'); this._source = source; return this;
   }
 
@@ -1460,12 +1596,12 @@ class Recipe {
   /** Use a 32-byte full-entropy key directly (KEM secret, keyring unlock, token). */
   withKey(key) { return this.withKeySource(new RawKeySource(key)); }
 
-  /** Derive the root key deterministically from a media file — "the file is the key". */
+  /** Derive the root key deterministically from a media file: "the file is the key". */
   withKeyFile(path) { return this.withKeySource(new KeyFileSource(path)); }
 
   /** Replace the cascade with exactly these layers, innermost first. */
   withLayers(layers) {
-    if (!layers || layers.length === 0) throw new Error('cryptolib: a recipe needs at least one layer');
+    if (!layers || layers.length === 0) throw new Error('cipherbird: a recipe needs at least one layer');
     layers.forEach((l) => Recipe._checkLayer(l));
     this._layers = [...layers]; return this;
   }
@@ -1474,7 +1610,7 @@ class Recipe {
   addLayer(layer) { Recipe._checkLayer(layer); this._layers.push(layer); return this; }
 
   static _checkLayer(l) {
-    if (!(l instanceof ProtectionLayer)) throw new TypeError('cryptolib: layers must be ProtectionLayer instances');
+    if (!(l instanceof ProtectionLayer)) throw new TypeError('cipherbird: layers must be ProtectionLayer instances');
     requireValidId(l, 'layer');
   }
 
@@ -1485,15 +1621,15 @@ class Recipe {
     return this;
   }
 
-  /** Sign with any SignatureScheme — a built-in or your own subclass. */
+  /** Sign with any SignatureScheme: a built-in or your own subclass. */
   signedWith(scheme) {
-    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cryptolib: signedWith expects a SignatureScheme');
+    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cipherbird: signedWith expects a SignatureScheme');
     requireValidId(scheme, 'signature scheme'); this._signer = scheme; return this;
   }
 
   /** Verify with any SignatureScheme. Required for a custom scheme. */
   verifiedWith(scheme) {
-    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cryptolib: verifiedWith expects a SignatureScheme');
+    if (!(scheme instanceof SignatureScheme)) throw new TypeError('cipherbird: verifiedWith expects a SignatureScheme');
     requireValidId(scheme, 'signature scheme'); this._verifier = scheme; this._verifierKey = null; return this;
   }
 
@@ -1502,13 +1638,13 @@ class Recipe {
     switch (algorithm) {
       case SignatureAlgorithm.ed25519: return this.signedWith(new Ed25519Signature({ secretKey }));
       case SignatureAlgorithm.hybrid: return this.signedWith(new HybridSignature({ secretKey }));
-      default: throw new Error('cryptolib: signedBy needs a real algorithm');
+      default: throw new Error('cipherbird: signedBy needs a real algorithm');
     }
   }
 
   /**
    * The public key open() must verify against. Works for either built-in
-   * scheme — the envelope records which one. A custom SignatureScheme must be
+   * scheme: the envelope records which one. A custom SignatureScheme must be
    * supplied through verifiedWith().
    */
   verifiedBy(publicKey) { this._verifier = null; this._verifierKey = Buffer.from(u8(publicKey)); return this; }
@@ -1516,9 +1652,9 @@ class Recipe {
   /** Apply forward error correction to the finished envelope. */
   withFec(scheme) { this._fec = scheme; return this; }
 
-  /** Human-readable summary — useful in logs and review. */
+  /** Human-readable summary: useful in logs and review. */
   describe() {
-    const layers = this._layers.map((l) => l.wireName).join(' → ');
+    const layers = this._layers.map((l) => l.wireName).join(' -> ');
     let out = `Recipe(${this.profile})\n  key      : ${this._source ? this._source.label : '(unset)'}\n`
             + `  layers   : ${layers}\n  signature: ${this._signer ? this._signer.label : 'none'}\n  fec      : ${this._fec}\n`;
     if (this._source instanceof PassphraseKeySource) {
@@ -1559,16 +1695,16 @@ class Recipe {
     const verifier = this._verifier || this._builtinVerifier(h.signatureId);
     if (!verifier) {
       if (this._verifierKey) {
-        throw new Error(`cryptolib: envelope was signed with scheme id ${h.signatureId}, which is not a built-in — `
+        throw new Error(`cipherbird: envelope was signed with scheme id ${h.signatureId}, which is not a built-in: `
                       + 'supply that SignatureScheme with verifiedWith()');
       }
-      throw new Error('cryptolib: envelope is signed but no verifier was supplied — '
+      throw new Error('cipherbird: envelope is signed but no verifier was supplied: '
                     + 'call verifiedBy()/verifiedWith() so the signature is actually checked');
     }
     if (verifier.id !== h.signatureId) {
-      throw new Error(`cryptolib: envelope was signed with scheme id ${h.signatureId}, but the verifier is '${verifier.label}' (id ${verifier.id})`);
+      throw new Error(`cipherbird: envelope was signed with scheme id ${h.signatureId}, but the verifier is '${verifier.label}' (id ${verifier.id})`);
     }
-    if (!verifier.verify(this._api, plaintext, sig)) throw new Error('cryptolib: signature verification failed');
+    if (!verifier.verify(this._api, plaintext, sig)) throw new Error('cipherbird: signature verification failed');
     return plaintext;
   }
 
@@ -1580,10 +1716,10 @@ class Recipe {
   /** Extract and open an envelope written by sealIntoCarrier. */
   openFromCarrier(stegoPath) { return this.open(this._api.stegoExtract(stegoPath)); }
 
-  // ── internals ──────────────────────────────────────────────────────────────
+  /* internals */
 
   _requireSource() {
-    if (!this._source) throw new Error('cryptolib: no key set — call withKey/withPassphrase/withKeyFile/withKeySource');
+    if (!this._source) throw new Error('cipherbird: no key set: call withKey/withPassphrase/withKeyFile/withKeySource');
     return this._source;
   }
 
@@ -1597,7 +1733,7 @@ class Recipe {
   _rootKey(source, salt, ops, mem) {
     const root = u8(source.deriveRoot(this._api, salt, ops, mem));
     if (root.length !== 32) {
-      throw new Error(`cryptolib: key source '${source.label}' produced ${root.length} bytes; the root key must be exactly 32`);
+      throw new Error(`cipherbird: key source '${source.label}' produced ${root.length} bytes; the root key must be exactly 32`);
     }
     return root;
   }
@@ -1622,17 +1758,17 @@ class Recipe {
   }
 
   _parseHeader(env, source) {
-    if (env.length < 8 + RECIPE_SALT_LEN + 8) throw new Error('cryptolib: envelope too short');
-    if (!env.subarray(0, 4).equals(RECIPE_MAGIC)) throw new Error('cryptolib: not a CryptoRecipe envelope');
-    if (env[4] !== RECIPE_VERSION) throw new Error(`cryptolib: unsupported envelope version ${env[4]}`);
+    if (env.length < 8 + RECIPE_SALT_LEN + 8) throw new Error('cipherbird: envelope too short');
+    if (!env.subarray(0, 4).equals(RECIPE_MAGIC)) throw new Error('cipherbird: not a CryptoRecipe envelope');
+    if (env[4] !== RECIPE_VERSION) throw new Error(`cipherbird: unsupported envelope version ${env[4]}`);
     if (env[5] !== source.id) {
-      throw new Error(`cryptolib: envelope was sealed with key source id ${env[5]}, `
+      throw new Error(`cipherbird: envelope was sealed with key source id ${env[5]}, `
                     + `but this recipe is configured for '${source.label}' (id ${source.id})`);
     }
     const signatureId = env[6];
     const layerCount = env[7];
     const headerLen = 8 + layerCount + RECIPE_SALT_LEN + 8;
-    if (env.length < headerLen) throw new Error('cryptolib: truncated envelope header');
+    if (env.length < headerLen) throw new Error('cipherbird: truncated envelope header');
     const layers = [];
     for (let i = 0; i < layerCount; i++) layers.push(ProtectionLayer._resolve(env[8 + i]));
     const salt = Buffer.from(env.subarray(8 + layerCount, 8 + layerCount + RECIPE_SALT_LEN));
@@ -1665,21 +1801,21 @@ function prefixLengthed(prefix, rest) {
 }
 
 function splitLengthed(data) {
-  if (data.length < 4) throw new Error('cryptolib: malformed signed payload');
+  if (data.length < 4) throw new Error('cipherbird: malformed signed payload');
   const n = data.readUInt32BE(0);
-  if (data.length < 4 + n) throw new Error('cryptolib: malformed signed payload');
+  if (data.length < 4 + n) throw new Error('cipherbird: malformed signed payload');
   return [Buffer.from(data.subarray(4, 4 + n)), Buffer.from(data.subarray(4 + n))];
 }
 
 
-// ═══ Incremental BLAKE3 + Noise XX secure channel ════════════════════════════
+/* Incremental BLAKE3 + Noise XX secure channel */
 
 /** Incremental BLAKE3. Digest equals blake3() over the concatenation. Not thread-safe. close() when done. */
 class Blake3Hasher {
   constructor(handle) { this._h = handle; }
   /** Feed bytes. Throws after finalize(). */
   update(data) {
-    if (fn.b3Update(this._h, u8(data), u8(data).length) !== 1) throw new Error('cryptolib: blake3 update failed (closed or finalized?)');
+    if (fn.b3Update(this._h, u8(data), u8(data).length) !== 1) throw new Error('cipherbird: blake3 update failed (closed or finalized?)');
   }
   /** Produce the digest; outLen 0 = 32 bytes, larger uses extendable output. No further updates afterwards. */
   finalize(outLen = 0) { return consume(fn.b3Finalize(this._h, outLen)); }
@@ -1688,7 +1824,7 @@ class Blake3Hasher {
 }
 
 /**
- * Noise_XX_25519_ChaChaPoly_SHA256 — mutual static-key authentication + forward secrecy.
+ * Noise_XX_25519_ChaChaPoly_SHA256: mutual static-key authentication + forward secrecy.
  *
  * Handshake: initiator writeMessage, responder readMessage+writeMessage, initiator
  * readMessage+writeMessage, responder readMessage; then both split(). Handles are
@@ -1704,10 +1840,10 @@ class Noise {
   handshakeFinished() { return fn.noiseFinished(this._h) === 1; }
   /** 32-byte channel-binding value both sides agree on after the handshake. */
   handshakeHash() { return consume(fn.noiseHash(this._h)); }
-  /** The peer's static X25519 public key learned in the handshake — pin it to stop MITM. */
+  /** The peer's static X25519 public key learned in the handshake: pin it to stop MITM. */
   remoteStatic() { return consume(fn.noiseRemote(this._h)); }
   /** Derive the transport states (Noise Split). Throws if unfinished or already split. */
-  split() { if (fn.noiseSplit(this._h) !== 1) throw new Error('cryptolib: noise split failed (handshake unfinished or already split)'); }
+  split() { if (fn.noiseSplit(this._h) !== 1) throw new Error('cipherbird: noise split failed (handshake unfinished or already split)'); }
   /** Seal one transport record (after split). */
   encrypt(plaintext, ad = null) { return consume(fn.noiseEnc(this._h, u8(plaintext), u8(plaintext).length, optr(ad), olen(ad))); }
   /** Open the next record in sequence (after split). */
@@ -1715,7 +1851,7 @@ class Noise {
   /**
    * Open the record sent at `nonceCounter` WITHOUT advancing the session counter, so
    * several records can be opened at once. Caller's duty: use each sender counter
-   * (from 0 per direction) at most once and reassemble in order — statelessly a
+   * (from 0 per direction) at most once and reassemble in order: statelessly a
    * replay looks like a fresh record. Do not mix with encrypt/decrypt concurrently.
    * There is deliberately no explicit-nonce encrypt (nonce reuse leaks the key).
    */
@@ -1728,19 +1864,322 @@ class Noise {
 
 /** Incremental BLAKE3; pass a 32-byte key for keyed (MAC) mode. */
 function blake3Hasher(key = null) {
-  if (key !== null && u8(key).length !== 32) throw new Error('cryptolib: BLAKE3 key must be exactly 32 bytes');
+  if (key !== null && u8(key).length !== 32) throw new Error('cipherbird: BLAKE3 key must be exactly 32 bytes');
   const h = fn.b3Create(optr(key), olen(key));
-  if (!h) throw new Error('cryptolib: blake3 hasher create failed (BLAKE3 not enabled?)');
+  if (!h) throw new Error('cipherbird: blake3 hasher create failed (BLAKE3 not enabled?)');
   return new Blake3Hasher(h);
 }
 
 /** Create a Noise XX state from this side's X25519 keypair (see x25519Keygen). Both sides must use the same prologue. */
 function noise(initiator, staticPublic, staticSecret, prologue = null) {
-  if (u8(staticPublic).length !== 32 || u8(staticSecret).length !== 32) throw new Error('cryptolib: Noise static keys must be 32 bytes each');
+  if (u8(staticPublic).length !== 32 || u8(staticSecret).length !== 32) throw new Error('cipherbird: Noise static keys must be 32 bytes each');
   const h = fn.noiseCreate(initiator ? 1 : 0, u8(staticPublic), 32, u8(staticSecret), 32, optr(prologue), olen(prologue));
-  if (!h) throw new Error('cryptolib: noise create failed');
+  if (!h) throw new Error('cipherbird: noise create failed');
   return new Noise(h);
 }
+
+
+/*
+ * Everything below mirrors the Dart packages one to one: X-Wing, HPKE with a
+ * chosen KEM, Suite v2, Session v2, live entropy, the calibrated health
+ * report, keyring hardware slots and the FIPS profile.
+ */
+
+/* A handle-returning call with an _Out_ void** error slot. */
+function handleOut(h, e, what) {
+  outErr(e);
+  if (!h) throw new Error(`cipherbird: ${what} failed`);
+  return h;
+}
+function kemOut(r, e) {
+  const ss = b(r.shared_secret), ct = b(r.ciphertext); fn.kemFree(r);
+  outErr(e);
+  return { ciphertext: ct, sharedSecret: ss };
+}
+function takeOutBuf(box) {
+  const out = (box.data && Number(box.len) > 0)
+    ? Buffer.from(koffi.decode(box.data, 'uint8_t', Number(box.len))) : Buffer.alloc(0);
+  fn.bufFree(box);
+  return out;
+}
+
+/* X-Wing (ML-KEM-768 + X25519, draft-connolly-cfrg-xwing-kem): public key 1216 bytes, secret key the 32-byte seed. */
+const XWing = {
+  keygen() { return kp(fn.xwKeygen()); },
+  /** The key pair a 32-byte seed expands to. */
+  keypairFromSeed(seed) { return kp(fn.xwFromSeed(u8(seed), u8(seed).length)); },
+  /** Returns { ciphertext (1120 bytes), sharedSecret (32 bytes) }. */
+  encapsulate(publicKey) {
+    const e = [null];
+    return kemOut(fn.xwEncaps(u8(publicKey), u8(publicKey).length, e), e);
+  },
+  decapsulate(ciphertext, secretKey) {
+    return consume(fn.xwDecaps(u8(ciphertext), u8(ciphertext).length, u8(secretKey), u8(secretKey).length));
+  },
+};
+
+/* HPKE with a selectable KEM; values are the IANA HPKE KEM identifiers. */
+const HpkeKem = { DhkemX25519: 0x0020, MlKem768: 0x0041, XWing: 0x647A };
+Hpke.Kem = HpkeKem;
+/** Whether this build offers `kem`. */
+Hpke.kemAvailable = (kem) => fn.hpkeKemAvail(kem) === 1;
+Hpke.keygenKem = (kem) => kp(fn.hpkeKeygenKem(kem));
+Hpke.deriveKeyPairKem = (kem, ikm) => kp(fn.hpkeDeriveKem(kem, u8(ikm), u8(ikm).length));
+/** Sender key schedule with a chosen KEM. PQ KEMs support base and psk modes. opts: { psk, pskId, skS }. */
+Hpke.setupSKem = (kem, kdf, aead, mode, recipientPublic, info, opts = {}) => {
+  const encBox = {}; const e = [null];
+  const h = fn.hpkeSetupSKem(kem, kdf, aead, mode, u8(recipientPublic), u8(recipientPublic).length,
+    u8(info), u8(info).length, optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId),
+    optr(opts.skS), olen(opts.skS), encBox, e);
+  handleOut(h, e, 'hpke setup_s');
+  return { enc: takeOutBuf(encBox), context: new HpkeContext(h) };
+};
+/** Receiver key schedule with a chosen KEM. opts: { psk, pskId, pkS }. */
+Hpke.setupRKem = (kem, kdf, aead, mode, enc, recipientSecret, info, opts = {}) => {
+  const e = [null];
+  const h = fn.hpkeSetupRKem(kem, kdf, aead, mode, u8(enc), u8(enc).length,
+    u8(recipientSecret), u8(recipientSecret).length, u8(info), u8(info).length,
+    optr(opts.psk), olen(opts.psk), optr(opts.pskId), olen(opts.pskId), optr(opts.pkS), olen(opts.pkS), e);
+  return new HpkeContext(handleOut(h, e, 'hpke setup_r'));
+};
+
+/* Suite v2: the signature binds recipient, KEM ciphertext and AAD. */
+const Suite2Id = Object.freeze({ xWingSig: 0x11, hybridSig: 0x12 });
+/** Seal to an X-Wing (or hybrid) KEM public key, signed by a hybridSigKeygen secret. */
+function suite2Seal(plaintext, recipientKemPublic, signerSigSecret, aad = null, suite = Suite2Id.xWingSig) {
+  return consume(fn.suite2Seal(u8(plaintext), u8(plaintext).length, u8(recipientKemPublic), u8(recipientKemPublic).length,
+    u8(signerSigSecret), u8(signerSigSecret).length, optr(aad), olen(aad), suite));
+}
+/** Open an envelope; fails unless the signature over this recipient, ciphertext and aad verifies. */
+function suite2Open(envelope, recipientKemSecret, recipientKemPublic, signerSigPublic, aad = null) {
+  return consume(fn.suite2Open(u8(envelope), u8(envelope).length, u8(recipientKemSecret), u8(recipientKemSecret).length,
+    u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigPublic), u8(signerSigPublic).length, optr(aad), olen(aad)));
+}
+/** The suite id of a v2 envelope, or 0 when it is not one. */
+function suite2SuiteOf(envelope) { return fn.suite2SuiteOf(u8(envelope), u8(envelope).length); }
+
+/*
+ * Session v2: the X-Wing forward-secret ratchet behind an authenticated
+ * handshake. Identities are hybridSigKeygen pairs. Stateful; close() when done.
+ */
+class Session2 {
+  constructor(handle) { this._h = handle; }
+  /** Responder: publicKey is the signed prekey bundle to publish, secretKey the 32-byte X-Wing seed to keep. */
+  static generatePrekey(responderSigSecret) {
+    return kp(fn.sess2GenPrekey(u8(responderSigSecret), u8(responderSigSecret).length));
+  }
+  /** The X-Wing public key inside a bundle, after its signature verified against the responder identity. */
+  static verifyPrekey(bundle, responderSigPublic) {
+    return consume(fn.sess2VerifyPrekey(u8(bundle), u8(bundle).length, u8(responderSigPublic), u8(responderSigPublic).length));
+  }
+  /** The initiator identity a handshake claims, before verification. Look the expected identity up with it; never trust it. */
+  static claimedInitiator(handshake) {
+    return consume(fn.sess2Claimed(u8(handshake), u8(handshake).length));
+  }
+  /** Initiator: verify the bundle, key to it and sign the handshake with the initiator identity. */
+  static initiate(bundle, responderSigPublic, initiatorSigPublic, initiatorSigSecret) {
+    const e = [null];
+    const h = fn.sess2Initiate(u8(bundle), u8(bundle).length, u8(responderSigPublic), u8(responderSigPublic).length,
+      u8(initiatorSigPublic), u8(initiatorSigPublic).length, u8(initiatorSigSecret), u8(initiatorSigSecret).length, e);
+    return new Session2(handleOut(h, e, 'session2 initiate'));
+  }
+  /** Responder: accept a handshake only from expectedInitiatorSigPublic. */
+  static accept(handshake, bundle, prekeySecret, responderSigPublic, responderSigSecret, expectedInitiatorSigPublic) {
+    const e = [null];
+    const h = fn.sess2Accept(u8(handshake), u8(handshake).length, u8(bundle), u8(bundle).length,
+      u8(prekeySecret), u8(prekeySecret).length, u8(responderSigPublic), u8(responderSigPublic).length,
+      u8(responderSigSecret), u8(responderSigSecret).length,
+      u8(expectedInitiatorSigPublic), u8(expectedInitiatorSigPublic).length, e);
+    return new Session2(handleOut(h, e, 'session2 accept'));
+  }
+  /** The handshake message to send to the responder (Session2.accept). Empty on a responder. */
+  handshake() { return consume(fn.sess2Handshake(this._h)); }
+  encrypt(plaintext, aad = null) {
+    return consume(fn.sess2Encrypt(this._h, u8(plaintext), u8(plaintext).length, optr(aad), olen(aad)));
+  }
+  decrypt(message, aad = null) {
+    return consume(fn.sess2Decrypt(this._h, u8(message), u8(message).length, optr(aad), olen(aad)));
+  }
+  close() { if (this._h) { fn.sess2Free(this._h); this._h = null; } }
+}
+
+/*
+ * A continuous entropy source fed by a live stream. Feed camera frames, audio
+ * buffers or any bytes as they arrive; every chunk is assessed under the
+ * policy and credited only when it passes, with the reason given when it does
+ * not. generate() draws from an HMAC-DRBG seeded once minCreditedBits have
+ * been earned and reseeded as more credit arrives; it throws until then.
+ * close() when done.
+ */
+class LiveEntropy {
+  constructor(handle) { this._h = handle; }
+  /** Assess, mix and (when the policy allows) credit one chunk from logical source `sourceId`; chunks under 1024 bytes are mixed but never credited. */
+  feed(chunk, sourceId = 0) {
+    const r = fn.liveFeed(this._h, u8(chunk), u8(chunk).length, sourceId);
+    throwIfErr(r);
+    return {
+      accepted: r.accepted === 1, creditedBits: r.credited_bits, creditedBitsTotal: r.credited_bits_total,
+      ready: r.ready === 1, minEntropyPerByte: r.min_entropy_per_byte, longestRun: Number(r.longest_run),
+      rctCutoff: Number(r.rct_cutoff), rctPassed: r.rct_passed === 1, aptPassed: r.apt_passed === 1,
+      reason: takeStr(r.reason),
+    };
+  }
+  /** Draw `n` bytes (at most 65536). Throws until the first seed is earned. */
+  generate(n) { return consume(fn.liveGenerate(this._h, n)); }
+  /** Counters, credit and the last verdict. */
+  status() {
+    const s = fn.liveStatus(this._h);
+    throwIfErr(s);
+    return {
+      chunksFed: Number(s.chunks_fed), chunksAccepted: Number(s.chunks_accepted), chunksRejected: Number(s.chunks_rejected),
+      bytesFed: Number(s.bytes_fed), reseeds: Number(s.reseeds), creditedBitsTotal: s.credited_bits_total,
+      creditedBitsSinceReseed: s.credited_bits_since_reseed, minCreditedBits: s.min_credited_bits, ready: s.ready === 1,
+      lastMinEntropyPerByte: s.last_min_entropy_per_byte, lastLongestRun: Number(s.last_longest_run),
+      lastRctCutoff: Number(s.last_rct_cutoff), lastReason: takeStr(s.last_reason),
+    };
+  }
+  /** Release the native handle. Idempotent. */
+  close() { if (this._h) { fn.liveFree(this._h); this._h = null; } }
+}
+/** A LiveEntropy source under a policy: chunks below minBitsPerByte of min-entropy are not credited, nor, with requireRct, chunks that fail the repetition-count test; the generator seeds after minCreditedBits. */
+function liveEntropy({ minBitsPerByte = 1.0, requireRct = true, minCreditedBits = 256 } = {}) {
+  const e = [null];
+  const h = fn.liveNew(minBitsPerByte, requireRct ? 1 : 0, minCreditedBits, e);
+  return new LiveEntropy(handleOut(h, e, 'live entropy'));
+}
+Rng.live = liveEntropy;
+
+/** The full SP 800-90B verdict for a file with every number behind it and a one-line-per-signal summary. */
+function assessFileHealthV2(path, maxBytes = 1 << 20, floorBitsPerByte = 1.0) {
+  const r = fn.assessFileHealth2(path, maxBytes, floorBitsPerByte);
+  throwIfErr(r);
+  return {
+    minEntropyPerByte: r.min_entropy_per_byte, mcvBitsPerByte: r.mcv_bits_per_byte, markovBitsPerByte: r.markov_bits_per_byte,
+    floorBitsPerByte: r.floor_bits_per_byte, sampleBytes: Number(r.sample_bytes), longestRun: Number(r.longest_run),
+    rctCutoff: Number(r.rct_cutoff), maxWindowCount: Number(r.max_window_count), aptCutoff: Number(r.apt_cutoff),
+    aptWindow: Number(r.apt_window), rctPassed: r.rct_passed === 1, aptPassed: r.apt_passed === 1, summary: takeStr(r.summary),
+    get healthy() { return this.rctPassed && this.aptPassed; },
+  };
+}
+/** Harvest like entropyFromFile (or the deterministic variant) under a policy: the file is refused below minBitsPerByte of min-entropy (0 accepts any file) and, with requireRct, when it fails the repetition-count test. */
+function entropyFromFileWithPolicy(path, { deterministic = false, minBitsPerByte = 1.0, requireRct = true } = {}) {
+  const e = [null];
+  const h = fn.entFromFilePolicy(path, deterministic ? 1 : 0, minBitsPerByte, requireRct ? 1 : 0, e);
+  return handleOut(h, e, 'entropy harvest');
+}
+
+/*
+ * Keyring hardware slots: a platform key module (Secure Enclave, Android
+ * Keystore, a TPM, an HSM) wraps the slot's 32-byte factor; the keyring never
+ * sees the module key. Add: keyringAddHardwareSlot returns the factor for the
+ * module to wrap, keyringSetHardwareBlob stores the wrapped result. Unlock:
+ * keyringHardwareSlot gives the blob back, the module unwraps it, and
+ * keyringUnlockWithHardware takes the factor. Envelopes with a hardware slot
+ * carry version 2.
+ */
+const KeyringSlotType = Object.freeze({ passphrase: 0, device: 1, hardware: 2 });
+function keyringAddHardwareSlot(kr, keyId) { return consume(fn.krAddHw(kr, u8(keyId), u8(keyId).length)); }
+function keyringSetHardwareBlob(kr, index, blob) { return fn.krSetHwBlob(kr, index, u8(blob), u8(blob).length) === 1; }
+/** Slot type at `index`: 0 passphrase, 1 device, 2 hardware; -1 for a bad index. */
+function keyringSlotType(kr, index) { return fn.krSlotType(kr, index); }
+/** Key id and module-wrapped factor of the hardware slot at `index`. */
+function keyringHardwareSlot(kr, index) {
+  const outId = {}; const outBlob = {};
+  if (fn.krHwSlot(kr, index, outId, outBlob) !== 1) throw new Error(`cipherbird: slot ${index} is not a hardware slot`);
+  return { keyId: takeOutBuf(outId), blob: takeOutBuf(outBlob) };
+}
+function keyringUnlockWithHardware(kr, index, factor) { return consume(fn.krUnlockHw(kr, index, u8(factor), u8(factor).length)); }
+
+/*
+ * FIPS profile: everything here runs inside the OpenSSL FIPS Provider when the
+ * engine was built with CRYPTOLIB_PROFILE=fips; otherwise Fips.available() is
+ * false and every call throws.
+ */
+const FipsHash = Object.freeze({ Sha256: 0, Sha384: 1, Sha512: 2, Sha3_256: 3 });
+const strOf = (p) => (p ? koffi.decode(p, 'char', -1) : '');
+
+/** A key envelope ("FKR1"): a 32-byte master secret wrapped by up to 16 passphrase (PBKDF2-SHA256) or key-factor (HKDF-SHA256) slots under AES-256-GCM. Adding a slot needs an unlocked envelope. close() when done. */
+class FipsEnvelope {
+  constructor(handle) { this._h = handle; }
+  /** Add a passphrase slot; iterations at least 1000. */
+  addPassphraseSlot(passphrase, iterations = 600000) {
+    checkOk(fn.fipsEnvAddPw(this._h, u8(passphrase), u8(passphrase).length, iterations), 'fips envelope add passphrase slot failed');
+  }
+  /** Add a key-factor slot; factor at least 32 bytes. */
+  addKeySlot(factor) { checkOk(fn.fipsEnvAddKey(this._h, u8(factor), u8(factor).length), 'fips envelope add key slot failed'); }
+  unlockWithPassphrase(passphrase) { return consume(fn.fipsEnvUnlockPw(this._h, u8(passphrase), u8(passphrase).length)); }
+  unlockWithKey(factor) { return consume(fn.fipsEnvUnlockKey(this._h, u8(factor), u8(factor).length)); }
+  removeSlot(index) { checkOk(fn.fipsEnvRemove(this._h, index), 'fips envelope remove slot failed'); }
+  get slotCount() { return Number(fn.fipsEnvCount(this._h)); }
+  /** The "FKR1" blob to store. */
+  serialise() { return consume(fn.fipsEnvSer(this._h)); }
+  close() { if (this._h) { fn.fipsEnvFree(this._h); this._h = null; } }
+}
+
+const Fips = {
+  Hash: FipsHash,
+  /** Whether the loaded engine is the fips profile. */
+  available: () => fn.fipsAvailable() === 1,
+  /** Load the validated module from moduleDir with the OpenSSL config at configFile, run its self tests and enter approved mode. Null falls back to CRYPTOLIB_FIPS_MODULE_DIR and CRYPTOLIB_FIPS_CONFIG. */
+  init({ moduleDir = null, configFile = null } = {}) { checkOk(fn.fipsInit(moduleDir, configFile), 'fips init failed'); },
+  /** The provider state in this process. */
+  status() {
+    const s = fn.fipsStatus();
+    const out = {
+      loaded: s.loaded === 1, selfTestsPassed: s.self_tests_passed === 1, approvedMode: s.approved_mode === 1,
+      providerName: strOf(s.provider_name), providerVersion: strOf(s.provider_version),
+      moduleDirectory: strOf(s.module_directory), configFile: strOf(s.config_file),
+    };
+    fn.fipsStatusFree(s);
+    return out;
+  },
+  digest: (hash, data) => consume(fn.fipsDigest(hash, u8(data), u8(data).length)),
+  /** HMAC of data under key (at least 14 bytes). */
+  hmac: (hash, key, data) => consume(fn.fipsHmac(hash, u8(key), u8(key).length, u8(data), u8(data).length)),
+  /** Constant-time HMAC check. */
+  hmacVerify: (hash, key, data, tag) => fn.fipsHmacVerify(hash, u8(key), u8(key).length, u8(data), u8(data).length, u8(tag), u8(tag).length) === 1,
+  /** HKDF extract-and-expand (SP 800-56C r2). */
+  hkdf: (hash, ikm, outLen = 32, { salt = null, info = null } = {}) =>
+    consume(fn.fipsHkdf(hash, u8(ikm), u8(ikm).length, optr(salt), olen(salt), optr(info), olen(info), outLen)),
+  /** PBKDF2 (SP 800-132): salt at least 16 bytes, iterations at least 1000, output at least 14 bytes. */
+  pbkdf2: (hash, password, salt, { iterations = 600000, outLen = 32 } = {}) =>
+    consume(fn.fipsPbkdf2(hash, u8(password), u8(password).length, u8(salt), u8(salt).length, iterations, outLen)),
+  /** Bytes from the module's CTR_DRBG. */
+  random: (n) => consume(fn.fipsRandom(n)),
+  /** AES-256-GCM with the IV built inside the module: wire = iv(12) | ciphertext | tag(16). */
+  aesGcmEncrypt: (key, plaintext, aad = null) =>
+    consume(fn.fipsAesGcmEnc(u8(key), u8(key).length, u8(plaintext), u8(plaintext).length, optr(aad), olen(aad))),
+  /** Decrypt a wire blob; any failure is "authentication failed". */
+  aesGcmDecrypt: (key, wire, aad = null) =>
+    consume(fn.fipsAesGcmDec(u8(key), u8(key).length, u8(wire), u8(wire).length, optr(aad), olen(aad))),
+  /** P-256: public key 65 bytes uncompressed, private key 32 bytes. */
+  p256Keygen: () => kp(fn.fipsP256Keygen()),
+  /** ECDH shared secret (32 bytes). */
+  p256Ecdh: (privateKey, peerPublic) => consume(fn.fipsP256Ecdh(u8(privateKey), u8(privateKey).length, u8(peerPublic), u8(peerPublic).length)),
+  /** ECDSA with SHA-256, DER signature. */
+  p256Sign: (privateKey, message) => consume(fn.fipsP256Sign(u8(privateKey), u8(privateKey).length, u8(message), u8(message).length)),
+  p256Verify: (publicKey, message, signature) =>
+    fn.fipsP256Verify(u8(publicKey), u8(publicKey).length, u8(message), u8(message).length, u8(signature), u8(signature).length) === 1,
+  /** The public point of a private scalar, computed by libcrypto outside the module boundary. */
+  p256PublicKey: (privateKey) => consume(fn.fipsP256Pub(u8(privateKey), u8(privateKey).length)),
+  /** One-shot HPKE base mode, DHKEM(P-256) + HKDF-SHA256 + AES-256-GCM. Returns { enc, ciphertext }. */
+  hpkeP256Seal(recipientPublic, plaintext, { info = null, aad = null } = {}) {
+    const encBox = {};
+    const ciphertext = consume(fn.fipsHpkeSeal(u8(recipientPublic), u8(recipientPublic).length, optr(info), olen(info),
+      optr(aad), olen(aad), u8(plaintext), u8(plaintext).length, encBox));
+    return { enc: takeOutBuf(encBox), ciphertext };
+  },
+  hpkeP256Open: (enc, recipientSecret, recipientPublic, ciphertext, { info = null, aad = null } = {}) =>
+    consume(fn.fipsHpkeOpen(u8(enc), u8(enc).length, u8(recipientSecret), u8(recipientSecret).length,
+      u8(recipientPublic), u8(recipientPublic).length, optr(info), olen(info), optr(aad), olen(aad), u8(ciphertext), u8(ciphertext).length)),
+  /** A fresh envelope with a module-generated master secret and no slots. */
+  envelopeCreate() { const e = [null]; return new FipsEnvelope(handleOut(fn.fipsEnvCreate(e), e, 'fips envelope create')); },
+  /** A stored envelope; unlock it before adding slots. */
+  envelopeDeserialise(blob) {
+    const e = [null];
+    return new FipsEnvelope(handleOut(fn.fipsEnvDeser(u8(blob), u8(blob).length, e), e, 'fips envelope deserialise'));
+  },
+};
 
 module.exports = {
   wipe, Secret,
@@ -1748,7 +2187,7 @@ module.exports = {
   Rng, Drbg, Fortuna, StegoAdvanced, Composed, FecScheme, MediaFormat, assessFileHealth,
   Blake3Hasher, blake3Hasher, Noise, noise,
   SecurityProfile, ProtectionLayer, CascadeLayer, XChaCha20Layer, Aes256GcmLayer, CommittingLayer, MolecularLayer,
-  KeySource, RawKeySource, PassphraseKeySource, KeyFileSource,
+  KeySource, RawKeySource, PassphraseKeySource, KeyFileSource, KeyBytesSource,
   SignatureScheme, Ed25519Signature, HybridSignature, SignatureAlgorithm, Recipe,
   /** Start a Recipe at the given profile's settings. */
   recipe(profile = SecurityProfile.balanced) { return new Recipe(module.exports, profile); },
@@ -1756,7 +2195,7 @@ module.exports = {
   maximumSecurity() { return new Recipe(module.exports, SecurityProfile.maximum); },
   preload,
   _warm,
-  init() { if (fn.init() !== 0) throw new Error('cryptolib init failed'); },
+  init() { if (fn.init() !== 0) throw new Error('cipherbird: init failed'); },
   version: () => fn.version(),
   randomBytes: (n) => consume(fn.random(n)),
 
@@ -1782,7 +2221,7 @@ module.exports = {
   x25519Keygen: () => kp(fn.xKeygen()),
   x25519SharedSecret: (sk, pk) => consume(fn.xShared(u8(sk), u8(sk).length, u8(pk), u8(pk).length)),
 
-  // Post-quantum
+  /* Post-quantum */
   mlKemKeygen: (level = 1) => kp(fn.kemKeygen(level)),
   mlKemEncapsulate(pk, level = 1) {
     const e = [null]; const r = fn.kemEncaps(u8(pk), u8(pk).length, level, e);
@@ -1792,7 +2231,7 @@ module.exports = {
   },
   mlKemDecapsulate: (ct, sk, level = 1) => consume(fn.kemDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length, level)),
 
-  // Hybrid X25519 + ML-KEM-768
+  /* Hybrid X25519 + ML-KEM-768 */
   hybridKemKeygen: () => kp(fn.hyKeygen()),
   hybridKemEncapsulate(pk) {
     const e = [null]; const r = fn.hyEncaps(u8(pk), u8(pk).length, e);
@@ -1802,7 +2241,7 @@ module.exports = {
   },
   hybridKemDecapsulate: (ct, sk) => consume(fn.hyDecaps(u8(ct), u8(ct).length, u8(sk), u8(sk).length)),
 
-  // X25519 + sntrup761 hybrid KEM (defense-in-diversity; NTRU Prime family).
+  /* X25519 + sntrup761 hybrid KEM (defense-in-diversity; NTRU Prime family). */
   sntrupX25519Keygen: () => kp(fn.snKeygen()),
   sntrupX25519Encapsulate(pk) {
     const e = [null]; const r = fn.snEncaps(u8(pk), u8(pk).length, e);
@@ -1816,7 +2255,7 @@ module.exports = {
   blsSign: (m, sk) => consume(fn.blsSign(u8(m), u8(m).length, u8(sk), u8(sk).length)),
   blsVerify: (m, sig, pk) => fn.blsVerify(u8(m), u8(m).length, u8(sig), u8(sig).length, u8(pk), u8(pk).length) === 1,
 
-  // Keyring
+  /* Keyring */
   keyringCreate: () => fn.krCreate(),
   keyringAddDeviceSlot: (kr, factor) => fn.krAddDev(kr, u8(factor), u8(factor).length) === 1,
   keyringAddPassphraseSlot: (kr, pw, kdf = 0) => withPassword(pw, (z) => fn.krAddPwZ(kr, z, kdf) === 1),
@@ -1828,7 +2267,7 @@ module.exports = {
   keyringRemoveSlot: (kr, index) => fn.krRemove(kr, index) === 1,
   keyringFree: (kr) => fn.krFree(kr),
 
-  // ── Hash / KDF extras ──
+  /* Hash / KDF extras */
   blake3Keyed: (m, key, len = 32) => consume(fn.blake3Keyed(u8(m), u8(m).length, u8(key), u8(key).length, len)),
   blake3DeriveKey: (ctx, ikm, len = 32) => consume(fn.blake3Derive(ctx, u8(ikm), u8(ikm).length, len)),
   hmacSha512: (m, key) => consume(fn.hmac512(u8(m), u8(m).length, u8(key), u8(key).length)),
@@ -1841,7 +2280,7 @@ module.exports = {
   hkdfExpand: (prk, info = null, len = 32) => consume(fn.hkdfExpand(u8(prk), u8(prk).length, info ? u8(info) : null, info ? u8(info).length : 0, len)),
   argon2idDerive: (pw, salt, keyLen = 32, ops = 2, mem = 67108864) => withPassword(pw, (z) => consume(fn.argonDeriveZ(z, u8(salt), u8(salt).length, keyLen, ops, mem))),
 
-  // ── Committing AEAD + streaming ──
+  /* Committing AEAD + streaming */
   committingEncrypt: (pt, key, aad = null) => consume(fn.cmtEnc(u8(pt), u8(pt).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   committingDecrypt: (ct, key, aad = null) => consume(fn.cmtDec(u8(ct), u8(ct).length, u8(key), u8(key).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   streamEncryptorCreate: (key) => fn.streamEncCreate(u8(key)),
@@ -1852,11 +2291,11 @@ module.exports = {
   streamDecPull(h, ct) { const tag = Buffer.alloc(1); const out = consume(fn.streamDecPull(h, u8(ct), u8(ct).length, tag)); return { plaintext: out, tag: tag[0] }; },
   streamDecFree: (h) => fn.streamDecFree(h),
 
-  // ── Asymmetric extras ──
+  /* Asymmetric extras */
   ed25519KeygenFromSeed: (seed) => kp(fn.edKeygenSeed(u8(seed), u8(seed).length)),
   secureEqual: (a, c) => fn.secureEqual(u8(a), u8(a).length, u8(c), u8(c).length) === 1,
 
-  // ── Post-quantum: SLH-DSA (level 0/1/2 = 128/192/256; hashFamily 0=SHA2,1=SHAKE) + hybrid sig ──
+  /* Post-quantum: SLH-DSA (level 0/1/2 = 128/192/256; hashFamily 0=SHA2,1=SHAKE) + hybrid sig */
   slhDsaKeygen: (level = 0, hashFamily = 0) => kp(fn.slhKeygen(level, hashFamily)),
   slhDsaSign: (m, sk, level = 0, hashFamily = 0) => consume(fn.slhSign(u8(m), u8(m).length, u8(sk), u8(sk).length, level, hashFamily)),
   slhDsaVerify: (m, sig, pk, level = 0, hashFamily = 0) => fn.slhVerify(u8(m), u8(m).length, u8(sig), u8(sig).length, u8(pk), u8(pk).length, level, hashFamily) === 1,
@@ -1864,12 +2303,12 @@ module.exports = {
   hybridSigSign: (m, sk) => consume(fn.hsSign(u8(m), u8(m).length, u8(sk), u8(sk).length)),
   hybridSigVerify: (m, sig, pk) => fn.hsVerify(u8(m), u8(m).length, u8(sig), u8(sig).length, u8(pk), u8(pk).length) === 1,
 
-  // ── BLS extras ──
+  /* BLS extras */
   blsKeygenFromIkm: (ikm) => kp(fn.blsKeygenIkm(u8(ikm), u8(ikm).length)),
   blsAggregate(sigs) { const arr = sigs.map(u8); return consume(fn.blsAgg(arr, arr.map((s) => s.length), arr.length)); },
   blsAggregateVerify(msgs, pks, agg) { const m = msgs.map(u8), p = pks.map(u8); return fn.blsAggVerify(m, m.map((x) => x.length), p, p.map((x) => x.length), m.length, u8(agg), u8(agg).length) === 1; },
 
-  // ── Vault + packet serialisation ──
+  /* Vault + packet serialisation */
   vaultCreate: (masterKey, kdf = 0) => fn.vCreate(u8(masterKey), u8(masterKey).length, kdf),
   vaultFromEntropy: (h, kdf = 0) => fn.vFromEntropy(h, kdf),
   vaultPublicKey: (v) => consume(fn.vPubKey(v)),
@@ -1881,12 +2320,12 @@ module.exports = {
   packetSerialise: (pkt) => consume(fn.pktSer(pktTo(pkt))),
   packetDeserialise(data) { const e = [null]; const p = fn.pktDeser(u8(data), u8(data).length, e); outErr(e); return pktFrom(p); },
 
-  // ── Asymmetric vault ──
+  /* Asymmetric vault */
   asymBundleGenerate: () => bundle(fn.asymBundleGen()),
   asymVaultSeal(sender, recipientBoxPub, pt, aad = '') { const e = [null]; const p = fn.asymVSeal(bundleToC(sender), u8(recipientBoxPub), u8(recipientBoxPub).length, u8(pt), u8(pt).length, aad, e); outErr(e); return pktFrom(p); },
   asymVaultOpen: (pkt, recipient, senderSignPub, aad = '') => consume(fn.asymVOpen(pktTo(pkt), bundleToC(recipient), u8(senderSignPub), u8(senderSignPub).length, aad)),
 
-  // ── Media entropy ──
+  /* Media entropy */
   entropyFromFile(p) { const e = [null]; const h = fn.entFromFile(p, e); outErr(e); return h; },
   entropyFromFileDeterministic(p) { const e = [null]; const h = fn.entFromFileDet(p, e); outErr(e); return h; },
   entropyFromFiles(paths) { const e = [null]; const h = fn.entFromFiles(paths, paths.length, e); outErr(e); return h; },
@@ -1903,7 +2342,7 @@ module.exports = {
   sealFromFile(p, plaintext, aad = '') { const e = [null]; const pkt = fn.sealFromFile(p, plaintext, aad, e); outErr(e); return pktFrom(pkt); },
   openFromFile: (p, pkt, aad = '') => consume(fn.openFromFile(p, pktTo(pkt), aad)),
 
-  // ── EVM / Bitcoin interop ──
+  /* EVM / Bitcoin interop */
   keccak256: (m) => consume(fn.keccak(u8(m), u8(m).length)),
   ripemd160: (m) => consume(fn.ripemd(u8(m), u8(m).length)),
   secp256k1Keygen: () => kp(fn.secpKeygen()),
@@ -1912,38 +2351,40 @@ module.exports = {
   secp256k1Verify: (digest32, sig, pk) => fn.secpVerify(u8(digest32), u8(sig), u8(sig).length, u8(pk), u8(pk).length) === 1,
   secp256k1Recover: (digest32, sig65) => consume(fn.secpRecover(u8(digest32), u8(sig65))),
 
-  // ── Steganography ──
+  /* Steganography */
   stegoEmbed(coverPath, payload, outputPath) { const r = fn.stegoEmbed(coverPath, u8(payload), u8(payload).length, outputPath); if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char', -1) : 'stego embed failed'; if (r.error) fn.strFree(r.error); throw new Error(m); } },
   stegoExtract: (stegoPath) => consume(fn.stegoExtract(stegoPath)),
   stegoCapacity: (coverPath) => Number(fn.stegoCapacity(coverPath)),
 
-  // ── MolecularVault — max-assurance layered encryption ──
+  /* MolecularVault: max-assurance layered encryption */
   molecularSeal: (pt, passphrase, aad = null, ops = 0, mem = 0) => withPassword(passphrase, (z) => consume(fn.molSealZ(u8(pt), u8(pt).length, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0, ops, mem))),
   molecularOpen: (env, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.molOpenZ(u8(env), u8(env).length, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
   molecularSealWithKey: (pt, masterKey, aad = null) => consume(fn.molSealKey(u8(pt), u8(pt).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   molecularOpenWithKey: (env, masterKey, aad = null) => consume(fn.molOpenKey(u8(env), u8(env).length, u8(masterKey), u8(masterKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
 
-  // ── Suite — one-call advanced combinations (needs OpenSSL + PQ) ──
-  // Post-quantum message: hybrid X25519+ML-KEM-768 → MolecularVault.
+  /*
+   * Suite: one-call advanced combinations (needs OpenSSL + PQ)
+   * Post-quantum message: hybrid X25519+ML-KEM-768 -> MolecularVault.
+   */
   suiteSealPq: (pt, recipientKemPublic, aad = null) => consume(fn.suiteSealPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  // sntrup761 hybrid variant; suiteOpenPq auto-detects the KEM from the envelope.
+  /* sntrup761 hybrid variant; suiteOpenPq auto-detects the KEM from the envelope. */
   suiteSealPqSntrup: (pt, recipientKemPublic, aad = null) => consume(fn.suiteSealPqSntrup(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenPq: (env, recipientKemSecret, aad = null) => consume(fn.suiteOpenPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  // Flagship: PQ confidentiality + PQ signature authenticity (verified auth-first).
+  /* Flagship: PQ confidentiality + PQ signature authenticity (verified auth-first). */
   suiteSealSignedPq: (pt, recipientKemPublic, signerSigSecret, aad = null) => consume(fn.suiteSealSignedPq(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigSecret), u8(signerSigSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteSealSignedPqSntrup: (pt, recipientKemPublic, signerSigSecret, aad = null) => consume(fn.suiteSealSignedPqSntrup(u8(pt), u8(pt).length, u8(recipientKemPublic), u8(recipientKemPublic).length, u8(signerSigSecret), u8(signerSigSecret).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenSignedPq: (env, recipientKemSecret, signerSigPublic, aad = null) => consume(fn.suiteOpenSignedPq(u8(env), u8(env).length, u8(recipientKemSecret), u8(recipientKemSecret).length, u8(signerSigPublic), u8(signerSigPublic).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  // File-as-key: deterministic media entropy from `path` derives the master.
+  /* File-as-key: deterministic media entropy from `path` derives the master. */
   suiteSealWithFile: (pt, path, aad = null) => consume(fn.suiteSealWithFile(u8(pt), u8(pt).length, path, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenWithFile: (env, path, aad = null) => consume(fn.suiteOpenWithFile(u8(env), u8(env).length, path, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
-  // Keyring-guarded (kr from keyringCreate()/keyringDeserialise()).
+  /* Keyring-guarded (kr from keyringCreate()/keyringDeserialise()). */
   suiteSealWithKeyringDevice: (pt, kr, factorKey, aad = null) => consume(fn.suiteSealKrDev(u8(pt), u8(pt).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteOpenWithKeyringDevice: (env, kr, factorKey, aad = null) => consume(fn.suiteOpenKrDev(u8(env), u8(env).length, kr, u8(factorKey), u8(factorKey).length, aad ? u8(aad) : null, aad ? u8(aad).length : 0)),
   suiteSealWithKeyringPassphrase: (pt, kr, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.suiteSealKrPwZ(u8(pt), u8(pt).length, kr, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
   suiteOpenWithKeyringPassphrase: (env, kr, passphrase, aad = null) => withPassword(passphrase, (z) => consume(fn.suiteOpenKrPwZ(u8(env), u8(env).length, kr, z, aad ? u8(aad) : null, aad ? u8(aad).length : 0))),
-  // EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key.
+  /* EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key. */
   suiteEvmAddress: (secp256k1PublicKey) => consume(fn.suiteEvmAddr(u8(secp256k1PublicKey), u8(secp256k1PublicKey).length)),
-  // Threshold (k-of-n): returns { envelope, shares:[record,...] }; open with any k.
+  /* Threshold (k-of-n): returns { envelope, shares:[record,...] }; open with any k. */
   suiteSealThreshold(pt, n, k, aad = null) {
     const outShares = {};
     const env = consume(fn.suiteSealThr(u8(pt), u8(pt).length, n, k, aad ? u8(aad) : null, aad ? u8(aad).length : 0, outShares));
@@ -1957,6 +2398,67 @@ module.exports = {
     return consume(fn.suiteOpenThr(u8(env), u8(env).length, blob, blob.length, aad ? u8(aad) : null, aad ? u8(aad).length : 0));
   },
 
-  // Escape hatch for advanced/raw use.
+  /* Box and sealed box (X25519 + XSalsa20-Poly1305). */
+  boxKeygen: () => kp(fn.boxKeygen()),
+  boxEncrypt: (pt, recipientPub, senderSec) => consume(fn.boxEnc(u8(pt), u8(pt).length, u8(recipientPub), u8(recipientPub).length, u8(senderSec), u8(senderSec).length)),
+  boxDecrypt: (ct, senderPub, recipientSec) => consume(fn.boxDec(u8(ct), u8(ct).length, u8(senderPub), u8(senderPub).length, u8(recipientSec), u8(recipientSec).length)),
+  sealedboxEncrypt: (pt, recipientPub) => consume(fn.sealEnc(u8(pt), u8(pt).length, u8(recipientPub), u8(recipientPub).length)),
+  sealedboxDecrypt: (ct, recipientPub, recipientSec) => consume(fn.sealDec(u8(ct), u8(ct).length, u8(recipientPub), u8(recipientPub).length, u8(recipientSec), u8(recipientSec).length)),
+
+  /* ML-DSA (FIPS 204); level 0=44, 1=65, 2=87. */
+  mlDsaKeygen: (level = 1) => kp(fn.dsaKeygen(level)),
+  mlDsaSign: (m, sk, level = 1) => consume(fn.dsaSign(u8(m), u8(m).length, u8(sk), u8(sk).length, level)),
+  mlDsaVerify: (m, sig, pk, level = 1) => fn.dsaVerify(u8(m), u8(m).length, u8(sig), u8(sig).length, u8(pk), u8(pk).length, level) === 1,
+
+  /* SecretStream on a list of chunks: the last chunk carries the FINAL tag. */
+  streamEncrypt(key, chunks) {
+    const h = fn.streamEncCreate(u8(key));
+    if (!h) throw new Error('cipherbird: stream encryptor create failed');
+    try {
+      const header = consume(fn.streamEncHeader(h));
+      const out = chunks.map((c, i) => consume(fn.streamEncPush(h, u8(c), u8(c).length, i === chunks.length - 1 ? 3 : 0)));
+      return { header, chunks: out };
+    } finally { fn.streamEncFree(h); }
+  },
+  streamDecrypt(key, header, chunks) {
+    const h = fn.streamDecCreate(u8(key), u8(header));
+    if (!h) throw new Error('cipherbird: stream decryptor create failed');
+    try {
+      return chunks.map((c) => { const tag = Buffer.alloc(1); return consume(fn.streamDecPull(h, u8(c), u8(c).length, tag)); });
+    } finally { fn.streamDecFree(h); }
+  },
+
+  /* X-Wing, Suite v2, Session v2, live entropy, policy and health, hardware slots, FIPS. */
+  XWing, HpkeKem, Suite2Id, Session2, LiveEntropy, liveEntropy, KeyringSlotType, Fips, FipsHash, FipsEnvelope,
+  xwingKeygen: XWing.keygen, xwingKeypairFromSeed: XWing.keypairFromSeed,
+  xwingEncapsulate: XWing.encapsulate, xwingDecapsulate: XWing.decapsulate,
+  hpkeKemAvailable: Hpke.kemAvailable, hpkeKeygenKem: Hpke.keygenKem, hpkeDeriveKeypairKem: Hpke.deriveKeyPairKem,
+  hpkeSetupSKem: Hpke.setupSKem, hpkeSetupRKem: Hpke.setupRKem,
+  suite2Seal, suite2Open, suite2SuiteOf,
+  generateSession2Prekey: Session2.generatePrekey, verifySession2Prekey: Session2.verifyPrekey,
+  claimedSession2Initiator: Session2.claimedInitiator, initiateSession2: Session2.initiate, acceptSession2: Session2.accept,
+  generateSessionPrekey: Session.generatePrekey, initiateSession: Session.initiate, acceptSession: Session.accept,
+  entropyFromFileWithPolicy,
+  keyringAddHardwareSlot, keyringSetHardwareBlob, keyringSlotType, keyringHardwareSlot, keyringUnlockWithHardware,
+  fipsAvailable: Fips.available, fipsInit: Fips.init, fipsStatus: Fips.status, fipsDigest: Fips.digest, fipsHmac: Fips.hmac,
+  fipsHmacVerify: Fips.hmacVerify, fipsHkdf: Fips.hkdf, fipsPbkdf2: Fips.pbkdf2, fipsRandom: Fips.random,
+  fipsAesGcmEncrypt: Fips.aesGcmEncrypt, fipsAesGcmDecrypt: Fips.aesGcmDecrypt, fipsP256Keygen: Fips.p256Keygen,
+  fipsP256Ecdh: Fips.p256Ecdh, fipsP256Sign: Fips.p256Sign, fipsP256Verify: Fips.p256Verify, fipsP256PublicKey: Fips.p256PublicKey,
+  fipsHpkeP256Seal: Fips.hpkeP256Seal, fipsHpkeP256Open: Fips.hpkeP256Open,
+  fipsEnvelopeCreate: Fips.envelopeCreate, fipsEnvelopeDeserialise: Fips.envelopeDeserialise,
+
+  /* Escape hatch for advanced/raw use. */
   _fn: fn,
 };
+
+/*
+ * The layers the Dart packages add on top of the flat API: the media methods
+ * on bytes, the domain namespaces, easy mode and the worker-thread runner.
+ * Each receives the API object and returns the members it contributes.
+ */
+const { MediaScratch } = require('./lib/scratch');
+Object.assign(module.exports, require('./lib/bytes')(module.exports));
+Object.assign(module.exports, require('./lib/namespaces')(module.exports));
+Object.assign(module.exports, require('./lib/easy')(module.exports));
+Object.assign(module.exports, require('./lib/async')(module.exports));
+module.exports.MediaScratch = MediaScratch;

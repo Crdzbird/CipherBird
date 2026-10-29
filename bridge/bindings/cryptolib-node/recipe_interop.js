@@ -1,10 +1,12 @@
-// Cross-language Recipe interop: seal a fixed set of configurations to a
-// directory, or open and verify them.
-//   node recipe_interop.js seal|open <dir>
+/*
+ * Cross-language Recipe interop: seal a fixed set of configurations to a
+ * directory, or open and verify them.
+ * node recipe_interop.js seal|open <dir>
+ */
 const fs = require('fs');
 const c = require('./index.js');
 
-// Fixed inputs so every language derives identical keys.
+/* Fixed inputs so every language derives identical keys. */
 const KEY_HEX = '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
 const SK_HEX = 'd463cb8e5a1b8f2e6c4a90f37d215e08b9c6a4713f2085dcae6b19347c50f2a6';
 const PASSPHRASE = 'interop passphrase';

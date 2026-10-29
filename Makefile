@@ -208,6 +208,13 @@ node-security: lib
 		CRYPTOLIB_DYLIB=$(DYLIB) node test/extensibility.js | tail -1; \
 	else echo "node not found — skipping"; fi
 
+.PHONY: node-test
+node-test: lib
+	$(call hdr,Node full suite (npm test))
+	@if command -v node >/dev/null 2>&1; then \
+		cd bridge/bindings/cryptolib-node && CIPHERBIRD_LIBRARY=$(DYLIB) npm test | tail -3; \
+	else echo "node not found, skipping"; fi
+
 .PHONY: node-noise
 node-noise: lib
 	$(call hdr,Node incremental BLAKE3 + Noise XX)

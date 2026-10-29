@@ -15,7 +15,7 @@ run with your own accounts/credentials.
 | Ecosystem | Package | How it auto-loads | Local verification |
 |---|---|---|---|
 | **Flutter** | `bridge/bindings/cipherbird` | xcframework via podspec (iOS/macOS), `.so` in `jniLibs` (Android); loader picks `process()`/soname | ✅ Pixel 7 + iOS sim |
-| **Node** | `bridge/bindings/cryptolib-node` | binary in `prebuilds/<plat>-<arch>/`, resolved relative to package | ✅ `npm test` |
+| **Node** | `bridge/bindings/cryptolib-node` | `libcipherbird` in `prebuilds/<plat>-<arch>/` (committed), resolved relative to package | `npm test` |
 | **JVM** (Java/Kotlin) | `bridge/bindings/cryptolib-jvm` | binary in JAR under `/native/<os>-<arch>/`, extracted to temp + `SymbolLookup` | ✅ `java -jar` |
 | **Swift** (SPM) | `bridge/bindings/swift` | `binaryTarget` xcframework (SPM embeds automatically) | ✅ macOS slice links + runs |
 | **.NET** | `bridge/bindings/cryptolib-dotnet` | binary under `runtimes/<rid>/native/` (NuGet auto-probes) + `DllImportResolver` | ✅ `dotnet run` |
@@ -105,8 +105,9 @@ README).
   (`scripts/verify_pub_consumer.sh`) installs the exact archive as a hosted
   package in a fresh app and runs the package's 79-test suite on that device;
   run it for macOS, an iOS simulator and an Android device.
-- **npm:** `cd bridge/bindings/cryptolib-node && npm publish --access public`.
-  Requires `npm login`. Consider scoping as `@yourorg/cryptolib`.
+- **npm:** the package is `cipherbird`. `cd bridge/bindings/cryptolib-node && npm test && npm publish --access public`.
+  Requires `npm login` (and the one-time password when two-factor publishing is on).
+  Published versions: 1.3.0.
 - **Maven Central (JVM):** wrap `cryptolib-jvm` in a Gradle/Maven build, then
   publish to Sonatype Central with GPG-signed artifacts (`./gradlew publish`).
   Requires a Sonatype namespace + signing key.

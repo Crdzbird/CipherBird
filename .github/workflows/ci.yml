@@ -221,6 +221,14 @@ jobs:
       - name: Go binding
         working-directory: bridge/bindings/go
         run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cryptolib/
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: cipherbird (Node) suite
+        working-directory: bridge/bindings/cryptolib-node
+        run: |
+          npm ci
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" npm test
 
   web:
     runs-on: ubuntu-latest
