@@ -118,6 +118,30 @@ std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
     return aad ? sp(aad, len) : std::span<const uint8_t>{};
 }
 
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+using PasetoV4 = crypto::paseto::V4Local;
+
+int paseto_rc(PasetoV4::Status s) noexcept {
+    switch (s) {
+        case PasetoV4::Status::ok:       return CRYPTOLIB_PASETO_OK;
+        case PasetoV4::Status::invalid:  return CRYPTOLIB_PASETO_ERR_INVALID;
+        case PasetoV4::Status::argument: return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+        case PasetoV4::Status::internal: return CRYPTOLIB_PASETO_ERR_INTERNAL;
+    }
+    return CRYPTOLIB_PASETO_ERR_INTERNAL;
+}
+
+bool paseto_bad(const void* p, size_t n) noexcept { return p == nullptr && n != 0; }
+
+std::span<const uint8_t> paseto_in(const uint8_t* p, size_t n) noexcept {
+    return n ? std::span<const uint8_t>(p, n) : std::span<const uint8_t>{};
+}
+
+std::span<uint8_t> paseto_out(uint8_t* p, size_t n) noexcept {
+    return n ? std::span<uint8_t>(p, n) : std::span<uint8_t>{};
+}
+#endif
+
 /** Build a SecureBuffer from a borrowed CryptoBuffer, tolerating null data. */
 crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
     if (!cb.data || cb.len == 0) return crypto::SecureBuffer{};
@@ -145,6 +169,7 @@ crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
 #define CL_FAIL_INFO   catch (...) { return CryptoEntropyInfo{nullptr, 0, 0, 0.0}; }
 #define CL_FAIL_RESULT catch (...) { return CryptoResult{0, dup_err_cstr("internal error")}; }
 #define CL_FAIL_SIZE   catch (...) { return 0; }
+#define CL_FAIL_PASETO catch (...) { if (out_len) *out_len = 0; return CRYPTOLIB_PASETO_ERR_INTERNAL; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Opaque handle internals
@@ -319,6 +344,26 @@ CRYPTO_API CryptoBufferResult cryptolib_blake2b(const uint8_t* msg, size_t msg_l
     return out;
 } CL_FAIL_BUFRES
 
+CRYPTO_API CryptoBufferResult cryptolib_blake2b_keyed(const uint8_t* msg, size_t msg_len,
+                                                       const uint8_t* key, size_t key_len,
+                                                       size_t out_len) try {
+    using B = crypto::hash::Blake2b;
+    if (out_len < B::OUT_BYTES_MIN || out_len > B::OUT_BYTES_MAX)
+        return err_buf("Blake2b: invalid output length");
+    if (key_len != 0 && (key_len < B::KEY_BYTES_MIN || key_len > B::KEY_BYTES_MAX))
+        return err_buf("Blake2b: invalid key length");
+    if ((!msg && msg_len != 0) || (!key && key_len != 0))
+        return err_buf("Blake2b: null input");
+    auto out = digest_buf(out_len);
+    if (out.error) return out;
+    if (crypto_generichash(out.buf.data, out_len, msg_len ? msg : nullptr, msg_len,
+                           key_len ? key : nullptr, key_len) != 0) {
+        cryptolib_buffer_free(&out.buf);
+        return err_buf("Blake2b: hashing failed");
+    }
+    return out;
+} CL_FAIL_BUFRES
+
 CRYPTO_API CryptoBufferResult cryptolib_sha256(const uint8_t* msg, size_t msg_len) try {
     auto out = digest_buf(crypto::hash::Sha256::DIGEST_BYTES);
     if (out.error) return out;
@@ -409,6 +454,76 @@ CRYPTO_API CryptoBufferResult cryptolib_xchacha20_decrypt(
     if (r.is_err()) return err_buf(r.error().message);
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
+
+CRYPTO_API size_t cryptolib_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return PasetoV4::token_len(msg_len, footer_len);
+}
+
+CRYPTO_API size_t cryptolib_paseto_v4_local_decrypt_cap(size_t token_len) {
+    return PasetoV4::open_capacity(token_len);
+}
+
+CRYPTO_API int cryptolib_paseto_v4_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || paseto_bad(msg, msg_len) || paseto_bad(footer, footer_len) ||
+        paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = PasetoV4::seal(paseto_out(out, out_cap), n, paseto_in(key, key_len),
+                                  paseto_in(msg, msg_len), paseto_in(footer, footer_len),
+                                  paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return paseto_rc(s);
+} CL_FAIL_PASETO
+
+CRYPTO_API int cryptolib_paseto_v4_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
+        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = PasetoV4::open(paseto_out(out, out_cap), n, paseto_in(token, token_len),
+                                  paseto_in(key, key_len),
+                                  paseto_in(expected_footer, expected_footer_len),
+                                  paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return paseto_rc(s);
+} CL_FAIL_PASETO
+
+#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+CRYPTO_API int cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || !nonce || paseto_bad(msg, msg_len) ||
+        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = PasetoV4::seal_with_nonce_for_testing(
+        paseto_out(out, out_cap), n, paseto_in(key, key_len), paseto_in(msg, msg_len),
+        paseto_in(footer, footer_len), paseto_in(implicit, implicit_len),
+        paseto_in(nonce, nonce_len));
+    *out_len = n;
+    return paseto_rc(s);
+} CL_FAIL_PASETO
+#endif
 
 CRYPTO_API CryptoBufferResult cryptolib_committing_encrypt(
     const uint8_t* plaintext, size_t pt_len,

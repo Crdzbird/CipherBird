@@ -122,6 +122,7 @@
 #include "ripemd160.hpp"         // → RIPEMD-160 (Bitcoin HASH160)
 #include "secp256k1.hpp"         // → secp256k1 ECDSA (EVM/BTC; guarded by CRYPTOLIB_HAS_SECP256K1)
 #include "symmetric.hpp"
+#include "paseto.hpp"
 #include "committing.hpp"        // → key/context-committing AEAD (UtC)
 #include "aead_siv.hpp"          // → AES-256-GCM-SIV nonce-misuse-resistant AEAD (OpenSSL)
 #include "asymmetric.hpp"

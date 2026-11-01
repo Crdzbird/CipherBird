@@ -14,6 +14,8 @@
 void run_tests_types();
 void run_tests_hash();
 void run_tests_symmetric();
+void run_tests_paseto_primitives();
+void run_tests_paseto_v4();
 void run_tests_committing();
 void run_tests_aead_siv();
 void run_tests_asymmetric();
@@ -88,6 +90,12 @@ int main() {
 #endif
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("symmetric",      run_tests_symmetric);
+#endif
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+    run_suite("paseto_primitives", run_tests_paseto_primitives);
+#endif
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+    run_suite("paseto_v4",      run_tests_paseto_v4);
 #endif
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("committing_aead", run_tests_committing);

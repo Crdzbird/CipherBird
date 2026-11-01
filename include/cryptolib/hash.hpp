@@ -68,6 +68,30 @@ public:
         return Result<SecureBuffer>::ok(std::move(out));
     }
 
+    static constexpr std::size_t OUT_BYTES_MIN = 1;
+    static constexpr std::size_t OUT_BYTES_MAX = crypto_generichash_BYTES_MAX;
+    static constexpr std::size_t KEY_BYTES_MIN = crypto_generichash_KEYBYTES_MIN;
+    static constexpr std::size_t KEY_BYTES_MAX = crypto_generichash_KEYBYTES_MAX;
+
+    /// BLAKE2b computed natively at out_len bytes (the output length is a
+    /// BLAKE2b parameter, so this is not a truncated 64-byte digest).
+    /// out_len must be 1 to 64. key must be empty (unkeyed) or 16 to 64
+    /// bytes. The output is returned in locked, wiped memory because with a
+    /// key it is a MAC or derived key material.
+    [[nodiscard]] static Result<SecureBuffer>
+    compute(std::span<const uint8_t> msg, std::span<const uint8_t> key,
+            std::size_t out_len) {
+        if (out_len < OUT_BYTES_MIN || out_len > OUT_BYTES_MAX)
+            return Result<SecureBuffer>::err("Blake2b: invalid output length");
+        if (!key.empty() && (key.size() < KEY_BYTES_MIN || key.size() > KEY_BYTES_MAX))
+            return Result<SecureBuffer>::err("Blake2b: invalid key length");
+        SecureBuffer out(out_len);
+        if (crypto_generichash(out.data(), out.size(), msg.data(), msg.size(),
+                               key.empty() ? nullptr : key.data(), key.size()) != 0)
+            return Result<SecureBuffer>::err("Blake2b: hashing failed");
+        return Result<SecureBuffer>::ok(std::move(out));
+    }
+
     // Streaming API — feed data in chunks
     class Stream {
     public:
