@@ -1,9 +1,9 @@
 # Proposed amendment to AUDIT_SCOPE.md: native PASETO v4.local
 
-Status: proposal. `docs/AUDIT_SCOPE.md` is not changed by this branch
-(`feat/paseto-v4-primitives`). If the amendment is accepted, a new revision
-of that document names the commit that introduces these functions, as its
-section 1 requires.
+Status: accepted. Revision 2 of `docs/AUDIT_SCOPE.md` names the commits
+(`e3887fb` for this proposal, `a64370c` for the follow-up that closed the
+open items and added the cb1 tokens, which stay out of the bank scope).
+The text below is the proposal as reviewed.
 
 ## 1. What is added
 

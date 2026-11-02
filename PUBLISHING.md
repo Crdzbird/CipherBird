@@ -54,7 +54,10 @@ and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads i
   are ignored on `main`); run `make bundle` then force-add them when tagging.
 
 `make bundle` is host-arch only; CI / `make ios` / `make android` fill the
-cross-platform matrix (§2).
+cross-platform matrix (section 2). `scripts/build_static_archive.sh` builds the
+full profile by default and the bank profile with `CRYPTOLIB_PROFILE=bank`
+(into `build/static-bank`); the Go binding links the bank library with
+`-tags cryptolib_bank`.
 
 ### 1. Self-contained binaries
 The bundled binary must statically link every dependency (libsodium, liboqs,

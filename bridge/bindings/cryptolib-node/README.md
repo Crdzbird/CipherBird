@@ -21,6 +21,7 @@ sealed here opens there.
 | Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
 | Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchets | composition of the primitives above |
 | Storage | vaults, MolecularVault, keyring with device, passphrase and hardware slots | |
+| Tokens | PASETO v4.local, cb1.local, cb1.public | v4.local byte for byte the specification; cb1 is CipherBird's own: BLAKE3 and the hybrid signature |
 | Media | media entropy with a live stream source, DRBG, Fortuna, steganography, forward error correction | |
 
 ## Install
@@ -105,6 +106,30 @@ const recipe = cipherbird.recipe('maximum')
   .withFec(cipherbird.FecScheme.hamming74);
 const envelope = recipe.seal(secret);
 ```
+
+## Tokens
+
+`pasetoV4LocalEncrypt` and `pasetoV4LocalDecrypt` are PASETO v4.local, byte
+for byte the PASETO specification and checked against its official vectors.
+`cb1LocalEncrypt`, `cb1LocalDecrypt`, `cb1PublicSign` and `cb1PublicVerify`
+are cb1, CipherBird's own tokens: the same shape with BLAKE3 in place of
+BLAKE2b and the Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519.
+The format is in the repository's `docs/CB1_TOKEN.md`; the pinned vectors
+are shared with the C++, Go and Dart suites.
+
+```js
+const token = cipherbird.cb1LocalEncrypt(key, claims, kid, audience);
+const back = cipherbird.cb1LocalDecrypt(token, key, kid, audience);
+const signer = cipherbird.hybridSigKeygen();
+const signed = cipherbird.cb1PublicSign(signer.secretKey, claims);
+const verified = cipherbird.cb1PublicVerify(signed, signer.publicKey);
+```
+
+Every token-dependent failure throws one "invalid token" error, so a caller
+cannot be used as an oracle; a key of the wrong length throws a RangeError.
+`Paseto`, `Cb1` and the `tokens` namespace carry the length helpers too, and
+every call runs on the worker through `cipherbird.async`. `blake2bKeyed`
+computes BLAKE2b at a chosen length and `blake2bKeyedInto` fills a buffer.
 
 ## Media on bytes
 

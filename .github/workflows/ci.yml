@@ -157,6 +157,11 @@ jobs:
           grep -q '_cryptolib_suite2_seal' build/bank/exports.txt
           grep -q '_cryptolib_session2_accept' build/bank/exports.txt
           echo "bank exports: $(wc -l < build/bank/exports.txt)"
+      - name: Go binding links and passes against the bank library
+        run: |
+          brew install go
+          cd bridge/bindings/go && CGO_LDFLAGS="-L$GITHUB_WORKSPACE/build/bank -Wl,-rpath,$GITHUB_WORKSPACE/build/bank" \
+            go test -count=1 -tags cryptolib_bank ./cryptolib/
 
   fips_profile:
     runs-on: macos-14

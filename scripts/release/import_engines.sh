@@ -20,6 +20,7 @@ cp -R "$WORK/apple/CipherBird.xcframework" "$P/macos/cipherbird/CipherBird.xcfra
 cp "$WORK/engine-web/cipherbird.js" "$WORK/engine-web/cipherbird.wasm" "$P/assets/"
 cp "$WORK/engine-web/cipherbird.js" "$WORK/engine-web/cipherbird.wasm" "$D/lib/assets/"
 cp "$WORK/engine-desktop/libcryptolib_c.dylib" "$D/native/darwin-arm64/libcipherbird.dylib"
+cp "$WORK/engine-desktop/libcryptolib_c.dylib" "$ROOT/bridge/bindings/cryptolib-node/prebuilds/darwin-arm64/libcipherbird.dylib"
 python3 "$ROOT/scripts/web/gen_integrity.py" "$P"
 bash "$ROOT/scripts/sync_dart_package.sh"
 bash "$ROOT/scripts/release/verify_attestations.sh"

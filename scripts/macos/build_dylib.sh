@@ -30,6 +30,6 @@ $(arch_clangxx "$SLICE" arm64) -std=c++20 -O2 -dynamiclib \
 EXTERNAL="$(otool -L "$OUT/libcryptolib_c.dylib" | tail -n +2 | grep -vE '/usr/lib/|/System/|@rpath/libcryptolib_c.dylib' || true)"
 [[ -z "$EXTERNAL" ]] || die "desktop dylib links external libraries: $EXTERNAL"
 SYMS="$(nm -gU "$OUT/libcryptolib_c.dylib" | grep -c ' T _cryptolib_')"
-HDR="$(grep -c '^CRYPTO_API' "$REPO_ROOT/bridge/cryptolib_c.h")"
+HDR="$(grep '^CRYPTO_API' "$REPO_ROOT/bridge/cryptolib_c.h" | grep -vc _for_testing)"
 [[ "$SYMS" == "$HDR" ]] || die "symbol count $SYMS does not match header $HDR"
 ok "Built $OUT/libcryptolib_c.dylib ($SYMS symbols, $(du -h "$OUT/libcryptolib_c.dylib" | cut -f1))"

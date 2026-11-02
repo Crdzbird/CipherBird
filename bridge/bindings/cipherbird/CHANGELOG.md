@@ -1,3 +1,21 @@
+## 1.4.0
+
+Tokens: PASETO v4.local and CipherBird's own cb1 tokens, plus keyed BLAKE2b.
+
+- `pasetoV4LocalEncrypt` and `pasetoV4LocalDecrypt`: PASETO v4.local, byte
+  for byte the specification, verified against the official vectors; the
+  whole construction runs in the engine in one call with a fresh nonce from
+  its CSPRNG, and the tag is checked in constant time before decryption.
+- `cb1LocalEncrypt`, `cb1LocalDecrypt`, `cb1PublicSign` and
+  `cb1PublicVerify`: cb1, the PASETO v4 shape on this library's primitives,
+  BLAKE3 for the key split and the tag, and the Ed25519 + ML-DSA-65 hybrid
+  signature for public tokens. Pinned vectors are shared with every binding;
+  the format is documented in the repository's `docs/CB1_TOKEN.md`.
+- `blake2bKeyed` and `blake2bKeyedInto`: BLAKE2b at a chosen output length.
+- `TokenStatus`, `TokenException` and the `tokens` facade.
+- The engine gains the same entry points on every platform, including the
+  WebAssembly engine.
+
 ## 1.3.0
 
 The web release: every file-based media method on bytes in the browser,

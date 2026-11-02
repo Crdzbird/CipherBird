@@ -34,7 +34,8 @@ profile compiles. Headers under `include/cryptolib/`:
 | Channels | `ratchet.hpp`, `session_v2.hpp`, `noise.hpp`, `hpke.hpp` | KEM ratchet, Session v2 authenticated handshake, Noise XX, HPKE (RFC 9180) with DHKEM(X25519), ML-KEM-768 and X-Wing |
 | Protocols | `frost.hpp`, `ecvrf.hpp`, `bbs.hpp`, `oprf.hpp`, `opaque.hpp`, `bls.hpp` | FROST (RFC 9591), ECVRF (RFC 9381), BBS, OPRF (RFC 9497), OPAQUE, BLS12-381 |
 | Entropy | `entropy_drbg.hpp`, `entropy_fortuna.hpp` | HMAC-DRBG, Fortuna |
-| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 320 functions in the full build, 270 in the bank build |
+| Tokens | `paseto.hpp` | PASETO v4.local (paseto-standard v4, official vectors vendored under `tests/vectors/paseto`), keyed BLAKE2b at a chosen length |
+| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 341 functions in the full build, 284 in the bank build |
 
 Priority for the reviewer, highest first:
 
@@ -55,7 +56,7 @@ Priority for the reviewer, highest first:
 
 - Steganography, media entropy and every library-native combiner
   (MolecularVault, the triple hybrids, sntrup761 + X25519, the legacy Suite
-  and Session, Flagship and Fortress). The bank profile compiles none of
+  and Session, Flagship and Fortress, the cb1 tokens of `docs/CB1_TOKEN.md`). The bank profile compiles none of
   them; they remain in the full profile for other users.
 - The vetted upstreams themselves: libsodium 1.0.22, liboqs 0.15.0, OpenSSL
   libcrypto, blst v0.3.17, BLAKE3, libsecp256k1. Their pins are in

@@ -1,6 +1,6 @@
 {
   "name": "cipherbird",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "CipherBird for Node.js: hashing, authenticated encryption, public-key cryptography, post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA, X-Wing), hybrid key agreement, sealed messaging, Noise, HPKE, OPAQUE, BBS, FROST, vaults, a keyring, media entropy and steganography from one bundled native engine. The same API as the cipherbird Dart packages.",
   "main": "index.js",
   "types": "index.d.ts",

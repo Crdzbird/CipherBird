@@ -71,6 +71,8 @@ define lets the await be dropped there too, see the package README. Each package
 | **High-level** | Vault (KDF to integrity to AEAD to signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
 | **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy, framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
 
+- **Tokens.** PASETO v4.local, byte for byte the specification, and cb1, CipherBird's own tokens on BLAKE3 and the Ed25519 + ML-DSA-65 hybrid signature (`docs/CB1_TOKEN.md`), in C++, Go, Node and both Dart packages.
+
 ### MolecularVault, maximum-assurance layered encryption
 
 Composition of vetted primitives (no new cryptography) that raises the

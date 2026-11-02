@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0
+
+- PASETO v4.local (`pasetoV4LocalEncrypt`, `pasetoV4LocalDecrypt`, `Paseto`),
+  byte for byte the specification and verified against the official vectors.
+- cb1, CipherBird's own tokens: `cb1LocalEncrypt`, `cb1LocalDecrypt`,
+  `cb1PublicSign`, `cb1PublicVerify` and `Cb1`; BLAKE3 and the Ed25519 +
+  ML-DSA-65 hybrid signature on the PASETO v4 shape. Pinned vectors shared
+  with every binding.
+- `blake2bKeyed` and `blake2bKeyedInto`; the `tokens` namespace; the
+  bundled engine carries the ten new entry points (341 shipped).
+
 ## 1.3.0
 
 The first npm release, at parity with the cipherbird Dart packages and the

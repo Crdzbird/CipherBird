@@ -22,6 +22,7 @@ API, with `CipherBird` as the entry point.
 | Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
 | Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchet | composition of the primitives above |
 | Storage | vaults, MolecularVault, keyring with device and passphrase slots | |
+| Tokens | PASETO v4.local, cb1.local, cb1.public | v4.local byte for byte the specification; cb1 is CipherBird's own: BLAKE3 and the hybrid signature |
 | Media | media entropy with a live stream source, DRBG, Fortuna, steganography, forward error correction | |
 
 ## Dart or Flutter?
@@ -528,3 +529,30 @@ Each takes a `runner`; the default is `CipherBirdIsolateRunner`, and
 `CipherBirdInlineRunner` keeps tests deterministic. Handles such as
 sessions and live sources belong to the engine that made them and stay on
 the calling thread.
+
+## Tokens
+
+`pasetoV4LocalEncrypt` and `pasetoV4LocalDecrypt` are PASETO v4.local, byte
+for byte the PASETO specification and checked against its official vectors;
+use them where another PASETO implementation reads the token. `cb1LocalEncrypt`,
+`cb1LocalDecrypt`, `cb1PublicSign` and `cb1PublicVerify` are cb1, CipherBird's
+own tokens: the same shape with BLAKE3 in place of BLAKE2b and, for public
+tokens, the Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519, so a
+signed token stays unforgeable while either half holds. The format is in
+`docs/CB1_TOKEN.md` of the repository. All six live on `lib.tokens` too.
+
+```dart
+final token = lib.cb1LocalEncrypt(key, claims, footer: kid, implicit: audience);
+final claimsBack = lib.cb1LocalDecrypt(token, key, expectedFooter: kid, implicit: audience);
+final signer = lib.hybridSigKeygen();
+final signed = lib.cb1PublicSign(signer.secretKey, claims);
+final verified = lib.cb1PublicVerify(signed, signer.publicKey);
+```
+
+Every token-dependent failure throws one `TokenException` with
+`TokenStatus.invalid`, so a caller cannot be used as an oracle; a key of the
+wrong length is `TokenStatus.argument`. `blake2bKeyed` computes BLAKE2b at a
+chosen length, unkeyed or keyed, and `blake2bKeyedInto` fills a buffer.
+cb1 is library-native and absent from the bank profile, where the calls
+report `TokenStatus.unavailable`; PASETO v4.local is in every profile but
+fips.
