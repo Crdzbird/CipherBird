@@ -10,6 +10,11 @@
   with every binding.
 - `blake2bKeyed` and `blake2bKeyedInto`; the `tokens` namespace; the
   bundled engine carries the ten new entry points (341 shipped).
+- Fixed: a JPEG whose scan declared no components, or a zero sampling
+  factor, spun the JSteg extractor forever; every MCU loop now stops when
+  an iteration consumes no bits. An AVI stream height of INT32_MIN no
+  longer negates a signed minimum. Both found by the scheduled fuzz
+  campaign; regression tests cover the three inputs.
 
 ## 1.3.0
 

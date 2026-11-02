@@ -154,7 +154,8 @@ private:
                                 if (ct == "strf" && cs >= 40 && pos + 20 <= data.size()) {
                                     hdr.width = le32(data.data()+pos+4);
                                     int32_t h_signed = static_cast<int32_t>(le32(data.data()+pos+8));
-                                    hdr.height = static_cast<uint32_t>(std::abs(h_signed));
+                                    hdr.height = h_signed < 0 ? 0u - static_cast<uint32_t>(h_signed)
+                                                              : static_cast<uint32_t>(h_signed);
                                     hdr.bpp = le16(data.data()+pos+14);
                                     uint32_t compression = le32(data.data()+pos+16);
                                     if (compression != 0)

@@ -383,6 +383,55 @@ TEST("stego-fuzz/png/idat-length-beyond-file-rejected-before-decode") {
     std::filesystem::remove(path);
 }
 
+// ── JPEG: a scan that consumes no bits per MCU must not spin forever ─────────
+TEST("stego-fuzz/jpeg/empty-scan-terminates") {
+    auto path = tmp_path("cstg_fuzz_empty_scan.jpg");
+    const uint8_t found[] = { 0xff, 0xd8, 0x75, 0x00, 0x2a, 0xff, 0xda, 0x00, 0x04, 0x00, 0x2a, 0x76, 0x69, 0xff, 0x60, 0x6c, 0x01, 0x00, 0x00, 0x00, 0xde, 0x00, 0x04, 0x04, 0x66, 0x00, 0x00, 0x00, 0x01, 0x50, 0x2f, 0x04, 0x4c, 0x49, 0x53, 0x54, 0xff, 0x00, 0x56, 0xff, 0xc4, 0x00, 0x04, 0x60, 0x30, 0x00, 0x01, 0x50, 0x2f, 0x04, 0xff, 0xfb, 0x00, 0x00, 0x08, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xee, 0xec, 0x01, 0x50, 0x2f, 0x04, 0xff, 0x00, 0x56, 0xff, 0xc4, 0x00, 0x04, 0x00, 0x56, 0x00, 0x04, 0x50, 0xff, 0x56, 0x00, 0x2f, 0x01, 0xff, 0xc4, 0x00, 0x04, 0xf3, 0x12, 0x0f, 0xff, 0xf3, 0x56, 0xff, 0xc4, 0x00, 0x04, 0xf3, 0x2e, 0x12, 0x00, 0x27};
+    write_bytes(path, std::vector<uint8_t>(found, found + sizeof found));
+    auto r = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(r.is_err());
+    std::filesystem::remove(path);
+}
+
+TEST("stego-fuzz/jpeg/zero-components-and-zero-sampling-rejected") {
+    auto path = tmp_path("cstg_fuzz_zero_scan.jpg");
+    std::vector<uint8_t> v = {0xFF, 0xD8,
+        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x08, 0x00, 0x08, 0x01, 0x01, 0x11, 0x00,
+        0xFF, 0xDA, 0x00, 0x06, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00};
+    write_bytes(path, v);
+    auto r = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(r.is_err());
+    CHECK(r.is_err() && r.error().message.find("no components") != std::string::npos);
+    v[12] = 0x01;
+    v[13] = 0x00;
+    v[19] = 0x01;
+    v[20] = 0x01;
+    v[21] = 0x00;
+    write_bytes(path, v);
+    auto z = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(z.is_err());
+    CHECK(z.is_err() && z.error().message.find("zero sampling") != std::string::npos);
+    std::filesystem::remove(path);
+}
+
+// ── AVI: a strf height of INT32_MIN must not negate a signed minimum ─────────
+TEST("stego-fuzz/avi/int-min-height-rejected") {
+    auto path = tmp_path("cstg_fuzz_intmin.avi");
+    std::vector<uint8_t> v;
+    auto tag = [&](const char* s){ for (int i=0;i<4;++i) v.push_back(uint8_t(s[i])); };
+    tag("RIFF"); put_u32_le(v, 0); tag("AVI ");
+    tag("LIST"); put_u32_le(v, 4 + 8 + 4 + 8 + 40); tag("hdrl");
+    tag("LIST"); put_u32_le(v, 4 + 8 + 40); tag("strl");
+    tag("strf"); put_u32_le(v, 40);
+    put_u32_le(v, 40); put_u32_le(v, 8); put_u32_le(v, 0x80000000u);
+    put_u16_le(v, 1); put_u16_le(v, 24); put_u32_le(v, 0);
+    for (int i = 0; i < 20; ++i) put_u32_le(v, 0);
+    write_bytes(path, v);
+    auto r = crypto::stego::AviSteganographer::extract(path);
+    CHECK(r.is_err());
+    std::filesystem::remove(path);
+}
+
 void run_tests_stego_fuzz() {
     RUN("stego-fuzz/png/idat-length-beyond-file-rejected-before-decode");
     RUN("stego-fuzz/wav/zero-channels-rejected");
@@ -401,6 +450,9 @@ void run_tests_stego_fuzz() {
     RUN("stego-fuzz/wav/oversized-data-chunk-rejected");
     RUN("stego-fuzz/avi/undersized-list-chunk-rejected");
     RUN("stego-fuzz/wav/bad-phase-params-rejected");
+    RUN("stego-fuzz/jpeg/empty-scan-terminates");
+    RUN("stego-fuzz/jpeg/zero-components-and-zero-sampling-rejected");
+    RUN("stego-fuzz/avi/int-min-height-rejected");
 }
 
 // ── CRVF: huge frame_count with tiny file must not over-allocate ─────────────

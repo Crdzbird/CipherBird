@@ -385,6 +385,8 @@ private:
                     info.sof_comps[i].h_samp     = (jpeg[cp + 1] >> 4) & 0x0F;
                     info.sof_comps[i].v_samp     = jpeg[cp + 1] & 0x0F;
                     info.sof_comps[i].quant_table = jpeg[cp + 2];
+                    if (info.sof_comps[i].h_samp == 0 || info.sof_comps[i].v_samp == 0)
+                        return Result<JpegScanInfo>::err("JPEG: zero sampling factor");
                     if (info.sof_comps[i].h_samp > info.max_h_samp)
                         info.max_h_samp = info.sof_comps[i].h_samp;
                     if (info.sof_comps[i].v_samp > info.max_v_samp)
@@ -430,6 +432,8 @@ private:
                     return Result<JpegScanInfo>::err("JPEG: malformed SOS segment");
                 info.num_scan_comps = jpeg[pos + 2];
                 if (info.num_scan_comps > 4) info.num_scan_comps = 4;
+                if (info.num_scan_comps == 0)
+                    return Result<JpegScanInfo>::err("JPEG: scan declares no components");
                 if (3 + info.num_scan_comps * 2 > length)
                     return Result<JpegScanInfo>::err("JPEG: SOS component list out of range");
                 for (int i = 0; i < info.num_scan_comps; ++i) {
@@ -503,14 +507,16 @@ private:
 
         std::size_t stream_bit = 0;
         std::size_t total_stream_bits = stream.size() * 8;
-        int mcu_count = 0;
+        std::size_t mcu_count = 0;
         int next_rst = 0; // expected restart marker index (0-7 cycling)
 
         bool done = false;
         while (!done) {
+            const std::size_t mcu_pos = br.pos;
+            const int mcu_bit = br.bit_pos;
             // Handle restart markers
             if (si.restart_interval > 0 && mcu_count > 0
-                && (mcu_count % si.restart_interval) == 0) {
+                && (mcu_count % static_cast<std::size_t>(si.restart_interval)) == 0) {
                 // Flush current byte in reader (align to byte boundary)
                 br.bit_pos = 0;
                 // Skip restart marker in input (0xFF 0xDn)
@@ -600,6 +606,7 @@ private:
                     }
                 }
             }
+            if (br.pos == mcu_pos && br.bit_pos == mcu_bit) done = true;
             mcu_count++;
         }
 
@@ -630,13 +637,15 @@ private:
 
         Bytes result(max_bytes, 0);
         std::size_t bit_idx = 0;
-        int mcu_count = 0;
+        std::size_t mcu_count = 0;
         bool done = false;
 
         while (!done && bit_idx < max_bytes * 8) {
+            const std::size_t mcu_pos = br.pos;
+            const int mcu_bit = br.bit_pos;
             // Handle restart markers
             if (si.restart_interval > 0 && mcu_count > 0
-                && (mcu_count % si.restart_interval) == 0) {
+                && (mcu_count % static_cast<std::size_t>(si.restart_interval)) == 0) {
                 br.bit_pos = 0;
                 while (br.pos < br.end) {
                     if (jpeg[br.pos] == 0xFF && br.pos + 1 < br.end
@@ -689,6 +698,7 @@ private:
                     }
                 }
             }
+            if (br.pos == mcu_pos && br.bit_pos == mcu_bit) done = true;
             mcu_count++;
         }
 
@@ -705,12 +715,14 @@ private:
         // Count usable coefficients by doing a dry-run extract
         BitReader br(jpeg.data(), si.scan_start, si.scan_end);
         std::size_t usable_bits = 0;
-        int mcu_count = 0;
+        std::size_t mcu_count = 0;
         bool done = false;
 
         while (!done) {
+            const std::size_t mcu_pos = br.pos;
+            const int mcu_bit = br.bit_pos;
             if (si.restart_interval > 0 && mcu_count > 0
-                && (mcu_count % si.restart_interval) == 0) {
+                && (mcu_count % static_cast<std::size_t>(si.restart_interval)) == 0) {
                 br.bit_pos = 0;
                 while (br.pos < br.end) {
                     if (jpeg[br.pos] == 0xFF && br.pos + 1 < br.end
@@ -746,6 +758,7 @@ private:
                     }
                 }
             }
+            if (br.pos == mcu_pos && br.bit_pos == mcu_bit) done = true;
             mcu_count++;
         }
 
