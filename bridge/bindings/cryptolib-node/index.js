@@ -461,6 +461,22 @@ function ensureLoaded() {
   fipsEnvFree: f('void cryptolib_fips_envelope_free(void*)'),
   fipsHpkeSeal: f('CryptoBufferResult cryptolib_fips_hpke_p256_seal(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, _Out_ CryptoBuffer*)'),
   fipsHpkeOpen: f('CryptoBufferResult cryptolib_fips_hpke_p256_open(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  /* Keyed BLAKE2b with a chosen output length, allocating and into a caller buffer. */
+  blake2bKeyed: f('CryptoBufferResult cryptolib_blake2b_keyed(uint8_t*, size_t, uint8_t*, size_t, size_t)'),
+  blake2bKeyedInto: f('int cryptolib_blake2b_keyed_into(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  /* PASETO v4.local and the cb1 tokens: one call each, into caller buffers. */
+  pasetoEncLen: f('size_t cryptolib_paseto_v4_local_encrypt_len(size_t, size_t)'),
+  pasetoDecCap: f('size_t cryptolib_paseto_v4_local_decrypt_cap(size_t)'),
+  pasetoEnc: f('int cryptolib_paseto_v4_local_encrypt(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  pasetoDec: f('int cryptolib_paseto_v4_local_decrypt(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  cb1LocalEncLen: f('size_t cryptolib_cb1_local_encrypt_len(size_t, size_t)'),
+  cb1LocalDecCap: f('size_t cryptolib_cb1_local_decrypt_cap(size_t)'),
+  cb1LocalEnc: f('int cryptolib_cb1_local_encrypt(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  cb1LocalDec: f('int cryptolib_cb1_local_decrypt(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  cb1PubSignLen: f('size_t cryptolib_cb1_public_sign_len(size_t, size_t)'),
+  cb1PubVerifyCap: f('size_t cryptolib_cb1_public_verify_cap(size_t)'),
+  cb1PubSign: f('int cryptolib_cb1_public_sign(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  cb1PubVerify: f('int cryptolib_cb1_public_verify(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   };
   return _native;
 }
@@ -2181,6 +2197,79 @@ const Fips = {
   },
 };
 
+
+/*
+ * Tokens: PASETO v4.local (the PASETO specification, byte for byte) and the
+ * cb1 tokens, CipherBird's own: cb1.local is v4.local with BLAKE3 in place
+ * of BLAKE2b, cb1.public is v4.public with the Ed25519 + ML-DSA-65 hybrid
+ * signature in place of Ed25519. Tokens are ASCII strings; messages, footers
+ * and implicit assertions are bytes. Every token-dependent failure throws
+ * one "invalid token" error, so a caller cannot be used as an oracle.
+ */
+const TokenStatus = Object.freeze({ ok: 0, invalid: -1, argument: -2, internal: -3, unavailable: -4 });
+function tokenError(rc, what) {
+  if (rc === TokenStatus.invalid) return new Error(`cipherbird: invalid ${what} token`);
+  if (rc === TokenStatus.argument) return new RangeError(`cipherbird: ${what} argument out of range`);
+  if (rc === TokenStatus.unavailable) return new Error(`cipherbird: ${what} is not available in this build profile`);
+  return new Error(`cipherbird: ${what} backend failure`);
+}
+function sealToken(lenFn, encFn, what, key, msg, footer, implicit) {
+  const n = Number(lenFn(olen(msg), olen(footer)));
+  if (n === 0) throw tokenError(TokenStatus.argument, what);
+  const out = Buffer.alloc(n);
+  const outLen = [0];
+  const rc = encFn(out, n, outLen, u8(key), u8(key).length, optr(msg), olen(msg), optr(footer), olen(footer), optr(implicit), olen(implicit));
+  if (rc !== TokenStatus.ok) throw tokenError(rc, what);
+  return out.subarray(0, Number(outLen[0])).toString('latin1');
+}
+function openToken(capFn, decFn, what, token, key, footer, implicit) {
+  const t = Buffer.from(String(token), 'latin1');
+  const cap = Number(capFn(t.length));
+  if (cap === 0) throw tokenError(TokenStatus.invalid, what);
+  const out = Buffer.alloc(cap);
+  const outLen = [0];
+  const rc = decFn(out, cap, outLen, t, t.length, u8(key), u8(key).length, optr(footer), olen(footer), optr(implicit), olen(implicit));
+  if (rc !== TokenStatus.ok) { out.fill(0); throw tokenError(rc, what); }
+  return Buffer.from(out.subarray(0, Number(outLen[0])));
+}
+
+/** PASETO v4.local, conformant to the PASETO v4 specification. */
+const Paseto = {
+  V4_LOCAL_KEY_BYTES: 32,
+  v4LocalEncryptLen: (msgLen, footerLen = 0) => Number(fn.pasetoEncLen(msgLen, footerLen)),
+  v4LocalDecryptCap: (tokenLen) => Number(fn.pasetoDecCap(tokenLen)),
+  /** Seal a message under a 32-byte key with a fresh nonce; the footer travels in clear and is authenticated, the implicit assertion is authenticated but never stored. */
+  v4LocalEncrypt: (key, message, footer = null, implicit = null) => sealToken(fn.pasetoEncLen, fn.pasetoEnc, 'PASETO v4.local', key, message, footer, implicit),
+  /** Open a token; expectedFooter and implicit must match exactly, and the tag is checked in constant time before anything is decrypted. */
+  v4LocalDecrypt: (token, key, expectedFooter = null, implicit = null) => openToken(fn.pasetoDecCap, fn.pasetoDec, 'PASETO v4.local', token, key, expectedFooter, implicit),
+};
+
+/** CipherBird tokens, version 1: the PASETO v4 shape on this library's primitives. */
+const Cb1 = {
+  LOCAL_KEY_BYTES: 32, PUBLIC_KEY_BYTES: 1984, SECRET_KEY_BYTES: 4096, SIGNATURE_BYTES: 3373,
+  localEncryptLen: (msgLen, footerLen = 0) => Number(fn.cb1LocalEncLen(msgLen, footerLen)),
+  localDecryptCap: (tokenLen) => Number(fn.cb1LocalDecCap(tokenLen)),
+  /** cb1.local: v4.local with BLAKE3; a 32-byte key. */
+  localEncrypt: (key, message, footer = null, implicit = null) => sealToken(fn.cb1LocalEncLen, fn.cb1LocalEnc, 'cb1.local', key, message, footer, implicit),
+  localDecrypt: (token, key, expectedFooter = null, implicit = null) => openToken(fn.cb1LocalDecCap, fn.cb1LocalDec, 'cb1.local', token, key, expectedFooter, implicit),
+  publicSignLen: (msgLen, footerLen = 0) => Number(fn.cb1PubSignLen(msgLen, footerLen)),
+  publicVerifyCap: (tokenLen) => Number(fn.cb1PubVerifyCap(tokenLen)),
+  /** cb1.public: v4.public with the Ed25519 + ML-DSA-65 hybrid signature; keys from hybridSigKeygen. */
+  publicSign: (secretKey, message, footer = null, implicit = null) => sealToken(fn.cb1PubSignLen, fn.cb1PubSign, 'cb1.public', secretKey, message, footer, implicit),
+  publicVerify: (token, publicKey, expectedFooter = null, implicit = null) => openToken(fn.cb1PubVerifyCap, fn.cb1PubVerify, 'cb1.public', token, publicKey, expectedFooter, implicit),
+};
+
+/** BLAKE2b computed natively at outLen bytes (1 to 64), unkeyed or with a 16 to 64 byte key. */
+function blake2bKeyed(msg, key = null, outLen = 32) {
+  return consume(fn.blake2bKeyed(optr(msg), olen(msg), optr(key), olen(key), outLen));
+}
+/** blake2bKeyed written into `out`, whose length selects the digest length; returns `out`. */
+function blake2bKeyedInto(out, msg, key = null) {
+  const rc = fn.blake2bKeyedInto(out, out.length, optr(msg), olen(msg), optr(key), olen(key));
+  if (rc !== TokenStatus.ok) throw tokenError(rc, 'BLAKE2b');
+  return out;
+}
+
 module.exports = {
   wipe, Secret,
   SealedTier, Identity, sealedInspect, sealedAddressedTo, Session, Frost, Hpke, Ecvrf, Bbs, Oprf, Opaque,
@@ -2446,6 +2535,12 @@ module.exports = {
   fipsP256Ecdh: Fips.p256Ecdh, fipsP256Sign: Fips.p256Sign, fipsP256Verify: Fips.p256Verify, fipsP256PublicKey: Fips.p256PublicKey,
   fipsHpkeP256Seal: Fips.hpkeP256Seal, fipsHpkeP256Open: Fips.hpkeP256Open,
   fipsEnvelopeCreate: Fips.envelopeCreate, fipsEnvelopeDeserialise: Fips.envelopeDeserialise,
+
+  /* Tokens: PASETO v4.local and the cb1 tokens; keyed BLAKE2b. */
+  Paseto, Cb1, TokenStatus, blake2bKeyed, blake2bKeyedInto,
+  pasetoV4LocalEncrypt: Paseto.v4LocalEncrypt, pasetoV4LocalDecrypt: Paseto.v4LocalDecrypt,
+  cb1LocalEncrypt: Cb1.localEncrypt, cb1LocalDecrypt: Cb1.localDecrypt,
+  cb1PublicSign: Cb1.publicSign, cb1PublicVerify: Cb1.publicVerify,
 
   /* Escape hatch for advanced/raw use. */
   _fn: fn,

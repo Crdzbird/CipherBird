@@ -1,86 +1,85 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry06 = {
-  'cryptolib_suite_open_signed_pq':
+  'cryptolib_committing_decrypt':
+      (
+        Pointer<NativeType> ciphertext,
+        int ctLen,
+        Pointer<NativeType> key,
+        int keyLen,
+        Pointer<NativeType> aad,
+        int aadLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_committing_decrypt',
+        [
+          ciphertext.address.toJS,
+          ctLen.toJS,
+          key.address.toJS,
+          keyLen.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_molecular_seal':
+      (
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> passphrase,
+        Pointer<NativeType> aad,
+        int aadLen,
+        int ops,
+        int mem,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_molecular_seal',
+        [
+          plaintext.address.toJS,
+          ptLen.toJS,
+          passphrase.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          (ops % 4294967296).toJS,
+          (ops ~/ 4294967296).toJS,
+          mem.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_molecular_open':
       (
         Pointer<NativeType> envelope,
         int envLen,
-        Pointer<NativeType> recipientKemSecret,
-        int kemSecLen,
-        Pointer<NativeType> signerSigPublic,
-        int sigPubLen,
+        Pointer<NativeType> passphrase,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_signed_pq',
+        '_cbw_cryptolib_molecular_open',
         [
           envelope.address.toJS,
           envLen.toJS,
-          recipientKemSecret.address.toJS,
-          kemSecLen.toJS,
-          signerSigPublic.address.toJS,
-          sigPubLen.toJS,
+          passphrase.address.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_with_file':
+  'cryptolib_molecular_seal_with_key':
       (
-        Pointer<NativeType> pt,
+        Pointer<NativeType> plaintext,
         int ptLen,
-        Pointer<NativeType> path,
+        Pointer<NativeType> masterKey,
+        int keyLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_file',
+        '_cbw_cryptolib_molecular_seal_with_key',
         [
-          pt.address.toJS,
+          plaintext.address.toJS,
           ptLen.toJS,
-          path.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_open_with_file':
-      (
-        Pointer<NativeType> envelope,
-        int envLen,
-        Pointer<NativeType> path,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_file',
-        [
-          envelope.address.toJS,
-          envLen.toJS,
-          path.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_seal_with_keyring_device':
-      (
-        Pointer<NativeType> pt,
-        int ptLen,
-        Pointer<NativeType> kr,
-        Pointer<NativeType> factorKey,
-        int factorLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_keyring_device',
-        [
-          pt.address.toJS,
-          ptLen.toJS,
-          kr.address.toJS,
-          factorKey.address.toJS,
-          factorLen.toJS,
+          masterKey.address.toJS,
+          keyLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],

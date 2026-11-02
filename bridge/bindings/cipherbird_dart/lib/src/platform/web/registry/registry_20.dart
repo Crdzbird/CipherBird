@@ -1,91 +1,76 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry20 = {
-  'cryptolib_hkdf_expand':
+  'cryptolib_open_from_file':
       (
-        Pointer<NativeType> prk,
-        int prkLen,
-        Pointer<NativeType> info,
-        int infoLen,
+        Pointer<NativeType> path,
+        Pointer<NativeType> packet,
+        Pointer<NativeType> aad,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_open_from_file',
+        [path.address.toJS, packet.address.toJS, aad.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_blake3': (Pointer<NativeType> msg, int msgLen, int outLen) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_blake3',
+        [msg.address.toJS, msgLen.toJS, outLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_blake3_keyed':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> key,
+        int keyLen,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hkdf_expand',
+        '_cbw_cryptolib_blake3_keyed',
         [
-          prk.address.toJS,
-          prkLen.toJS,
-          info.address.toJS,
-          infoLen.toJS,
+          msg.address.toJS,
+          msgLen.toJS,
+          key.address.toJS,
+          keyLen.toJS,
           outLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hkdf_derive':
+  'cryptolib_blake3_derive_key':
       (
+        Pointer<NativeType> context,
         Pointer<NativeType> ikm,
         int ikmLen,
-        Pointer<NativeType> salt,
-        int saltLen,
-        Pointer<NativeType> info,
-        int infoLen,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hkdf_derive',
-        [
-          ikm.address.toJS,
-          ikmLen.toJS,
-          salt.address.toJS,
-          saltLen.toJS,
-          info.address.toJS,
-          infoLen.toJS,
-          outLen.toJS,
-        ],
+        '_cbw_cryptolib_blake3_derive_key',
+        [context.address.toJS, ikm.address.toJS, ikmLen.toJS, outLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_kem_encaps_free': (Pointer<NativeType> r) => WebEngine.current
-      .callVoid('_cbw_cryptolib_kem_encaps_free', [r.address.toJS]),
-  'cryptolib_ml_kem_keygen': (int level) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_ml_kem_keygen',
-    [level.toJS],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_ml_kem_encapsulate':
-      (
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        int level,
-        Pointer<NativeType> outError,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ml_kem_encapsulate',
-        [publicKey.address.toJS, pkLen.toJS, level.toJS, outError.address.toJS],
-        CipherBirdKemEncapsResult.size,
-        CipherBirdKemEncapsResult._new,
+  'cryptolib_blake3_hasher_create': (Pointer<NativeType> key, int keyLen) =>
+      Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_create', [
+          key.address.toJS,
+          keyLen.toJS,
+        ]),
       ),
-  'cryptolib_ml_kem_decapsulate':
-      (
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> secretKey,
-        int skLen,
-        int level,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ml_kem_decapsulate',
-        [
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          secretKey.address.toJS,
-          skLen.toJS,
-          level.toJS,
-        ],
+  'cryptolib_blake3_hasher_update':
+      (Pointer<NativeType> h, Pointer<NativeType> data, int len) =>
+          WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_update', [
+            h.address.toJS,
+            data.address.toJS,
+            len.toJS,
+          ]),
+  'cryptolib_blake3_hasher_finalize': (Pointer<NativeType> h, int outLen) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_blake3_hasher_finalize',
+        [h.address.toJS, outLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hybrid_kem_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_hybrid_kem_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
+  'cryptolib_blake3_hasher_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cryptolib_blake3_hasher_free', [h.address.toJS]),
 };

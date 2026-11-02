@@ -1,90 +1,77 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry21 = {
-  'cryptolib_hybrid_kem_encapsulate':
+  'cryptolib_noise_create':
       (
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        Pointer<NativeType> outError,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hybrid_kem_encapsulate',
-        [publicKey.address.toJS, pkLen.toJS, outError.address.toJS],
-        CipherBirdKemEncapsResult.size,
-        CipherBirdKemEncapsResult._new,
-      ),
-  'cryptolib_hybrid_kem_decapsulate':
-      (
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> secretKey,
-        int skLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hybrid_kem_decapsulate',
-        [
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          secretKey.address.toJS,
-          skLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_sntrup_x25519_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_sntrup_x25519_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_sntrup_x25519_encapsulate':
-      (
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        Pointer<NativeType> outError,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sntrup_x25519_encapsulate',
-        [publicKey.address.toJS, pkLen.toJS, outError.address.toJS],
-        CipherBirdKemEncapsResult.size,
-        CipherBirdKemEncapsResult._new,
-      ),
-  'cryptolib_sntrup_x25519_decapsulate':
-      (
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> secretKey,
-        int skLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sntrup_x25519_decapsulate',
-        [
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          secretKey.address.toJS,
-          skLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_session_generate_prekey': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_session_generate_prekey',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_session_initiate':
-      (
-        Pointer<NativeType> responderPrekeyPublic,
-        int pkLen,
-        Pointer<NativeType> outError,
+        int initiator,
+        Pointer<NativeType> staticPublic,
+        int staticPublicLen,
+        Pointer<NativeType> staticSecret,
+        int staticSecretLen,
+        Pointer<NativeType> prologue,
+        int prologueLen,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_session_initiate', [
-          responderPrekeyPublic.address.toJS,
-          pkLen.toJS,
-          outError.address.toJS,
+        WebEngine.current.callInt('_cbw_cryptolib_noise_create', [
+          initiator.toJS,
+          staticPublic.address.toJS,
+          staticPublicLen.toJS,
+          staticSecret.address.toJS,
+          staticSecretLen.toJS,
+          prologue.address.toJS,
+          prologueLen.toJS,
         ]),
       ),
-  'cryptolib_session_handshake': (Pointer<NativeType> h) =>
+  'cryptolib_noise_write_message':
+      (Pointer<NativeType> h, Pointer<NativeType> payload, int payloadLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_noise_write_message',
+            [h.address.toJS, payload.address.toJS, payloadLen.toJS],
+            CipherBirdBufferResult.size,
+            CipherBirdBufferResult._new,
+          ),
+  'cryptolib_noise_read_message':
+      (Pointer<NativeType> h, Pointer<NativeType> message, int messageLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_noise_read_message',
+            [h.address.toJS, message.address.toJS, messageLen.toJS],
+            CipherBirdBufferResult.size,
+            CipherBirdBufferResult._new,
+          ),
+  'cryptolib_noise_handshake_finished': (Pointer<NativeType> h) => WebEngine
+      .current
+      .callInt('_cbw_cryptolib_noise_handshake_finished', [h.address.toJS]),
+  'cryptolib_noise_handshake_hash': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_session_handshake',
+        '_cbw_cryptolib_noise_handshake_hash',
         [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_noise_remote_static': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_noise_remote_static',
+        [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_noise_split': (Pointer<NativeType> h) =>
+      WebEngine.current.callInt('_cbw_cryptolib_noise_split', [h.address.toJS]),
+  'cryptolib_noise_encrypt':
+      (
+        Pointer<NativeType> h,
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> ad,
+        int adLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_noise_encrypt',
+        [
+          h.address.toJS,
+          plaintext.address.toJS,
+          ptLen.toJS,
+          ad.address.toJS,
+          adLen.toJS,
+        ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),

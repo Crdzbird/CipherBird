@@ -525,6 +525,184 @@ CRYPTO_API int cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
 } CL_FAIL_PASETO
 #endif
 
+CRYPTO_API int cryptolib_blake2b_keyed_into(uint8_t* out, size_t out_len,
+                                            const uint8_t* msg, size_t msg_len,
+                                            const uint8_t* key, size_t key_len) try {
+    using B = crypto::hash::Blake2b;
+    if (!out || out_len < B::OUT_BYTES_MIN || out_len > B::OUT_BYTES_MAX ||
+        (key_len != 0 && (key_len < B::KEY_BYTES_MIN || key_len > B::KEY_BYTES_MAX)) ||
+        paseto_bad(msg, msg_len) || paseto_bad(key, key_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    if (crypto_generichash(out, out_len, msg_len ? msg : nullptr, msg_len,
+                           key_len ? key : nullptr, key_len) != 0) {
+        sodium_memzero(out, out_len);
+        return CRYPTOLIB_PASETO_ERR_INTERNAL;
+    }
+    return CRYPTOLIB_PASETO_OK;
+} catch (...) { return CRYPTOLIB_PASETO_ERR_INTERNAL; }
+
+#if defined(CRYPTOLIB_HAS_BLAKE3) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
+namespace {
+int cb1_rc(crypto::cb1::Status s) noexcept {
+    switch (s) {
+        case crypto::cb1::Status::ok:       return CRYPTOLIB_PASETO_OK;
+        case crypto::cb1::Status::invalid:  return CRYPTOLIB_PASETO_ERR_INVALID;
+        case crypto::cb1::Status::argument: return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+        case crypto::cb1::Status::internal: return CRYPTOLIB_PASETO_ERR_INTERNAL;
+    }
+    return CRYPTOLIB_PASETO_ERR_INTERNAL;
+}
+}
+
+CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return crypto::cb1::Local::token_len(msg_len, footer_len);
+}
+
+CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t token_len) {
+    return crypto::cb1::Local::open_capacity(token_len);
+}
+
+CRYPTO_API int cryptolib_cb1_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || paseto_bad(msg, msg_len) || paseto_bad(footer, footer_len) ||
+        paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Local::seal(paseto_out(out, out_cap), n, paseto_in(key, key_len),
+                                            paseto_in(msg, msg_len), paseto_in(footer, footer_len),
+                                            paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return cb1_rc(s);
+} CL_FAIL_PASETO
+
+CRYPTO_API int cryptolib_cb1_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
+        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Local::open(paseto_out(out, out_cap), n, paseto_in(token, token_len),
+                                            paseto_in(key, key_len),
+                                            paseto_in(expected_footer, expected_footer_len),
+                                            paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return cb1_rc(s);
+} CL_FAIL_PASETO
+
+#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || !nonce || paseto_bad(msg, msg_len) ||
+        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Local::seal_with_nonce_for_testing(
+        paseto_out(out, out_cap), n, paseto_in(key, key_len), paseto_in(msg, msg_len),
+        paseto_in(footer, footer_len), paseto_in(implicit, implicit_len),
+        paseto_in(nonce, nonce_len));
+    *out_len = n;
+    return cb1_rc(s);
+} CL_FAIL_PASETO
+#endif
+
+#ifdef CRYPTOLIB_HAS_PQ
+CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t msg_len, size_t footer_len) {
+    return crypto::cb1::Public::token_len(msg_len, footer_len);
+}
+
+CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t token_len) {
+    return crypto::cb1::Public::open_capacity(token_len);
+}
+
+CRYPTO_API int cryptolib_cb1_public_sign(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* secret_key, size_t sk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !secret_key || paseto_bad(msg, msg_len) ||
+        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Public::sign(paseto_out(out, out_cap), n,
+                                             paseto_in(secret_key, sk_len), paseto_in(msg, msg_len),
+                                             paseto_in(footer, footer_len),
+                                             paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return cb1_rc(s);
+} CL_FAIL_PASETO
+
+CRYPTO_API int cryptolib_cb1_public_verify(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* public_key, size_t pk_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !public_key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
+        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
+        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Public::verify(paseto_out(out, out_cap), n,
+                                               paseto_in(token, token_len),
+                                               paseto_in(public_key, pk_len),
+                                               paseto_in(expected_footer, expected_footer_len),
+                                               paseto_in(implicit, implicit_len));
+    *out_len = n;
+    return cb1_rc(s);
+} CL_FAIL_PASETO
+#endif
+#else
+/* The bank profile ships only standards-track formats: the cb1 functions
+ * exist so a full-profile client links, and report that they are absent. */
+CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t, size_t) { return 0; }
+CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t) { return 0; }
+CRYPTO_API int cryptolib_cb1_local_encrypt(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
+}
+CRYPTO_API int cryptolib_cb1_local_decrypt(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
+}
+CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t, size_t) { return 0; }
+CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t) { return 0; }
+CRYPTO_API int cryptolib_cb1_public_sign(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
+}
+CRYPTO_API int cryptolib_cb1_public_verify(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
+}
+#endif
+
 CRYPTO_API CryptoBufferResult cryptolib_committing_encrypt(
     const uint8_t* plaintext, size_t pt_len,
     const uint8_t* key, size_t key_len,

@@ -25,9 +25,10 @@ ok('header parity: every CRYPTO_API symbol is declared', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
   const declared = new Set(src.match(/cryptolib_[a-z0-9_]+\(/g).map((m) => m.slice(0, -1)));
   const abi = [...fs.readFileSync(header, 'utf8').matchAll(/^CRYPTO_API[^(]*?\b(cryptolib_[a-z0-9_]+)\s*\(/gm)].map((m) => m[1]);
-  const missing = abi.filter((s) => !declared.has(s));
+  const shipped = abi.filter((s) => !s.endsWith('_for_testing'));
+  const missing = shipped.filter((s) => !declared.has(s));
   assert.deepStrictEqual(missing, [], `missing from index.js: ${missing.join(', ')}`);
-  assert.ok(abi.length >= 327, `header lists ${abi.length} functions`);
+  assert.ok(shipped.length >= 327, `header lists ${shipped.length} shipped functions`);
 });
 
 ok('X-Wing round trip and seed expansion', () => {

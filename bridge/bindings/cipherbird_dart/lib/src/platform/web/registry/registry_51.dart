@@ -1,89 +1,94 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry51 = {
-  'cryptolib_fips_aes_gcm_decrypt':
+  'cryptolib_session2_initiate':
       (
-        Pointer<NativeType> key,
-        int keyLen,
-        Pointer<NativeType> wire,
-        int wireLen,
+        Pointer<NativeType> bundle,
+        int bundleLen,
+        Pointer<NativeType> responderSigPublic,
+        int rpkLen,
+        Pointer<NativeType> initiatorSigPublic,
+        int ipkLen,
+        Pointer<NativeType> initiatorSigSecret,
+        int iskLen,
+        Pointer<NativeType> outError,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_session2_initiate', [
+          bundle.address.toJS,
+          bundleLen.toJS,
+          responderSigPublic.address.toJS,
+          rpkLen.toJS,
+          initiatorSigPublic.address.toJS,
+          ipkLen.toJS,
+          initiatorSigSecret.address.toJS,
+          iskLen.toJS,
+          outError.address.toJS,
+        ]),
+      ),
+  'cryptolib_session2_handshake': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_session2_handshake',
+        [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_session2_claimed_initiator':
+      (Pointer<NativeType> handshake, int hsLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_session2_claimed_initiator',
+            [handshake.address.toJS, hsLen.toJS],
+            CipherBirdBufferResult.size,
+            CipherBirdBufferResult._new,
+          ),
+  'cryptolib_session2_accept':
+      (
+        Pointer<NativeType> handshake,
+        int hsLen,
+        Pointer<NativeType> bundle,
+        int bundleLen,
+        Pointer<NativeType> prekeySecret,
+        int pskLen,
+        Pointer<NativeType> responderSigPublic,
+        int rpkLen,
+        Pointer<NativeType> responderSigSecret,
+        int rskLen,
+        Pointer<NativeType> expectedInitiatorSigPublic,
+        int ipkLen,
+        Pointer<NativeType> outError,
+      ) => Pointer<Void>._(
+        WebEngine.current.callInt('_cbw_cryptolib_session2_accept', [
+          handshake.address.toJS,
+          hsLen.toJS,
+          bundle.address.toJS,
+          bundleLen.toJS,
+          prekeySecret.address.toJS,
+          pskLen.toJS,
+          responderSigPublic.address.toJS,
+          rpkLen.toJS,
+          responderSigSecret.address.toJS,
+          rskLen.toJS,
+          expectedInitiatorSigPublic.address.toJS,
+          ipkLen.toJS,
+          outError.address.toJS,
+        ]),
+      ),
+  'cryptolib_session2_encrypt':
+      (
+        Pointer<NativeType> h,
+        Pointer<NativeType> pt,
+        int ptLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_aes_gcm_decrypt',
+        '_cbw_cryptolib_session2_encrypt',
         [
-          key.address.toJS,
-          keyLen.toJS,
-          wire.address.toJS,
-          wireLen.toJS,
+          h.address.toJS,
+          pt.address.toJS,
+          ptLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_p256_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_fips_p256_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_fips_p256_ecdh':
-      (
-        Pointer<NativeType> privateKey,
-        int skLen,
-        Pointer<NativeType> peerPublic,
-        int pkLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_ecdh',
-        [
-          privateKey.address.toJS,
-          skLen.toJS,
-          peerPublic.address.toJS,
-          pkLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_p256_sign':
-      (
-        Pointer<NativeType> privateKey,
-        int skLen,
-        Pointer<NativeType> message,
-        int msgLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_sign',
-        [
-          privateKey.address.toJS,
-          skLen.toJS,
-          message.address.toJS,
-          msgLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fips_p256_verify':
-      (
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        Pointer<NativeType> message,
-        int msgLen,
-        Pointer<NativeType> signature,
-        int sigLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_fips_p256_verify', [
-        publicKey.address.toJS,
-        pkLen.toJS,
-        message.address.toJS,
-        msgLen.toJS,
-        signature.address.toJS,
-        sigLen.toJS,
-      ]),
-  'cryptolib_fips_p256_public_key':
-      (Pointer<NativeType> privateKey, int skLen) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_fips_p256_public_key',
-            [privateKey.address.toJS, skLen.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
 };

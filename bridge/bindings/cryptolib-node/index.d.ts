@@ -758,6 +758,46 @@ export const argon2idDeriveAsync: Awaited1<typeof argon2idDerive>;
 export const argon2idHashStrAsync: Awaited1<typeof argon2idHashStr>;
 export const argon2idVerifyStrAsync: Awaited1<typeof argon2idVerifyStr>;
 
+/* Tokens: PASETO v4.local and the cb1 tokens; keyed BLAKE2b. */
+export const TokenStatus: { readonly ok: 0; readonly invalid: -1; readonly argument: -2; readonly internal: -3; readonly unavailable: -4 };
+/** PASETO v4.local, conformant to the PASETO v4 specification. Tokens are ASCII strings. */
+export const Paseto: {
+  readonly V4_LOCAL_KEY_BYTES: 32;
+  v4LocalEncryptLen(msgLen: number, footerLen?: number): number;
+  v4LocalDecryptCap(tokenLen: number): number;
+  v4LocalEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+  v4LocalDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+};
+/** CipherBird tokens, version 1: v4.local with BLAKE3, v4.public with the Ed25519 + ML-DSA-65 hybrid signature. */
+export const Cb1: {
+  readonly LOCAL_KEY_BYTES: 32; readonly PUBLIC_KEY_BYTES: 1984; readonly SECRET_KEY_BYTES: 4096; readonly SIGNATURE_BYTES: 3373;
+  localEncryptLen(msgLen: number, footerLen?: number): number;
+  localDecryptCap(tokenLen: number): number;
+  localEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+  localDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+  publicSignLen(msgLen: number, footerLen?: number): number;
+  publicVerifyCap(tokenLen: number): number;
+  publicSign(secretKey: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+  publicVerify(token: string, publicKey: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+};
+export function pasetoV4LocalEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+export function pasetoV4LocalDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+export function cb1LocalEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+export function cb1LocalDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+export function cb1PublicSign(secretKey: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+export function cb1PublicVerify(token: string, publicKey: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+/** BLAKE2b computed natively at outLen bytes (1 to 64), unkeyed or with a 16 to 64 byte key. */
+export function blake2bKeyed(msg: Bytes, key?: Bytes | null, outLen?: number): Buffer;
+/** blake2bKeyed written into out, whose length selects the digest length; returns out. */
+export function blake2bKeyedInto(out: Buffer, msg: Bytes, key?: Bytes | null): Buffer;
+export const tokens: {
+  paseto: typeof Paseto;
+  cb1: typeof Cb1;
+  v4LocalEncrypt: typeof pasetoV4LocalEncrypt; v4LocalDecrypt: typeof pasetoV4LocalDecrypt;
+  cb1LocalEncrypt: typeof cb1LocalEncrypt; cb1LocalDecrypt: typeof cb1LocalDecrypt;
+  cb1PublicSign: typeof cb1PublicSign; cb1PublicVerify: typeof cb1PublicVerify;
+};
+
 /* Domain namespaces, the same grouping as the Dart packages. */
 export const hash: {
   blake3Hasher(o?: { key?: Bytes | null }): Blake3Hasher;
@@ -778,6 +818,8 @@ export const hash: {
   hkdfExpand(prk: Bytes, o?: { info?: Bytes | null; outLen?: number }): Buffer;
   hkdfDerive(ikm: Bytes, o?: { salt?: Bytes | null; info?: Bytes | null; outLen?: number }): Buffer;
   keccak256(msg: Bytes): Buffer; ripemd160(msg: Bytes): Buffer; secureEqual(a: Bytes, b: Bytes): boolean;
+  blake2bKeyed(msg: Bytes, key?: Bytes | null, o?: { outLen?: number }): Buffer;
+  blake2bKeyedInto(out: Buffer, msg: Bytes, key?: Bytes | null): Buffer;
 };
 export const aead: {
   symKeygen(): Buffer;

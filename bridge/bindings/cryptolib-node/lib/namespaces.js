@@ -31,6 +31,8 @@ module.exports = (api) => {
     keccak256: (msg) => api.keccak256(msg),
     ripemd160: (msg) => api.ripemd160(msg),
     secureEqual: (a, b) => api.secureEqual(a, b),
+    blake2bKeyed: (msg, key = null, { outLen = 32 } = {}) => api.blake2bKeyed(msg, key, outLen),
+    blake2bKeyedInto: (out, msg, key = null) => api.blake2bKeyedInto(out, msg, key),
   };
 
   const aead = {
@@ -267,12 +269,23 @@ module.exports = (api) => {
     xwing: api.XWing,
   };
 
+  const tokens = {
+    paseto: api.Paseto,
+    cb1: api.Cb1,
+    v4LocalEncrypt: (...a) => api.Paseto.v4LocalEncrypt(...a),
+    v4LocalDecrypt: (...a) => api.Paseto.v4LocalDecrypt(...a),
+    cb1LocalEncrypt: (...a) => api.Cb1.localEncrypt(...a),
+    cb1LocalDecrypt: (...a) => api.Cb1.localDecrypt(...a),
+    cb1PublicSign: (...a) => api.Cb1.publicSign(...a),
+    cb1PublicVerify: (...a) => api.Cb1.publicVerify(...a),
+  };
+
   const channel = {
     create: ({ initiator, staticPublic, staticSecret, prologue = null }) => api.noise(initiator, staticPublic, staticSecret, prologue),
   };
 
   return {
-    hash, aead, asym, bls, vault, keyring, entropy, stego, composed, chain, suite, sealed, session, pq, channel,
+    hash, aead, asym, bls, vault, keyring, entropy, stego, composed, chain, suite, sealed, session, pq, channel, tokens,
     frost: api.Frost, hpke: api.Hpke, ecvrf: api.Ecvrf, bbs: api.Bbs, oprf: api.Oprf, opaque: api.Opaque, rng: api.Rng, fips: api.Fips,
   };
 };

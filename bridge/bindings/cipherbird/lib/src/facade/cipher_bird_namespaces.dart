@@ -67,4 +67,7 @@ extension CipherBirdNamespaces on CipherBird {
 
   /// Noise XX secure channel.
   NoiseApi get channel => NoiseApi(this);
+
+  /// PASETO v4.local and the cb1 tokens.
+  TokenApi get tokens => TokenApi(this);
 }

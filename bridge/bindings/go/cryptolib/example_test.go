@@ -1,3 +1,5 @@
+//go:build !cryptolib_bank
+
 package cryptolib_test
 
 // Runnable examples. These render on pkg.go.dev and are executed by `go test`,

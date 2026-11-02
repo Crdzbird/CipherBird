@@ -1,87 +1,92 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry19 = {
-  'cryptolib_noise_decrypt':
+  'cryptolib_entropy_from_files':
+      (Pointer<NativeType> paths, int count, Pointer<NativeType> outError) =>
+          Pointer<Void>._(
+            WebEngine.current.callInt('_cbw_cryptolib_entropy_from_files', [
+              paths.address.toJS,
+              count.toJS,
+              outError.address.toJS,
+            ]),
+          ),
+  'cryptolib_entropy_from_files_deterministic':
+      (Pointer<NativeType> paths, int count, Pointer<NativeType> outError) =>
+          Pointer<Void>._(
+            WebEngine.current.callInt(
+              '_cbw_cryptolib_entropy_from_files_deterministic',
+              [paths.address.toJS, count.toJS, outError.address.toJS],
+            ),
+          ),
+  'cryptolib_entropy_derive_all': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_entropy_derive_all',
+        [h.address.toJS],
+        CipherBirdDerivedKeys.size,
+        CipherBirdDerivedKeys._new,
+      ),
+  'cryptolib_entropy_symmetric_key': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_entropy_symmetric_key',
+        [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_entropy_raw': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_entropy_raw',
+        [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_entropy_boost': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_entropy_boost',
+        [h.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_entropy_info': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_entropy_info',
+        [h.address.toJS],
+        CipherBirdEntropyInfo.size,
+        CipherBirdEntropyInfo._new,
+      ),
+  'cryptolib_entropy_asym_bundle':
+      (Pointer<NativeType> h, Pointer<NativeType> outError) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_entropy_asym_bundle',
+            [h.address.toJS, outError.address.toJS],
+            CipherBirdAsymBundle.size,
+            CipherBirdAsymBundle._new,
+          ),
+  'cryptolib_entropy_refresh': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cryptolib_entropy_refresh', [h.address.toJS]),
+  'cryptolib_entropy_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cryptolib_entropy_free', [h.address.toJS]),
+  'cryptolib_key_from_file': (Pointer<NativeType> path) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_key_from_file',
+        [path.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_seal_from_file':
       (
-        Pointer<NativeType> h,
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> ad,
-        int adLen,
+        Pointer<NativeType> path,
+        Pointer<NativeType> plaintext,
+        Pointer<NativeType> aad,
+        Pointer<NativeType> outError,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt',
+        '_cbw_cryptolib_seal_from_file',
         [
-          h.address.toJS,
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          ad.address.toJS,
-          adLen.toJS,
+          path.address.toJS,
+          plaintext.address.toJS,
+          aad.address.toJS,
+          outError.address.toJS,
         ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_noise_decrypt_at':
-      (
-        Pointer<NativeType> h,
-        int nonceCounter,
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> ad,
-        int adLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt_at',
-        [
-          h.address.toJS,
-          (nonceCounter % 4294967296).toJS,
-          (nonceCounter ~/ 4294967296).toJS,
-          ciphertext.address.toJS,
-          ctLen.toJS,
-          ad.address.toJS,
-          adLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_noise_free': (Pointer<NativeType> h) =>
-      WebEngine.current.callVoid('_cbw_cryptolib_noise_free', [h.address.toJS]),
-  'cryptolib_hmac_sha256':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> key,
-        int keyLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hmac_sha256',
-        [msg.address.toJS, msgLen.toJS, key.address.toJS, keyLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_hmac_sha256_verify':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> mac,
-        int macLen,
-        Pointer<NativeType> key,
-        int keyLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_hmac_sha256_verify', [
-        msg.address.toJS,
-        msgLen.toJS,
-        mac.address.toJS,
-        macLen.toJS,
-        key.address.toJS,
-        keyLen.toJS,
-      ]),
-  'cryptolib_hkdf_extract':
-      (
-        Pointer<NativeType> salt,
-        int saltLen,
-        Pointer<NativeType> ikm,
-        int ikmLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hkdf_extract',
-        [salt.address.toJS, saltLen.toJS, ikm.address.toJS, ikmLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
+        CipherBirdPacket.size,
+        CipherBirdPacket._new,
       ),
 };

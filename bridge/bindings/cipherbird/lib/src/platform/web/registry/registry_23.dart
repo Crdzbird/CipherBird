@@ -1,84 +1,91 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry23 = {
-  'cryptolib_ml_dsa_verify':
+  'cryptolib_hkdf_expand':
       (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> sig,
-        int sigLen,
-        Pointer<NativeType> publicKey,
-        int pkLen,
-        int level,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_ml_dsa_verify', [
-        msg.address.toJS,
-        msgLen.toJS,
-        sig.address.toJS,
-        sigLen.toJS,
-        publicKey.address.toJS,
-        pkLen.toJS,
-        level.toJS,
-      ]),
-  'cryptolib_hybrid_sig_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_hybrid_sig_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_hybrid_sig_sign':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> secretKey,
-        int skLen,
+        Pointer<NativeType> prk,
+        int prkLen,
+        Pointer<NativeType> info,
+        int infoLen,
+        int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hybrid_sig_sign',
-        [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_hybrid_sig_verify':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> sig,
-        int sigLen,
-        Pointer<NativeType> publicKey,
-        int pkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_hybrid_sig_verify', [
-        msg.address.toJS,
-        msgLen.toJS,
-        sig.address.toJS,
-        sigLen.toJS,
-        publicKey.address.toJS,
-        pkLen.toJS,
-      ]),
-  'cryptolib_slh_dsa_keygen': (int level, int hashFamily) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_slh_dsa_keygen',
-        [level.toJS, hashFamily.toJS],
-        CipherBirdKeyPair.size,
-        CipherBirdKeyPair._new,
-      ),
-  'cryptolib_slh_dsa_sign':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> secretKey,
-        int skLen,
-        int level,
-        int hashFamily,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_slh_dsa_sign',
+        '_cbw_cryptolib_hkdf_expand',
         [
-          msg.address.toJS,
-          msgLen.toJS,
-          secretKey.address.toJS,
-          skLen.toJS,
-          level.toJS,
-          hashFamily.toJS,
+          prk.address.toJS,
+          prkLen.toJS,
+          info.address.toJS,
+          infoLen.toJS,
+          outLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
+  'cryptolib_hkdf_derive':
+      (
+        Pointer<NativeType> ikm,
+        int ikmLen,
+        Pointer<NativeType> salt,
+        int saltLen,
+        Pointer<NativeType> info,
+        int infoLen,
+        int outLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_hkdf_derive',
+        [
+          ikm.address.toJS,
+          ikmLen.toJS,
+          salt.address.toJS,
+          saltLen.toJS,
+          info.address.toJS,
+          infoLen.toJS,
+          outLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_kem_encaps_free': (Pointer<NativeType> r) => WebEngine.current
+      .callVoid('_cbw_cryptolib_kem_encaps_free', [r.address.toJS]),
+  'cryptolib_ml_kem_keygen': (int level) => WebEngine.current.callStruct(
+    '_cbw_cryptolib_ml_kem_keygen',
+    [level.toJS],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_ml_kem_encapsulate':
+      (
+        Pointer<NativeType> publicKey,
+        int pkLen,
+        int level,
+        Pointer<NativeType> outError,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_ml_kem_encapsulate',
+        [publicKey.address.toJS, pkLen.toJS, level.toJS, outError.address.toJS],
+        CipherBirdKemEncapsResult.size,
+        CipherBirdKemEncapsResult._new,
+      ),
+  'cryptolib_ml_kem_decapsulate':
+      (
+        Pointer<NativeType> ciphertext,
+        int ctLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+        int level,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_ml_kem_decapsulate',
+        [
+          ciphertext.address.toJS,
+          ctLen.toJS,
+          secretKey.address.toJS,
+          skLen.toJS,
+          level.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_hybrid_kem_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_hybrid_kem_keygen',
+    [],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
 };

@@ -426,15 +426,25 @@ func (p PassphraseKeySource) DeriveRoot(salt []byte, ops, mem uint64) ([]byte, e
 	return Argon2idDerive(p.Passphrase, salt, 32, ops, mem)
 }
 
+// ErrNotInProfile is returned by the recipe layer when the linked library is
+// the bank profile and a recipe asks for a media carrier, a key file or
+// forward error correction, which that profile does not ship.
+var ErrNotInProfile = errors.New("cryptolib: not available in this build profile")
+
+// The media entry points the recipe layer reaches through; media_full.go
+// installs the real ones in the full profile.
+var (
+	keyFromFileDeterministicFn = func(string) ([]byte, error) { return nil, ErrNotInProfile }
+	stegoEmbedFn               = func(string, []byte, string) error { return ErrNotInProfile }
+	stegoExtractFn             = func(string) ([]byte, error) { return nil, ErrNotInProfile }
+	fecEncodeFn                = func([]byte, FecScheme) ([]byte, error) { return nil, ErrNotInProfile }
+	fecDecodeFn                = func([]byte, FecScheme, int) ([]byte, error) { return nil, ErrNotInProfile }
+)
+
 func (KeyFileSource) ID() uint8     { return 2 }
 func (KeyFileSource) Label() string { return "keyFile" }
 func (k KeyFileSource) DeriveRoot([]byte, uint64, uint64) ([]byte, error) {
-	e, err := EntropyFromFileDeterministic(k.Path)
-	if err != nil {
-		return nil, err
-	}
-	defer e.Close()
-	return e.SymmetricKey()
+	return keyFromFileDeterministicFn(k.Path)
 }
 
 // SignatureScheme is how a Recipe signs and verifies the plaintext. Implement
@@ -774,12 +784,12 @@ func (r *Recipe) SealIntoCarrier(plaintext []byte, coverPath, outputPath string)
 	if err != nil {
 		return err
 	}
-	return StegoEmbed(coverPath, env, outputPath)
+	return stegoEmbedFn(coverPath, env, outputPath)
 }
 
 // OpenFromCarrier extracts and opens an envelope written by SealIntoCarrier.
 func (r *Recipe) OpenFromCarrier(stegoPath string) ([]byte, error) {
-	env, err := StegoExtract(stegoPath)
+	env, err := stegoExtractFn(stegoPath)
 	if err != nil {
 		return nil, err
 	}
@@ -894,7 +904,7 @@ func (r *Recipe) parseHeader(env []byte, src KeySource) (*parsedHeader, error) {
 }
 
 func (r *Recipe) wrapFec(envelope []byte) ([]byte, error) {
-	encoded, err := FecEncode(envelope, r.fec)
+	encoded, err := fecEncodeFn(envelope, r.fec)
 	if err != nil {
 		return nil, err
 	}
@@ -911,7 +921,7 @@ func (r *Recipe) unwrapFec(data []byte) ([]byte, error) {
 	if len(data) < 9 || string(data[:4]) != string(fecMagic) {
 		return data, nil
 	}
-	return FecDecode(data[9:], FecScheme(data[4]), int(binary.BigEndian.Uint32(data[5:9])))
+	return fecDecodeFn(data[9:], FecScheme(data[4]), int(binary.BigEndian.Uint32(data[5:9])))
 }
 
 func prefixLengthed(prefix, rest []byte) []byte {

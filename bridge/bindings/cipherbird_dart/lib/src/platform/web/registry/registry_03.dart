@@ -1,28 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry03 = {
-  'cryptolib_committing_encrypt':
-      (
-        Pointer<NativeType> plaintext,
-        int ptLen,
-        Pointer<NativeType> key,
-        int keyLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_committing_encrypt',
-        [
-          plaintext.address.toJS,
-          ptLen.toJS,
-          key.address.toJS,
-          keyLen.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_committing_decrypt':
+  'cryptolib_xchacha20_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -31,7 +10,7 @@ final Map<String, Function> _registry03 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_committing_decrypt',
+        '_cbw_cryptolib_xchacha20_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -43,47 +22,63 @@ final Map<String, Function> _registry03 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_molecular_seal':
+  'cryptolib_paseto_v4_local_encrypt_len': (int msgLen, int footerLen) =>
+      WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_encrypt_len', [
+        msgLen.toJS,
+        footerLen.toJS,
+      ]),
+  'cryptolib_paseto_v4_local_decrypt_cap': (int tokenLen) => WebEngine.current
+      .callInt('_cbw_cryptolib_paseto_v4_local_decrypt_cap', [tokenLen.toJS]),
+  'cryptolib_paseto_v4_local_encrypt':
       (
-        Pointer<NativeType> plaintext,
-        int ptLen,
-        Pointer<NativeType> passphrase,
-        Pointer<NativeType> aad,
-        int aadLen,
-        int ops,
-        int mem,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_molecular_seal',
-        [
-          plaintext.address.toJS,
-          ptLen.toJS,
-          passphrase.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          (ops % 4294967296).toJS,
-          (ops ~/ 4294967296).toJS,
-          mem.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_molecular_open':
+        Pointer<NativeType> out,
+        int outCap,
+        Pointer<NativeType> outLen,
+        Pointer<NativeType> key,
+        int keyLen,
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> footer,
+        int footerLen,
+        Pointer<NativeType> implicit,
+        int implicitLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_encrypt', [
+        out.address.toJS,
+        outCap.toJS,
+        outLen.address.toJS,
+        key.address.toJS,
+        keyLen.toJS,
+        msg.address.toJS,
+        msgLen.toJS,
+        footer.address.toJS,
+        footerLen.toJS,
+        implicit.address.toJS,
+        implicitLen.toJS,
+      ]),
+  'cryptolib_paseto_v4_local_decrypt':
       (
-        Pointer<NativeType> envelope,
-        int envLen,
-        Pointer<NativeType> passphrase,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_molecular_open',
-        [
-          envelope.address.toJS,
-          envLen.toJS,
-          passphrase.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
+        Pointer<NativeType> out,
+        int outCap,
+        Pointer<NativeType> outLen,
+        Pointer<NativeType> token,
+        int tokenLen,
+        Pointer<NativeType> key,
+        int keyLen,
+        Pointer<NativeType> expectedFooter,
+        int expectedFooterLen,
+        Pointer<NativeType> implicit,
+        int implicitLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_decrypt', [
+        out.address.toJS,
+        outCap.toJS,
+        outLen.address.toJS,
+        token.address.toJS,
+        tokenLen.toJS,
+        key.address.toJS,
+        keyLen.toJS,
+        expectedFooter.address.toJS,
+        expectedFooterLen.toJS,
+        implicit.address.toJS,
+        implicitLen.toJS,
+      ]),
 };

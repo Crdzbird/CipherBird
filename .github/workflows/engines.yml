@@ -46,7 +46,7 @@ jobs:
                    out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird \
                    out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird \
                    out/desktop/libcryptolib_c.dylib; do
-            test "$(nm -gU "$f" | grep -c ' T _cryptolib_')" = "$(grep -c '^CRYPTO_API' bridge/cryptolib_c.h)"
+            test "$(nm -gU "$f" | grep -c ' T _cryptolib_')" = "$(grep '^CRYPTO_API' bridge/cryptolib_c.h | grep -vc _for_testing)"
           done
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
@@ -117,7 +117,7 @@ jobs:
         run: |
           mkdir -p out
           cp build/web/dist/cipherbird.js build/web/dist/cipherbird.wasm out/
-          test "$(grep -o '_cbw_cryptolib_[a-z0-9_]*' out/cipherbird.js | sort -u | wc -l)" = "$(grep -c '^CRYPTO_API' bridge/cryptolib_c.h)"
+          test "$(grep -o '_cbw_cryptolib_[a-z0-9_]*' out/cipherbird.js | sort -u | wc -l)" = "$(grep '^CRYPTO_API' bridge/cryptolib_c.h | grep -vc _for_testing)"
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:

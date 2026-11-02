@@ -14,7 +14,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/smoke.js && node test/preload.test.js && node test/abi_parity.js && node test/bytes.js && node test/easy.js && node test/namespaces.js && node test/async.js && node test/security.js && node test/noise.js && node test/extensibility.js && node test/bbs_pseudonym.js && node recipes.js && node suite.js && node sealed.js"
+    "test": "node test/smoke.js && node test/preload.test.js && node test/abi_parity.js && node test/bytes.js && node test/easy.js && node test/namespaces.js && node test/async.js && node test/tokens.js && node test/security.js && node test/noise.js && node test/extensibility.js && node test/bbs_pseudonym.js && node recipes.js && node suite.js && node sealed.js"
   },
   "engines": {
     "node": ">=18"

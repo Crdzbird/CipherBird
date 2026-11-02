@@ -1,91 +1,84 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry26 = {
-  'cryptolib_frost_aggregate':
-      (
-        Pointer<NativeType> groupPublicKey,
-        int gpkLen,
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> ids,
-        Pointer<NativeType> hidingCommits,
-        Pointer<NativeType> bindingCommits,
-        int count,
-        Pointer<NativeType> sigShares,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_frost_aggregate',
-        [
-          groupPublicKey.address.toJS,
-          gpkLen.toJS,
-          msg.address.toJS,
-          msgLen.toJS,
-          ids.address.toJS,
-          hidingCommits.address.toJS,
-          bindingCommits.address.toJS,
-          count.toJS,
-          sigShares.address.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_frost_verify':
+  'cryptolib_ml_dsa_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
         Pointer<NativeType> sig,
         int sigLen,
-        Pointer<NativeType> groupPublicKey,
-        int gpkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_frost_verify', [
+        Pointer<NativeType> publicKey,
+        int pkLen,
+        int level,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_ml_dsa_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
         sigLen.toJS,
-        groupPublicKey.address.toJS,
-        gpkLen.toJS,
+        publicKey.address.toJS,
+        pkLen.toJS,
+        level.toJS,
       ]),
-  'cryptolib_frost_verify_share':
-      (
-        int identifier,
-        Pointer<NativeType> publicShare,
-        int psLen,
-        Pointer<NativeType> sigShare,
-        int ssLen,
-        Pointer<NativeType> commitHiding,
-        int chLen,
-        Pointer<NativeType> commitBinding,
-        int cbLen,
-        Pointer<NativeType> groupPublicKey,
-        int gpkLen,
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> ids,
-        Pointer<NativeType> hidingCommits,
-        Pointer<NativeType> bindingCommits,
-        int count,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_frost_verify_share', [
-        identifier.toJS,
-        publicShare.address.toJS,
-        psLen.toJS,
-        sigShare.address.toJS,
-        ssLen.toJS,
-        commitHiding.address.toJS,
-        chLen.toJS,
-        commitBinding.address.toJS,
-        cbLen.toJS,
-        groupPublicKey.address.toJS,
-        gpkLen.toJS,
-        msg.address.toJS,
-        msgLen.toJS,
-        ids.address.toJS,
-        hidingCommits.address.toJS,
-        bindingCommits.address.toJS,
-        count.toJS,
-      ]),
-  'cryptolib_hpke_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_hpke_keygen',
+  'cryptolib_hybrid_sig_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_hybrid_sig_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
+  'cryptolib_hybrid_sig_sign':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_hybrid_sig_sign',
+        [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_hybrid_sig_verify':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> sig,
+        int sigLen,
+        Pointer<NativeType> publicKey,
+        int pkLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_hybrid_sig_verify', [
+        msg.address.toJS,
+        msgLen.toJS,
+        sig.address.toJS,
+        sigLen.toJS,
+        publicKey.address.toJS,
+        pkLen.toJS,
+      ]),
+  'cryptolib_slh_dsa_keygen': (int level, int hashFamily) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_slh_dsa_keygen',
+        [level.toJS, hashFamily.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
+      ),
+  'cryptolib_slh_dsa_sign':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+        int level,
+        int hashFamily,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_slh_dsa_sign',
+        [
+          msg.address.toJS,
+          msgLen.toJS,
+          secretKey.address.toJS,
+          skLen.toJS,
+          level.toJS,
+          hashFamily.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
 };

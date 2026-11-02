@@ -1,92 +1,90 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry38 = {
-  'cryptolib_keccak256': (Pointer<NativeType> msg, int msgLen) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_keccak256',
-        [msg.address.toJS, msgLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_ripemd160': (Pointer<NativeType> msg, int msgLen) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_ripemd160',
-        [msg.address.toJS, msgLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_secp256k1_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_secp256k1_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
-  'cryptolib_secp256k1_pubkey':
-      (Pointer<NativeType> secretKey, int skLen, int compressed) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_secp256k1_pubkey',
-            [secretKey.address.toJS, skLen.toJS, compressed.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_secp256k1_sign':
+  'cryptolib_oprf_derive_keypair':
       (
-        Pointer<NativeType> digest32,
-        Pointer<NativeType> secretKey,
+        Pointer<NativeType> seed,
+        int seedLen,
+        Pointer<NativeType> info,
+        int infoLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_oprf_derive_keypair',
+        [seed.address.toJS, seedLen.toJS, info.address.toJS, infoLen.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
+      ),
+  'cryptolib_oprf_blind_free': (Pointer<NativeType> b) => WebEngine.current
+      .callVoid('_cbw_cryptolib_oprf_blind_free', [b.address.toJS]),
+  'cryptolib_oprf_blind': (Pointer<NativeType> input, int inputLen) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_oprf_blind',
+        [input.address.toJS, inputLen.toJS],
+        CipherBirdOprfBlind.size,
+        CipherBirdOprfBlind._new,
+      ),
+  'cryptolib_oprf_blind_with_scalar':
+      (
+        Pointer<NativeType> input,
+        int inputLen,
+        Pointer<NativeType> blind,
+        int blindLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_oprf_blind_with_scalar',
+        [input.address.toJS, inputLen.toJS, blind.address.toJS, blindLen.toJS],
+        CipherBirdOprfBlind.size,
+        CipherBirdOprfBlind._new,
+      ),
+  'cryptolib_oprf_blind_evaluate':
+      (
+        Pointer<NativeType> sk,
         int skLen,
+        Pointer<NativeType> blindedElement,
+        int beLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_secp256k1_sign',
-        [digest32.address.toJS, secretKey.address.toJS, skLen.toJS],
+        '_cbw_cryptolib_oprf_blind_evaluate',
+        [sk.address.toJS, skLen.toJS, blindedElement.address.toJS, beLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_secp256k1_verify':
+  'cryptolib_oprf_finalize':
       (
-        Pointer<NativeType> digest32,
-        Pointer<NativeType> sig,
-        int sigLen,
-        Pointer<NativeType> publicKey,
-        int pkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_secp256k1_verify', [
-        digest32.address.toJS,
-        sig.address.toJS,
-        sigLen.toJS,
-        publicKey.address.toJS,
-        pkLen.toJS,
-      ]),
-  'cryptolib_secp256k1_recover':
-      (Pointer<NativeType> digest32, Pointer<NativeType> sig65) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_secp256k1_recover',
-            [digest32.address.toJS, sig65.address.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_stego_embed':
-      (
-        Pointer<NativeType> coverPath,
-        Pointer<NativeType> payload,
-        int payloadLen,
-        Pointer<NativeType> outputPath,
+        Pointer<NativeType> input,
+        int inputLen,
+        Pointer<NativeType> blind,
+        int blindLen,
+        Pointer<NativeType> evaluatedElement,
+        int eeLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_embed',
+        '_cbw_cryptolib_oprf_finalize',
         [
-          coverPath.address.toJS,
-          payload.address.toJS,
-          payloadLen.toJS,
-          outputPath.address.toJS,
+          input.address.toJS,
+          inputLen.toJS,
+          blind.address.toJS,
+          blindLen.toJS,
+          evaluatedElement.address.toJS,
+          eeLen.toJS,
         ],
-        CipherBirdResult.size,
-        CipherBirdResult._new,
-      ),
-  'cryptolib_stego_extract': (Pointer<NativeType> stegoPath) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_extract',
-        [stegoPath.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_stego_capacity': (Pointer<NativeType> coverPath) => WebEngine
-      .current
-      .callInt('_cbw_cryptolib_stego_capacity', [coverPath.address.toJS]),
+  'cryptolib_oprf_evaluate':
+      (
+        Pointer<NativeType> sk,
+        int skLen,
+        Pointer<NativeType> input,
+        int inputLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_oprf_evaluate',
+        [sk.address.toJS, skLen.toJS, input.address.toJS, inputLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_opaque_record_free': (Pointer<NativeType> r) => WebEngine.current
+      .callVoid('_cbw_cryptolib_opaque_record_free', [r.address.toJS]),
+  'cryptolib_opaque_ke1_free': (Pointer<NativeType> k) => WebEngine.current
+      .callVoid('_cbw_cryptolib_opaque_ke1_free', [k.address.toJS]),
+  'cryptolib_opaque_ke2_free': (Pointer<NativeType> k) => WebEngine.current
+      .callVoid('_cbw_cryptolib_opaque_ke2_free', [k.address.toJS]),
+  'cryptolib_opaque_ke3_free': (Pointer<NativeType> k) => WebEngine.current
+      .callVoid('_cbw_cryptolib_opaque_ke3_free', [k.address.toJS]),
 };

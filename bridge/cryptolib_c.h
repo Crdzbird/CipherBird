@@ -294,6 +294,105 @@ CRYPTO_API int cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
     const uint8_t* nonce, size_t nonce_len);
 #endif
 
+/** cryptolib_blake2b_keyed written straight into out (out_len bytes, 1 to
+ *  64) with the same argument rules, so a short keyed digest costs one call
+ *  and no allocation. Returns CRYPTOLIB_PASETO_OK, CRYPTOLIB_PASETO_ERR_ARGUMENT
+ *  (a bad length or a NULL pointer with a non-zero length) or
+ *  CRYPTOLIB_PASETO_ERR_INTERNAL; out is zeroed on failure. */
+CRYPTO_API int cryptolib_blake2b_keyed_into(uint8_t* out, size_t out_len,
+                                            const uint8_t* msg, size_t msg_len,
+                                            const uint8_t* key, size_t key_len);
+
+/* cb1: CipherBird tokens, version 1. The PASETO v4 token shape carried by
+ * this library's primitives: cb1.local is v4.local with BLAKE3 in place of
+ * BLAKE2b (Ek || n2 and Ak from keyed BLAKE3 over "cb1-encryption-key" || n
+ * and "cb1-auth-key" || n, XChaCha20, a keyed BLAKE3 tag over
+ * PAE("cb1.local.", n, c, f, i)); cb1.public is v4.public with the
+ * Ed25519 + ML-DSA-65 hybrid signature (cryptolib_hybrid_sig_keygen) over
+ * PAE("cb1.public.", m, f, i) in place of Ed25519. The functions take and
+ * return exactly what the v4.local ones do, with the same return codes, and
+ * are library-native: they exist in the full profile, report
+ * CRYPTOLIB_PASETO_ERR_UNAVAILABLE in the bank profile and are absent from
+ * fips. A cb1 token is rejected by every PASETO parser by its header and
+ * these functions reject PASETO tokens the same way. */
+#define CRYPTOLIB_PASETO_ERR_UNAVAILABLE (-4)
+#define CRYPTOLIB_CB1_LOCAL_KEY_BYTES 32
+#define CRYPTOLIB_CB1_PUBLIC_KEY_BYTES 1984
+#define CRYPTOLIB_CB1_SECRET_KEY_BYTES 4096
+#define CRYPTOLIB_CB1_SIGNATURE_BYTES 3373
+#define CRYPTOLIB_CB1_MAX_INPUT_BYTES ((size_t)1 << 26)
+
+/** Exact length of the cb1.local token for a msg_len-byte message and a
+ *  footer_len-byte footer, or 0 when either exceeds the maximum. */
+CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t msg_len, size_t footer_len);
+
+/** Output capacity cryptolib_cb1_local_decrypt requires for a token of
+ *  token_len bytes; 0 for a length no valid token has. */
+CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t token_len);
+
+/** cb1.local encrypt; the contract of cryptolib_paseto_v4_local_encrypt. */
+CRYPTO_API int cryptolib_cb1_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** cb1.local decrypt; the contract of cryptolib_paseto_v4_local_decrypt:
+ *  header, canonical base64url, footer and tag (in constant time) are all
+ *  checked before anything is decrypted, every token-dependent failure is
+ *  CRYPTOLIB_PASETO_ERR_INVALID, and the output region is zero on failure. */
+CRYPTO_API int cryptolib_cb1_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** Exact length of the cb1.public token for a msg_len-byte message and a
+ *  footer_len-byte footer, or 0 when either exceeds the maximum. */
+CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t msg_len, size_t footer_len);
+
+/** Output capacity cryptolib_cb1_public_verify requires for a token of
+ *  token_len bytes; 0 for a length no valid token has. */
+CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t token_len);
+
+/** cb1.public sign with a 4096-byte hybrid secret key. Writes the token
+ *  text to out; out_cap must be at least cryptolib_cb1_public_sign_len.
+ *  The footer is appended in clear and signed; implicit is signed but never
+ *  stored. Returns CRYPTOLIB_PASETO_OK, CRYPTOLIB_PASETO_ERR_ARGUMENT or
+ *  CRYPTOLIB_PASETO_ERR_INTERNAL; *out_len is 0 on failure. */
+CRYPTO_API int cryptolib_cb1_public_sign(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* secret_key, size_t sk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** cb1.public verify with a 1984-byte hybrid public key. Checks the header,
+ *  the encoding and the footer, then both signature halves over
+ *  PAE("cb1.public.", m, expected_footer, implicit), and writes the message
+ *  to out only when everything verifies. Every token-dependent failure is
+ *  CRYPTOLIB_PASETO_ERR_INVALID; the output region is zero on failure. */
+CRYPTO_API int cryptolib_cb1_public_verify(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* public_key, size_t pk_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+/** Test builds only: cryptolib_cb1_local_encrypt with a caller-chosen
+ *  32-byte nonce, for the pinned vectors. */
+CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len);
+#endif
+
 /** Committing AEAD (UtC) encrypt. Output: [commitment(32) | nonce | ct | MAC].
  *  Commits to (key, AAD) — closes the partitioning-oracle / non-committal gap. */
 CRYPTO_API CryptoBufferResult cryptolib_committing_encrypt(

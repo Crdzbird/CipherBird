@@ -8,6 +8,10 @@ extension type HashApi(CipherBird _l) {
   /// BLAKE2b-512 hash. key may be empty for unkeyed.
   Uint8List blake2b(Uint8List msg, [Uint8List? key]) => _l.blake2b(msg, key);
 
+  /// BLAKE2b at a chosen output length, unkeyed or keyed.
+  Uint8List blake2bKeyed(Uint8List msg, {Uint8List? key, int outLen = 32}) =>
+      _l.blake2bKeyed(msg, key: key, outLen: outLen);
+
   /// SHA-256 hash.
   Uint8List sha256(Uint8List msg) => _l.sha256(msg);
 

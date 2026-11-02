@@ -1,6 +1,22 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry02 = {
+  'cryptolib_hmac_sha512_verify':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> mac,
+        int macLen,
+        Pointer<NativeType> key,
+        int keyLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_hmac_sha512_verify', [
+        msg.address.toJS,
+        msgLen.toJS,
+        mac.address.toJS,
+        macLen.toJS,
+        key.address.toJS,
+        keyLen.toJS,
+      ]),
   'cryptolib_argon2id_hash_str':
       (Pointer<NativeType> password, int ops, int mem) =>
           WebEngine.current.callStruct(
@@ -61,27 +77,6 @@ final Map<String, Function> _registry02 = {
         [
           plaintext.address.toJS,
           ptLen.toJS,
-          key.address.toJS,
-          keyLen.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_xchacha20_decrypt':
-      (
-        Pointer<NativeType> ciphertext,
-        int ctLen,
-        Pointer<NativeType> key,
-        int keyLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_xchacha20_decrypt',
-        [
-          ciphertext.address.toJS,
-          ctLen.toJS,
           key.address.toJS,
           keyLen.toJS,
           aad.address.toJS,

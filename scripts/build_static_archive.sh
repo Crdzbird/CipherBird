@@ -8,10 +8,19 @@
 # locate at run time.
 #
 # Usage: scripts/build_static_archive.sh [out_dir]   (macOS host)
+#   CRYPTOLIB_PROFILE=full (default) or bank selects the profile; the bank
+#   archive compiles the bridge with the bank definitions, so it ships only
+#   the standards-track families, and defaults to build/static-bank.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-OUT="${1:-build/static}"
+PROFILE="${CRYPTOLIB_PROFILE:-full}"
+case "$PROFILE" in
+    full) PROFILE_DEFS="-DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1"; DEFAULT_OUT=build/static ;;
+    bank) PROFILE_DEFS="-DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_PROFILE_BANK=1"; DEFAULT_OUT=build/static-bank ;;
+    *) echo "CRYPTOLIB_PROFILE must be full or bank (fips links the validated module dynamically)"; exit 2 ;;
+esac
+OUT="${1:-$DEFAULT_OUT}"
 mkdir -p "$OUT" build/host-deps
 
 BREW_LIB=/opt/homebrew/lib
@@ -47,7 +56,7 @@ fi
 # 2. Compile the bridge to an object file (no link). Same exploit-mitigation
 #    flags as the CMake shared-lib build (portable subset for the host arch).
 clang++ -std=c++20 -O2 -fPIC -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -c \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 \
+    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 $PROFILE_DEFS -DCRYPTOLIB_HAS_BLS=1 \
     -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
     -I include -I /opt/homebrew/include -I "$OSSL/include" -I "$SECP/include" \
     bridge/cryptolib_c.cpp -o "$OUT/cryptolib_c.o"
@@ -62,4 +71,4 @@ libtool -static -o "$OUT/libcryptolib_c.a" \
 
 rm -f "$OUT/cryptolib_c.o"
 SIZE="$(du -h "$OUT/libcryptolib_c.a" | cut -f1)"
-echo "→ $OUT/libcryptolib_c.a ($SIZE, self-contained)"
+echo "-> $OUT/libcryptolib_c.a ($SIZE, self-contained, $PROFILE profile)"

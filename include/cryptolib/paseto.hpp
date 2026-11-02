@@ -27,12 +27,8 @@
  * The PAE header, the nonce and the ciphertext length are fed to BLAKE2b as
  * one block of 73 bytes instead of six updates.
  *
- * Nonces come from libsodium's CSPRNG (randombytes_buf), drawn 1 KiB at a
- * time into a per-thread batch because each operating-system call costs
- * microseconds and is serialised across threads. A nonce is public and only
- * has to be unique, so the batch is not secret; each nonce is zeroed in the
- * batch as it is taken, and a fork handler discards every batch in the child
- * so a parent and child never emit the same nonce.
+ * Nonces come from the batched CSPRNG source in detail::NonceSource, shared
+ * with the cb1 tokens.
  */
 
 #include "detail/ct.hpp"
@@ -140,6 +136,77 @@ inline bool decode(uint8_t* dst, std::size_t cap, const char* src, std::size_t l
 
 }
 
+/// Helpers every token class shares: little-endian lengths for PAE, overlap
+/// checks, and the nonce source.
+namespace detail {
+
+inline void put_le(uint8_t* p, std::size_t n) noexcept {
+    const uint64_t v = static_cast<uint64_t>(n) & 0x7FFFFFFFFFFFFFFFULL;
+    for (int i = 0; i < 8; ++i) p[i] = static_cast<uint8_t>(v >> (8 * i));
+}
+
+inline bool overlaps(std::span<const uint8_t> a, std::span<const uint8_t> b) noexcept {
+    if (a.empty() || b.empty()) return false;
+    const auto a0 = reinterpret_cast<std::uintptr_t>(a.data());
+    const auto b0 = reinterpret_cast<std::uintptr_t>(b.data());
+    return a0 < b0 + b.size() && b0 < a0 + a.size();
+}
+
+/// Nonces come from libsodium's CSPRNG (randombytes_buf), drawn 1 KiB at a
+/// time into a per-thread batch because each operating-system call costs
+/// microseconds and is serialised across threads. A nonce is public and only
+/// has to be unique, so the batch is not secret; each nonce is zeroed in the
+/// batch as it is taken, and a fork handler discards every batch in the child
+/// so a parent and child never emit the same nonce.
+class NonceSource {
+public:
+    static constexpr std::size_t BATCH_BYTES = 1024;
+
+    /// Writes len fresh bytes (at most BATCH_BYTES) to n.
+    static void fresh(uint8_t* n, std::size_t len) noexcept {
+        struct Batch {
+            uint8_t buf[BATCH_BYTES];
+            std::size_t pos = sizeof buf;
+            unsigned gen = 0;
+        };
+        static const bool hooked = fork_hook();
+        static thread_local Batch batch;
+        const unsigned g = fork_generation().load(std::memory_order_relaxed);
+        if (!hooked || len > sizeof batch.buf) {
+            randombytes_buf(n, len);
+            return;
+        }
+        if (batch.pos + len > sizeof batch.buf || batch.gen != g) {
+            randombytes_buf(batch.buf, sizeof batch.buf);
+            batch.pos = 0;
+            batch.gen = g;
+        }
+        std::memcpy(n, batch.buf + batch.pos, len);
+        sodium_memzero(batch.buf + batch.pos, len);
+        batch.pos += len;
+    }
+
+private:
+    static std::atomic<unsigned>& fork_generation() noexcept {
+        static std::atomic<unsigned> g{0};
+        return g;
+    }
+
+    static void on_fork_child() noexcept {
+        fork_generation().fetch_add(1, std::memory_order_relaxed);
+    }
+
+    static bool fork_hook() noexcept {
+#if defined(__unix__) || defined(__APPLE__)
+        return pthread_atfork(nullptr, nullptr, &NonceSource::on_fork_child) == 0;
+#else
+        return true;
+#endif
+    }
+};
+
+}
+
 /// PASETO v4.local encrypt and decrypt into caller-provided buffers.
 class V4Local {
 public:
@@ -183,7 +250,7 @@ public:
          std::span<const uint8_t> msg, std::span<const uint8_t> footer,
          std::span<const uint8_t> implicit) noexcept {
         uint8_t n[NONCE_BYTES];
-        fresh_nonce(n);
+        detail::NonceSource::fresh(n, NONCE_BYTES);
         return seal_impl(out, out_len, key, msg, footer, implicit, n);
     }
 
@@ -216,8 +283,8 @@ public:
         if (key.size() != KEY_BYTES || expected_footer.size() > MAX_INPUT_BYTES ||
             implicit.size() > MAX_INPUT_BYTES || out.size() < cap)
             return Status::argument;
-        if (overlaps(out, token) || overlaps(out, key) || overlaps(out, expected_footer) ||
-            overlaps(out, implicit))
+        if (detail::overlaps(out, token) || detail::overlaps(out, key) || detail::overlaps(out, expected_footer) ||
+            detail::overlaps(out, implicit))
             return Status::argument;
         const Status s = open_impl(out.first(cap), out_len, token, key, expected_footer, implicit);
         if (s == Status::ok) return s;
@@ -229,46 +296,6 @@ public:
 private:
     static constexpr std::string_view ENC_DOMAIN = "paseto-encryption-key";
     static constexpr std::string_view AUTH_DOMAIN = "paseto-auth-key-for-aead";
-
-    static std::atomic<unsigned>& fork_generation() noexcept {
-        static std::atomic<unsigned> g{0};
-        return g;
-    }
-
-    static void on_fork_child() noexcept {
-        fork_generation().fetch_add(1, std::memory_order_relaxed);
-    }
-
-    static bool fork_hook() noexcept {
-#if defined(__unix__) || defined(__APPLE__)
-        return pthread_atfork(nullptr, nullptr, &V4Local::on_fork_child) == 0;
-#else
-        return true;
-#endif
-    }
-
-    static void fresh_nonce(uint8_t* n) noexcept {
-        struct Batch {
-            uint8_t buf[1024];
-            std::size_t pos = sizeof buf;
-            unsigned gen = 0;
-        };
-        static const bool hooked = fork_hook();
-        static thread_local Batch batch;
-        const unsigned g = fork_generation().load(std::memory_order_relaxed);
-        if (!hooked) {
-            randombytes_buf(n, NONCE_BYTES);
-            return;
-        }
-        if (batch.pos == sizeof batch.buf || batch.gen != g) {
-            randombytes_buf(batch.buf, sizeof batch.buf);
-            batch.pos = 0;
-            batch.gen = g;
-        }
-        std::memcpy(n, batch.buf + batch.pos, NONCE_BYTES);
-        sodium_memzero(batch.buf + batch.pos, NONCE_BYTES);
-        batch.pos += NONCE_BYTES;
-    }
 
     struct Keys {
         uint8_t split[56];
@@ -284,13 +311,6 @@ private:
 
     static constexpr std::size_t b64_len(std::size_t n) noexcept { return codec::encoded_len(n); }
 
-    static bool overlaps(std::span<const uint8_t> a, std::span<const uint8_t> b) noexcept {
-        if (a.empty() || b.empty()) return false;
-        const auto a0 = reinterpret_cast<std::uintptr_t>(a.data());
-        const auto b0 = reinterpret_cast<std::uintptr_t>(b.data());
-        return a0 < b0 + b.size() && b0 < a0 + a.size();
-    }
-
     static int derive(Keys& k, const uint8_t* key, const uint8_t* n) noexcept {
         uint8_t m[AUTH_DOMAIN.size() + NONCE_BYTES];
         std::memcpy(m, ENC_DOMAIN.data(), ENC_DOMAIN.size());
@@ -305,14 +325,9 @@ private:
 
     static constexpr std::size_t PAE_HEAD = 8 + 8 + HEADER.size() + 8 + NONCE_BYTES + 8;
 
-    static void put_le(uint8_t* p, std::size_t n) noexcept {
-        const uint64_t v = static_cast<uint64_t>(n) & 0x7FFFFFFFFFFFFFFFULL;
-        for (int i = 0; i < 8; ++i) p[i] = static_cast<uint8_t>(v >> (8 * i));
-    }
-
     static int pae_piece(crypto_generichash_state& st, const uint8_t* p, std::size_t n) noexcept {
         uint8_t le[8];
-        put_le(le, n);
+        detail::put_le(le, n);
         int rc = crypto_generichash_update(&st, le, sizeof le);
         if (n != 0) rc |= crypto_generichash_update(&st, p, n);
         return rc;
@@ -322,12 +337,12 @@ private:
                    std::span<const uint8_t> c, std::span<const uint8_t> f,
                    std::span<const uint8_t> i) noexcept {
         uint8_t head[PAE_HEAD];
-        put_le(head, 5);
-        put_le(head + 8, HEADER.size());
+        detail::put_le(head, 5);
+        detail::put_le(head + 8, HEADER.size());
         std::memcpy(head + 16, HEADER.data(), HEADER.size());
-        put_le(head + 16 + HEADER.size(), NONCE_BYTES);
+        detail::put_le(head + 16 + HEADER.size(), NONCE_BYTES);
         std::memcpy(head + 24 + HEADER.size(), n, NONCE_BYTES);
-        put_le(head + 24 + HEADER.size() + NONCE_BYTES, c.size());
+        detail::put_le(head + 24 + HEADER.size() + NONCE_BYTES, c.size());
         crypto_generichash_state st;
         int rc = crypto_generichash_init(&st, ak, KEY_BYTES, TAG_BYTES);
         rc |= crypto_generichash_update(&st, head, sizeof head);
@@ -348,8 +363,8 @@ private:
         if (key.size() != KEY_BYTES || need == 0 || implicit.size() > MAX_INPUT_BYTES ||
             out.size() < need)
             return Status::argument;
-        if (overlaps(out, key) || overlaps(out, msg) || overlaps(out, footer) ||
-            overlaps(out, implicit))
+        if (detail::overlaps(out, key) || detail::overlaps(out, msg) || detail::overlaps(out, footer) ||
+            detail::overlaps(out, implicit))
             return Status::argument;
         const std::size_t raw_len = NONCE_BYTES + msg.size() + TAG_BYTES;
         uint8_t* raw = out.data() + HEADER.size() + b64_len(raw_len) - raw_len;
@@ -408,7 +423,7 @@ private:
         int rc = derive(k, key.data(), n);
         rc |= mac(k.tag, k.ak, n, {c, clen}, {f, flen}, implicit);
         int verdict = crypto_verify_32(t, k.tag);
-        detail::ct_declassify(&verdict, sizeof verdict);
+        crypto::detail::ct_declassify(&verdict, sizeof verdict);
         if (rc != 0) return Status::internal;
         if (verdict != 0) return Status::invalid;
         std::memmove(work.data(), c, clen);

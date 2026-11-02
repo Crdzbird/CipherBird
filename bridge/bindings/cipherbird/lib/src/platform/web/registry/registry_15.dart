@@ -1,78 +1,82 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry15 = {
-  'cryptolib_packet_deserialise':
-      (Pointer<NativeType> data, int len, Pointer<NativeType> outError) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_packet_deserialise',
-            [data.address.toJS, len.toJS, outError.address.toJS],
-            CipherBirdPacket.size,
-            CipherBirdPacket._new,
-          ),
-  'cryptolib_vault_free': (Pointer<NativeType> vault) => WebEngine.current
-      .callVoid('_cbw_cryptolib_vault_free', [vault.address.toJS]),
-  'cryptolib_asym_bundle_generate': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_asym_bundle_generate',
-    [],
-    CipherBirdAsymBundle.size,
-    CipherBirdAsymBundle._new,
-  ),
-  'cryptolib_asym_vault_seal':
+  'cryptolib_ed25519_sign':
       (
-        Pointer<NativeType> sender,
-        Pointer<NativeType> recipientBoxPub,
-        int rpubLen,
-        Pointer<NativeType> plaintext,
-        int ptLen,
-        Pointer<NativeType> aad,
-        Pointer<NativeType> outError,
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_asym_vault_seal',
-        [
-          sender.address.toJS,
-          recipientBoxPub.address.toJS,
-          rpubLen.toJS,
-          plaintext.address.toJS,
-          ptLen.toJS,
-          aad.address.toJS,
-          outError.address.toJS,
-        ],
-        CipherBirdPacket.size,
-        CipherBirdPacket._new,
+        '_cbw_cryptolib_ed25519_sign',
+        [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
       ),
-  'cryptolib_asym_vault_open':
+  'cryptolib_ed25519_verify':
       (
-        Pointer<NativeType> packet,
-        Pointer<NativeType> recipient,
-        Pointer<NativeType> senderSignPub,
-        int spubLen,
-        Pointer<NativeType> aad,
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> sig,
+        int sigLen,
+        Pointer<NativeType> publicKey,
+        int pkLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_ed25519_verify', [
+        msg.address.toJS,
+        msgLen.toJS,
+        sig.address.toJS,
+        sigLen.toJS,
+        publicKey.address.toJS,
+        pkLen.toJS,
+      ]),
+  'cryptolib_x25519_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_x25519_keygen',
+    [],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_x25519_shared_secret':
+      (
+        Pointer<NativeType> ourSecret,
+        int ourLen,
+        Pointer<NativeType> theirPublic,
+        int theirLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_asym_vault_open',
+        '_cbw_cryptolib_x25519_shared_secret',
         [
-          packet.address.toJS,
-          recipient.address.toJS,
-          senderSignPub.address.toJS,
-          spubLen.toJS,
-          aad.address.toJS,
+          ourSecret.address.toJS,
+          ourLen.toJS,
+          theirPublic.address.toJS,
+          theirLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_entropy_from_file':
-      (Pointer<NativeType> path, Pointer<NativeType> outError) =>
-          Pointer<Void>._(
-            WebEngine.current.callInt('_cbw_cryptolib_entropy_from_file', [
-              path.address.toJS,
-              outError.address.toJS,
-            ]),
-          ),
-  'cryptolib_entropy_from_file_deterministic':
-      (Pointer<NativeType> path, Pointer<NativeType> outError) =>
-          Pointer<Void>._(
-            WebEngine.current.callInt(
-              '_cbw_cryptolib_entropy_from_file_deterministic',
-              [path.address.toJS, outError.address.toJS],
-            ),
-          ),
+  'cryptolib_box_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_box_keygen',
+    [],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_box_encrypt':
+      (
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> recipientPub,
+        int rpubLen,
+        Pointer<NativeType> senderSec,
+        int ssecLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_box_encrypt',
+        [
+          plaintext.address.toJS,
+          ptLen.toJS,
+          recipientPub.address.toJS,
+          rpubLen.toJS,
+          senderSec.address.toJS,
+          ssecLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
 };

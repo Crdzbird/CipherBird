@@ -73,6 +73,8 @@ def parse_functions(text, struct_names):
     functions = []
     pattern = re.compile(r'CRYPTO_API\s+([\w\s\*]+?)\s*\b(cryptolib_\w+)\s*\(([^;{]*)\)\s*;')
     for ret, name, params in pattern.findall(text):
+        if name.endswith('_for_testing'):
+            continue
         ret = ' '.join(ret.split())
         plist = split_params(params)
         for p in plist:

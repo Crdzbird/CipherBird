@@ -42,6 +42,25 @@ final Map<String, Function> _registry01 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
+  'cryptolib_blake2b_keyed':
+      (
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> key,
+        int keyLen,
+        int outLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_blake2b_keyed',
+        [
+          msg.address.toJS,
+          msgLen.toJS,
+          key.address.toJS,
+          keyLen.toJS,
+          outLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
   'cryptolib_sha256': (Pointer<NativeType> msg, int msgLen) =>
       WebEngine.current.callStruct(
         '_cbw_cryptolib_sha256',
@@ -68,20 +87,4 @@ final Map<String, Function> _registry01 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hmac_sha512_verify':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> mac,
-        int macLen,
-        Pointer<NativeType> key,
-        int keyLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_hmac_sha512_verify', [
-        msg.address.toJS,
-        msgLen.toJS,
-        mac.address.toJS,
-        macLen.toJS,
-        key.address.toJS,
-        keyLen.toJS,
-      ]),
 };

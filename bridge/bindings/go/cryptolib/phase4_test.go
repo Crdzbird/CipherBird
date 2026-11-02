@@ -1,3 +1,5 @@
+//go:build !cryptolib_bank
+
 package cryptolib
 
 import (

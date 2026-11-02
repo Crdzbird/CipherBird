@@ -118,10 +118,33 @@ TEST("paseto/blake2b-keyed/rejects-bad-lengths-and-null-pointers") {
     CHECK_ERR(B2::compute(msg, key, 0));
 }
 
+TEST("paseto/blake2b-keyed-into/writes-the-same-digest-without-allocating") {
+    const auto key = counting(32, 0x70);
+    const auto msg = counting(77, 3);
+    for (size_t n : {size_t{1}, size_t{32}, size_t{56}, size_t{64}}) {
+        std::vector<uint8_t> out(n + 1, 0xEE);
+        CHECK(cryptolib_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), key.data(), key.size()) == CRYPTOLIB_PASETO_OK);
+        CHECK(hex_of(out.data(), n) == b2(msg, key, n));
+        CHECK(out[n] == 0xEE);
+        CHECK(cryptolib_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), nullptr, 0) == CRYPTOLIB_PASETO_OK);
+        CHECK(hex_of(out.data(), n) == b2(msg, {}, n));
+    }
+    uint8_t one[64];
+    CHECK(cryptolib_blake2b_keyed_into(one, 0, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(one, 65, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(nullptr, 32, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(one, 32, nullptr, 1, key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(one, 32, msg.data(), msg.size(), key.data(), 15) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(one, 32, msg.data(), msg.size(), nullptr, 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cryptolib_blake2b_keyed_into(one, 32, nullptr, 0, key.data(), 32) == CRYPTOLIB_PASETO_OK);
+    CHECK(hex_of(one, 32) == b2({}, std::span<const uint8_t>(key.data(), 32), 32));
+}
+
 void run_tests_paseto_primitives() {
     RUN("paseto/blake2b-keyed/libsodium-generichash-exp-32-56-64");
     RUN("paseto/blake2b-keyed/blake2-reference-kat-64");
     RUN("paseto/blake2b-keyed/v4-local-shaped-inputs-match-python-hashlib");
     RUN("paseto/blake2b-keyed/unkeyed-length-is-a-parameter-not-a-truncation");
     RUN("paseto/blake2b-keyed/rejects-bad-lengths-and-null-pointers");
+    RUN("paseto/blake2b-keyed-into/writes-the-same-digest-without-allocating");
 }

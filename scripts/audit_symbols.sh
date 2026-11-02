@@ -39,11 +39,13 @@ echo "══ no-ambient-authority audit ══"
 echo "   target: ${LIB#$ROOT/}"
 
 # Imported (undefined) symbols. macOS mangles with a leading underscore; the
-# regexes tolerate an optional leading '_' and match on a word boundary/end.
+# regexes tolerate an optional leading '_' and match the whole symbol, so a
+# name that merely ends in a forbidden word (pthread_atfork, the fork handler
+# of the token nonce source) is not a hit.
 IMPORTS="$(nm -u "$LIB" 2>/dev/null || nm -D --undefined-only "$LIB" 2>/dev/null || true)"
 
-HARD='_?(socket|connect|bind|listen|accept|send|sendto|sendmsg|recv|recvfrom|recvmsg|getaddrinfo|getnameinfo|gethostbyname|gethostbyaddr|inet_aton|inet_pton|system|popen|execl|execle|execlp|execv|execve|execvp|execvpe|posix_spawn|posix_spawnp|fork|vfork)$'
-WATCH='_?(dlopen|dlmopen|dlsym|getenv|secure_getenv|setenv|putenv|unsetenv)$'
+HARD='^_?(socket|connect|bind|listen|accept|send|sendto|sendmsg|recv|recvfrom|recvmsg|getaddrinfo|getnameinfo|gethostbyname|gethostbyaddr|inet_aton|inet_pton|system|popen|execl|execle|execlp|execv|execve|execvp|execvpe|posix_spawn|posix_spawnp|fork|vfork)$'
+WATCH='^_?(dlopen|dlmopen|dlsym|getenv|secure_getenv|setenv|putenv|unsetenv)$'
 
 hard_hits="$(printf '%s\n' "$IMPORTS" | awk '{print $NF}' | grep -E "$HARD" | sort -u || true)"
 watch_hits="$(printf '%s\n' "$IMPORTS" | awk '{print $NF}' | grep -E "$WATCH" | sort -u || true)"

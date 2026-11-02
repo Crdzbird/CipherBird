@@ -1,93 +1,94 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry17 = {
-  'cryptolib_seal_from_file':
+  'cryptolib_vault_seal':
       (
-        Pointer<NativeType> path,
+        Pointer<NativeType> vault,
         Pointer<NativeType> plaintext,
+        int ptLen,
         Pointer<NativeType> aad,
         Pointer<NativeType> outError,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_seal_from_file',
+        '_cbw_cryptolib_vault_seal',
         [
-          path.address.toJS,
+          vault.address.toJS,
           plaintext.address.toJS,
+          ptLen.toJS,
           aad.address.toJS,
           outError.address.toJS,
         ],
         CipherBirdPacket.size,
         CipherBirdPacket._new,
       ),
-  'cryptolib_open_from_file':
+  'cryptolib_vault_seal_boosted':
       (
-        Pointer<NativeType> path,
+        Pointer<NativeType> vault,
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> aad,
+        Pointer<NativeType> boost,
+        Pointer<NativeType> outError,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_vault_seal_boosted',
+        [
+          vault.address.toJS,
+          plaintext.address.toJS,
+          ptLen.toJS,
+          aad.address.toJS,
+          boost.address.toJS,
+          outError.address.toJS,
+        ],
+        CipherBirdPacket.size,
+        CipherBirdPacket._new,
+      ),
+  'cryptolib_vault_open':
+      (
+        Pointer<NativeType> vault,
         Pointer<NativeType> packet,
         Pointer<NativeType> aad,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_open_from_file',
-        [path.address.toJS, packet.address.toJS, aad.address.toJS],
+        '_cbw_cryptolib_vault_open',
+        [vault.address.toJS, packet.address.toJS, aad.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3': (Pointer<NativeType> msg, int msgLen, int outLen) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3',
-        [msg.address.toJS, msgLen.toJS, outLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_blake3_keyed':
+  'cryptolib_vault_open_boosted':
       (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> key,
-        int keyLen,
-        int outLen,
+        Pointer<NativeType> vault,
+        Pointer<NativeType> packet,
+        Pointer<NativeType> aad,
+        Pointer<NativeType> boost,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_keyed',
+        '_cbw_cryptolib_vault_open_boosted',
         [
-          msg.address.toJS,
-          msgLen.toJS,
-          key.address.toJS,
-          keyLen.toJS,
-          outLen.toJS,
+          vault.address.toJS,
+          packet.address.toJS,
+          aad.address.toJS,
+          boost.address.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_derive_key':
-      (
-        Pointer<NativeType> context,
-        Pointer<NativeType> ikm,
-        int ikmLen,
-        int outLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_derive_key',
-        [context.address.toJS, ikm.address.toJS, ikmLen.toJS, outLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_blake3_hasher_create': (Pointer<NativeType> key, int keyLen) =>
-      Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_create', [
-          key.address.toJS,
-          keyLen.toJS,
-        ]),
-      ),
-  'cryptolib_blake3_hasher_update':
-      (Pointer<NativeType> h, Pointer<NativeType> data, int len) =>
-          WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_update', [
-            h.address.toJS,
-            data.address.toJS,
-            len.toJS,
-          ]),
-  'cryptolib_blake3_hasher_finalize': (Pointer<NativeType> h, int outLen) =>
+  'cryptolib_vault_public_key': (Pointer<NativeType> vault) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_hasher_finalize',
-        [h.address.toJS, outLen.toJS],
+        '_cbw_cryptolib_vault_public_key',
+        [vault.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_hasher_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_blake3_hasher_free', [h.address.toJS]),
+  'cryptolib_packet_serialise': (Pointer<NativeType> packet) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_packet_serialise',
+        [packet.address.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_packet_deserialise':
+      (Pointer<NativeType> data, int len, Pointer<NativeType> outError) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_packet_deserialise',
+            [data.address.toJS, len.toJS, outError.address.toJS],
+            CipherBirdPacket.size,
+            CipherBirdPacket._new,
+          ),
 };

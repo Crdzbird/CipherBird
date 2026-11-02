@@ -1,91 +1,80 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry44 = {
-  'cryptolib_keyring_serialise': (Pointer<NativeType> kr) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_keyring_serialise',
-        [kr.address.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_keyring_deserialise':
-      (Pointer<NativeType> blob, int len, Pointer<NativeType> outError) =>
-          Pointer<Void>._(
-            WebEngine.current.callInt('_cbw_cryptolib_keyring_deserialise', [
-              blob.address.toJS,
-              len.toJS,
-              outError.address.toJS,
-            ]),
-          ),
-  'cryptolib_keyring_unlock_with_device':
-      (Pointer<NativeType> kr, Pointer<NativeType> factorKey, int len) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_keyring_unlock_with_device',
-            [kr.address.toJS, factorKey.address.toJS, len.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_keyring_add_hardware_slot':
-      (Pointer<NativeType> kr, Pointer<NativeType> keyId, int keyIdLen) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_keyring_add_hardware_slot',
-            [kr.address.toJS, keyId.address.toJS, keyIdLen.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_keyring_set_hardware_blob':
+  'cryptolib_live_entropy_feed':
       (
-        Pointer<NativeType> kr,
-        int index,
-        Pointer<NativeType> blob,
-        int blobLen,
-      ) => WebEngine.current.callInt(
-        '_cbw_cryptolib_keyring_set_hardware_blob',
-        [kr.address.toJS, index.toJS, blob.address.toJS, blobLen.toJS],
-      ),
-  'cryptolib_keyring_slot_type': (Pointer<NativeType> kr, int index) =>
-      WebEngine.current.callInt('_cbw_cryptolib_keyring_slot_type', [
-        kr.address.toJS,
-        index.toJS,
-      ]),
-  'cryptolib_keyring_hardware_slot':
-      (
-        Pointer<NativeType> kr,
-        int index,
-        Pointer<NativeType> outKeyId,
-        Pointer<NativeType> outBlob,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_keyring_hardware_slot', [
-        kr.address.toJS,
-        index.toJS,
-        outKeyId.address.toJS,
-        outBlob.address.toJS,
-      ]),
-  'cryptolib_keyring_unlock_with_hardware':
-      (
-        Pointer<NativeType> kr,
-        int index,
-        Pointer<NativeType> factor,
-        int factorLen,
+        Pointer<NativeType> h,
+        Pointer<NativeType> data,
+        int len,
+        int sourceId,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_keyring_unlock_with_hardware',
-        [kr.address.toJS, index.toJS, factor.address.toJS, factorLen.toJS],
+        '_cbw_cryptolib_live_entropy_feed',
+        [h.address.toJS, data.address.toJS, len.toJS, sourceId.toJS],
+        CipherBirdLiveFeedReport.size,
+        CipherBirdLiveFeedReport._new,
+      ),
+  'cryptolib_live_entropy_generate': (Pointer<NativeType> h, int numBytes) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_live_entropy_generate',
+        [h.address.toJS, numBytes.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_keyring_unlock_with_passphrase':
-      (Pointer<NativeType> kr, Pointer<NativeType> passphrase) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_keyring_unlock_with_passphrase',
-            [kr.address.toJS, passphrase.address.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_keyring_free': (Pointer<NativeType> kr) => WebEngine.current
-      .callVoid('_cbw_cryptolib_keyring_free', [kr.address.toJS]),
-  'cryptolib_xwing_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_xwing_keygen',
-    [],
-    CipherBirdKeyPair.size,
-    CipherBirdKeyPair._new,
-  ),
+  'cryptolib_live_entropy_status': (Pointer<NativeType> h) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_live_entropy_status',
+        [h.address.toJS],
+        CipherBirdLiveStatus.size,
+        CipherBirdLiveStatus._new,
+      ),
+  'cryptolib_live_entropy_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cryptolib_live_entropy_free', [h.address.toJS]),
+  'cryptolib_image_factor_seal':
+      (
+        Pointer<NativeType> oprfSecretSeed,
+        int seedLen,
+        Pointer<NativeType> referenceImagePath,
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> aad,
+        int aadLen,
+        Pointer<NativeType> coverPath,
+        Pointer<NativeType> outputPath,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_image_factor_seal',
+        [
+          oprfSecretSeed.address.toJS,
+          seedLen.toJS,
+          referenceImagePath.address.toJS,
+          plaintext.address.toJS,
+          ptLen.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          coverPath.address.toJS,
+          outputPath.address.toJS,
+        ],
+        CipherBirdResult.size,
+        CipherBirdResult._new,
+      ),
+  'cryptolib_image_factor_open':
+      (
+        Pointer<NativeType> oprfSecretSeed,
+        int seedLen,
+        Pointer<NativeType> referenceImagePath,
+        Pointer<NativeType> aad,
+        int aadLen,
+        Pointer<NativeType> stegoPath,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_image_factor_open',
+        [
+          oprfSecretSeed.address.toJS,
+          seedLen.toJS,
+          referenceImagePath.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          stegoPath.address.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
 };

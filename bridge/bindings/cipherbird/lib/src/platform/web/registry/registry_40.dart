@@ -1,86 +1,90 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry40 = {
-  'cryptolib_physical_open':
+  'cryptolib_opaque_server_respond':
       (
-        Pointer<NativeType> keyMediaPath,
-        Pointer<NativeType> aad,
-        int aadLen,
-        Pointer<NativeType> stegoPath,
+        Pointer<NativeType> context,
+        int contextLen,
+        Pointer<NativeType> serverPrivateKey,
+        int skLen,
+        Pointer<NativeType> serverPublicKey,
+        int pkLen,
+        Pointer<NativeType> record,
+        int recordLen,
+        Pointer<NativeType> credentialIdentifier,
+        int ciLen,
+        Pointer<NativeType> oprfSeed,
+        int seedLen,
+        Pointer<NativeType> ke1,
+        int ke1Len,
+        Pointer<NativeType> serverIdentity,
+        int sidLen,
+        Pointer<NativeType> clientIdentity,
+        int cidLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_physical_open',
+        '_cbw_cryptolib_opaque_server_respond',
         [
-          keyMediaPath.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          stegoPath.address.toJS,
+          context.address.toJS,
+          contextLen.toJS,
+          serverPrivateKey.address.toJS,
+          skLen.toJS,
+          serverPublicKey.address.toJS,
+          pkLen.toJS,
+          record.address.toJS,
+          recordLen.toJS,
+          credentialIdentifier.address.toJS,
+          ciLen.toJS,
+          oprfSeed.address.toJS,
+          seedLen.toJS,
+          ke1.address.toJS,
+          ke1Len.toJS,
+          serverIdentity.address.toJS,
+          sidLen.toJS,
+          clientIdentity.address.toJS,
+          cidLen.toJS,
         ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
+        CipherBirdOpaqueKe2.size,
+        CipherBirdOpaqueKe2._new,
       ),
-  'cryptolib_fec_encode': (Pointer<NativeType> data, int len, int scheme) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_fec_encode',
-        [data.address.toJS, len.toJS, scheme.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_fec_decode':
-      (Pointer<NativeType> data, int len, int scheme, int originalLen) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_fec_decode',
-            [data.address.toJS, len.toJS, scheme.toJS, originalLen.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_stego_inspect': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_inspect',
-        [path.address.toJS],
-        CipherBirdFileInspection.size,
-        CipherBirdFileInspection._new,
-      ),
-  'cryptolib_stego_content_digest': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_content_digest',
-        [path.address.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_stego_detect_hidden': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_detect_hidden',
-        [path.address.toJS],
-        CipherBirdHiddenDataReport.size,
-        CipherBirdHiddenDataReport._new,
-      ),
-  'cryptolib_entropy_assess_file_health':
-      (Pointer<NativeType> path, int maxBytes) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_entropy_assess_file_health',
-        [path.address.toJS, maxBytes.toJS],
-        CipherBirdHealthReport.size,
-        CipherBirdHealthReport._new,
-      ),
-  'cryptolib_entropy_assess_file_health_v2':
-      (Pointer<NativeType> path, int maxBytes, double floorBitsPerByte) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_entropy_assess_file_health_v2',
-            [path.address.toJS, maxBytes.toJS, floorBitsPerByte.toJS],
-            CipherBirdHealthReport2.size,
-            CipherBirdHealthReport2._new,
-          ),
-  'cryptolib_live_entropy_new':
+  'cryptolib_opaque_client_finish':
       (
-        double minBitsPerByte,
-        int requireRct,
-        double minCreditedBits,
-        Pointer<NativeType> outError,
-      ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_live_entropy_new', [
-          minBitsPerByte.toJS,
-          requireRct.toJS,
-          minCreditedBits.toJS,
-          outError.address.toJS,
-        ]),
+        Pointer<NativeType> clientState,
+        int csLen,
+        Pointer<NativeType> ke2,
+        int ke2Len,
+        Pointer<NativeType> context,
+        int contextLen,
+        Pointer<NativeType> serverIdentity,
+        int sidLen,
+        Pointer<NativeType> clientIdentity,
+        int cidLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_opaque_client_finish',
+        [
+          clientState.address.toJS,
+          csLen.toJS,
+          ke2.address.toJS,
+          ke2Len.toJS,
+          context.address.toJS,
+          contextLen.toJS,
+          serverIdentity.address.toJS,
+          sidLen.toJS,
+          clientIdentity.address.toJS,
+          cidLen.toJS,
+        ],
+        CipherBirdOpaqueKe3.size,
+        CipherBirdOpaqueKe3._new,
+      ),
+  'cryptolib_opaque_server_finish':
+      (
+        Pointer<NativeType> serverState,
+        int ssLen,
+        Pointer<NativeType> ke3,
+        int ke3Len,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_opaque_server_finish',
+        [serverState.address.toJS, ssLen.toJS, ke3.address.toJS, ke3Len.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
       ),
 };

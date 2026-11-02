@@ -1,90 +1,84 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry35 = {
-  'cryptolib_oprf_derive_keypair':
+  'cryptolib_bbs_calculate_pseudonym':
       (
-        Pointer<NativeType> seed,
-        int seedLen,
-        Pointer<NativeType> info,
-        int infoLen,
+        Pointer<NativeType> contextId,
+        int ctxLen,
+        Pointer<NativeType> nymSecrets,
+        Pointer<NativeType> nymLens,
+        int nymCount,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_derive_keypair',
-        [seed.address.toJS, seedLen.toJS, info.address.toJS, infoLen.toJS],
-        CipherBirdKeyPair.size,
-        CipherBirdKeyPair._new,
-      ),
-  'cryptolib_oprf_blind_free': (Pointer<NativeType> b) => WebEngine.current
-      .callVoid('_cbw_cryptolib_oprf_blind_free', [b.address.toJS]),
-  'cryptolib_oprf_blind': (Pointer<NativeType> input, int inputLen) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_blind',
-        [input.address.toJS, inputLen.toJS],
-        CipherBirdOprfBlind.size,
-        CipherBirdOprfBlind._new,
-      ),
-  'cryptolib_oprf_blind_with_scalar':
-      (
-        Pointer<NativeType> input,
-        int inputLen,
-        Pointer<NativeType> blind,
-        int blindLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_blind_with_scalar',
-        [input.address.toJS, inputLen.toJS, blind.address.toJS, blindLen.toJS],
-        CipherBirdOprfBlind.size,
-        CipherBirdOprfBlind._new,
-      ),
-  'cryptolib_oprf_blind_evaluate':
-      (
-        Pointer<NativeType> sk,
-        int skLen,
-        Pointer<NativeType> blindedElement,
-        int beLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_blind_evaluate',
-        [sk.address.toJS, skLen.toJS, blindedElement.address.toJS, beLen.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_oprf_finalize':
-      (
-        Pointer<NativeType> input,
-        int inputLen,
-        Pointer<NativeType> blind,
-        int blindLen,
-        Pointer<NativeType> evaluatedElement,
-        int eeLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_finalize',
+        '_cbw_cryptolib_bbs_calculate_pseudonym',
         [
-          input.address.toJS,
-          inputLen.toJS,
-          blind.address.toJS,
-          blindLen.toJS,
-          evaluatedElement.address.toJS,
-          eeLen.toJS,
+          contextId.address.toJS,
+          ctxLen.toJS,
+          nymSecrets.address.toJS,
+          nymLens.address.toJS,
+          nymCount.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_oprf_evaluate':
+  'cryptolib_bbs_proof_gen_with_pseudonym':
       (
-        Pointer<NativeType> sk,
-        int skLen,
-        Pointer<NativeType> input,
-        int inputLen,
+        Pointer<NativeType> pk,
+        int pkLen,
+        Pointer<NativeType> signature,
+        int sigLen,
+        Pointer<NativeType> header,
+        int headerLen,
+        Pointer<NativeType> ph,
+        int phLen,
+        Pointer<NativeType> contextId,
+        int ctxLen,
+        Pointer<NativeType> signerMsgs,
+        Pointer<NativeType> signerLens,
+        int signerCount,
+        Pointer<NativeType> committedMsgs,
+        Pointer<NativeType> committedLens,
+        int committedCount,
+        Pointer<NativeType> secretProverBlind,
+        int spbLen,
+        Pointer<NativeType> nymSecrets,
+        Pointer<NativeType> nymLens,
+        int nymCount,
+        Pointer<NativeType> disclosedSignerIndexes,
+        int disclosedSignerCount,
+        Pointer<NativeType> disclosedCommittedIndexes,
+        int disclosedCommittedCount,
+        Pointer<NativeType> pseudonymOut,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_oprf_evaluate',
-        [sk.address.toJS, skLen.toJS, input.address.toJS, inputLen.toJS],
+        '_cbw_cryptolib_bbs_proof_gen_with_pseudonym',
+        [
+          pk.address.toJS,
+          pkLen.toJS,
+          signature.address.toJS,
+          sigLen.toJS,
+          header.address.toJS,
+          headerLen.toJS,
+          ph.address.toJS,
+          phLen.toJS,
+          contextId.address.toJS,
+          ctxLen.toJS,
+          signerMsgs.address.toJS,
+          signerLens.address.toJS,
+          signerCount.toJS,
+          committedMsgs.address.toJS,
+          committedLens.address.toJS,
+          committedCount.toJS,
+          secretProverBlind.address.toJS,
+          spbLen.toJS,
+          nymSecrets.address.toJS,
+          nymLens.address.toJS,
+          nymCount.toJS,
+          disclosedSignerIndexes.address.toJS,
+          disclosedSignerCount.toJS,
+          disclosedCommittedIndexes.address.toJS,
+          disclosedCommittedCount.toJS,
+          pseudonymOut.address.toJS,
+        ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_opaque_record_free': (Pointer<NativeType> r) => WebEngine.current
-      .callVoid('_cbw_cryptolib_opaque_record_free', [r.address.toJS]),
-  'cryptolib_opaque_ke1_free': (Pointer<NativeType> k) => WebEngine.current
-      .callVoid('_cbw_cryptolib_opaque_ke1_free', [k.address.toJS]),
-  'cryptolib_opaque_ke2_free': (Pointer<NativeType> k) => WebEngine.current
-      .callVoid('_cbw_cryptolib_opaque_ke2_free', [k.address.toJS]),
-  'cryptolib_opaque_ke3_free': (Pointer<NativeType> k) => WebEngine.current
-      .callVoid('_cbw_cryptolib_opaque_ke3_free', [k.address.toJS]),
 };

@@ -1,7 +1,30 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry34 = {
-  'cryptolib_bbs_blind_sign':
+  'cryptolib_bbs_commit_with_nym':
+      (
+        Pointer<NativeType> committedMsgs,
+        Pointer<NativeType> committedLens,
+        int committedCount,
+        Pointer<NativeType> proverNyms,
+        Pointer<NativeType> nymLens,
+        int nymCount,
+        Pointer<NativeType> secretProverBlind,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_bbs_commit_with_nym',
+        [
+          committedMsgs.address.toJS,
+          committedLens.address.toJS,
+          committedCount.toJS,
+          proverNyms.address.toJS,
+          nymLens.address.toJS,
+          nymCount.toJS,
+          secretProverBlind.address.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_bbs_blind_sign_with_nym':
       (
         Pointer<NativeType> sk,
         int skLen,
@@ -14,8 +37,11 @@ final Map<String, Function> _registry34 = {
         Pointer<NativeType> msgs,
         Pointer<NativeType> msgLens,
         int msgCount,
+        Pointer<NativeType> signerNymEntropy,
+        int entropyLen,
+        int lengthNymVector,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_blind_sign',
+        '_cbw_cryptolib_bbs_blind_sign_with_nym',
         [
           sk.address.toJS,
           skLen.toJS,
@@ -28,58 +54,31 @@ final Map<String, Function> _registry34 = {
           msgs.address.toJS,
           msgLens.address.toJS,
           msgCount.toJS,
+          signerNymEntropy.address.toJS,
+          entropyLen.toJS,
+          (lengthNymVector % 4294967296).toJS,
+          (lengthNymVector ~/ 4294967296).toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_verify_blind_sign':
+  'cryptolib_bbs_finalize_nym_secrets':
       (
-        Pointer<NativeType> pk,
-        int pkLen,
-        Pointer<NativeType> signature,
-        int sigLen,
-        Pointer<NativeType> header,
-        int headerLen,
-        Pointer<NativeType> msgs,
-        Pointer<NativeType> msgLens,
-        int msgCount,
-        Pointer<NativeType> committedMsgs,
-        Pointer<NativeType> committedLens,
-        int committedCount,
-        Pointer<NativeType> secretProverBlind,
-        int spbLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bbs_verify_blind_sign', [
-        pk.address.toJS,
-        pkLen.toJS,
-        signature.address.toJS,
-        sigLen.toJS,
-        header.address.toJS,
-        headerLen.toJS,
-        msgs.address.toJS,
-        msgLens.address.toJS,
-        msgCount.toJS,
-        committedMsgs.address.toJS,
-        committedLens.address.toJS,
-        committedCount.toJS,
-        secretProverBlind.address.toJS,
-        spbLen.toJS,
-      ]),
-  'cryptolib_bbs_hash_to_scalar':
-      (
-        Pointer<NativeType> msg,
-        int msgLen,
-        Pointer<NativeType> dst,
-        int dstLen,
+        Pointer<NativeType> proverNyms,
+        Pointer<NativeType> nymLens,
+        int nymCount,
+        Pointer<NativeType> signerNymEntropy,
+        int entropyLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_hash_to_scalar',
-        [msg.address.toJS, msgLen.toJS, dst.address.toJS, dstLen.toJS],
+        '_cbw_cryptolib_bbs_finalize_nym_secrets',
+        [
+          proverNyms.address.toJS,
+          nymLens.address.toJS,
+          nymCount.toJS,
+          signerNymEntropy.address.toJS,
+          entropyLen.toJS,
+        ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_random_scalar': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_bbs_random_scalar',
-    [],
-    CipherBirdBufferResult.size,
-    CipherBirdBufferResult._new,
-  ),
 };
