@@ -105,6 +105,7 @@ jobs:
           cmake -S paseto5 -B build/paseto5 -G Ninja -DCMAKE_BUILD_TYPE=Release -DPASETO5_BUILD_BENCH=OFF
           cmake --build build/paseto5
           ./build/paseto5/paseto5_tests
+          ./build/paseto5/paseto5_example_text
       - name: Tests under ASan/UBSan
         run: |
           cmake -S paseto5 -B build/paseto5-asan -G Ninja -DPASETO5_SANITIZE=ON -DPASETO5_BUILD_BENCH=OFF
@@ -151,8 +152,9 @@ jobs:
         run: |
           cmake -S paseto5 -B build/paseto5 -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DPASETO5_PQ=OFF -DPASETO5_BUILD_BENCH=OFF
-          cmake --build build/paseto5 --target paseto5_tests
+          cmake --build build/paseto5 --target paseto5_tests paseto5_example_text
           ./build/paseto5/paseto5_tests
+          ./build/paseto5/paseto5_example_text
           cmake -S paseto5 -B build/paseto5-asan -G Ninja -DPASETO5_SANITIZE=ON \
             -DPASETO5_PQ=OFF -DPASETO5_BUILD_BENCH=OFF
           cmake --build build/paseto5-asan --target paseto5_tests
