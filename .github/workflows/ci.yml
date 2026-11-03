@@ -90,6 +90,74 @@ jobs:
           ASAN_OPTIONS=quarantine_size_mb=64 build/fuzz/fuzz_stego -max_total_time=120 -print_final_stats=1 \
             -rss_limit_mb=3072 -malloc_limit_mb=512 "$RUNNER_TEMP/stego_corpus" tests/fuzz/corpus/stego
 
+  # paseto5 is a standalone subproject under paseto5/ with its own CMake
+  # project; the root targets do not build it. Release with the hybrid
+  # v5.public, ASan+UBSan, a build without liboqs, and the three libFuzzer
+  # targets time-boxed, all on the same macOS runner as the root jobs.
+  paseto5:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install deps (LLVM clang for libFuzzer)
+        run: brew install cmake ninja libsodium liboqs blake3 openssl@3 llvm lld
+      - name: Release build with v5.public, tests and the v4 cross-check
+        run: |
+          cmake -S paseto5 -B build/paseto5 -G Ninja -DCMAKE_BUILD_TYPE=Release -DPASETO5_BUILD_BENCH=OFF
+          cmake --build build/paseto5
+          ./build/paseto5/paseto5_tests
+      - name: Tests under ASan/UBSan
+        run: |
+          cmake -S paseto5 -B build/paseto5-asan -G Ninja -DPASETO5_SANITIZE=ON -DPASETO5_BUILD_BENCH=OFF
+          cmake --build build/paseto5-asan --target paseto5_tests
+          ASAN_OPTIONS=detect_leaks=0 ./build/paseto5-asan/paseto5_tests
+      - name: Build without liboqs (v5.local only)
+        run: |
+          cmake -S paseto5 -B build/paseto5-nopq -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPASETO5_PQ=OFF -DPASETO5_BUILD_BENCH=OFF
+          cmake --build build/paseto5-nopq --target paseto5_tests
+          ./build/paseto5-nopq/paseto5_tests
+      - name: Fuzz targets (time-boxed)
+        env:
+          CC: /opt/homebrew/opt/llvm/bin/clang
+          CXX: /opt/homebrew/opt/llvm/bin/clang++
+        run: |
+          cmake -S paseto5 -B build/paseto5-fuzz -G Ninja -DPASETO5_FUZZ=ON \
+            -DPASETO5_BUILD_TESTS=OFF -DPASETO5_BUILD_BENCH=OFF \
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
+          cmake --build build/paseto5-fuzz
+          for fz in fuzz_local fuzz_public fuzz_claims; do
+            test -x "build/paseto5-fuzz/paseto5_$fz"
+            "build/paseto5-fuzz/paseto5_$fz" -max_total_time=60 -print_final_stats=1
+          done
+
+  # The same library on Linux against the pinned static dependency set that
+  # the constant-time job builds. That set carries no pkg-config file for
+  # libcrypto, so this job builds v5.local only; the macOS job covers the
+  # hybrid v5.public.
+  paseto5_linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install build tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build autoconf automake libtool pkg-config
+          python3 -m pip install --break-system-packages 'cmake>=4.1,<5'
+          cmake --version
+      - name: Build pinned dependencies for Linux
+        run: bash scripts/linux/build_deps.sh
+      - name: Release build without liboqs, tests under ASan/UBSan
+        env:
+          PKG_CONFIG_PATH: ${{ github.workspace }}/third_party/linux/x86_64/lib/pkgconfig
+        run: |
+          cmake -S paseto5 -B build/paseto5 -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPASETO5_PQ=OFF -DPASETO5_BUILD_BENCH=OFF
+          cmake --build build/paseto5 --target paseto5_tests
+          ./build/paseto5/paseto5_tests
+          cmake -S paseto5 -B build/paseto5-asan -G Ninja -DPASETO5_SANITIZE=ON \
+            -DPASETO5_PQ=OFF -DPASETO5_BUILD_BENCH=OFF
+          cmake --build build/paseto5-asan --target paseto5_tests
+          ./build/paseto5-asan/paseto5_tests
+
   # Constant-time probe: secrets are marked undefined under Valgrind and any
   # branch on them fails the job. Authentication verdicts are declassified in
   # the library (detail/ct.hpp); the one verdict branch inside libsodium is
