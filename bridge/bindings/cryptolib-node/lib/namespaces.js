@@ -270,6 +270,12 @@ module.exports = (api) => {
   };
 
   const tokens = {
+    formats: () => api.Tokens.formats(),
+    keygen: (format) => api.Tokens.keygen(format),
+    issue: (...a) => api.Tokens.issue(...a),
+    accept: (...a) => api.Tokens.accept(...a),
+    peekFormat: (token) => api.Tokens.peekFormat(token),
+    peekFooter: (token) => api.Tokens.peekFooter(token),
     paseto: api.Paseto,
     cb1: api.Cb1,
     v4LocalEncrypt: (...a) => api.Paseto.v4LocalEncrypt(...a),

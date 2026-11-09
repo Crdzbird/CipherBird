@@ -1,86 +1,86 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry10 = {
-  'cryptolib_suite_seal_with_keyring_passphrase':
+  'cryptolib_suite_open_signed_pq':
+      (
+        Pointer<NativeType> envelope,
+        int envLen,
+        Pointer<NativeType> recipientKemSecret,
+        int kemSecLen,
+        Pointer<NativeType> signerSigPublic,
+        int sigPubLen,
+        Pointer<NativeType> aad,
+        int aadLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_suite_open_signed_pq',
+        [
+          envelope.address.toJS,
+          envLen.toJS,
+          recipientKemSecret.address.toJS,
+          kemSecLen.toJS,
+          signerSigPublic.address.toJS,
+          sigPubLen.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_suite_seal_with_file':
+      (
+        Pointer<NativeType> pt,
+        int ptLen,
+        Pointer<NativeType> path,
+        Pointer<NativeType> aad,
+        int aadLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_suite_seal_with_file',
+        [
+          pt.address.toJS,
+          ptLen.toJS,
+          path.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_suite_open_with_file':
+      (
+        Pointer<NativeType> envelope,
+        int envLen,
+        Pointer<NativeType> path,
+        Pointer<NativeType> aad,
+        int aadLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_suite_open_with_file',
+        [
+          envelope.address.toJS,
+          envLen.toJS,
+          path.address.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_suite_seal_with_keyring_device':
       (
         Pointer<NativeType> pt,
         int ptLen,
         Pointer<NativeType> kr,
-        Pointer<NativeType> passphrase,
+        Pointer<NativeType> factorKey,
+        int factorLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_keyring_passphrase',
+        '_cbw_cryptolib_suite_seal_with_keyring_device',
         [
           pt.address.toJS,
           ptLen.toJS,
           kr.address.toJS,
-          passphrase.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_open_with_keyring_passphrase':
-      (
-        Pointer<NativeType> envelope,
-        int envLen,
-        Pointer<NativeType> kr,
-        Pointer<NativeType> passphrase,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_keyring_passphrase',
-        [
-          envelope.address.toJS,
-          envLen.toJS,
-          kr.address.toJS,
-          passphrase.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_seal_threshold':
-      (
-        Pointer<NativeType> pt,
-        int ptLen,
-        int n,
-        int k,
-        Pointer<NativeType> aad,
-        int aadLen,
-        Pointer<NativeType> outShares,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_threshold',
-        [
-          pt.address.toJS,
-          ptLen.toJS,
-          n.toJS,
-          k.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-          outShares.address.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_open_threshold':
-      (
-        Pointer<NativeType> envelope,
-        int envLen,
-        Pointer<NativeType> shares,
-        int sharesLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_threshold',
-        [
-          envelope.address.toJS,
-          envLen.toJS,
-          shares.address.toJS,
-          sharesLen.toJS,
+          factorKey.address.toJS,
+          factorLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],

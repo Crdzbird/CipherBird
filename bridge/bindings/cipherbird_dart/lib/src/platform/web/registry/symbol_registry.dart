@@ -58,4 +58,5 @@ final Map<String, Function> symbolRegistry = {
   ..._registry54,
   ..._registry55,
   ..._registry56,
+  ..._registry57,
 };

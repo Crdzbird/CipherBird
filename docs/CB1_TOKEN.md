@@ -104,24 +104,29 @@ standard and is in the bank profile.
 from this description, with a fixed key and nonce for the local vectors
 (regenerate with a `CRYPTOLIB_PASETO_TEST_NONCE=ON` build and
 `CRYPTOLIB_CB1_WRITE_VECTORS=1`) and a fixed hybrid key pair for the public
-ones. The C++, Go, Dart and Node suites all decrypt and verify them, and the
-C++ suite also re-encrypts the local vectors with the pinned nonce and
-compares byte for byte, and checks both constructions against an
-independent re-implementation written from this document.
+ones. `scripts/tokens/convert_vectors.py` writes the same cases in the
+common token-vector schema to `tests/vectors/tokens/cb1.local.json` and
+`cb1.public.json`, which every binding accepts through the generic token
+calls (`TOKEN_API.md`). The C++ suite also re-encrypts the local vectors
+with the pinned nonce and compares byte for byte, and checks both
+constructions against an independent re-implementation written from this
+document.
 
 ## API
 
-The C ABI (`bridge/cryptolib_c.h`) exposes `cryptolib_cb1_local_encrypt_len`,
+cb1 is reached through the generic token API of `TOKEN_API.md`: the
+formats are `cb1.local` and `cb1.public`, so `cryptolib_token_issue`,
+`cryptolib_token_accept`, `cryptolib_token_keygen` and the sizing calls
+take those names, and `cryptolib_token_formats` lists both with their key
+and signature sizes and whether the profile has them. The per-format
+functions of 1.4.0 (`cryptolib_cb1_local_encrypt_len`,
 `cryptolib_cb1_local_decrypt_cap`, `cryptolib_cb1_local_encrypt`,
 `cryptolib_cb1_local_decrypt`, `cryptolib_cb1_public_sign_len`,
 `cryptolib_cb1_public_verify_cap`, `cryptolib_cb1_public_sign` and
-`cryptolib_cb1_public_verify`, with the calling convention and return codes
-of the PASETO v4.local functions: tokens into caller buffers, no allocation
-on the local path, 0 for success and negative codes for invalid, argument,
-internal and unavailable.
-
-| Binding | Local | Public |
-|---|---|---|
-| Go | `Cb1LocalEncrypt`, `Cb1LocalDecrypt`, `Cb1LocalDecryptTo` | `Cb1PublicSign`, `Cb1PublicVerify`, `Cb1PublicVerifyTo` |
-| Dart (both packages) | `cb1LocalEncrypt`, `cb1LocalDecrypt`, `lib.tokens` | `cb1PublicSign`, `cb1PublicVerify` |
-| Node | `cb1LocalEncrypt`, `cb1LocalDecrypt`, `Cb1`, `tokens` | `cb1PublicSign`, `cb1PublicVerify` |
+`cryptolib_cb1_public_verify`) remain as the same calls with the format
+fixed, with the calling convention and return codes of the PASETO v4.local
+functions: tokens into caller buffers, no allocation on the local path, 0
+for success and negative codes for invalid, argument, internal and
+unavailable. The bindings expose cb1 through their generic token surface
+(`TOKEN_API.md`, "Bindings"); their cb1-named functions of 1.4.0 forward
+to it.

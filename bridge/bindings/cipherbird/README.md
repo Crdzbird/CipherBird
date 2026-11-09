@@ -6,8 +6,8 @@ WebAssembly build of the same engine in the browser, and ships the compiled
 library for every platform inside the package, so an app gets hashing, authenticated encryption, public-key cryptography,
 post-quantum algorithms, hybrid key agreement, sealed messaging, a secure
 channel, password hashing, vaults, a keyring, anonymous credentials,
-threshold signatures and steganography from one dependency, with no platform
-channels and no setup. The Dart API carries the package name: `CipherBird`, `CipherBirdRecipe`, `CipherBirdRunner`.
+threshold signatures, steganography and tokens from one dependency, with no
+platform channels and no setup. The Dart API carries the package name: `CipherBird`, `CipherBirdRecipe`, `CipherBirdRunner`.
 
 | Area | What runs | Notes |
 |---|---|---|
@@ -189,7 +189,7 @@ Strings and bytes convert in place:
 
 ## Full API
 
-All 320 native operations are reachable on `CipherBird`, flat or through
+All 341 native operations are reachable on `CipherBird`, flat or through
 grouped views that keep autocomplete usable. Every operation takes and
 returns `Uint8List`, throws on failure and never returns partial data.
 
@@ -219,6 +219,7 @@ final opened = lib.pq.hybridKem.decapsulate(ciphertext, pair.secretKey);
 | `lib.suite`, `lib.composed` | one-call combinations: post-quantum messages, threshold vaults, file-as-key vaults, physical-media seals, HPKE into a carrier |
 | `lib.entropy`, `lib.stego`, `lib.rng` | media entropy and health, DRBG, Fortuna, steganography, forward error correction |
 | `lib.chain` | Keccak-256, secp256k1 sign and recover, EVM addresses |
+| `lib.tokens` | any token format by name: PASETO v4.local, cb1.local and cb1.public today; keyed BLAKE2b at a chosen length |
 
 ## Post-quantum envelopes
 
@@ -675,14 +676,40 @@ linked into one binary per platform.
 
 ## Tokens
 
-`pasetoV4LocalEncrypt` and `pasetoV4LocalDecrypt` are PASETO v4.local, byte
-for byte the PASETO specification and checked against its official vectors;
-use them where another PASETO implementation reads the token. `cb1LocalEncrypt`,
-`cb1LocalDecrypt`, `cb1PublicSign` and `cb1PublicVerify` are cb1, CipherBird's
-own tokens: the same shape with BLAKE3 in place of BLAKE2b and, for public
-tokens, the Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519, so a
-signed token stays unforgeable while either half holds. The format is in
-`docs/CB1_TOKEN.md` of the repository. All six live on `lib.tokens` too.
+One API covers every token format (`docs/TOKEN_API.md` in the repository).
+A format is named by its token header without the trailing dot: `v4.local`
+is PASETO v4.local, byte for byte the PASETO specification and checked
+against its official vectors, for where another PASETO implementation reads
+the token; `cb1.local` and `cb1.public` are cb1, CipherBird's own tokens,
+the same shape with BLAKE3 in place of BLAKE2b and, for public tokens, the
+Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519, so a signed token
+stays unforgeable while either half holds (`docs/CB1_TOKEN.md`). A `.local`
+format encrypts under a shared key; a `.public` format signs with the
+secret half of a pair and verifies with the public half. `tokenFormats()`
+lists what the bundled engine knows, with key sizes and whether the format
+is in its profile.
+
+```dart
+final formats = lib.tokenFormats();
+final k = lib.tokenKeygen('cb1.local');
+final token = lib.tokenIssue('cb1.local', k.secretKey, claims, footer: kid, implicit: audience);
+final back = lib.tokenAccept('cb1.local', token, k.secretKey, expectedFooter: kid, implicit: audience);
+final signer = lib.tokenKeygen('cb1.public');
+final signed = lib.tokenIssue('cb1.public', signer.secretKey, claims);
+final verified = lib.tokenAccept('cb1.public', signed, signer.publicKey!);
+final header = lib.tokenPeekFormat(signed);
+final footer = lib.tokenPeekFooter(token);
+```
+
+The caller always names the format it expects: a token whose header differs
+is `TokenStatus.invalid` before the key is touched, so the header inside a
+token never chooses the algorithm. `tokenPeekFormat` and `tokenPeekFooter`
+read the header and the footer (the usual place for a key id) without
+verifying, for choosing a key; nothing they return is trusted until
+`tokenAccept` succeeds. The format-named methods `pasetoV4LocalEncrypt`,
+`pasetoV4LocalDecrypt`, `cb1LocalEncrypt`, `cb1LocalDecrypt`,
+`cb1PublicSign` and `cb1PublicVerify` remain as the same calls with the
+format fixed; all of them live on `lib.tokens` too.
 
 ```dart
 final token = lib.cb1LocalEncrypt(key, claims, footer: kid, implicit: audience);
@@ -694,7 +721,9 @@ final verified = lib.cb1PublicVerify(signed, signer.publicKey);
 
 Every token-dependent failure throws one `TokenException` with
 `TokenStatus.invalid`, so a caller cannot be used as an oracle; a key of the
-wrong length is `TokenStatus.argument`. `blake2bKeyed` computes BLAKE2b at a
+wrong length is `TokenStatus.argument`, an unknown format name is
+`TokenStatus.format` and a format outside the profile is
+`TokenStatus.unavailable`. `blake2bKeyed` computes BLAKE2b at a
 chosen length, unkeyed or keyed, and `blake2bKeyedInto` fills a buffer.
 cb1 is library-native and absent from the bank profile, where the calls
 report `TokenStatus.unavailable`; PASETO v4.local is in every profile but
@@ -705,8 +734,11 @@ fips.
 Every binding of the same engine (Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust,
 .NET and the two Dart packages) wraps the same C ABI and uses the library's
 own wire formats. Vaults, sealed envelopes, recipes and keyrings move between
-languages unchanged. The repository seals five recipe configurations in each
-language and opens them in every other one, 72 pairs, on every change.
+languages unchanged, and so do PASETO v4.local and cb1 tokens, whose pinned
+vectors every binding verifies. The repository seals five recipe configurations in each
+language and opens them in every other one, 72 pairs, on every change. The
+Node binding is the `cipherbird` package on npm, released at the same
+version as the two Dart packages.
 
 ## Example and playground
 
@@ -781,7 +813,7 @@ architecture for the simulator in the consuming app or add a universal slice.
 ## Engine
 
 The engine is a header-only C++20 core with a
-pure C ABI of 320 functions, bindings for ten languages, a custom test runner
+pure C ABI of 341 functions, bindings for ten languages, a custom test runner
 with known-answer tests from the official sources, and a cross-language
 conformance harness. Its repository holds the build, the tests, the
 benchmark and the design notes. Everything is MIT licensed; the vendored

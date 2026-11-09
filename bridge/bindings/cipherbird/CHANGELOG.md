@@ -1,3 +1,21 @@
+## Unreleased
+
+One token API for every format (`docs/TOKEN_API.md`).
+
+- `tokenFormats`, `tokenKeygen`, `tokenIssue`, `tokenAccept`,
+  `tokenPeekFormat` and `tokenPeekFooter`, with `TokenFormat` and
+  `TokenKeys`: a format is named by its token header (`v4.local`,
+  `cb1.local`, `cb1.public`), a `.local` format encrypts and a `.public`
+  format signs, and the caller always names the format it expects, so the
+  header inside a token never chooses the algorithm. The same six live on
+  `lib.tokens`. A new format is an engine change only.
+- `TokenStatus.format` for an unknown format name; `TokenStatus.unavailable`
+  now also covers every format in the fips profile.
+- The format-named methods of 1.4.0 remain as the same calls with the
+  format fixed.
+- The common-schema vectors under `tests/vectors/tokens/` are accepted
+  through the generic calls, one loop for every format.
+
 ## 1.4.0
 
 Tokens: PASETO v4.local and CipherBird's own cb1 tokens, plus keyed BLAKE2b.
@@ -12,9 +30,13 @@ Tokens: PASETO v4.local and CipherBird's own cb1 tokens, plus keyed BLAKE2b.
   signature for public tokens. Pinned vectors are shared with every binding;
   the format is documented in the repository's `docs/CB1_TOKEN.md`.
 - `blake2bKeyed` and `blake2bKeyedInto`: BLAKE2b at a chosen output length.
-- `TokenStatus`, `TokenException` and the `tokens` facade.
+- `TokenStatus`, `TokenException` and the `tokens` facade; `lib.tokens` joins
+  the grouped views, and the C ABI grows from 327 to 341 functions, all of
+  them reachable on `CipherBird`.
 - The engine gains the same entry points on every platform, including the
-  WebAssembly engine.
+  WebAssembly engine; the engines are the attested 1.4.0 build, the same
+  bytes as the v1.4.0 GitHub release and the `cipherbird` 1.4.0 package on
+  npm, so a token issued in Dart is verified in Node and the other way round.
 - Fixed: a JPEG whose scan declared no components, or a zero sampling
   factor, spun the JSteg extractor forever; every MCU loop now stops when
   an iteration consumes no bits. An AVI stream height of INT32_MIN no

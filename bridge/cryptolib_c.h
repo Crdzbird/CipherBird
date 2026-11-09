@@ -311,9 +311,9 @@ CRYPTO_API int cryptolib_blake2b_keyed_into(uint8_t* out, size_t out_len,
  * Ed25519 + ML-DSA-65 hybrid signature (cryptolib_hybrid_sig_keygen) over
  * PAE("cb1.public.", m, f, i) in place of Ed25519. The functions take and
  * return exactly what the v4.local ones do, with the same return codes, and
- * are library-native: they exist in the full profile, report
- * CRYPTOLIB_PASETO_ERR_UNAVAILABLE in the bank profile and are absent from
- * fips. A cb1 token is rejected by every PASETO parser by its header and
+ * are library-native: they exist in every profile and report
+ * CRYPTOLIB_PASETO_ERR_UNAVAILABLE outside the full one. A cb1 token is
+ * rejected by every PASETO parser by its header and
  * these functions reject PASETO tokens the same way. */
 #define CRYPTOLIB_PASETO_ERR_UNAVAILABLE (-4)
 #define CRYPTOLIB_CB1_LOCAL_KEY_BYTES 32
@@ -392,6 +392,99 @@ CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
     const uint8_t* implicit, size_t implicit_len,
     const uint8_t* nonce, size_t nonce_len);
 #endif
+
+/* Tokens: one API for every format (docs/TOKEN_API.md). A format is named
+ * by its token header without the trailing dot ("v4.local", "cb1.local",
+ * "cb1.public"); a ".local" format encrypts and decrypts under a shared key,
+ * a ".public" format signs with the secret half of a pair and verifies with
+ * the public half. These functions exist in every profile; a format that is
+ * not in the profile is listed as unavailable and its calls report
+ * CRYPTOLIB_TOKEN_ERR_UNAVAILABLE. The per-format functions above are the
+ * same calls with the format fixed and are kept for compatibility. */
+#define CRYPTOLIB_TOKEN_OK              CRYPTOLIB_PASETO_OK
+#define CRYPTOLIB_TOKEN_ERR_INVALID     CRYPTOLIB_PASETO_ERR_INVALID
+#define CRYPTOLIB_TOKEN_ERR_ARGUMENT    CRYPTOLIB_PASETO_ERR_ARGUMENT
+#define CRYPTOLIB_TOKEN_ERR_INTERNAL    CRYPTOLIB_PASETO_ERR_INTERNAL
+#define CRYPTOLIB_TOKEN_ERR_UNAVAILABLE CRYPTOLIB_PASETO_ERR_UNAVAILABLE
+#define CRYPTOLIB_TOKEN_ERR_FORMAT      (-5)
+
+/** The format table as a JSON array, one object per format with "format",
+ *  "purpose" ("local" or "public"), "standard" ("PASETO v4" or
+ *  "library-native"), "key_bytes", "public_key_bytes", "secret_key_bytes",
+ *  "signature_bytes", "max_input_bytes" and "available". Writes the text
+ *  (not NUL-terminated) to out when out_cap holds it and returns the length
+ *  the full text needs, so a call with out_cap 0 sizes the buffer. */
+CRYPTO_API size_t cryptolib_token_formats(char* out, size_t out_cap);
+
+/** Exact token length the format produces for a payload_len-byte payload
+ *  and a footer_len-byte footer; 0 for an unknown or unavailable format or
+ *  a length over the format's maximum. format is NUL-terminated ASCII. */
+CRYPTO_API size_t cryptolib_token_issue_len(const char* format, size_t payload_len, size_t footer_len);
+
+/** Output capacity cryptolib_token_accept requires for a token of token_len
+ *  bytes; 0 for an unknown or unavailable format or a length no valid token
+ *  of that format has. */
+CRYPTO_API size_t cryptolib_token_accept_cap(const char* format, size_t token_len);
+
+/** A fresh key for the format: a local format writes key_bytes of CSPRNG
+ *  output to secret and sets *pub_len to 0 (pub may be NULL with pub_cap 0,
+ *  pub_len may be NULL); a public format writes the secret half to secret
+ *  and the public half to pub. Capacities come from the table. Returns
+ *  CRYPTOLIB_TOKEN_OK, CRYPTOLIB_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  (a NULL with a non-zero capacity, a capacity below the key size) or
+ *  _INTERNAL; both lengths are 0 on any failure. */
+CRYPTO_API int cryptolib_token_keygen(const char* format,
+                                      uint8_t* secret, size_t secret_cap, size_t* secret_len,
+                                      uint8_t* pub, size_t pub_cap, size_t* pub_len);
+
+/** Issues a token: encrypts payload (local; key is the shared key) or signs
+ *  it (public; key is the secret half). Writes the token text (ASCII, not
+ *  NUL-terminated) to out and its length to *out_len. The argument rules are
+ *  those of cryptolib_paseto_v4_local_encrypt: NULL only with a zero length,
+ *  inputs up to the format's maximum, out_cap at least
+ *  cryptolib_token_issue_len, out overlapping no input, an empty footer
+ *  omitted, implicit authenticated but never stored. Returns
+ *  CRYPTOLIB_TOKEN_OK, CRYPTOLIB_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  or _INTERNAL; *out_len is 0 on any failure. */
+CRYPTO_API int cryptolib_token_issue(const char* format,
+                                     uint8_t* out, size_t out_cap, size_t* out_len,
+                                     const uint8_t* key, size_t key_len,
+                                     const uint8_t* payload, size_t payload_len,
+                                     const uint8_t* footer, size_t footer_len,
+                                     const uint8_t* implicit, size_t implicit_len);
+
+/** Accepts a token: decrypts it (local) or verifies it (public; key is the
+ *  public half) and writes the payload to out. The token's header must be
+ *  the named format; any other header is invalid, decided before the key is
+ *  used, so the header inside a token never chooses the algorithm. Returns
+ *  CRYPTOLIB_TOKEN_OK; CRYPTOLIB_TOKEN_ERR_INVALID for every token-dependent
+ *  failure (header, base64url, length, tag or signature, footer), with no
+ *  further detail; _FORMAT, _UNAVAILABLE, _ARGUMENT (a caller error that does
+ *  not depend on token content) or _INTERNAL. On any failure *out_len is 0
+ *  and out holds no plaintext. */
+CRYPTO_API int cryptolib_token_accept(const char* format,
+                                      uint8_t* out, size_t out_cap, size_t* out_len,
+                                      const uint8_t* token, size_t token_len,
+                                      const uint8_t* key, size_t key_len,
+                                      const uint8_t* expected_footer, size_t expected_footer_len,
+                                      const uint8_t* implicit, size_t implicit_len);
+
+/** The header of token as a format name ("cb1.local"), UNVERIFIED: writes it
+ *  (not NUL-terminated) to out when out_cap holds it and returns its length,
+ *  or 0 when the text does not start with <version>.<local|public>. The name
+ *  need not be a format this engine knows; nothing it says is trusted until
+ *  cryptolib_token_accept succeeds with that format. */
+CRYPTO_API size_t cryptolib_token_peek_format(const uint8_t* token, size_t token_len,
+                                              char* out, size_t out_cap);
+
+/** The decoded footer of token, UNVERIFIED, for choosing a key by its id.
+ *  Writes the bytes to out and the length to *out_len (0 when the token has
+ *  no footer). Returns CRYPTOLIB_TOKEN_OK; _INVALID when the text has no
+ *  header of the known shape or the footer is not base64url; _ARGUMENT when
+ *  out is too small (about 3/4 of the footer text). The footer accept
+ *  compares is the caller's expected_footer, never the one read here. */
+CRYPTO_API int cryptolib_token_peek_footer(const uint8_t* token, size_t token_len,
+                                           uint8_t* out, size_t out_cap, size_t* out_len);
 
 /** Committing AEAD (UtC) encrypt. Output: [commitment(32) | nonce | ct | MAC].
  *  Commits to (key, AAD) — closes the partitioning-oracle / non-committal gap. */

@@ -1,5 +1,5 @@
 name: cipherbird
-description: "Native cryptography for Flutter over dart:ffi: hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, recipes and easy-mode keys, engine bundled."
+description: "Native cryptography for Flutter over dart:ffi: hashing, AEAD, post-quantum, hybrid KEM, sealed messaging, Noise, tokens, recipes and easy-mode keys, engine bundled."
 version: 1.4.0
 homepage: https://github.com/Crdzbird/CipherBird
 repository: https://github.com/Crdzbird/CipherBird

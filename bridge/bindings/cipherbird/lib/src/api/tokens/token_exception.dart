@@ -17,6 +17,7 @@ final class TokenException implements Exception {
     TokenStatus.argument => 'cipherbird: $format argument out of range',
     TokenStatus.unavailable =>
       'cipherbird: $format is not available in this build profile',
+    TokenStatus.format => 'cipherbird: unknown token format $format',
     _ => 'cipherbird: $format backend failure',
   };
 }

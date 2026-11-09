@@ -44,6 +44,8 @@ func pasetoErr(rc C.int) error {
 		return ErrPasetoArgument
 	case C.CRYPTOLIB_PASETO_ERR_UNAVAILABLE:
 		return ErrPasetoUnavailable
+	case C.CRYPTOLIB_TOKEN_ERR_FORMAT:
+		return ErrTokenFormat
 	}
 	return ErrPasetoInternal
 }

@@ -128,6 +128,116 @@ ok('the pinned cb1 vectors decrypt and verify', () => {
   }
 });
 
+ok('the generic token table lists every format with its sizes', () => {
+  const formats = c.tokenFormats();
+  assert.deepStrictEqual(formats.map((f) => f.format).sort(), ['cb1.local', 'cb1.public', 'v4.local']);
+  for (const f of formats) {
+    assert.strictEqual(f.purpose, f.format.endsWith('.public') ? 'public' : 'local');
+    assert.strictEqual(f.max_input_bytes, 1 << 26);
+    assert.strictEqual(f.available, c.Tokens.issueLen(f.format, 1) !== 0);
+    if (f.purpose === 'local') assert.strictEqual(f.key_bytes, 32);
+    else assert.deepStrictEqual([f.public_key_bytes, f.secret_key_bytes, f.signature_bytes], [1984, 4096, 3373]);
+  }
+  assert.ok(formats.find((f) => f.format === 'v4.local').available);
+  assert.strictEqual(c.tokens.formats().length, formats.length);
+});
+
+ok('unknown formats and unavailable formats are told apart', () => {
+  assert.throws(() => c.tokenIssue('v9.local', key, B('m')), /unknown token format/);
+  assert.throws(() => c.tokenAccept('v9.local', 'v9.local.AAAA', key), /unknown token format/);
+  assert.throws(() => c.tokenKeygen('v4.secret'), /unknown token format/);
+  assert.strictEqual(c.Tokens.issueLen('v9.local', 1), 0);
+  for (const f of c.tokenFormats()) {
+    if (f.available) continue;
+    assert.throws(() => c.tokenIssue(f.format, key, B('m')), /not available/);
+    assert.throws(() => c.tokenKeygen(f.format), /not available/);
+    console.log(`      ${f.format} is not in this profile: reports unavailable`);
+  }
+});
+
+ok('keygen, issue and accept round-trip in every available format', () => {
+  for (const f of c.tokenFormats()) {
+    if (!f.available) continue;
+    const k = c.tokenKeygen(f.format);
+    const acceptKey = f.purpose === 'public' ? k.publicKey : k.secretKey;
+    if (f.purpose === 'public') assert.deepStrictEqual([k.secretKey.length, k.publicKey.length], [4096, 1984]);
+    else { assert.strictEqual(k.secretKey.length, 32); assert.strictEqual(k.publicKey, null); }
+    const m = B('{"sub":"alice"}'), footer = B('{"kid":"k1"}'), implicit = B('audience');
+    const tok = c.tokenIssue(f.format, k.secretKey, m, footer, implicit);
+    assert.ok(tok.startsWith(`${f.format}.`));
+    assert.strictEqual(tok.length, c.Tokens.issueLen(f.format, m.length, footer.length));
+    assert.ok(c.tokenAccept(f.format, tok, acceptKey, footer, implicit).equals(m));
+    assert.ok(c.tokens.accept(f.format, tok, acceptKey, footer, implicit).equals(m));
+    assert.throws(() => c.tokenAccept(f.format, tok, acceptKey, B('{"kid":"k2"}'), implicit), /invalid/);
+    assert.throws(() => c.tokenAccept(f.format, tok, acceptKey, footer, null), /invalid/);
+    const flipped = tok.slice(0, -1) + (tok.endsWith('A') ? 'B' : 'A');
+    assert.throws(() => c.tokenAccept(f.format, flipped, acceptKey, footer, implicit), /invalid/);
+    const other = c.tokenKeygen(f.format);
+    assert.throws(() => c.tokenAccept(f.format, tok, f.purpose === 'public' ? other.publicKey : other.secretKey, footer, implicit), /invalid/);
+    assert.throws(() => c.tokenIssue(f.format, k.secretKey.subarray(1), m), RangeError);
+    assert.strictEqual(c.tokenPeekFormat(tok), f.format);
+    assert.ok(c.tokenPeekFooter(tok).equals(footer));
+    const bare = c.tokenIssue(f.format, k.secretKey, B(''));
+    assert.strictEqual((bare.match(/\./g) || []).length, 2);
+    assert.strictEqual(c.tokenPeekFooter(bare), null);
+    assert.strictEqual(c.tokenAccept(f.format, bare, acceptKey).length, 0);
+  }
+});
+
+ok('the caller names the format and the header never chooses', () => {
+  const v4 = c.tokenIssue('v4.local', key, B('m'));
+  assert.throws(() => c.tokenAccept('v4.local', `cb1.local.${v4.slice('v4.local.'.length)}`, key), /invalid/);
+  if (c.tokenFormats().find((f) => f.format === 'cb1.local').available) {
+    const cb1 = c.tokenIssue('cb1.local', key, B('m'));
+    assert.throws(() => c.tokenAccept('v4.local', cb1, key), /invalid/);
+    assert.throws(() => c.tokenAccept('cb1.local', v4, key), /invalid/);
+    assert.ok(c.tokenAccept('cb1.local', cb1, key).equals(B('m')));
+    assert.ok(c.cb1LocalDecrypt(cb1, key).equals(B('m')));
+    assert.ok(c.tokenAccept('cb1.local', c.cb1LocalEncrypt(key, B('m')), key).equals(B('m')));
+  }
+  assert.ok(c.pasetoV4LocalDecrypt(v4, key).equals(B('m')));
+  assert.strictEqual(c.tokenPeekFormat('v9.public.abc'), 'v9.public');
+  assert.strictEqual(c.tokenPeekFormat('v4.secret.abc'), '');
+  assert.strictEqual(c.tokenPeekFormat(''), '');
+  assert.throws(() => c.tokenPeekFooter('v4.local.abc.a=b'), /invalid/);
+  assert.throws(() => c.tokenPeekFooter('nonsense'), /invalid/);
+  assert.strictEqual(c.tokenPeekFooter('v4.local.abc.a2lk').toString(), 'kid');
+});
+
+ok('the common-schema vectors accept through the generic calls', () => {
+  const dir = path.join(vectorsDir, 'tokens');
+  if (!fs.existsSync(dir)) { console.log('      (vectors not present, skipped)'); return; }
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.json'));
+  assert.ok(files.length >= 3);
+  const table = c.tokenFormats();
+  for (const name of files) {
+    const v = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+    assert.strictEqual(`${v.format}.json`, name);
+    assert.ok(v.cases.length > 0);
+    const f = table.find((x) => x.format === v.format);
+    assert.ok(f, v.format);
+    if (!f.available) { console.log(`      ${v.format}: not in this profile, skipped`); continue; }
+    const pub = f.purpose === 'public';
+    let pass = 0, fail = 0;
+    for (const t of v.cases) {
+      const keyHex = pub ? t['public-key'] : t.key;
+      const footer = t.footer ? B(t.footer) : null, implicit = t['implicit-assertion'] ? B(t['implicit-assertion']) : null;
+      if (!keyHex) { assert.ok(t['expect-fail'], t.name); fail++; continue; }
+      const k = Buffer.from(keyHex, 'hex');
+      if (t['expect-fail']) { assert.throws(() => c.tokenAccept(v.format, t.token, k, footer, implicit), /invalid/, t.name); fail++; continue; }
+      assert.strictEqual(c.tokenAccept(v.format, t.token, k, footer, implicit).toString(), t.payload, t.name);
+      assert.strictEqual(c.tokenPeekFormat(t.token), v.format);
+      assert.strictEqual((c.tokenPeekFooter(t.token) || B('')).toString(), t.footer);
+      if (pub) {
+        const again = c.tokenIssue(v.format, Buffer.from(t['secret-key'], 'hex'), B(t.payload), footer, implicit);
+        assert.strictEqual(c.tokenAccept(v.format, again, k, footer, implicit).toString(), t.payload, t.name);
+      }
+      pass++;
+    }
+    console.log(`      ${v.format}: ${pass} accepted, ${fail} rejected as expected`);
+  }
+});
+
 ok('keyed BLAKE2b matches the libsodium known answers, allocating or into a buffer', () => {
   assert.strictEqual(c.blake2bKeyed(counting(31, 0), counting(32, 0), 32).toString('hex'), 'a9f51bb7f6a3e9cdb96ce652c07d177962a348a9cced1b92f948187e59b44463');
   assert.strictEqual(c.blake2bKeyed(B('abc'), null, 32).toString('hex'), 'bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319');

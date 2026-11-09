@@ -477,6 +477,15 @@ function ensureLoaded() {
   cb1PubVerifyCap: f('size_t cryptolib_cb1_public_verify_cap(size_t)'),
   cb1PubSign: f('int cryptolib_cb1_public_sign(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
   cb1PubVerify: f('int cryptolib_cb1_public_verify(uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  /* The generic token API: every format by name (docs/TOKEN_API.md). */
+  tokenFormats: f('size_t cryptolib_token_formats(uint8_t*, size_t)'),
+  tokenIssueLen: f('size_t cryptolib_token_issue_len(const char*, size_t, size_t)'),
+  tokenAcceptCap: f('size_t cryptolib_token_accept_cap(const char*, size_t)'),
+  tokenKeygen: f('int cryptolib_token_keygen(const char*, uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, _Out_ size_t*)'),
+  tokenIssue: f('int cryptolib_token_issue(const char*, uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  tokenAccept: f('int cryptolib_token_accept(const char*, uint8_t*, size_t, _Out_ size_t*, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  tokenPeekFormat: f('size_t cryptolib_token_peek_format(uint8_t*, size_t, uint8_t*, size_t)'),
+  tokenPeekFooter: f('int cryptolib_token_peek_footer(uint8_t*, size_t, uint8_t*, size_t, _Out_ size_t*)'),
   };
   return _native;
 }
@@ -2206,11 +2215,12 @@ const Fips = {
  * and implicit assertions are bytes. Every token-dependent failure throws
  * one "invalid token" error, so a caller cannot be used as an oracle.
  */
-const TokenStatus = Object.freeze({ ok: 0, invalid: -1, argument: -2, internal: -3, unavailable: -4 });
+const TokenStatus = Object.freeze({ ok: 0, invalid: -1, argument: -2, internal: -3, unavailable: -4, format: -5 });
 function tokenError(rc, what) {
   if (rc === TokenStatus.invalid) return new Error(`cipherbird: invalid ${what} token`);
   if (rc === TokenStatus.argument) return new RangeError(`cipherbird: ${what} argument out of range`);
   if (rc === TokenStatus.unavailable) return new Error(`cipherbird: ${what} is not available in this build profile`);
+  if (rc === TokenStatus.format) return new Error(`cipherbird: unknown token format ${what}`);
   return new Error(`cipherbird: ${what} backend failure`);
 }
 function sealToken(lenFn, encFn, what, key, msg, footer, implicit) {
@@ -2257,6 +2267,83 @@ const Cb1 = {
   /** cb1.public: v4.public with the Ed25519 + ML-DSA-65 hybrid signature; keys from hybridSigKeygen. */
   publicSign: (secretKey, message, footer = null, implicit = null) => sealToken(fn.cb1PubSignLen, fn.cb1PubSign, 'cb1.public', secretKey, message, footer, implicit),
   publicVerify: (token, publicKey, expectedFooter = null, implicit = null) => openToken(fn.cb1PubVerifyCap, fn.cb1PubVerify, 'cb1.public', token, publicKey, expectedFooter, implicit),
+};
+
+/*
+ * The generic token API (docs/TOKEN_API.md): a format is named by its token
+ * header without the trailing dot ("v4.local", "cb1.local", "cb1.public");
+ * a ".local" format encrypts under a shared key, a ".public" format signs
+ * with the secret half of a pair and verifies with the public half. The
+ * caller always names the format it expects: a token whose header differs
+ * is invalid before the key is touched. Paseto and Cb1 above are these
+ * calls with the format fixed.
+ */
+const tokenText = (token) => Buffer.from(String(token), 'latin1');
+const Tokens = {
+  /** Every format the engine knows, available or not: {format, purpose, standard, key_bytes, public_key_bytes, secret_key_bytes, signature_bytes, max_input_bytes, available}. */
+  formats() {
+    const n = Number(fn.tokenFormats(null, 0));
+    const out = Buffer.alloc(n);
+    if (Number(fn.tokenFormats(out, n)) !== n) throw tokenError(TokenStatus.internal, 'token table');
+    return JSON.parse(out.toString('utf8'));
+  },
+  /** Exact token length for a payload and footer; 0 for an unknown or unavailable format or a length out of range. */
+  issueLen: (format, payloadLen, footerLen = 0) => Number(fn.tokenIssueLen(String(format), payloadLen, footerLen)),
+  /** Output capacity accept needs for a token of tokenLen bytes; 0 for an unknown or unavailable format or a length no valid token has. */
+  acceptCap: (format, tokenLen) => Number(fn.tokenAcceptCap(String(format), tokenLen)),
+  /** A fresh key: {secretKey, publicKey} with publicKey null for a local format. */
+  keygen(format) {
+    const secret = Buffer.alloc(4096), pub = Buffer.alloc(1984);
+    const a = [0], b = [0];
+    const rc = fn.tokenKeygen(String(format), secret, secret.length, a, pub, pub.length, b);
+    if (rc !== TokenStatus.ok) { secret.fill(0); throw tokenError(rc, String(format)); }
+    const secretKey = Buffer.from(secret.subarray(0, Number(a[0])));
+    secret.fill(0);
+    const publicKey = Number(b[0]) ? Buffer.from(pub.subarray(0, Number(b[0]))) : null;
+    return { secretKey, publicKey };
+  },
+  /** Issue a token: encrypt payload under key (local) or sign it with key, the secret half (public). The footer travels in clear and is authenticated; implicit is authenticated but never stored. */
+  issue(format, key, payload, footer = null, implicit = null) {
+    const what = String(format);
+    const n = Tokens.issueLen(what, olen(payload), olen(footer));
+    const out = Buffer.alloc(n === 0 ? 1 : n);
+    const outLen = [0];
+    const rc = fn.tokenIssue(what, out, n, outLen, u8(key), u8(key).length, optr(payload), olen(payload), optr(footer), olen(footer), optr(implicit), olen(implicit));
+    if (rc !== TokenStatus.ok) throw tokenError(rc, what);
+    if (n === 0) throw tokenError(TokenStatus.internal, what);
+    return out.subarray(0, Number(outLen[0])).toString('latin1');
+  },
+  /** Accept a token of the named format: decrypt under key (local) or verify with key, the public half (public), and return the payload. Every token-dependent failure, a different header included, throws one invalid error. */
+  accept(format, token, key, expectedFooter = null, implicit = null) {
+    const what = String(format);
+    const t = tokenText(token);
+    const cap = Tokens.acceptCap(what, t.length);
+    const out = Buffer.alloc(cap);
+    const outLen = [0];
+    const rc = fn.tokenAccept(what, cap ? out : null, cap, outLen, t, t.length, u8(key), u8(key).length, optr(expectedFooter), olen(expectedFooter), optr(implicit), olen(implicit));
+    if (rc !== TokenStatus.ok) { out.fill(0); throw tokenError(rc, what); }
+    if (cap === 0) throw tokenError(TokenStatus.invalid, what);
+    return Buffer.from(out.subarray(0, Number(outLen[0])));
+  },
+  /** The header of a token as a format name, UNVERIFIED; '' when the text has no header of the known shape. Nothing it says is trusted until accept succeeds with that format. */
+  peekFormat(token) {
+    const t = tokenText(token);
+    if (t.length === 0) return '';
+    const n = Number(fn.tokenPeekFormat(t, t.length, null, 0));
+    if (n === 0) return '';
+    const out = Buffer.alloc(n);
+    fn.tokenPeekFormat(t, t.length, out, n);
+    return out.toString('latin1');
+  },
+  /** The decoded footer of a token, UNVERIFIED, for choosing a key by its id; null when the token has no footer. The footer accept compares is the caller's expectedFooter, never this one. */
+  peekFooter(token) {
+    const t = tokenText(token);
+    const out = Buffer.alloc(t.length);
+    const outLen = [0];
+    const rc = fn.tokenPeekFooter(t, t.length, t.length ? out : null, t.length, outLen);
+    if (rc !== TokenStatus.ok) throw tokenError(rc, 'token');
+    return Number(outLen[0]) ? Buffer.from(out.subarray(0, Number(outLen[0]))) : null;
+  },
 };
 
 /** BLAKE2b computed natively at outLen bytes (1 to 64), unkeyed or with a 16 to 64 byte key. */
@@ -2536,8 +2623,10 @@ module.exports = {
   fipsHpkeP256Seal: Fips.hpkeP256Seal, fipsHpkeP256Open: Fips.hpkeP256Open,
   fipsEnvelopeCreate: Fips.envelopeCreate, fipsEnvelopeDeserialise: Fips.envelopeDeserialise,
 
-  /* Tokens: PASETO v4.local and the cb1 tokens; keyed BLAKE2b. */
-  Paseto, Cb1, TokenStatus, blake2bKeyed, blake2bKeyedInto,
+  /* Tokens: the generic API for every format, PASETO v4.local and cb1 by name, keyed BLAKE2b. */
+  Tokens, Paseto, Cb1, TokenStatus, blake2bKeyed, blake2bKeyedInto,
+  tokenFormats: Tokens.formats, tokenKeygen: Tokens.keygen, tokenIssue: Tokens.issue, tokenAccept: Tokens.accept,
+  tokenPeekFormat: Tokens.peekFormat, tokenPeekFooter: Tokens.peekFooter,
   pasetoV4LocalEncrypt: Paseto.v4LocalEncrypt, pasetoV4LocalDecrypt: Paseto.v4LocalDecrypt,
   cb1LocalEncrypt: Cb1.localEncrypt, cb1LocalDecrypt: Cb1.localDecrypt,
   cb1PublicSign: Cb1.publicSign, cb1PublicVerify: Cb1.publicVerify,

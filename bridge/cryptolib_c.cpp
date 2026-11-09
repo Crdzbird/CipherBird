@@ -141,6 +141,25 @@ std::span<uint8_t> paseto_out(uint8_t* p, size_t n) noexcept {
     return n ? std::span<uint8_t>(p, n) : std::span<uint8_t>{};
 }
 #endif
+namespace tok = crypto::token;
+int tok_rc(tok::Status s) noexcept {
+    switch (s) {
+        case tok::Status::ok:          return CRYPTOLIB_TOKEN_OK;
+        case tok::Status::invalid:     return CRYPTOLIB_TOKEN_ERR_INVALID;
+        case tok::Status::argument:    return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+        case tok::Status::internal:    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+        case tok::Status::unavailable: return CRYPTOLIB_TOKEN_ERR_UNAVAILABLE;
+        case tok::Status::format:      return CRYPTOLIB_TOKEN_ERR_FORMAT;
+    }
+    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+}
+bool tok_bad(const void* p, size_t n) noexcept { return p == nullptr && n != 0; }
+std::span<const uint8_t> tok_in(const uint8_t* p, size_t n) noexcept {
+    return n ? std::span<const uint8_t>(p, n) : std::span<const uint8_t>{};
+}
+std::span<uint8_t> tok_out(uint8_t* p, size_t n) noexcept {
+    return n ? std::span<uint8_t>(p, n) : std::span<uint8_t>{};
+}
 
 /** Build a SecureBuffer from a borrowed CryptoBuffer, tolerating null data. */
 crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
@@ -455,53 +474,6 @@ CRYPTO_API CryptoBufferResult cryptolib_xchacha20_decrypt(
     return ok_buf(r.value());
 } CL_FAIL_BUFRES
 
-CRYPTO_API size_t cryptolib_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len) {
-    return PasetoV4::token_len(msg_len, footer_len);
-}
-
-CRYPTO_API size_t cryptolib_paseto_v4_local_decrypt_cap(size_t token_len) {
-    return PasetoV4::open_capacity(token_len);
-}
-
-CRYPTO_API int cryptolib_paseto_v4_local_encrypt(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* key, size_t key_len,
-    const uint8_t* msg, size_t msg_len,
-    const uint8_t* footer, size_t footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !out || !key || paseto_bad(msg, msg_len) || paseto_bad(footer, footer_len) ||
-        paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = PasetoV4::seal(paseto_out(out, out_cap), n, paseto_in(key, key_len),
-                                  paseto_in(msg, msg_len), paseto_in(footer, footer_len),
-                                  paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return paseto_rc(s);
-} CL_FAIL_PASETO
-
-CRYPTO_API int cryptolib_paseto_v4_local_decrypt(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* token, size_t token_len,
-    const uint8_t* key, size_t key_len,
-    const uint8_t* expected_footer, size_t expected_footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
-        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = PasetoV4::open(paseto_out(out, out_cap), n, paseto_in(token, token_len),
-                                  paseto_in(key, key_len),
-                                  paseto_in(expected_footer, expected_footer_len),
-                                  paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return paseto_rc(s);
-} CL_FAIL_PASETO
-
 #ifdef CRYPTOLIB_PASETO_TEST_NONCE
 CRYPTO_API int cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
     uint8_t* out, size_t out_cap, size_t* out_len,
@@ -541,67 +513,7 @@ CRYPTO_API int cryptolib_blake2b_keyed_into(uint8_t* out, size_t out_len,
     return CRYPTOLIB_PASETO_OK;
 } catch (...) { return CRYPTOLIB_PASETO_ERR_INTERNAL; }
 
-#if defined(CRYPTOLIB_HAS_BLAKE3) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS)
-namespace {
-int cb1_rc(crypto::cb1::Status s) noexcept {
-    switch (s) {
-        case crypto::cb1::Status::ok:       return CRYPTOLIB_PASETO_OK;
-        case crypto::cb1::Status::invalid:  return CRYPTOLIB_PASETO_ERR_INVALID;
-        case crypto::cb1::Status::argument: return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-        case crypto::cb1::Status::internal: return CRYPTOLIB_PASETO_ERR_INTERNAL;
-    }
-    return CRYPTOLIB_PASETO_ERR_INTERNAL;
-}
-}
-
-CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t msg_len, size_t footer_len) {
-    return crypto::cb1::Local::token_len(msg_len, footer_len);
-}
-
-CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t token_len) {
-    return crypto::cb1::Local::open_capacity(token_len);
-}
-
-CRYPTO_API int cryptolib_cb1_local_encrypt(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* key, size_t key_len,
-    const uint8_t* msg, size_t msg_len,
-    const uint8_t* footer, size_t footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !out || !key || paseto_bad(msg, msg_len) || paseto_bad(footer, footer_len) ||
-        paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = crypto::cb1::Local::seal(paseto_out(out, out_cap), n, paseto_in(key, key_len),
-                                            paseto_in(msg, msg_len), paseto_in(footer, footer_len),
-                                            paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return cb1_rc(s);
-} CL_FAIL_PASETO
-
-CRYPTO_API int cryptolib_cb1_local_decrypt(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* token, size_t token_len,
-    const uint8_t* key, size_t key_len,
-    const uint8_t* expected_footer, size_t expected_footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
-        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = crypto::cb1::Local::open(paseto_out(out, out_cap), n, paseto_in(token, token_len),
-                                            paseto_in(key, key_len),
-                                            paseto_in(expected_footer, expected_footer_len),
-                                            paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return cb1_rc(s);
-} CL_FAIL_PASETO
-
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+#if defined(CRYPTOLIB_HAS_BLAKE3) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_PASETO_TEST_NONCE)
 CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
     uint8_t* out, size_t out_cap, size_t* out_len,
     const uint8_t* key, size_t key_len,
@@ -620,87 +532,8 @@ CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
         paseto_in(footer, footer_len), paseto_in(implicit, implicit_len),
         paseto_in(nonce, nonce_len));
     *out_len = n;
-    return cb1_rc(s);
+    return tok_rc(tok::detail::map(s));
 } CL_FAIL_PASETO
-#endif
-
-#ifdef CRYPTOLIB_HAS_PQ
-CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t msg_len, size_t footer_len) {
-    return crypto::cb1::Public::token_len(msg_len, footer_len);
-}
-
-CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t token_len) {
-    return crypto::cb1::Public::open_capacity(token_len);
-}
-
-CRYPTO_API int cryptolib_cb1_public_sign(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* secret_key, size_t sk_len,
-    const uint8_t* msg, size_t msg_len,
-    const uint8_t* footer, size_t footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !out || !secret_key || paseto_bad(msg, msg_len) ||
-        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = crypto::cb1::Public::sign(paseto_out(out, out_cap), n,
-                                             paseto_in(secret_key, sk_len), paseto_in(msg, msg_len),
-                                             paseto_in(footer, footer_len),
-                                             paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return cb1_rc(s);
-} CL_FAIL_PASETO
-
-CRYPTO_API int cryptolib_cb1_public_verify(
-    uint8_t* out, size_t out_cap, size_t* out_len,
-    const uint8_t* token, size_t token_len,
-    const uint8_t* public_key, size_t pk_len,
-    const uint8_t* expected_footer, size_t expected_footer_len,
-    const uint8_t* implicit, size_t implicit_len) try
-{
-    if (out_len) *out_len = 0;
-    if (!out_len || !public_key || paseto_bad(out, out_cap) || paseto_bad(token, token_len) ||
-        paseto_bad(expected_footer, expected_footer_len) || paseto_bad(implicit, implicit_len))
-        return CRYPTOLIB_PASETO_ERR_ARGUMENT;
-    size_t n = 0;
-    const auto s = crypto::cb1::Public::verify(paseto_out(out, out_cap), n,
-                                               paseto_in(token, token_len),
-                                               paseto_in(public_key, pk_len),
-                                               paseto_in(expected_footer, expected_footer_len),
-                                               paseto_in(implicit, implicit_len));
-    *out_len = n;
-    return cb1_rc(s);
-} CL_FAIL_PASETO
-#endif
-#else
-/* The bank profile ships only standards-track formats: the cb1 functions
- * exist so a full-profile client links, and report that they are absent. */
-CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t, size_t) { return 0; }
-CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t) { return 0; }
-CRYPTO_API int cryptolib_cb1_local_encrypt(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
-    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
-    if (out_len) *out_len = 0;
-    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
-}
-CRYPTO_API int cryptolib_cb1_local_decrypt(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
-    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
-    if (out_len) *out_len = 0;
-    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
-}
-CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t, size_t) { return 0; }
-CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t) { return 0; }
-CRYPTO_API int cryptolib_cb1_public_sign(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
-    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
-    if (out_len) *out_len = 0;
-    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
-}
-CRYPTO_API int cryptolib_cb1_public_verify(uint8_t*, size_t, size_t* out_len, const uint8_t*, size_t,
-    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
-    if (out_len) *out_len = 0;
-    return CRYPTOLIB_PASETO_ERR_UNAVAILABLE;
-}
 #endif
 
 CRYPTO_API CryptoBufferResult cryptolib_committing_encrypt(
@@ -3795,6 +3628,194 @@ CRYPTO_API void cryptolib_keyring_free(CryptoKeyringHandle kr) {
 }
 
 #endif // CRYPTOLIB_HAS_SODIUM_CRYPTO
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Tokens: one API for every format (docs/TOKEN_API.md), every profile
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API size_t cryptolib_token_formats(char* out, size_t out_cap) try {
+    const std::string j = tok::formats_json();
+    if (out && out_cap >= j.size()) std::memcpy(out, j.data(), j.size());
+    return j.size();
+} CL_FAIL_SIZE
+
+CRYPTO_API size_t cryptolib_token_issue_len(const char* format, size_t payload_len, size_t footer_len) try {
+    return format ? tok::issue_len(format, payload_len, footer_len) : 0;
+} CL_FAIL_SIZE
+
+CRYPTO_API size_t cryptolib_token_accept_cap(const char* format, size_t token_len) try {
+    return format ? tok::accept_cap(format, token_len) : 0;
+} CL_FAIL_SIZE
+
+CRYPTO_API int cryptolib_token_keygen(const char* format,
+                                      uint8_t* secret, size_t secret_cap, size_t* secret_len,
+                                      uint8_t* pub, size_t pub_cap, size_t* pub_len) try {
+    if (secret_len) *secret_len = 0;
+    if (pub_len) *pub_len = 0;
+    if (!format) return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CRYPTOLIB_TOKEN_ERR_FORMAT;
+    if (!f->available) return CRYPTOLIB_TOKEN_ERR_UNAVAILABLE;
+    if (!secret_len || tok_bad(secret, secret_cap) || tok_bad(pub, pub_cap)) return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    size_t a = 0, b = 0;
+    const auto s = tok::keygen(format, tok_out(secret, secret_cap), a, tok_out(pub, pub_cap), b);
+    if (s != tok::Status::ok) {
+        for (volatile uint8_t* w = secret, * const e = secret + secret_cap; secret && w != e; ++w) *w = 0;
+        return tok_rc(s);
+    }
+    *secret_len = a;
+    if (pub_len) *pub_len = b;
+    return CRYPTOLIB_TOKEN_OK;
+} catch (...) {
+    if (secret_len) *secret_len = 0;
+    if (pub_len) *pub_len = 0;
+    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API int cryptolib_token_issue(const char* format,
+                                     uint8_t* out, size_t out_cap, size_t* out_len,
+                                     const uint8_t* key, size_t key_len,
+                                     const uint8_t* payload, size_t payload_len,
+                                     const uint8_t* footer, size_t footer_len,
+                                     const uint8_t* implicit, size_t implicit_len) try {
+    if (out_len) *out_len = 0;
+    if (!format) return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CRYPTOLIB_TOKEN_ERR_FORMAT;
+    if (!f->available) return CRYPTOLIB_TOKEN_ERR_UNAVAILABLE;
+    if (!out_len || !out || !key || tok_bad(payload, payload_len) || tok_bad(footer, footer_len) ||
+        tok_bad(implicit, implicit_len))
+        return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::issue(format, tok_out(out, out_cap), n, tok_in(key, key_len), tok_in(payload, payload_len),
+                              tok_in(footer, footer_len), tok_in(implicit, implicit_len));
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API int cryptolib_token_accept(const char* format,
+                                      uint8_t* out, size_t out_cap, size_t* out_len,
+                                      const uint8_t* token, size_t token_len,
+                                      const uint8_t* key, size_t key_len,
+                                      const uint8_t* expected_footer, size_t expected_footer_len,
+                                      const uint8_t* implicit, size_t implicit_len) try {
+    if (out_len) *out_len = 0;
+    if (!format) return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CRYPTOLIB_TOKEN_ERR_FORMAT;
+    if (!f->available) return CRYPTOLIB_TOKEN_ERR_UNAVAILABLE;
+    if (!out_len || !key || tok_bad(out, out_cap) || tok_bad(token, token_len) ||
+        tok_bad(expected_footer, expected_footer_len) || tok_bad(implicit, implicit_len))
+        return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::accept(format, tok_out(out, out_cap), n, tok_in(token, token_len), tok_in(key, key_len),
+                               tok_in(expected_footer, expected_footer_len), tok_in(implicit, implicit_len));
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API size_t cryptolib_token_peek_format(const uint8_t* token, size_t token_len,
+                                              char* out, size_t out_cap) try {
+    if (tok_bad(token, token_len) || tok_bad(out, out_cap)) return 0;
+    const std::string_view h = tok::peek_format(tok_in(token, token_len));
+    if (!h.empty() && out && out_cap >= h.size()) std::memcpy(out, h.data(), h.size());
+    return h.size();
+} CL_FAIL_SIZE
+
+CRYPTO_API int cryptolib_token_peek_footer(const uint8_t* token, size_t token_len,
+                                           uint8_t* out, size_t out_cap, size_t* out_len) try {
+    if (out_len) *out_len = 0;
+    if (!out_len || tok_bad(token, token_len) || tok_bad(out, out_cap)) return CRYPTOLIB_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::peek_footer(tok_in(token, token_len), tok_out(out, out_cap), n);
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CRYPTOLIB_TOKEN_ERR_INTERNAL;
+}
+
+/* The per-format functions of 1.4.0: the generic calls with the format
+ * fixed. They exist in every profile and report unavailable where the
+ * format is not in it. */
+CRYPTO_API size_t cryptolib_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return cryptolib_token_issue_len("v4.local", msg_len, footer_len);
+}
+CRYPTO_API size_t cryptolib_paseto_v4_local_decrypt_cap(size_t token_len) {
+    return cryptolib_token_accept_cap("v4.local", token_len);
+}
+CRYPTO_API int cryptolib_paseto_v4_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_issue("v4.local", out, out_cap, out_len, key, key_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cryptolib_paseto_v4_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_accept("v4.local", out, out_cap, out_len, token, token_len, key, key_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
+CRYPTO_API size_t cryptolib_cb1_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return cryptolib_token_issue_len("cb1.local", msg_len, footer_len);
+}
+CRYPTO_API size_t cryptolib_cb1_local_decrypt_cap(size_t token_len) {
+    return cryptolib_token_accept_cap("cb1.local", token_len);
+}
+CRYPTO_API int cryptolib_cb1_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_issue("cb1.local", out, out_cap, out_len, key, key_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cryptolib_cb1_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_accept("cb1.local", out, out_cap, out_len, token, token_len, key, key_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
+CRYPTO_API size_t cryptolib_cb1_public_sign_len(size_t msg_len, size_t footer_len) {
+    return cryptolib_token_issue_len("cb1.public", msg_len, footer_len);
+}
+CRYPTO_API size_t cryptolib_cb1_public_verify_cap(size_t token_len) {
+    return cryptolib_token_accept_cap("cb1.public", token_len);
+}
+CRYPTO_API int cryptolib_cb1_public_sign(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* secret_key, size_t sk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_issue("cb1.public", out, out_cap, out_len, secret_key, sk_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cryptolib_cb1_public_verify(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* public_key, size_t pk_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cryptolib_token_accept("cb1.public", out, out_cap, out_len, token, token_len, public_key, pk_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
 /* ═══════════════════════════════════════════════════════════════════════════
  * Standards-track KEMs and the v2 envelopes (M4, M5, M6)
  * ═══════════════════════════════════════════════════════════════════════════ */

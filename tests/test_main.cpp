@@ -17,6 +17,7 @@ void run_tests_symmetric();
 void run_tests_paseto_primitives();
 void run_tests_paseto_v4();
 void run_tests_cb1_token();
+void run_tests_token_api();
 void run_tests_committing();
 void run_tests_aead_siv();
 void run_tests_asymmetric();
@@ -100,6 +101,9 @@ int main() {
 #endif
 #if defined(CRYPTOLIB_HAS_SODIUM_CRYPTO) && defined(CRYPTOLIB_HAS_BLAKE3) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_PQ)
     run_suite("cb1_token",      run_tests_cb1_token);
+#endif
+#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+    run_suite("token_api",      run_tests_token_api);
 #endif
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("committing_aead", run_tests_committing);

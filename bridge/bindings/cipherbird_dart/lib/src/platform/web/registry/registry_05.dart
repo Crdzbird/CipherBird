@@ -53,25 +53,37 @@ final Map<String, Function> _registry05 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_committing_encrypt':
+  'cryptolib_token_formats': (Pointer<NativeType> out, int outCap) => WebEngine
+      .current
+      .callInt('_cbw_cryptolib_token_formats', [out.address.toJS, outCap.toJS]),
+  'cryptolib_token_issue_len':
+      (Pointer<NativeType> format, int payloadLen, int footerLen) =>
+          WebEngine.current.callInt('_cbw_cryptolib_token_issue_len', [
+            format.address.toJS,
+            payloadLen.toJS,
+            footerLen.toJS,
+          ]),
+  'cryptolib_token_accept_cap': (Pointer<NativeType> format, int tokenLen) =>
+      WebEngine.current.callInt('_cbw_cryptolib_token_accept_cap', [
+        format.address.toJS,
+        tokenLen.toJS,
+      ]),
+  'cryptolib_token_keygen':
       (
-        Pointer<NativeType> plaintext,
-        int ptLen,
-        Pointer<NativeType> key,
-        int keyLen,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_committing_encrypt',
-        [
-          plaintext.address.toJS,
-          ptLen.toJS,
-          key.address.toJS,
-          keyLen.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
+        Pointer<NativeType> format,
+        Pointer<NativeType> secret,
+        int secretCap,
+        Pointer<NativeType> secretLen,
+        Pointer<NativeType> pub,
+        int pubCap,
+        Pointer<NativeType> pubLen,
+      ) => WebEngine.current.callInt('_cbw_cryptolib_token_keygen', [
+        format.address.toJS,
+        secret.address.toJS,
+        secretCap.toJS,
+        secretLen.address.toJS,
+        pub.address.toJS,
+        pubCap.toJS,
+        pubLen.address.toJS,
+      ]),
 };

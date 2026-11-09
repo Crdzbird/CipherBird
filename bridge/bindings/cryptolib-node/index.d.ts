@@ -758,8 +758,39 @@ export const argon2idDeriveAsync: Awaited1<typeof argon2idDerive>;
 export const argon2idHashStrAsync: Awaited1<typeof argon2idHashStr>;
 export const argon2idVerifyStrAsync: Awaited1<typeof argon2idVerifyStr>;
 
-/* Tokens: PASETO v4.local and the cb1 tokens; keyed BLAKE2b. */
-export const TokenStatus: { readonly ok: 0; readonly invalid: -1; readonly argument: -2; readonly internal: -3; readonly unavailable: -4 };
+/* Tokens: the generic API for every format (docs/TOKEN_API.md), PASETO v4.local and cb1 by name, keyed BLAKE2b. */
+export const TokenStatus: { readonly ok: 0; readonly invalid: -1; readonly argument: -2; readonly internal: -3; readonly unavailable: -4; readonly format: -5 };
+/** One entry of the engine's token table. A format is named by its token header without the trailing dot. */
+export interface TokenFormat {
+  format: string;
+  purpose: 'local' | 'public';
+  standard: string;
+  key_bytes: number;
+  public_key_bytes: number;
+  secret_key_bytes: number;
+  signature_bytes: number;
+  max_input_bytes: number;
+  available: boolean;
+}
+/** The generic token API: every format by name. A ".local" format encrypts under a shared key; a ".public" format signs with the secret half of a pair and verifies with the public half. The caller always names the format it expects; a token whose header differs is invalid. */
+export const Tokens: {
+  formats(): TokenFormat[];
+  issueLen(format: string, payloadLen: number, footerLen?: number): number;
+  acceptCap(format: string, tokenLen: number): number;
+  keygen(format: string): { secretKey: Buffer; publicKey: Buffer | null };
+  issue(format: string, key: Bytes, payload: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+  accept(format: string, token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+  /** The header as a format name, UNVERIFIED; '' when the text has no header of the known shape. */
+  peekFormat(token: string): string;
+  /** The decoded footer, UNVERIFIED; null when the token has none. */
+  peekFooter(token: string): Buffer | null;
+};
+export function tokenFormats(): TokenFormat[];
+export function tokenKeygen(format: string): { secretKey: Buffer; publicKey: Buffer | null };
+export function tokenIssue(format: string, key: Bytes, payload: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+export function tokenAccept(format: string, token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+export function tokenPeekFormat(token: string): string;
+export function tokenPeekFooter(token: string): Buffer | null;
 /** PASETO v4.local, conformant to the PASETO v4 specification. Tokens are ASCII strings. */
 export const Paseto: {
   readonly V4_LOCAL_KEY_BYTES: 32;
@@ -780,17 +811,25 @@ export const Cb1: {
   publicSign(secretKey: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
   publicVerify(token: string, publicKey: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
 };
+/** @deprecated Tokens.issue("v4.local", ...) is the same call. */
 export function pasetoV4LocalEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+/** @deprecated Tokens.accept("v4.local", ...) is the same call. */
 export function pasetoV4LocalDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+/** @deprecated Tokens.issue("cb1.local", ...) is the same call. */
 export function cb1LocalEncrypt(key: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+/** @deprecated Tokens.accept("cb1.local", ...) is the same call. */
 export function cb1LocalDecrypt(token: string, key: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
+/** @deprecated Tokens.issue("cb1.public", ...) is the same call. */
 export function cb1PublicSign(secretKey: Bytes, message: Bytes, footer?: Bytes | null, implicit?: Bytes | null): string;
+/** @deprecated Tokens.accept("cb1.public", ...) is the same call. */
 export function cb1PublicVerify(token: string, publicKey: Bytes, expectedFooter?: Bytes | null, implicit?: Bytes | null): Buffer;
 /** BLAKE2b computed natively at outLen bytes (1 to 64), unkeyed or with a 16 to 64 byte key. */
 export function blake2bKeyed(msg: Bytes, key?: Bytes | null, outLen?: number): Buffer;
 /** blake2bKeyed written into out, whose length selects the digest length; returns out. */
 export function blake2bKeyedInto(out: Buffer, msg: Bytes, key?: Bytes | null): Buffer;
 export const tokens: {
+  formats: typeof tokenFormats; keygen: typeof tokenKeygen; issue: typeof tokenIssue; accept: typeof tokenAccept;
+  peekFormat: typeof tokenPeekFormat; peekFooter: typeof tokenPeekFooter;
   paseto: typeof Paseto;
   cb1: typeof Cb1;
   v4LocalEncrypt: typeof pasetoV4LocalEncrypt; v4LocalDecrypt: typeof pasetoV4LocalDecrypt;

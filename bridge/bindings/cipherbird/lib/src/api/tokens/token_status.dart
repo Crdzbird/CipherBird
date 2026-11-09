@@ -17,9 +17,13 @@ enum TokenStatus {
   /// The engine failed.
   internal(-3),
 
-  /// The linked engine is the bank profile, which ships only standards-track
-  /// formats; cb1 tokens are absent there.
-  unavailable(-4);
+  /// The format exists but is not in the linked profile: cb1 in the bank
+  /// profile, every format in the fips profile.
+  unavailable(-4),
+
+  /// The format name matches no format this engine knows;
+  /// [CipherBirdTokens.tokenFormats] lists them.
+  format(-5);
 
   const TokenStatus(this.code);
 

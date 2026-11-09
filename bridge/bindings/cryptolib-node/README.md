@@ -109,27 +109,44 @@ const envelope = recipe.seal(secret);
 
 ## Tokens
 
-`pasetoV4LocalEncrypt` and `pasetoV4LocalDecrypt` are PASETO v4.local, byte
-for byte the PASETO specification and checked against its official vectors.
-`cb1LocalEncrypt`, `cb1LocalDecrypt`, `cb1PublicSign` and `cb1PublicVerify`
-are cb1, CipherBird's own tokens: the same shape with BLAKE3 in place of
-BLAKE2b and the Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519.
-The format is in the repository's `docs/CB1_TOKEN.md`; the pinned vectors
-are shared with the C++, Go and Dart suites.
+One API covers every token format (`docs/TOKEN_API.md` in the repository).
+A format is named by its token header without the trailing dot: `v4.local`
+is PASETO v4.local, byte for byte the specification and checked against
+its official vectors; `cb1.local` and `cb1.public` are cb1, CipherBird's
+own tokens, the same shape with BLAKE3 in place of BLAKE2b and the
+Ed25519 + ML-DSA-65 hybrid signature in place of Ed25519
+(`docs/CB1_TOKEN.md`). A `.local` format encrypts under a shared key; a
+`.public` format signs with the secret half of a pair and verifies with the
+public half. `tokenFormats()` lists what the bundled engine knows, with
+key sizes and whether the format is in its profile.
 
 ```js
-const token = cipherbird.cb1LocalEncrypt(key, claims, kid, audience);
-const back = cipherbird.cb1LocalDecrypt(token, key, kid, audience);
-const signer = cipherbird.hybridSigKeygen();
-const signed = cipherbird.cb1PublicSign(signer.secretKey, claims);
-const verified = cipherbird.cb1PublicVerify(signed, signer.publicKey);
+const formats = cipherbird.tokenFormats();
+const k = cipherbird.tokenKeygen('cb1.local');
+const token = cipherbird.tokenIssue('cb1.local', k.secretKey, claims, kid, audience);
+const back = cipherbird.tokenAccept('cb1.local', token, k.secretKey, kid, audience);
+const signer = cipherbird.tokenKeygen('cb1.public');
+const signed = cipherbird.tokenIssue('cb1.public', signer.secretKey, claims);
+const verified = cipherbird.tokenAccept('cb1.public', signed, signer.publicKey);
+const header = cipherbird.tokenPeekFormat(signed);
+const footer = cipherbird.tokenPeekFooter(token);
 ```
 
-Every token-dependent failure throws one "invalid token" error, so a caller
-cannot be used as an oracle; a key of the wrong length throws a RangeError.
-`Paseto`, `Cb1` and the `tokens` namespace carry the length helpers too, and
-every call runs on the worker through `cipherbird.async`. `blake2bKeyed`
-computes BLAKE2b at a chosen length and `blake2bKeyedInto` fills a buffer.
+The caller always names the format it expects: a token whose header differs
+is invalid before the key is touched, so the header inside a token never
+chooses the algorithm. `tokenPeekFormat` and `tokenPeekFooter` read the
+header and the footer (the usual place for a key id) without verifying, for
+choosing a key; nothing they return is trusted until `tokenAccept`
+succeeds. Every token-dependent failure throws one "invalid token" error,
+so a caller cannot be used as an oracle; a key of the wrong length throws a
+RangeError; an unknown format and a format outside the profile are their
+own errors. The format-named calls `pasetoV4LocalEncrypt`,
+`pasetoV4LocalDecrypt`, `cb1LocalEncrypt`, `cb1LocalDecrypt`,
+`cb1PublicSign` and `cb1PublicVerify` remain as the same calls with the
+format fixed. `Tokens`, `Paseto`, `Cb1` and the `tokens` namespace carry the
+length helpers too, and every call runs on the worker through
+`cipherbird.async`. `blake2bKeyed` computes BLAKE2b at a chosen length and
+`blake2bKeyedInto` fills a buffer.
 
 ## Media on bytes
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- One token API for every format (`docs/TOKEN_API.md`): `Tokens` with
+  `formats`, `keygen`, `issue`, `accept`, `peekFormat` and `peekFooter`,
+  also as `tokenFormats`, `tokenKeygen`, `tokenIssue`, `tokenAccept`,
+  `tokenPeekFormat`, `tokenPeekFooter` and on the `tokens` namespace. A
+  format is named by its token header (`v4.local`, `cb1.local`,
+  `cb1.public`); the caller always names the one it expects. `TokenStatus`
+  gains `format` (-5). The engine grows by the eight generic entry points
+  (349 shipped); the format-named functions of 1.4.0 remain as the same
+  calls with the format fixed. The common-schema vectors under
+  `tests/vectors/tokens/` run through the generic calls.
+
 ## 1.4.0
 
 - PASETO v4.local (`pasetoV4LocalEncrypt`, `pasetoV4LocalDecrypt`, `Paseto`),

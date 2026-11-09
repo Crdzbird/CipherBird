@@ -1,84 +1,71 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry09 = {
-  'cryptolib_suite_seal_with_file':
-      (
-        Pointer<NativeType> pt,
-        int ptLen,
-        Pointer<NativeType> path,
-        Pointer<NativeType> aad,
-        int aadLen,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_file',
-        [
-          pt.address.toJS,
-          ptLen.toJS,
-          path.address.toJS,
-          aad.address.toJS,
-          aadLen.toJS,
-        ],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_suite_open_with_file':
+  'cryptolib_suite_open_pq':
       (
         Pointer<NativeType> envelope,
         int envLen,
-        Pointer<NativeType> path,
+        Pointer<NativeType> recipientKemSecret,
+        int kemSecLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_file',
+        '_cbw_cryptolib_suite_open_pq',
         [
           envelope.address.toJS,
           envLen.toJS,
-          path.address.toJS,
+          recipientKemSecret.address.toJS,
+          kemSecLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_with_keyring_device':
+  'cryptolib_suite_seal_signed_pq':
       (
         Pointer<NativeType> pt,
         int ptLen,
-        Pointer<NativeType> kr,
-        Pointer<NativeType> factorKey,
-        int factorLen,
+        Pointer<NativeType> recipientKemPublic,
+        int kemPubLen,
+        Pointer<NativeType> signerSigSecret,
+        int sigSecLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_keyring_device',
+        '_cbw_cryptolib_suite_seal_signed_pq',
         [
           pt.address.toJS,
           ptLen.toJS,
-          kr.address.toJS,
-          factorKey.address.toJS,
-          factorLen.toJS,
+          recipientKemPublic.address.toJS,
+          kemPubLen.toJS,
+          signerSigSecret.address.toJS,
+          sigSecLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_open_with_keyring_device':
+  'cryptolib_suite_seal_signed_pq_sntrup':
       (
-        Pointer<NativeType> envelope,
-        int envLen,
-        Pointer<NativeType> kr,
-        Pointer<NativeType> factorKey,
-        int factorLen,
+        Pointer<NativeType> pt,
+        int ptLen,
+        Pointer<NativeType> recipientKemPublic,
+        int kemPubLen,
+        Pointer<NativeType> signerSigSecret,
+        int sigSecLen,
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_keyring_device',
+        '_cbw_cryptolib_suite_seal_signed_pq_sntrup',
         [
-          envelope.address.toJS,
-          envLen.toJS,
-          kr.address.toJS,
-          factorKey.address.toJS,
-          factorLen.toJS,
+          pt.address.toJS,
+          ptLen.toJS,
+          recipientKemPublic.address.toJS,
+          kemPubLen.toJS,
+          signerSigSecret.address.toJS,
+          sigSecLen.toJS,
           aad.address.toJS,
           aadLen.toJS,
         ],

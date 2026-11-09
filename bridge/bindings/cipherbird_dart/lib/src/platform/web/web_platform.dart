@@ -104,6 +104,7 @@ part 'registry/registry_53.dart';
 part 'registry/registry_54.dart';
 part 'registry/registry_55.dart';
 part 'registry/registry_56.dart';
+part 'registry/registry_57.dart';
 part 'registry/symbol_registry.dart';
 part 'structs/cipher_bird_asym_bundle.dart';
 part 'structs/cipher_bird_buffer.dart';

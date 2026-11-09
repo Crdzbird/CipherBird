@@ -35,7 +35,7 @@ profile compiles. Headers under `include/cryptolib/`:
 | Protocols | `frost.hpp`, `ecvrf.hpp`, `bbs.hpp`, `oprf.hpp`, `opaque.hpp`, `bls.hpp` | FROST (RFC 9591), ECVRF (RFC 9381), BBS, OPRF (RFC 9497), OPAQUE, BLS12-381 |
 | Entropy | `entropy_drbg.hpp`, `entropy_fortuna.hpp` | HMAC-DRBG, Fortuna |
 | Tokens | `paseto.hpp` | PASETO v4.local (paseto-standard v4, official vectors vendored under `tests/vectors/paseto`), keyed BLAKE2b at a chosen length |
-| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 341 functions in the full build, 284 in the bank build |
+| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 349 functions in the full build, 292 in the bank build |
 
 Priority for the reviewer, highest first:
 

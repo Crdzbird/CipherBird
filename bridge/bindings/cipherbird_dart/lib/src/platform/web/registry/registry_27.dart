@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry27 = {
-  'cryptolib_slh_dsa_verify':
+  'cryptolib_ml_dsa_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -10,8 +10,7 @@ final Map<String, Function> _registry27 = {
         Pointer<NativeType> publicKey,
         int pkLen,
         int level,
-        int hashFamily,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_slh_dsa_verify', [
+      ) => WebEngine.current.callInt('_cbw_cryptolib_ml_dsa_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
@@ -19,34 +18,26 @@ final Map<String, Function> _registry27 = {
         publicKey.address.toJS,
         pkLen.toJS,
         level.toJS,
-        hashFamily.toJS,
       ]),
-  'cryptolib_bls_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_bls_keygen',
+  'cryptolib_hybrid_sig_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_hybrid_sig_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
-  'cryptolib_bls_keygen_from_ikm': (Pointer<NativeType> ikm, int ikmLen) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_bls_keygen_from_ikm',
-        [ikm.address.toJS, ikmLen.toJS],
-        CipherBirdKeyPair.size,
-        CipherBirdKeyPair._new,
-      ),
-  'cryptolib_bls_sign':
+  'cryptolib_hybrid_sig_sign':
       (
         Pointer<NativeType> msg,
         int msgLen,
         Pointer<NativeType> secretKey,
         int skLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bls_sign',
+        '_cbw_cryptolib_hybrid_sig_sign',
         [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bls_verify':
+  'cryptolib_hybrid_sig_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -54,7 +45,7 @@ final Map<String, Function> _registry27 = {
         int sigLen,
         Pointer<NativeType> publicKey,
         int pkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bls_verify', [
+      ) => WebEngine.current.callInt('_cbw_cryptolib_hybrid_sig_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
@@ -62,32 +53,32 @@ final Map<String, Function> _registry27 = {
         publicKey.address.toJS,
         pkLen.toJS,
       ]),
-  'cryptolib_bls_aggregate':
-      (Pointer<NativeType> sigs, Pointer<NativeType> sigLens, int count) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_bls_aggregate',
-            [sigs.address.toJS, sigLens.address.toJS, count.toJS],
-            CipherBirdBufferResult.size,
-            CipherBirdBufferResult._new,
-          ),
-  'cryptolib_bls_aggregate_verify':
+  'cryptolib_slh_dsa_keygen': (int level, int hashFamily) =>
+      WebEngine.current.callStruct(
+        '_cbw_cryptolib_slh_dsa_keygen',
+        [level.toJS, hashFamily.toJS],
+        CipherBirdKeyPair.size,
+        CipherBirdKeyPair._new,
+      ),
+  'cryptolib_slh_dsa_sign':
       (
-        Pointer<NativeType> msgs,
-        Pointer<NativeType> msgLens,
-        Pointer<NativeType> pks,
-        Pointer<NativeType> pkLens,
-        int count,
-        Pointer<NativeType> aggSig,
-        int aggSigLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bls_aggregate_verify', [
-        msgs.address.toJS,
-        msgLens.address.toJS,
-        pks.address.toJS,
-        pkLens.address.toJS,
-        count.toJS,
-        aggSig.address.toJS,
-        aggSigLen.toJS,
-      ]),
-  'cryptolib_frost_keygen_free': (Pointer<NativeType> kg) => WebEngine.current
-      .callVoid('_cbw_cryptolib_frost_keygen_free', [kg.address.toJS]),
+        Pointer<NativeType> msg,
+        int msgLen,
+        Pointer<NativeType> secretKey,
+        int skLen,
+        int level,
+        int hashFamily,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_slh_dsa_sign',
+        [
+          msg.address.toJS,
+          msgLen.toJS,
+          secretKey.address.toJS,
+          skLen.toJS,
+          level.toJS,
+          hashFamily.toJS,
+        ],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
 };

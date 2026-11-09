@@ -116,6 +116,8 @@
 #include "fips/fips.hpp"          // → approved operations through the OpenSSL FIPS Provider
 #endif
 
+#include "token.hpp"             // -> tokens: one API for every format, every profile (docs/TOKEN_API.md)
+
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
 #include "hash.hpp"
 #include "keccak.hpp"            // → Keccak-256 (original padding, Ethereum)
