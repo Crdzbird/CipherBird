@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- P-256 ECDSA with SHA-256 (ES256): `p256Available`,
+  `p256DeterministicNonces`, `p256GenerateKey`, `p256PublicKey`, `p256Sign`,
+  `p256Verify`, `p256PrivateKeyFromPkcs8` and `p256PrivateKeyFromPem`. Raw
+  64-byte `r || s` signatures, RFC 6979 nonces, strict PKCS#8 import; the
+  engine gains seven entry points (356 shipped). The bundled engine's
+  libcrypto has no elliptic curves, so `p256Available()` is false with it
+  until the engine is rebuilt with EC. See `docs/P256.md`.
 - One token API for every format (`docs/TOKEN_API.md`): `Tokens` with
   `formats`, `keygen`, `issue`, `accept`, `peekFormat` and `peekFooter`,
   also as `tokenFormats`, `tokenKeygen`, `tokenIssue`, `tokenAccept`,

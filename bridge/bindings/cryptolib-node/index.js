@@ -221,6 +221,14 @@ function ensureLoaded() {
   secpSign: f('CryptoBufferResult cryptolib_secp256k1_sign(uint8_t*, uint8_t*, size_t)'),
   secpVerify: f('int cryptolib_secp256k1_verify(uint8_t*, uint8_t*, size_t, uint8_t*, size_t)'),
   secpRecover: f('CryptoBufferResult cryptolib_secp256k1_recover(uint8_t*, uint8_t*)'),
+  /* P-256 ECDSA with SHA-256 (ES256): raw r || s signatures, strict PKCS#8 import. */
+  p256Available: f('int cryptolib_p256_available()'),
+  p256Keygen: f('CryptoKeyPair cryptolib_p256_keygen()'),
+  p256Pub: f('CryptoBufferResult cryptolib_p256_public_key(uint8_t*, size_t)'),
+  p256Sign: f('CryptoBufferResult cryptolib_p256_sign(uint8_t*, size_t, uint8_t*, size_t)'),
+  p256Verify: f('int cryptolib_p256_verify(uint8_t*, size_t, uint8_t*, size_t, uint8_t*, size_t)'),
+  p256Pkcs8Der: f('CryptoBufferResult cryptolib_p256_import_pkcs8_der(uint8_t*, size_t)'),
+  p256Pkcs8Pem: f('CryptoBufferResult cryptolib_p256_import_pkcs8_pem(uint8_t*, size_t)'),
 
   /* Steganography */
   stegoEmbed: f('CryptoResult cryptolib_stego_embed(const char*, uint8_t*, size_t, const char*)'),
@@ -2346,6 +2354,17 @@ const Tokens = {
   },
 };
 
+/* P-256 helpers: a key pair the engine could not make means the build has no P-256; the PKCS#8 importers return secret key (32) || public key (65). */
+function p256Pair(pair) {
+  if (!pair.secretKey || pair.secretKey.length !== 32) throw new Error('cipherbird: P-256 is not available in this build');
+  return pair;
+}
+function p256Split(both) {
+  const pair = { secretKey: Buffer.from(both.subarray(0, 32)), publicKey: Buffer.from(both.subarray(32)) };
+  both.fill(0);
+  return pair;
+}
+
 /** BLAKE2b computed natively at outLen bytes (1 to 64), unkeyed or with a 16 to 64 byte key. */
 function blake2bKeyed(msg, key = null, outLen = 32) {
   return consume(fn.blake2bKeyed(optr(msg), olen(msg), optr(key), olen(key), outLen));
@@ -2526,6 +2545,16 @@ module.exports = {
   secp256k1Sign: (digest32, sk) => consume(fn.secpSign(u8(digest32), u8(sk), u8(sk).length)),
   secp256k1Verify: (digest32, sig, pk) => fn.secpVerify(u8(digest32), u8(sig), u8(sig).length, u8(pk), u8(pk).length) === 1,
   secp256k1Recover: (digest32, sig65) => consume(fn.secpRecover(u8(digest32), u8(sig65))),
+  /* P-256 ECDSA with SHA-256 (ES256). Secret key 32 bytes, public key 65 bytes uncompressed, signature 64 bytes r || s. */
+  p256Available: () => fn.p256Available() !== 0,
+  p256DeterministicNonces: () => fn.p256Available() === 2,
+  p256GenerateKey: () => p256Pair(kp(fn.p256Keygen())),
+  p256PublicKey: (sk) => consume(fn.p256Pub(u8(sk), u8(sk).length)),
+  p256Sign: (sk, message) => consume(fn.p256Sign(u8(sk), u8(sk).length, optr(message), olen(message))),
+  p256Verify: (pk, message, signature) => olen(pk) !== 0 && olen(signature) !== 0 &&
+    fn.p256Verify(u8(pk), u8(pk).length, optr(message), olen(message), u8(signature), u8(signature).length) === 1,
+  p256PrivateKeyFromPkcs8: (der) => p256Split(consume(fn.p256Pkcs8Der(optr(der), olen(der)))),
+  p256PrivateKeyFromPem: (pem) => { const t = typeof pem === 'string' ? Buffer.from(pem, 'latin1') : pem; return p256Split(consume(fn.p256Pkcs8Pem(optr(t), olen(t)))); },
 
   /* Steganography */
   stegoEmbed(coverPath, payload, outputPath) { const r = fn.stegoEmbed(coverPath, u8(payload), u8(payload).length, outputPath); if (r.ok !== 1) { const m = r.error ? koffi.decode(r.error, 'char', -1) : 'stego embed failed'; if (r.error) fn.strFree(r.error); throw new Error(m); } },

@@ -189,7 +189,7 @@ Strings and bytes convert in place:
 
 ## Full API
 
-All 341 native operations are reachable on `CipherBird`, flat or through
+All 356 native operations are reachable on `CipherBird`, flat or through
 grouped views that keep autocomplete usable. Every operation takes and
 returns `Uint8List`, throws on failure and never returns partial data.
 
@@ -813,7 +813,7 @@ architecture for the simulator in the consuming app or add a universal slice.
 ## Engine
 
 The engine is a header-only C++20 core with a
-pure C ABI of 341 functions, bindings for ten languages, a custom test runner
+pure C ABI of 356 functions, bindings for ten languages, a custom test runner
 with known-answer tests from the official sources, and a cross-language
 conformance harness. Its repository holds the build, the tests, the
 benchmark and the design notes. Everything is MIT licensed; the vendored

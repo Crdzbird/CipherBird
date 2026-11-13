@@ -1,6 +1,61 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry44 = {
+  'cryptolib_stego_embed_encrypted':
+      (
+        Pointer<NativeType> coverPath,
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> outputPath,
+        Pointer<NativeType> masterKey,
+        int keyLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_stego_embed_encrypted',
+        [
+          coverPath.address.toJS,
+          plaintext.address.toJS,
+          ptLen.toJS,
+          outputPath.address.toJS,
+          masterKey.address.toJS,
+          keyLen.toJS,
+        ],
+        CipherBirdResult.size,
+        CipherBirdResult._new,
+      ),
+  'cryptolib_stego_extract_decrypt':
+      (
+        Pointer<NativeType> stegoPath,
+        Pointer<NativeType> masterKey,
+        int keyLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_stego_extract_decrypt',
+        [stegoPath.address.toJS, masterKey.address.toJS, keyLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
+  'cryptolib_physical_seal':
+      (
+        Pointer<NativeType> keyMediaPath,
+        Pointer<NativeType> plaintext,
+        int ptLen,
+        Pointer<NativeType> aad,
+        int aadLen,
+        Pointer<NativeType> coverPath,
+        Pointer<NativeType> outputPath,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_physical_seal',
+        [
+          keyMediaPath.address.toJS,
+          plaintext.address.toJS,
+          ptLen.toJS,
+          aad.address.toJS,
+          aadLen.toJS,
+          coverPath.address.toJS,
+          outputPath.address.toJS,
+        ],
+        CipherBirdResult.size,
+        CipherBirdResult._new,
+      ),
   'cryptolib_physical_open':
       (
         Pointer<NativeType> keyMediaPath,
@@ -33,54 +88,4 @@ final Map<String, Function> _registry44 = {
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_stego_inspect': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_inspect',
-        [path.address.toJS],
-        CipherBirdFileInspection.size,
-        CipherBirdFileInspection._new,
-      ),
-  'cryptolib_stego_content_digest': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_content_digest',
-        [path.address.toJS],
-        CipherBirdBufferResult.size,
-        CipherBirdBufferResult._new,
-      ),
-  'cryptolib_stego_detect_hidden': (Pointer<NativeType> path) =>
-      WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_detect_hidden',
-        [path.address.toJS],
-        CipherBirdHiddenDataReport.size,
-        CipherBirdHiddenDataReport._new,
-      ),
-  'cryptolib_entropy_assess_file_health':
-      (Pointer<NativeType> path, int maxBytes) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_entropy_assess_file_health',
-        [path.address.toJS, maxBytes.toJS],
-        CipherBirdHealthReport.size,
-        CipherBirdHealthReport._new,
-      ),
-  'cryptolib_entropy_assess_file_health_v2':
-      (Pointer<NativeType> path, int maxBytes, double floorBitsPerByte) =>
-          WebEngine.current.callStruct(
-            '_cbw_cryptolib_entropy_assess_file_health_v2',
-            [path.address.toJS, maxBytes.toJS, floorBitsPerByte.toJS],
-            CipherBirdHealthReport2.size,
-            CipherBirdHealthReport2._new,
-          ),
-  'cryptolib_live_entropy_new':
-      (
-        double minBitsPerByte,
-        int requireRct,
-        double minCreditedBits,
-        Pointer<NativeType> outError,
-      ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_live_entropy_new', [
-          minBitsPerByte.toJS,
-          requireRct.toJS,
-          minCreditedBits.toJS,
-          outError.address.toJS,
-        ]),
-      ),
 };

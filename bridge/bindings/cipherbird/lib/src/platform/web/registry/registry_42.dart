@@ -62,31 +62,31 @@ final Map<String, Function> _registry42 = {
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_stego_embed':
-      (
-        Pointer<NativeType> coverPath,
-        Pointer<NativeType> payload,
-        int payloadLen,
-        Pointer<NativeType> outputPath,
-      ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_embed',
-        [
-          coverPath.address.toJS,
-          payload.address.toJS,
-          payloadLen.toJS,
-          outputPath.address.toJS,
-        ],
-        CipherBirdResult.size,
-        CipherBirdResult._new,
-      ),
-  'cryptolib_stego_extract': (Pointer<NativeType> stegoPath) =>
+  'cryptolib_p256_available': () =>
+      WebEngine.current.callInt('_cbw_cryptolib_p256_available', []),
+  'cryptolib_p256_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cryptolib_p256_keygen',
+    [],
+    CipherBirdKeyPair.size,
+    CipherBirdKeyPair._new,
+  ),
+  'cryptolib_p256_public_key': (Pointer<NativeType> secretKey, int skLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_extract',
-        [stegoPath.address.toJS],
+        '_cbw_cryptolib_p256_public_key',
+        [secretKey.address.toJS, skLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_stego_capacity': (Pointer<NativeType> coverPath) => WebEngine
-      .current
-      .callInt('_cbw_cryptolib_stego_capacity', [coverPath.address.toJS]),
+  'cryptolib_p256_sign':
+      (
+        Pointer<NativeType> secretKey,
+        int skLen,
+        Pointer<NativeType> message,
+        int msgLen,
+      ) => WebEngine.current.callStruct(
+        '_cbw_cryptolib_p256_sign',
+        [secretKey.address.toJS, skLen.toJS, message.address.toJS, msgLen.toJS],
+        CipherBirdBufferResult.size,
+        CipherBirdBufferResult._new,
+      ),
 };

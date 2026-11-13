@@ -1,6 +1,14 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry50 = {
+  'cryptolib_hpke_derive_keypair_kem':
+      (int kem, Pointer<NativeType> ikm, int ikmLen) =>
+          WebEngine.current.callStruct(
+            '_cbw_cryptolib_hpke_derive_keypair_kem',
+            [kem.toJS, ikm.address.toJS, ikmLen.toJS],
+            CipherBirdKeyPair.size,
+            CipherBirdKeyPair._new,
+          ),
   'cryptolib_hpke_setup_s_kem':
       (
         int kem,

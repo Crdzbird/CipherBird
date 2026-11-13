@@ -94,6 +94,21 @@ export function secp256k1Pubkey(sk: Bytes, compressed?: boolean): Buffer;
 export function secp256k1Sign(digest32: Bytes, sk: Bytes): Buffer;
 export function secp256k1Verify(digest32: Bytes, sig: Bytes, pk: Bytes): boolean;
 export function secp256k1Recover(digest32: Bytes, sig65: Bytes): Buffer;
+/** Whether the engine carries P-256 (the trimmed mobile and web engines do not). */
+export function p256Available(): boolean;
+/** Whether p256Sign derives its nonce from the key and the message (RFC 6979). */
+export function p256DeterministicNonces(): boolean;
+/** A fresh P-256 pair: secret key 32 bytes, public key 65 bytes (0x04 || X || Y). */
+export function p256GenerateKey(): KeyPair;
+export function p256PublicKey(sk: Bytes): Buffer;
+/** ECDSA over SHA-256(message): the raw 64-byte r || s of JWS ES256. */
+export function p256Sign(sk: Bytes, message: Bytes | null): Buffer;
+/** True only for a canonical 64-byte signature under a 65-byte public key on the curve; both halves of the s range are accepted. */
+export function p256Verify(pk: Bytes, message: Bytes | null, signature: Bytes): boolean;
+/** Strict import of an unencrypted PKCS#8 P-256 private key, DER. */
+export function p256PrivateKeyFromPkcs8(der: Bytes): KeyPair;
+/** The same on one PEM block labelled PRIVATE KEY (an Apple .p8 file). */
+export function p256PrivateKeyFromPem(pem: Bytes | string): KeyPair;
 
 /** ML-KEM level: 0 = 512, 1 = 768, 2 = 1024. */
 export function mlKemKeygen(level?: number): KeyPair;
