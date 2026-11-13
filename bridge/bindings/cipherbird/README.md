@@ -899,3 +899,51 @@ Each takes a `runner`; the default is `CipherBirdIsolateRunner`, and
 `CipherBirdInlineRunner` keeps tests deterministic. Handles such as
 sessions and live sources belong to the engine that made them and stay on
 the calling thread.
+
+## SecretStream, one chunk at a time
+
+`streamEncrypt` and `streamDecrypt` take every chunk in one list, which
+holds the whole message in memory. For a recording, a backup or anything
+else that should pass through in constant memory, use the incremental
+objects over the same stream (libsodium
+`crypto_secretstream_xchacha20poly1305`):
+
+```dart
+final enc = lib.secretStreamEncryptor(key);
+sink.add(enc.header);
+await for (final block in source) {
+  sink.add(frame(enc.push(block)));
+}
+sink.add(frame(enc.finish()));
+enc.close();
+
+final dec = lib.secretStreamDecryptor(key, header);
+for (final chunk in framedChunks) {
+  final opened = dec.pull(chunk);
+  out.add(opened.plaintext);
+}
+if (!dec.isFinished) throw StateError('the stream was truncated');
+dec.close();
+```
+
+The header is 24 bytes and not secret; every chunk is 17 bytes longer than
+its plaintext and carries a tag (`SecretStreamTag.message`, `push`, `rekey`
+or `finalChunk`). Chunk boundaries are not hidden, so store each chunk's
+length with it. A reader gets a `SecretStreamException` with
+`SecretStreamError.invalid` for a chunk that was tampered with, reordered,
+duplicated, taken from another stream or cut short, and the state stays
+where it was, so only the right next chunk is accepted. The final tag is
+what proves the stream was not cut short: when the input ends and
+`isFinished` is still false, it was truncated. Pushing or pulling after the
+final chunk is `SecretStreamError.finished`, after `close` it is
+`SecretStreamError.closed`, and a key that is not 32 bytes or a header that
+is not 24 is `SecretStreamError.argument`.
+
+`close` releases the native state and wipes its key; a finalizer does the
+same for an object that is dropped without it (certain to run on native
+platforms, best effort in the browser). The native copy of the key made at
+creation is wiped as soon as the stream state is derived. The objects work
+on every platform, the web included, and a stream written here is read by
+`StreamDecryptor` of the Go binding and the reverse; `make stream-interop`
+checks both directions. The same two calls live on `lib.aead` as
+`streamEncryptor` and `streamDecryptor`.

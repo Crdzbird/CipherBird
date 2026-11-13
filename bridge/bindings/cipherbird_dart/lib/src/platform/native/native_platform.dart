@@ -21,6 +21,7 @@ export 'package:ffi/ffi.dart' hide StringUtf8Pointer, calloc, malloc;
 part 'bundled_library.dart';
 part 'cipher_bird_isolate_runner.dart';
 part 'engine_loader.dart';
+part 'handle_finalizer.dart';
 part 'media_scratch.dart';
 part 'structs/cipher_bird_asym_bundle.dart';
 part 'structs/cipher_bird_buffer.dart';

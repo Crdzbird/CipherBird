@@ -1,5 +1,23 @@
 ## Unreleased
 
+Incremental SecretStream.
+
+- `secretStreamEncryptor` and `secretStreamDecryptor` return a
+  `SecretStreamEncryptor` and a `SecretStreamDecryptor` that take one chunk
+  at a time, so a stream of any size passes through in constant memory
+  (200 MiB in 64 KiB chunks grows resident memory by a few MiB). `push`,
+  `finish`, `pull`, `isFinished` and `close`, with `SecretStreamTag`,
+  `SecretStreamChunk` and a typed `SecretStreamException`: a tampered,
+  reordered, duplicated or foreign chunk is `invalid`, use after the final
+  chunk is `finished`, use after `close` is `closed`. A finalizer frees a
+  handle that was never closed. Also on `lib.aead` as `streamEncryptor` and
+  `streamDecryptor`, on every platform including the web.
+- `streamEncrypt` and `streamDecrypt` keep their results byte for byte and
+  now refuse a key that is not 32 bytes or a header that is not 24 with a
+  `SecretStreamException` instead of reading past the buffer.
+- Streams interoperate with the Go binding's `StreamEncryptor` and
+  `StreamDecryptor` in both directions (`scripts/verify_stream_interop.sh`).
+
 P-256 ECDSA with SHA-256 (ES256), `docs/P256.md`.
 
 - `p256Available`, `p256DeterministicNonces`, `p256GenerateKey`,

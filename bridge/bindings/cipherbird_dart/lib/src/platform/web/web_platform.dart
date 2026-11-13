@@ -26,6 +26,8 @@ part 'engine_loader.dart';
 part 'engine_module.dart';
 part 'engine_worker.dart';
 part 'engine_worker_boot.dart';
+part 'finalizable.dart';
+part 'handle_finalizer.dart';
 part 'heap_memory.dart';
 part 'int32.dart';
 part 'local_memory.dart';

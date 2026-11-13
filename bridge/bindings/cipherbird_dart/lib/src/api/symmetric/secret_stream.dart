@@ -3,11 +3,13 @@ part of '../../cipher_bird.dart';
 /// Symmetric operations.
 extension CipherBirdSecretStream on CipherBird {
   /// Streaming encrypt: encrypt chunks of data with ordering.
-  /// Returns (header, encryptedChunks).
+  /// Returns (header, encryptedChunks). Every chunk is held in memory; for
+  /// data that should not be, use [CipherBirdSecretStreamObjects.secretStreamEncryptor].
   (Uint8List header, List<Uint8List> chunks) streamEncrypt(
     Uint8List key,
     List<Uint8List> plaintextChunks,
   ) {
+    _streamLength(key, 32, 'the key must be 32 bytes');
     final pk = _toNative(key);
     final handle = _symmetric.streamEncCreate(pk);
     calloc.free(pk);
@@ -44,12 +46,16 @@ extension CipherBirdSecretStream on CipherBird {
     }
   }
 
-  /// Streaming decrypt: decrypt chunks of data.
+  /// Streaming decrypt: decrypt chunks of data. It does not report whether
+  /// the last chunk carried the final tag; a reader that must detect a
+  /// truncated stream uses [CipherBirdSecretStreamObjects.secretStreamDecryptor].
   List<Uint8List> streamDecrypt(
     Uint8List key,
     Uint8List header,
     List<Uint8List> ciphertextChunks,
   ) {
+    _streamLength(key, 32, 'the key must be 32 bytes');
+    _streamLength(header, 24, 'the header must be 24 bytes');
     final pk = _toNative(key);
     final ph = _toNative(header);
     final handle = _symmetric.streamDecCreate(pk, ph);

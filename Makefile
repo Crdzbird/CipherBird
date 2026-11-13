@@ -294,6 +294,11 @@ recipe-interop: lib swift-security java-security
 	@cd bridge/bindings/cryptolib-dotnet && dotnet build -v q --nologo >/dev/null 2>&1 || true
 	@bash scripts/verify_recipe_interop.sh
 
+.PHONY: stream-interop
+stream-interop: lib
+	$(call hdr,SecretStream interop between the Dart and Go bindings)
+	@bash scripts/verify_stream_interop.sh
+
 .PHONY: swift-security
 swift-security: lib
 	$(call hdr,Swift security profiles + recipes)

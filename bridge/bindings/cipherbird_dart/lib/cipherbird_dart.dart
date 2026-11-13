@@ -17,6 +17,7 @@ library;
 export 'src/cipher_bird.dart'
     show
         AeadApi,
+        AeadApiStream,
         Aes256GcmLayer,
         Argon2DeriveJob,
         Argon2HashJob,
@@ -186,6 +187,7 @@ export 'src/cipher_bird.dart'
         CipherBirdSealedSealerFinish,
         CipherBirdSecp256k1Verify,
         CipherBirdSecretStream,
+        CipherBirdSecretStreamObjects,
         CipherBirdSecurity,
         CipherBirdSession,
         CipherBirdSession2,
@@ -311,6 +313,12 @@ export 'src/cipher_bird.dart'
         SealedStreamSealer,
         SealedTier,
         SecretBytes,
+        SecretStreamChunk,
+        SecretStreamDecryptor,
+        SecretStreamEncryptor,
+        SecretStreamError,
+        SecretStreamException,
+        SecretStreamTag,
         SecurityProfile,
         SecurityProfileKem,
         Session,
