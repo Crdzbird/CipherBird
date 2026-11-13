@@ -11,15 +11,20 @@ source "$SCRIPT_DIR/../lib/common.sh"
 SLICE="${1:-}"
 [[ -z "$SLICE" ]] && die "Usage: $0 <iphoneos|iphonesimulator|macosx>"
 
-if is_built "$SLICE" "openssl"; then
-    ok "openssl already built for $SLICE"
-    exit 0
-fi
-
 # The macOS slice is a desktop engine and keeps EC and ECDSA for P-256; the
 # device slices configure them out (scripts/lib/openssl_trim.sh).
 TRIM_CLASS=device
 [[ "$SLICE" == "macosx" ]] && TRIM_CLASS=desktop
+TRIM_OPTIONS="$(bash "$REPO_ROOT/scripts/lib/openssl_trim.sh" "$TRIM_CLASS")"
+
+# A libcrypto built with other options is not this one: the options are
+# recorded next to the build, and a prefix without the record, or with a
+# different one, is rebuilt.
+TRIM_RECORD="$(slice_prefix "$SLICE")/.openssl.trim"
+if is_built "$SLICE" "openssl" && [[ -f "$TRIM_RECORD" && "$(cat "$TRIM_RECORD")" == "$TRIM_OPTIONS" ]]; then
+    ok "openssl already built for $SLICE"
+    exit 0
+fi
 
 log "Building OpenSSL $OPENSSL_VERSION for $SLICE (libcrypto only, minimal, $TRIM_CLASS trim)"
 
@@ -65,7 +70,7 @@ for arch in "${ARCHES[@]}"; do
         ./Configure "$target" \
             no-shared no-dso no-hw no-engine no-tests no-apps no-docs \
             no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib \
-        $(bash "$REPO_ROOT/scripts/lib/openssl_trim.sh" "$TRIM_CLASS") \
+        $TRIM_OPTIONS \
             --prefix="$work/install" \
             > "$work/configure.log" 2>&1 || { tail -40 "$work/configure.log"; die "openssl configure failed"; }
 
@@ -91,5 +96,6 @@ done
 log "Lipo-merging libcrypto arches: ${ARCHES[*]}"
 lipo -create "${PER_ARCH_CRYPTO[@]}" -output "$PREFIX/lib/libcrypto.a"
 
+printf '%s\n' "$TRIM_OPTIONS" > "$TRIM_RECORD"
 mark_built "$SLICE" "openssl"
 ok "openssl installed to $PREFIX (libcrypto.a only)"
