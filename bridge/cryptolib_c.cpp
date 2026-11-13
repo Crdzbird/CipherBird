@@ -3209,6 +3209,103 @@ CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
 #endif
 } CL_FAIL_BUFRES
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * P-256 ECDSA with SHA-256 (ES256)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#ifdef CRYPTOLIB_HAS_P256
+namespace {
+/** secret key (32) followed by public key (65) in one buffer. */
+CryptoBufferResult p256_pair_buf(const crypto::Result<crypto::ec::P256KeyPair>& r) {
+    if (r.is_err()) return err_buf(r.error().message);
+    using P = crypto::ec::P256;
+    crypto::SecureBuffer both(P::SECRET_KEY_BYTES + P::PUBLIC_KEY_BYTES);
+    std::memcpy(both.data(), r.value().secret_key.data(), P::SECRET_KEY_BYTES);
+    std::memcpy(both.data() + P::SECRET_KEY_BYTES, r.value().public_key.data(), P::PUBLIC_KEY_BYTES);
+    return ok_buf(both);
+}
+}
+#endif
+
+CRYPTO_API int cryptolib_p256_available(void) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!crypto::ec::P256::available()) return 0;
+    return crypto::ec::P256::DETERMINISTIC_NONCES ? 2 : 1;
+#else
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cryptolib_p256_keygen(void) try {
+#ifdef CRYPTOLIB_HAS_P256
+    auto kp = crypto::ec::P256::generate_keypair();
+    if (kp.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(kp.value().public_key), to_cbuf(kp.value().secret_key) };
+#else
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cryptolib_p256_public_key(const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!secret_key) return err_buf("p256: secret key must be 32 bytes");
+    auto r = crypto::ec::P256::public_key(sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_p256_sign(
+    const uint8_t* secret_key, size_t sk_len, const uint8_t* message, size_t msg_len) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!secret_key) return err_buf("p256: secret key must be 32 bytes");
+    if (!message && msg_len != 0) return err_buf("p256: message is NULL");
+    auto r = crypto::ec::P256::sign(sp(secret_key, sk_len), message ? sp(message, msg_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len; (void)message; (void)msg_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cryptolib_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!public_key || !signature || (!message && msg_len != 0)) return 0;
+    return crypto::ec::P256::verify(sp(public_key, pk_len),
+                                    message ? sp(message, msg_len) : std::span<const uint8_t>{},
+                                    sp(signature, sig_len)) ? 1 : 0;
+#else
+    (void)public_key; (void)pk_len; (void)message; (void)msg_len; (void)signature; (void)sig_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_der(const uint8_t* der, size_t der_len) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!der) return err_buf("p256: PKCS#8 input has an unsupported size");
+    return p256_pair_buf(crypto::ec::P256::from_pkcs8_der(sp(der, der_len)));
+#else
+    (void)der; (void)der_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_pem(const uint8_t* pem, size_t pem_len) try {
+#ifdef CRYPTOLIB_HAS_P256
+    if (!pem) return err_buf("p256: PKCS#8 input has an unsupported size");
+    return p256_pair_buf(crypto::ec::P256::from_pkcs8_pem(sp(pem, pem_len)));
+#else
+    (void)pem; (void)pem_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
 #ifdef CRYPTOLIB_HAS_STEGO
 /* ═══════════════════════════════════════════════════════════════════════════
  * Steganography

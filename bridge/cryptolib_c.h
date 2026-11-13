@@ -1774,6 +1774,73 @@ CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
     const uint8_t* digest32, const uint8_t* sig65);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * P-256 (secp256r1) ECDSA with SHA-256: ES256
+ *   The JWS ES256 signature (RFC 7518), the one Apple push authenticates a
+ *   provider with. Present in the full and bank profiles; every curve
+ *   operation runs in OpenSSL libcrypto. The functions never vanish from
+ *   the ABI: where libcrypto is absent or was configured without EC (the
+ *   trimmed libcrypto of the mobile and web engines), cryptolib_p256_available
+ *   returns 0 and each call reports the feature as not enabled. The fips
+ *   profile keeps its own cryptolib_fips_p256_* functions (DER signatures,
+ *   inside the validated module) and does not carry these.
+ *
+ *   secret key  32 bytes, the scalar d big-endian, 1 <= d < n
+ *   public key  65 bytes, the uncompressed point 0x04 || X || Y
+ *   signature   64 bytes, r || s big-endian (IEEE P1363, the JWS form)
+ *
+ *   Nonces are deterministic (RFC 6979) with OpenSSL 3.2 and later, so
+ *   signing draws no randomness; cryptolib_p256_available returns 2 in that
+ *   case and 1 when the nonce is libcrypto's hedged random one. High-s
+ *   signatures are produced and accepted, as FIPS 186-5 and JWS allow: a
+ *   signature is malleable and must not serve as a unique identifier.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#define CRYPTOLIB_P256_SECRET_KEY_BYTES 32
+#define CRYPTOLIB_P256_PUBLIC_KEY_BYTES 65
+#define CRYPTOLIB_P256_SIGNATURE_BYTES  64
+#define CRYPTOLIB_P256_MAX_PKCS8_BYTES  4096
+
+/** 0 when P-256 is not in this build, 1 when it is, 2 when it is and nonces
+ *  are deterministic (RFC 6979). */
+CRYPTO_API int cryptolib_p256_available(void);
+
+/** A fresh key pair: secret_key 32 bytes, public_key 65 bytes. Both buffers
+ *  are NULL when P-256 is not in this build. */
+CRYPTO_API CryptoKeyPair cryptolib_p256_keygen(void);
+
+/** The 65-byte public key of a 32-byte secret key; an error for a length
+ *  other than 32 or a scalar outside 1..n-1. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_public_key(const uint8_t* secret_key, size_t sk_len);
+
+/** ECDSA over SHA-256(message): 64 bytes, r || s. message may be NULL only
+ *  with a zero length. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_sign(
+    const uint8_t* secret_key, size_t sk_len, const uint8_t* message, size_t msg_len);
+
+/** 1 when signature (64 bytes, r || s, each in 1..n-1) verifies over
+ *  SHA-256(message) under public_key (65 bytes, uncompressed, on the
+ *  curve); 0 for anything else, a wrong length included. */
+CRYPTO_API int cryptolib_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len);
+
+/** Imports an unencrypted PKCS#8 private key (RFC 5208 PrivateKeyInfo around
+ *  an RFC 5915 ECPrivateKey), DER. Returns 97 bytes: the secret key (32)
+ *  followed by its public key (65), which is derived from the scalar. The
+ *  parse is strict: trailing bytes, a version other than 0, an algorithm
+ *  other than id-ecPublicKey, a curve other than prime256v1, attributes, an
+ *  encrypted PKCS#8, a scalar not exactly 32 bytes or outside 1..n-1, an
+ *  embedded public key that is not the uncompressed point of that scalar,
+ *  and any indefinite or non-minimal length are all errors. Input is capped
+ *  at CRYPTOLIB_P256_MAX_PKCS8_BYTES. Wipe the result when done. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_der(const uint8_t* der, size_t der_len);
+
+/** cryptolib_p256_import_pkcs8_der on one PEM block labelled PRIVATE KEY
+ *  (the .p8 file Apple issues). Only whitespace may surround the block and
+ *  the body is padded base64; ENCRYPTED PRIVATE KEY and EC PRIVATE KEY
+ *  blocks are refused by name. pem need not be NUL-terminated. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_pem(const uint8_t* pem, size_t pem_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Steganography — hide data inside media files
  * ═══════════════════════════════════════════════════════════════════════════ */
 

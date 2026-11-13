@@ -67,6 +67,7 @@ define lets the await be dropped there too, see the package README. Each package
 | **Secure channel** | Mutual auth + forward secrecy | Noise XX (`Noise_XX_25519_ChaChaPoly_SHA256`), vector-validated byte-exact vs `noise-c` |
 | **BLS12-381** | Sign / verify / **aggregate** | via blst (aggregate + aggregate-verify) |
 | **BBS anonymous credentials** | Multi-message signatures with **zero-knowledge selective disclosure**, **per-verifier pseudonyms**, and **blind issuance** | BBS (BLS12-381-SHA-256, CFRG drafts), sign/verify, ZK proof over a chosen subset, unlinkable-yet-per-context pseudonyms, issuer-blind committed attributes, see below |
+| **P-256 (ES256)** | ECDSA with SHA-256 for JWS, Apple push and WebCrypto peers | raw `r || s` signatures, RFC 6979 nonces, strict PKCS#8 import (DER and PEM), over OpenSSL libcrypto; see `docs/P256.md` |
 | **EVM / Bitcoin** | Blockchain interop primitives | Keccak-256 (original padding), RIPEMD-160, secp256k1 ECDSA (keygen / pubkey / sign / verify / **ecrecover**, RFC6979 + low-S) via libsecp256k1 |
 | **High-level** | Vault (KDF to integrity to AEAD to signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
 | **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy, framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |

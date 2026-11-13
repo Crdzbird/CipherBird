@@ -27,7 +27,8 @@ locks pages with `sodium_mlock`, which marks them `MADV_DONTDUMP`.
   statically-linked dependency symbol (liboqs, blst, …) is hidden via an
   exported-symbols list (macOS) / version script (ELF). Down from 1757.
 - **libcrypto only:** we link OpenSSL's `libcrypto` (EVP: AES-256-GCM-SIV,
-  ML-KEM/ML-DSA/SLH-DSA), never `libssl` — the TLS/X.509 stack is not linked.
+  ML-KEM/ML-DSA/SLH-DSA, and P-256 ECDSA where libcrypto was built with EC),
+  never `libssl` — the TLS/X.509 stack is not linked.
 - **Exploit mitigations:** `-fstack-protector-strong`, `-fstack-clash-protection`,
   `-fcf-protection` (feature-detected), `_FORTIFY_SOURCE=2`; ELF builds add full
   RELRO (`-z relro -z now`) and `-z noexecstack`.
@@ -67,7 +68,10 @@ symbols** (only a benign `getenv` from OpenSSL config-reading remains, watch-lis
 ### Trimmed libcrypto and liboqs (shipped engine size)
 
 The engine reaches OpenSSL only through the EVP cipher API (AES-256-GCM-SIV in
-the vault cascade) and liboqs reaches it for AES, SHA-2 and SHA-3. Every other
+the vault cascade) and liboqs reaches it for AES, SHA-2 and SHA-3. P-256
+(`docs/P256.md`) also runs in libcrypto, and because EC is configured out
+below, the shipped engines report it unavailable; host builds against a stock
+libcrypto have it. Every other
 algorithm family and subsystem (EC, DH, DSA, legacy ciphers and digests, CMS,
 OCSP, CT, TS, CMP, SRP, HTTP, engines, loadable modules, error strings) is
 configured out (CMAC stays: OpenSSL's configure cascades `no-cmac` into

@@ -28,14 +28,14 @@ profile compiles. Headers under `include/cryptolib/`:
 | Core types and secrets | `types.hpp`, `shamir.hpp` | SecureBuffer, Result, Shamir over GF(256) |
 | Hashing and KDFs | `hash.hpp`, `keccak.hpp`, `ripemd160.hpp` | SHA-2, BLAKE2b, HMAC, HKDF, Argon2id (cost capped), Keccak |
 | Symmetric | `symmetric.hpp`, `committing.hpp`, `aead_siv.hpp` | XChaCha20-Poly1305, AES-256-GCM, UtC committing AEAD, AES-GCM-SIV |
-| Classical asymmetric | `asymmetric.hpp` | X25519, Ed25519, Box, SealedBox |
+| Classical asymmetric | `asymmetric.hpp`, `p256.hpp` | X25519, Ed25519, Box, SealedBox; P-256 ECDSA with SHA-256 over libcrypto (`docs/P256.md`; CAVP and RFC 6979 vectors under `tests/vectors/p256`) |
 | Post-quantum | `pq.hpp`, `xwing.hpp`, `hybrid_sig.hpp` | ML-KEM, ML-DSA, SLH-DSA (liboqs); X-Wing (draft-connolly-cfrg-xwing-kem-11); Ed25519 + ML-DSA-65 |
 | Envelopes | `vault.hpp`, `keyring.hpp`, `suite_v2.hpp` | 4-layer vaults, key-slot envelopes, Suite v2 recipient-bound signed envelopes |
 | Channels | `ratchet.hpp`, `session_v2.hpp`, `noise.hpp`, `hpke.hpp` | KEM ratchet, Session v2 authenticated handshake, Noise XX, HPKE (RFC 9180) with DHKEM(X25519), ML-KEM-768 and X-Wing |
 | Protocols | `frost.hpp`, `ecvrf.hpp`, `bbs.hpp`, `oprf.hpp`, `opaque.hpp`, `bls.hpp` | FROST (RFC 9591), ECVRF (RFC 9381), BBS, OPRF (RFC 9497), OPAQUE, BLS12-381 |
 | Entropy | `entropy_drbg.hpp`, `entropy_fortuna.hpp` | HMAC-DRBG, Fortuna |
 | Tokens | `paseto.hpp` | PASETO v4.local (paseto-standard v4, official vectors vendored under `tests/vectors/paseto`), keyed BLAKE2b at a chosen length |
-| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 349 functions in the full build, 292 in the bank build |
+| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 356 functions in the full build, 299 in the bank build |
 
 Priority for the reviewer, highest first:
 

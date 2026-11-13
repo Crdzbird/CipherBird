@@ -123,6 +123,7 @@
 #include "keccak.hpp"            // → Keccak-256 (original padding, Ethereum)
 #include "ripemd160.hpp"         // → RIPEMD-160 (Bitcoin HASH160)
 #include "secp256k1.hpp"         // → secp256k1 ECDSA (EVM/BTC; guarded by CRYPTOLIB_HAS_SECP256K1)
+#include "p256.hpp"              // -> P-256 ECDSA with SHA-256 over libcrypto (guarded by CRYPTOLIB_HAS_P256)
 #include "symmetric.hpp"
 #include "paseto.hpp"
 #include "cb1_token.hpp"
