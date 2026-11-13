@@ -57,7 +57,9 @@ time**, not by surgery on a prebuilt archive.
 `scripts/build_openssl_nosock.sh` therefore builds `libcrypto.a` from **pinned,
 checksum-verified** OpenSSL source configured `no-sock no-dso`, and
 `build_static_archive.sh` links that by default (set `CRYPTOLIB_SEALED_OPENSSL=0`
-to fall back to the system libcrypto). OpenSSL 3.x has a stable ABI across the
+to fall back to the system libcrypto) and compiles the bridge against that
+build's own headers, so the features the code sees are the features the
+archive has. OpenSSL 3.x has a stable ABI across the
 series, so the sealed libcrypto links cleanly with the prebuilt `liboqs.a`.
 
 **Verified:** the sealed `libcrypto.a` has **0** network-syscall and **0** dlopen
@@ -69,9 +71,10 @@ symbols** (only a benign `getenv` from OpenSSL config-reading remains, watch-lis
 
 The engine reaches OpenSSL only through the EVP cipher API (AES-256-GCM-SIV in
 the vault cascade) and liboqs reaches it for AES, SHA-2 and SHA-3. P-256
-(`docs/P256.md`) also runs in libcrypto, and because EC is configured out
-below, the shipped engines report it unavailable; host builds against a stock
-libcrypto have it. Every other
+(`docs/P256.md`) also runs in libcrypto: desktop and server engines keep EC
+and ECDSA for it, phone and browser engines configure them out with the rest
+and report it unavailable (`scripts/lib/openssl_trim.sh` holds the two
+classes). Every other
 algorithm family and subsystem (EC, DH, DSA, legacy ciphers and digests, CMS,
 OCSP, CT, TS, CMP, SRP, HTTP, engines, loadable modules, error strings) is
 configured out (CMAC stays: OpenSSL's configure cascades `no-cmac` into

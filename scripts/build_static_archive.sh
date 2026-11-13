@@ -35,9 +35,16 @@ LIBCRYPTO_A="build/host-deps/openssl-nosock/lib/libcrypto.a"
 if [ ! -f "$LIBCRYPTO_A" ] && [ "${CRYPTOLIB_SEALED_OPENSSL:-1}" = "1" ]; then
     bash scripts/build_openssl_nosock.sh
 fi
+OSSL_INC="build/host-deps/openssl-nosock/include"
+if [ -f "$LIBCRYPTO_A" ] && [ ! -f "$OSSL_INC/openssl/opensslconf.h" ]; then
+    # A sealed libcrypto from before its headers were kept: rebuild it, so
+    # the bridge is compiled against the configuration it links.
+    bash scripts/build_openssl_nosock.sh
+fi
 if [ ! -f "$LIBCRYPTO_A" ]; then
     echo "!! sealed libcrypto unavailable — using system libcrypto (retains BIO sockets)"
     LIBCRYPTO_A="$OSSL/lib/libcrypto.a"
+    OSSL_INC="$OSSL/include"
 fi
 
 # 1. Vendored BLAKE3 static archive (Homebrew ships only a dylib).
@@ -46,7 +53,8 @@ if [ ! -f "$BLAKE3_A" ]; then
     BL_SRC_TARBALL="$(ls third_party/*/src/blake3-*.tar.gz 2>/dev/null | head -1)"
     [ -n "$BL_SRC_TARBALL" ] || { echo "blake3 source tarball not found"; exit 1; }
     tar xzf "$BL_SRC_TARBALL" -C build/host-deps
-    BL_SRC="$(ls -d build/host-deps/BLAKE3-* build/host-deps/blake3-* 2>/dev/null | head -1)"
+    BL_SRC="$(ls -d build/host-deps/BLAKE3-* build/host-deps/blake3-[0-9]* 2>/dev/null | head -1 || true)"
+    [ -n "$BL_SRC" ] || { echo "blake3 source did not unpack"; exit 1; }
     cmake -S "$BL_SRC/c" -B build/host-deps/blake3-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON >/dev/null
@@ -58,7 +66,7 @@ fi
 clang++ -std=c++20 -O2 -fPIC -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -c \
     -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 $PROFILE_DEFS -DCRYPTOLIB_HAS_BLS=1 \
     -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
-    -I include -I /opt/homebrew/include -I "$OSSL/include" -I "$SECP/include" \
+    -I include -I "$OSSL_INC" -I /opt/homebrew/include -I "$SECP/include" \
     bridge/cryptolib_c.cpp -o "$OUT/cryptolib_c.o"
 
 # 3. Merge the object + every dependency archive into one static library.

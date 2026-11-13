@@ -17,6 +17,9 @@
 # and liboqs through EVP AES, SHA-2 and SHA-3, so every other algorithm family
 # and subsystem is configured out as well; the list lives in
 # scripts/lib_openssl_trim.txt and is shared with the Android and iOS builds.
+# This archive is for desktop and server programs, so it is built with the
+# desktop class of scripts/lib/openssl_trim.sh, which keeps EC and ECDSA for
+# P-256 (docs/P256.md).
 #
 # Output: build/host-deps/openssl-nosock/lib/libcrypto.a
 # ─────────────────────────────────────────────────────────────────────────────
@@ -48,15 +51,19 @@ echo "== configuring (no-sock no-dso, static libcrypto only) =="
 ( cd "$SRC"
   # shellcheck disable=SC2046
   ./Configure no-shared no-sock no-dso no-tests no-apps no-docs no-quic \
-      $(cat "$ROOT/scripts/lib_openssl_trim.txt") \
+      $(bash "$ROOT/scripts/lib/openssl_trim.sh" desktop) \
       --prefix="$OUT" --openssldir="$OUT/ssl" >/dev/null
   echo "== building libcrypto.a (build_libs: generates headers first) =="
   # build_libs is the canonical target for just the libraries; it runs the
   # generated-header step (opensslv.h/opensslconf.h) that a bare `libcrypto.a`
   # target skips. no-shared makes these static archives.
   make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)" build_libs >/dev/null
-  mkdir -p "$OUT/lib"
-  cp libcrypto.a "$OUT/lib/libcrypto.a" )
+  mkdir -p "$OUT/lib" "$OUT/include"
+  cp libcrypto.a "$OUT/lib/libcrypto.a"
+  # The headers of this exact configuration, so whatever links the archive
+  # compiles against the features it really has (OPENSSL_NO_* and version).
+  rm -rf "$OUT/include/openssl"
+  cp -RL include/openssl "$OUT/include/openssl" )
 
 echo "== verifying no socket / dlopen symbols remain =="
 NET=$(nm "$OUT/lib/libcrypto.a" 2>/dev/null | grep -cE 'U _(socket|connect|bind|listen|accept|sendto|recvfrom|sendmsg|recvmsg|getaddrinfo|getnameinfo|gethostbyname)$' || true)

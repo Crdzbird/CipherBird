@@ -16,7 +16,12 @@ if is_built "$SLICE" "openssl"; then
     exit 0
 fi
 
-log "Building OpenSSL $OPENSSL_VERSION for $SLICE (libcrypto only, minimal)"
+# The macOS slice is a desktop engine and keeps EC and ECDSA for P-256; the
+# device slices configure them out (scripts/lib/openssl_trim.sh).
+TRIM_CLASS=device
+[[ "$SLICE" == "macosx" ]] && TRIM_CLASS=desktop
+
+log "Building OpenSSL $OPENSSL_VERSION for $SLICE (libcrypto only, minimal, $TRIM_CLASS trim)"
 
 ARCHIVE_URL="https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
 ARCHIVE="$(fetch_tarball "$ARCHIVE_URL" "openssl-${OPENSSL_VERSION}.tar.gz")"
@@ -60,7 +65,7 @@ for arch in "${ARCHES[@]}"; do
         ./Configure "$target" \
             no-shared no-dso no-hw no-engine no-tests no-apps no-docs \
             no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib \
-        $(cat "$REPO_ROOT/scripts/lib_openssl_trim.txt") \
+        $(bash "$REPO_ROOT/scripts/lib/openssl_trim.sh" "$TRIM_CLASS") \
             --prefix="$work/install" \
             > "$work/configure.log" 2>&1 || { tail -40 "$work/configure.log"; die "openssl configure failed"; }
 

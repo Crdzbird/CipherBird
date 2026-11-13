@@ -10,7 +10,7 @@ extract_fresh "$ARCHIVE" "$WORK/src"
     cd "$WORK/src"
     emconfigure ./Configure linux-generic32 no-asm no-threads no-shared no-dso no-hw no-engine \
         no-tests no-apps no-docs no-sock no-zlib no-ssl3 no-ssl3-method no-weak-ssl-ciphers \
-        no-stdio no-ui-console $(cat "$REPO_ROOT/scripts/lib_openssl_trim.txt") \
+        no-stdio no-ui-console $(bash "$REPO_ROOT/scripts/lib/openssl_trim.sh" device) \
         --prefix="$WORK/install" > "$WORK/configure.log" 2>&1 \
         || { tail -40 "$WORK/configure.log"; die "configure failed"; }
     sed -i.bak 's|^CROSS_COMPILE=.*$|CROSS_COMPILE=|' Makefile

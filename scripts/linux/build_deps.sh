@@ -64,7 +64,7 @@ if [[ ! -f "$PREFIX/lib/libcrypto.a" ]]; then
     A="$(fetch_tarball "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" "openssl-${OPENSSL_VERSION}.tar.gz")"
     W="$BUILD_ROOT/openssl"; unpack "$A" "$W"
     (cd "$W/src" && ./Configure linux-x86_64 no-shared no-dso no-hw no-engine no-tests no-apps no-docs \
-        no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib $(cat "$REPO_ROOT/scripts/lib_openssl_trim.txt") \
+        no-ssl3 no-ssl3-method no-weak-ssl-ciphers no-zlib $(bash "$REPO_ROOT/scripts/lib/openssl_trim.sh" desktop) \
         --prefix="$W/install" --libdir=lib > "$W/configure.log" 2>&1 \
         && make -j"$JOBS" build_libs > "$W/make.log" 2>&1 && make install_dev > "$W/install.log" 2>&1) || { tail -60 "$W"/*.log; die "openssl failed"; }
     cp "$W/install/lib/libcrypto.a" "$PREFIX/lib/"

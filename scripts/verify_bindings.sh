@@ -22,7 +22,7 @@ chk(){ echo "$2" | grep -qF "$SHA" && echo "$2" | grep -qE "$KR.*true"; }
 
 echo "═══ Building C library (Release) ═══"
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
-cmake --build build/release --target cryptolib_c >/dev/null
+cmake --build build/release --target cryptolib_c cryptolib_poc >/dev/null
 [ -f "$DY" ] || { echo "FATAL: $DY not built"; exit 2; }
 
 echo "═══ C ABI (incl. keyring) ═══"

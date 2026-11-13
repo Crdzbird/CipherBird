@@ -26,11 +26,11 @@ P-256 ECDSA with SHA-256 (ES256), `docs/P256.md`.
   JWS ES256 carries them, RFC 6979 nonces, and a strict import of an
   unencrypted PKCS#8 key in DER or PEM. Checked against the NIST CAVP P-256
   cases and RFC 6979 A.2.5.
-- The bundled engines are built with a libcrypto trimmed of elliptic
-  curves, so `p256Available()` is false on Android, iOS, macOS and the web
-  until the engines are rebuilt with EC; an engine built against a stock
-  OpenSSL has it. On devices `DeviceFips` already offers the platform's
-  P-256.
+- Desktop and server engines carry it (the macOS slice, the bundled desktop
+  library, an engine built against a stock OpenSSL). The Android, iOS and
+  web engines are built with a libcrypto trimmed of elliptic curves, so
+  `p256Available()` is false there; on devices `DeviceFips` offers the
+  platform's P-256.
 
 One token API for every format (`docs/TOKEN_API.md`).
 
