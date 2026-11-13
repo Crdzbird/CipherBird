@@ -523,7 +523,12 @@ TEST("p256/pkcs8-import-is-strict") {
     };
     reject(unhex(kEd25519Der), "id-ecPublicKey");
     reject(unhex(kEncryptedDer), "encrypted");
-    reject(unhex(kSec1P384Der), "p256:");
+    reject(unhex(kSec1P384Der), "SEC 1");
+    const Bytes spki = der(0x30, cat({der(0x30, cat({der(0x06, kOidEc), der(0x06, kOidP256)})), der(0x03, cat({{0x00}, pk}))}));
+    reject(spki, "PrivateKeyInfo");
+    Shape v2 = good;
+    v2.version = {0x01};
+    expect(v2, "PKCS#8 version");
     reject(cat({{0x30, 0x82, 0x00, 0x87}, Bytes(fixture.begin() + 3, fixture.end())}), "PrivateKeyInfo");
     reject(cat({{0x30, 0x80}, Bytes(fixture.begin() + 3, fixture.end()), {0x00, 0x00}}), "PrivateKeyInfo");
     reject(Bytes(4097, 0x30), "size");

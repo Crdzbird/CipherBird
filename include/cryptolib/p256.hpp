@@ -268,8 +268,8 @@ public:
     }
 
     /// Imports an unencrypted PKCS#8 PrivateKeyInfo (RFC 5208) holding an
-    /// ECPrivateKey (RFC 5915), DER. Refused: any trailing byte, a version
-    /// other than 0, an algorithm other than id-ecPublicKey, a curve other
+    /// ECPrivateKey (RFC 5915), DER. Refused: any trailing byte, a bare SEC 1
+    /// ECPrivateKey, a version other than 0, an algorithm other than id-ecPublicKey, a curve other
     /// than prime256v1 (in the algorithm or in the key's own parameters),
     /// attributes, an EncryptedPrivateKeyInfo, a scalar that is not exactly
     /// 32 bytes or not in 1..n-1, a public key that is not the uncompressed
@@ -284,11 +284,15 @@ public:
         Der version{};
         if (!der_take(info, 0x02, version)) {
             Der probe = info;
-            Der first{};
-            if (der_take(probe, 0x30, first)) return R::err("p256: encrypted PKCS#8 is not supported");
+            Der first{}, second{};
+            if (der_take(probe, 0x30, first) && der_take(probe, 0x04, second) && probe.n == 0)
+                return R::err("p256: encrypted PKCS#8 is not supported");
             return R::err("p256: not a DER PKCS#8 PrivateKeyInfo");
         }
         static constexpr uint8_t V0[] = {0x00};
+        static constexpr uint8_t V1[] = {0x01};
+        if (der_is(version, V1, 1) && info.n != 0 && info.p[0] == 0x04)
+            return R::err("p256: this is a SEC 1 ECPrivateKey, not PKCS#8");
         if (!der_is(version, V0, 1)) return R::err("p256: unsupported PKCS#8 version");
         Der algorithm{}, oid{}, curve{};
         if (!der_take(info, 0x30, algorithm) || !der_take(algorithm, 0x06, oid))
@@ -304,7 +308,6 @@ public:
         Der ec{}, ec_version{}, scalar{};
         if (!der_take(wrapped, 0x30, ec) || wrapped.n != 0 || !der_take(ec, 0x02, ec_version))
             return R::err("p256: malformed ECPrivateKey");
-        static constexpr uint8_t V1[] = {0x01};
         if (!der_is(ec_version, V1, 1)) return R::err("p256: unsupported ECPrivateKey version");
         if (!der_take(ec, 0x04, scalar) || scalar.n != SECRET_KEY_BYTES)
             return R::err("p256: the private scalar must be 32 bytes");
