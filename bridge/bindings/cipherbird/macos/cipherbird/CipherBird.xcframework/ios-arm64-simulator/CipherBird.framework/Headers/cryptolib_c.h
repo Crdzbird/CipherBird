@@ -311,9 +311,9 @@ CRYPTO_API int cryptolib_blake2b_keyed_into(uint8_t* out, size_t out_len,
  * Ed25519 + ML-DSA-65 hybrid signature (cryptolib_hybrid_sig_keygen) over
  * PAE("cb1.public.", m, f, i) in place of Ed25519. The functions take and
  * return exactly what the v4.local ones do, with the same return codes, and
- * are library-native: they exist in the full profile, report
- * CRYPTOLIB_PASETO_ERR_UNAVAILABLE in the bank profile and are absent from
- * fips. A cb1 token is rejected by every PASETO parser by its header and
+ * are library-native: they exist in every profile and report
+ * CRYPTOLIB_PASETO_ERR_UNAVAILABLE outside the full one. A cb1 token is
+ * rejected by every PASETO parser by its header and
  * these functions reject PASETO tokens the same way. */
 #define CRYPTOLIB_PASETO_ERR_UNAVAILABLE (-4)
 #define CRYPTOLIB_CB1_LOCAL_KEY_BYTES 32
@@ -392,6 +392,99 @@ CRYPTO_API int cryptolib_cb1_local_encrypt_with_nonce_for_testing(
     const uint8_t* implicit, size_t implicit_len,
     const uint8_t* nonce, size_t nonce_len);
 #endif
+
+/* Tokens: one API for every format (docs/TOKEN_API.md). A format is named
+ * by its token header without the trailing dot ("v4.local", "cb1.local",
+ * "cb1.public"); a ".local" format encrypts and decrypts under a shared key,
+ * a ".public" format signs with the secret half of a pair and verifies with
+ * the public half. These functions exist in every profile; a format that is
+ * not in the profile is listed as unavailable and its calls report
+ * CRYPTOLIB_TOKEN_ERR_UNAVAILABLE. The per-format functions above are the
+ * same calls with the format fixed and are kept for compatibility. */
+#define CRYPTOLIB_TOKEN_OK              CRYPTOLIB_PASETO_OK
+#define CRYPTOLIB_TOKEN_ERR_INVALID     CRYPTOLIB_PASETO_ERR_INVALID
+#define CRYPTOLIB_TOKEN_ERR_ARGUMENT    CRYPTOLIB_PASETO_ERR_ARGUMENT
+#define CRYPTOLIB_TOKEN_ERR_INTERNAL    CRYPTOLIB_PASETO_ERR_INTERNAL
+#define CRYPTOLIB_TOKEN_ERR_UNAVAILABLE CRYPTOLIB_PASETO_ERR_UNAVAILABLE
+#define CRYPTOLIB_TOKEN_ERR_FORMAT      (-5)
+
+/** The format table as a JSON array, one object per format with "format",
+ *  "purpose" ("local" or "public"), "standard" ("PASETO v4" or
+ *  "library-native"), "key_bytes", "public_key_bytes", "secret_key_bytes",
+ *  "signature_bytes", "max_input_bytes" and "available". Writes the text
+ *  (not NUL-terminated) to out when out_cap holds it and returns the length
+ *  the full text needs, so a call with out_cap 0 sizes the buffer. */
+CRYPTO_API size_t cryptolib_token_formats(char* out, size_t out_cap);
+
+/** Exact token length the format produces for a payload_len-byte payload
+ *  and a footer_len-byte footer; 0 for an unknown or unavailable format or
+ *  a length over the format's maximum. format is NUL-terminated ASCII. */
+CRYPTO_API size_t cryptolib_token_issue_len(const char* format, size_t payload_len, size_t footer_len);
+
+/** Output capacity cryptolib_token_accept requires for a token of token_len
+ *  bytes; 0 for an unknown or unavailable format or a length no valid token
+ *  of that format has. */
+CRYPTO_API size_t cryptolib_token_accept_cap(const char* format, size_t token_len);
+
+/** A fresh key for the format: a local format writes key_bytes of CSPRNG
+ *  output to secret and sets *pub_len to 0 (pub may be NULL with pub_cap 0,
+ *  pub_len may be NULL); a public format writes the secret half to secret
+ *  and the public half to pub. Capacities come from the table. Returns
+ *  CRYPTOLIB_TOKEN_OK, CRYPTOLIB_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  (a NULL with a non-zero capacity, a capacity below the key size) or
+ *  _INTERNAL; both lengths are 0 on any failure. */
+CRYPTO_API int cryptolib_token_keygen(const char* format,
+                                      uint8_t* secret, size_t secret_cap, size_t* secret_len,
+                                      uint8_t* pub, size_t pub_cap, size_t* pub_len);
+
+/** Issues a token: encrypts payload (local; key is the shared key) or signs
+ *  it (public; key is the secret half). Writes the token text (ASCII, not
+ *  NUL-terminated) to out and its length to *out_len. The argument rules are
+ *  those of cryptolib_paseto_v4_local_encrypt: NULL only with a zero length,
+ *  inputs up to the format's maximum, out_cap at least
+ *  cryptolib_token_issue_len, out overlapping no input, an empty footer
+ *  omitted, implicit authenticated but never stored. Returns
+ *  CRYPTOLIB_TOKEN_OK, CRYPTOLIB_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  or _INTERNAL; *out_len is 0 on any failure. */
+CRYPTO_API int cryptolib_token_issue(const char* format,
+                                     uint8_t* out, size_t out_cap, size_t* out_len,
+                                     const uint8_t* key, size_t key_len,
+                                     const uint8_t* payload, size_t payload_len,
+                                     const uint8_t* footer, size_t footer_len,
+                                     const uint8_t* implicit, size_t implicit_len);
+
+/** Accepts a token: decrypts it (local) or verifies it (public; key is the
+ *  public half) and writes the payload to out. The token's header must be
+ *  the named format; any other header is invalid, decided before the key is
+ *  used, so the header inside a token never chooses the algorithm. Returns
+ *  CRYPTOLIB_TOKEN_OK; CRYPTOLIB_TOKEN_ERR_INVALID for every token-dependent
+ *  failure (header, base64url, length, tag or signature, footer), with no
+ *  further detail; _FORMAT, _UNAVAILABLE, _ARGUMENT (a caller error that does
+ *  not depend on token content) or _INTERNAL. On any failure *out_len is 0
+ *  and out holds no plaintext. */
+CRYPTO_API int cryptolib_token_accept(const char* format,
+                                      uint8_t* out, size_t out_cap, size_t* out_len,
+                                      const uint8_t* token, size_t token_len,
+                                      const uint8_t* key, size_t key_len,
+                                      const uint8_t* expected_footer, size_t expected_footer_len,
+                                      const uint8_t* implicit, size_t implicit_len);
+
+/** The header of token as a format name ("cb1.local"), UNVERIFIED: writes it
+ *  (not NUL-terminated) to out when out_cap holds it and returns its length,
+ *  or 0 when the text does not start with <version>.<local|public>. The name
+ *  need not be a format this engine knows; nothing it says is trusted until
+ *  cryptolib_token_accept succeeds with that format. */
+CRYPTO_API size_t cryptolib_token_peek_format(const uint8_t* token, size_t token_len,
+                                              char* out, size_t out_cap);
+
+/** The decoded footer of token, UNVERIFIED, for choosing a key by its id.
+ *  Writes the bytes to out and the length to *out_len (0 when the token has
+ *  no footer). Returns CRYPTOLIB_TOKEN_OK; _INVALID when the text has no
+ *  header of the known shape or the footer is not base64url; _ARGUMENT when
+ *  out is too small (about 3/4 of the footer text). The footer accept
+ *  compares is the caller's expected_footer, never the one read here. */
+CRYPTO_API int cryptolib_token_peek_footer(const uint8_t* token, size_t token_len,
+                                           uint8_t* out, size_t out_cap, size_t* out_len);
 
 /** Committing AEAD (UtC) encrypt. Output: [commitment(32) | nonce | ct | MAC].
  *  Commits to (key, AAD) — closes the partitioning-oracle / non-committal gap. */
@@ -1679,6 +1772,73 @@ CRYPTO_API int cryptolib_secp256k1_verify(
  *  65-byte recoverable signature (r ‖ s ‖ recovery_id). Ethereum ecrecover. */
 CRYPTO_API CryptoBufferResult cryptolib_secp256k1_recover(
     const uint8_t* digest32, const uint8_t* sig65);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * P-256 (secp256r1) ECDSA with SHA-256: ES256
+ *   The JWS ES256 signature (RFC 7518), the one Apple push authenticates a
+ *   provider with. Present in the full and bank profiles; every curve
+ *   operation runs in OpenSSL libcrypto. The functions never vanish from
+ *   the ABI: where libcrypto is absent or was configured without EC (the
+ *   trimmed libcrypto of the mobile and web engines), cryptolib_p256_available
+ *   returns 0 and each call reports the feature as not enabled. The fips
+ *   profile keeps its own cryptolib_fips_p256_* functions (DER signatures,
+ *   inside the validated module) and does not carry these.
+ *
+ *   secret key  32 bytes, the scalar d big-endian, 1 <= d < n
+ *   public key  65 bytes, the uncompressed point 0x04 || X || Y
+ *   signature   64 bytes, r || s big-endian (IEEE P1363, the JWS form)
+ *
+ *   Nonces are deterministic (RFC 6979) with OpenSSL 3.2 and later, so
+ *   signing draws no randomness; cryptolib_p256_available returns 2 in that
+ *   case and 1 when the nonce is libcrypto's hedged random one. High-s
+ *   signatures are produced and accepted, as FIPS 186-5 and JWS allow: a
+ *   signature is malleable and must not serve as a unique identifier.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#define CRYPTOLIB_P256_SECRET_KEY_BYTES 32
+#define CRYPTOLIB_P256_PUBLIC_KEY_BYTES 65
+#define CRYPTOLIB_P256_SIGNATURE_BYTES  64
+#define CRYPTOLIB_P256_MAX_PKCS8_BYTES  4096
+
+/** 0 when P-256 is not in this build, 1 when it is, 2 when it is and nonces
+ *  are deterministic (RFC 6979). */
+CRYPTO_API int cryptolib_p256_available(void);
+
+/** A fresh key pair: secret_key 32 bytes, public_key 65 bytes. Both buffers
+ *  are NULL when P-256 is not in this build. */
+CRYPTO_API CryptoKeyPair cryptolib_p256_keygen(void);
+
+/** The 65-byte public key of a 32-byte secret key; an error for a length
+ *  other than 32 or a scalar outside 1..n-1. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_public_key(const uint8_t* secret_key, size_t sk_len);
+
+/** ECDSA over SHA-256(message): 64 bytes, r || s. message may be NULL only
+ *  with a zero length. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_sign(
+    const uint8_t* secret_key, size_t sk_len, const uint8_t* message, size_t msg_len);
+
+/** 1 when signature (64 bytes, r || s, each in 1..n-1) verifies over
+ *  SHA-256(message) under public_key (65 bytes, uncompressed, on the
+ *  curve); 0 for anything else, a wrong length included. */
+CRYPTO_API int cryptolib_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len);
+
+/** Imports an unencrypted PKCS#8 private key (RFC 5208 PrivateKeyInfo around
+ *  an RFC 5915 ECPrivateKey), DER. Returns 97 bytes: the secret key (32)
+ *  followed by its public key (65), which is derived from the scalar. The
+ *  parse is strict: trailing bytes, a version other than 0, an algorithm
+ *  other than id-ecPublicKey, a curve other than prime256v1, attributes, an
+ *  encrypted PKCS#8, a scalar not exactly 32 bytes or outside 1..n-1, an
+ *  embedded public key that is not the uncompressed point of that scalar,
+ *  and any indefinite or non-minimal length are all errors. Input is capped
+ *  at CRYPTOLIB_P256_MAX_PKCS8_BYTES. Wipe the result when done. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_der(const uint8_t* der, size_t der_len);
+
+/** cryptolib_p256_import_pkcs8_der on one PEM block labelled PRIVATE KEY
+ *  (the .p8 file Apple issues). Only whitespace may surround the block and
+ *  the body is padded base64; ENCRYPTED PRIVATE KEY and EC PRIVATE KEY
+ *  blocks are refused by name. pem need not be NUL-terminated. */
+CRYPTO_API CryptoBufferResult cryptolib_p256_import_pkcs8_pem(const uint8_t* pem, size_t pem_len);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Steganography — hide data inside media files
