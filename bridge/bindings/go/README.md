@@ -155,6 +155,7 @@ pkg.go.dev.
 | BLS12-381 | `BlsKeygen`, `BlsSign`, `BlsVerify`, `BlsAggregate`, `BlsAggregateVerify`, `BlsKeygenFromIkm` |
 | Vault / Keyring | `Vault` (KDF→integrity→AEAD→signature), `Keyring` (revocable device/passphrase slots) |
 | Media entropy | `EntropyFromFiles`, `EntropyFromFilesDeterministic`, `Entropy` derivations |
+| P-256 (ES256) | `P256GenerateKey`, `P256PublicKey`, `P256Sign`, `P256Verify` (raw `r \|\| s`, SHA-256, RFC 6979 nonces), `P256PrivateKeyFromPKCS8`, `P256PrivateKeyFromPEM`, `P256Available`; see `docs/P256.md` |
 | EVM / Bitcoin | `Keccak256`, `Ripemd160`, `Secp256k1Keygen/Pubkey/Sign/Verify/Recover` |
 
 ---
