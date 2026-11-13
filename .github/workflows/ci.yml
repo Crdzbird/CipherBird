@@ -11,7 +11,7 @@ on:
 # built from source (see scripts/) — tracked separately.
 jobs:
   test:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
@@ -32,7 +32,7 @@ jobs:
           ./build/test/cryptolib_showcase_bank
 
   asan:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
@@ -47,7 +47,7 @@ jobs:
           ASAN_OPTIONS=detect_leaks=0 ./build/asan/cryptolib_tests
 
   tsan:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
@@ -67,7 +67,7 @@ jobs:
   # packet) on a Linux runner with instrumented deps when that lands.
 
   fuzz:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps (LLVM clang for libFuzzer)
@@ -127,7 +127,7 @@ jobs:
 
   # The Dart packages and the Go binding against a freshly built C ABI.
   bank_profile:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
@@ -164,7 +164,7 @@ jobs:
             go test -count=1 -tags cryptolib_bank ./cryptolib/
 
   fips_profile:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
@@ -199,7 +199,7 @@ jobs:
           echo "fips exports: $(wc -l < build/fips/exports.txt)"
 
   bindings:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Install deps
