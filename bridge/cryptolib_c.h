@@ -14,8 +14,10 @@
  * Thread safety:
  *   - All functions are safe to call from multiple threads after cryptolib_init().
  *     cryptolib_init() also does libcrypto's first-use work once (outside the
- *     fips profile), and the cryptolib_p256_* calls do it themselves, so
- *     they are safe from many threads even before it. See docs/P256.md.
+ *     fips profile), and every call that reaches libcrypto (P-256, AES-GCM,
+ *     GCM-SIV, SHA-3, HPKE, X-Wing and the post-quantum KEMs and signatures)
+ *     does it itself, so they are safe from many threads even before it, with
+ *     signals arriving. See docs/P256.md, "Threads".
  *   - Handle objects (vault, entropy) are NOT thread-safe — use one per thread.
  */
 
