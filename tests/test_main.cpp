@@ -21,6 +21,8 @@ void run_tests_token_api();
 void run_tests_p256();
 void run_tests_p256_threads();
 int p256_threads_cold_child(int argc, char** argv);
+void run_tests_openssl_threads();
+int openssl_threads_child(int argc, char** argv);
 void run_tests_committing();
 void run_tests_aead_siv();
 void run_tests_asymmetric();
@@ -85,6 +87,7 @@ int main(int argc, char** argv) {
 
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     if (const int child = p256_threads_cold_child(argc, argv); child >= 0) return child;
+    if (const int child = openssl_threads_child(argc, argv); child >= 0) return child;
 #endif
 
     crypto::init();
@@ -115,6 +118,7 @@ int main(int argc, char** argv) {
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("p256",           run_tests_p256);
     run_suite("p256_threads",   run_tests_p256_threads);
+    run_suite("openssl_threads", run_tests_openssl_threads);
 #endif
 #ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
     run_suite("committing_aead", run_tests_committing);
