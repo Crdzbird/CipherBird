@@ -10,6 +10,8 @@
   from a thread while it is inside libcrypto, and runs libcrypto's
   per-thread cleanup with signals blocked when a thread exits. Results are
   unchanged byte for byte.
+- The bundled darwin-arm64 engine is the attested build of Engines run
+  43595023682.
 - P-256 ECDSA with SHA-256 (ES256): `p256Available`,
   `p256DeterministicNonces`, `p256GenerateKey`, `p256PublicKey`, `p256Sign`,
   `p256Verify`, `p256PrivateKeyFromPkcs8` and `p256PrivateKeyFromPem`. Raw

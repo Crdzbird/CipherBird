@@ -13,6 +13,7 @@ Fixed: calls into libcrypto from many threads could hang on macOS and iOS.
   libcrypto, and runs libcrypto's per-thread cleanup with signals blocked
   when a thread exits. The cost is about 0.3 microseconds per call. Results
   are unchanged byte for byte.
+- The engines are the attested build of Engines run 43595023682.
 
 Incremental SecretStream.
 
