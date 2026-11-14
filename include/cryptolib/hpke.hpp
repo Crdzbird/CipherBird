@@ -43,6 +43,7 @@
 
 #ifdef CRYPTOLIB_HAS_OPENSSL
 #include <openssl/evp.h>
+#include "detail/openssl_threads.hpp"
 #endif
 
 namespace crypto {
@@ -374,6 +375,8 @@ private:
     // ── Post-quantum KEM plumbing (draft-ietf-hpke-pq) ────────────────────────
     static Result<SecureBuffer> pq_public_key(Kem kem, std::span<const uint8_t> sk) {
 #if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("HPKE: libcrypto initialisation failed");
         if (kem == Kem::XWing) {
             auto kp = pq::XWing::keypair_from_seed(sk);
             if (kp.is_err()) return Result<SecureBuffer>::err(kp.error().message);
@@ -394,6 +397,8 @@ private:
     static Result<std::pair<SecureBuffer, SecureBuffer>> pq_encap(Kem kem, std::span<const uint8_t> pkR) {
         using R = Result<std::pair<SecureBuffer, SecureBuffer>>;
 #if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        const detail::OpensslCall call;
+        if (!call.ready()) return R::err("HPKE: libcrypto initialisation failed");
         if (kem == Kem::XWing) {
             auto e = pq::XWing::encapsulate(pkR);
             if (e.is_err()) return R::err(e.error().message);
@@ -412,6 +417,8 @@ private:
     }
     static Result<SecureBuffer> pq_decap(Kem kem, std::span<const uint8_t> enc, std::span<const uint8_t> skR) {
 #if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("HPKE: libcrypto initialisation failed");
         if (kem == Kem::XWing) return pq::XWing::decapsulate(enc, skR);
         if (kem == Kem::MlKem768) {
             if (skR.size() != 64) return Result<SecureBuffer>::err("HPKE: ML-KEM-768 secret key must be the 64-byte seed");
@@ -648,6 +655,8 @@ private:
     static Result<Buffer> aes_gcm(Aead aead, bool encrypt, std::span<const uint8_t> key,
                                   std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
                                   std::span<const uint8_t> in) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<Buffer>::err("HPKE: OpenSSL AES-GCM init failed");
         const char* alg = aead == Aead::Aes128Gcm ? "AES-128-GCM" : "AES-256-GCM";
         struct CipherFree { void operator()(EVP_CIPHER* c) const { if (c) EVP_CIPHER_free(c); } };
         struct CtxFree { void operator()(EVP_CIPHER_CTX* c) const { if (c) EVP_CIPHER_CTX_free(c); } };

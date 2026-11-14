@@ -28,6 +28,7 @@
 
 #include "types.hpp"
 #include "detail/ct.hpp"
+#include "detail/openssl_threads.hpp"
 #include <oqs/oqs.h>
 #include <memory>
 #include <string_view>
@@ -70,6 +71,8 @@ public:
     /// Generate a fresh keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("ML-KEM: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         auto r = ossl_backend::keygen(evp_alg(level));
         if (r.is_err()) return Result<KeyPair>::err(r.error().message);
@@ -91,6 +94,8 @@ public:
     /// Encapsulate: produce ciphertext + shared secret from a public key
     [[nodiscard]] static Result<EncapsResult>
     encapsulate(std::span<const uint8_t> public_key, Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<EncapsResult>::err("ML-KEM: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         auto r = ossl_backend::kem_encapsulate(evp_alg(level), public_key);
         if (r.is_err()) return Result<EncapsResult>::err(r.error().message);
@@ -116,6 +121,8 @@ public:
     decapsulate(std::span<const uint8_t> ciphertext,
                 std::span<const uint8_t> secret_key,
                 Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("ML-KEM: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::kem_decapsulate(evp_alg(level), ciphertext, secret_key);
 #else
@@ -202,6 +209,8 @@ public:
     /// Generate a fresh signing keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("ML-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         auto r = ossl_backend::keygen(evp_alg(level));
         if (r.is_err()) return Result<KeyPair>::err(r.error().message);
@@ -225,6 +234,8 @@ public:
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("ML-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_sign(evp_alg(level), message, {}, secret_key);
 #else
@@ -258,6 +269,8 @@ public:
            std::span<const uint8_t> signature,
            std::span<const uint8_t> public_key,
            Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("ML-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_verify(evp_alg(level), message, signature, {}, public_key);
 #else
@@ -291,6 +304,8 @@ public:
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("ML-DSA: libcrypto initialisation failed");
         if (context.size() > 255)
             return Result<PublicBuffer>::err("ML-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
@@ -321,6 +336,8 @@ public:
                         std::span<const uint8_t> context,
                         std::span<const uint8_t> public_key,
                         Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("ML-DSA: libcrypto initialisation failed");
         if (context.size() > 255)
             return Result<void>::err("ML-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
@@ -408,6 +425,8 @@ public:
     /// Generate a fresh signing keypair
     [[nodiscard]] static Result<KeyPair>
     generate_keypair(Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("SLH-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         auto r = ossl_backend::keygen(evp_alg(level, hash));
         if (r.is_err()) return Result<KeyPair>::err(r.error().message);
@@ -431,6 +450,8 @@ public:
     sign(std::span<const uint8_t> message,
          std::span<const uint8_t> secret_key,
          Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("SLH-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_sign(evp_alg(level, hash), message, {}, secret_key);
 #else
@@ -464,6 +485,8 @@ public:
            std::span<const uint8_t> signature,
            std::span<const uint8_t> public_key,
            Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("SLH-DSA: libcrypto initialisation failed");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
         return ossl_backend::sig_verify(evp_alg(level, hash), message, signature, {}, public_key);
 #else
@@ -495,6 +518,8 @@ public:
                       std::span<const uint8_t> context,
                       std::span<const uint8_t> secret_key,
                       Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("SLH-DSA: libcrypto initialisation failed");
         if (context.size() > 255)
             return Result<PublicBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)
@@ -524,6 +549,8 @@ public:
                         std::span<const uint8_t> context,
                         std::span<const uint8_t> public_key,
                         Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("SLH-DSA: libcrypto initialisation failed");
         if (context.size() > 255)
             return Result<void>::err("SLH-DSA: context string exceeds 255 bytes");
 #if defined(CRYPTOLIB_PQ_BACKEND_OPENSSL)

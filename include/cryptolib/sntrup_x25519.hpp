@@ -40,6 +40,7 @@
 #ifdef CRYPTOLIB_HAS_PQ
 
 #include "types.hpp"
+#include "detail/openssl_threads.hpp"
 #include "asymmetric.hpp"   // crypto::asymmetric::X25519
 #include "hash.hpp"         // crypto::hash::HkdfSha256
 
@@ -85,6 +86,8 @@ public:
     }
 
     [[nodiscard]] static Result<KeyPair> generate_keypair() {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("sntrup761: libcrypto initialisation failed");
         auto kem = make_kem();
         if (!kem) return Result<KeyPair>::err("sntrup761: algorithm not available in liboqs build");
 
@@ -97,6 +100,8 @@ public:
 
     [[nodiscard]] static Result<EncapsResult>
     encapsulate(std::span<const uint8_t> public_key) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<EncapsResult>::err("sntrup761: libcrypto initialisation failed");
         auto kem = make_kem();
         if (!kem) return Result<EncapsResult>::err("sntrup761: algorithm not available");
         if (public_key.size() != kem->length_public_key)
@@ -111,6 +116,8 @@ public:
 
     [[nodiscard]] static Result<SecureBuffer>
     decapsulate(std::span<const uint8_t> ciphertext, std::span<const uint8_t> secret_key) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("sntrup761: libcrypto initialisation failed");
         auto kem = make_kem();
         if (!kem) return Result<SecureBuffer>::err("sntrup761: algorithm not available");
         if (ciphertext.size() != kem->length_ciphertext)

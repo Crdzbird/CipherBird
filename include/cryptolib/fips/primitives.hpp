@@ -17,6 +17,8 @@
 #include <openssl/ec.h>
 #include <openssl/obj_mac.h>
 #include <openssl/bn.h>
+
+#include "../detail/openssl_threads.hpp"
 #include <cstring>
 #include <memory>
 #include <span>
@@ -73,6 +75,7 @@ inline std::size_t hash_bytes(Hash h) { return h == Hash::Sha256 || h == Hash::S
 class Digest {
 public:
     [[nodiscard]] static Result<PublicBuffer> compute(Hash h, std::span<const uint8_t> msg) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<PublicBuffer>::err(r.error().message);
         detail::Md md{ EVP_MD_fetch(nullptr, hash_name(h), Provider::PROPERTIES) };
         detail::MdCtx ctx{ EVP_MD_CTX_new() };
@@ -92,6 +95,7 @@ class Hmac {
 public:
     [[nodiscard]] static Result<SecureBuffer>
     compute(Hash h, std::span<const uint8_t> key, std::span<const uint8_t> msg) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         if (key.size() < 14) return Result<SecureBuffer>::err("fips: HMAC keys below 112 bits are not approved");
         detail::Mac mac{ EVP_MAC_fetch(nullptr, "HMAC", Provider::PROPERTIES) };
@@ -112,6 +116,7 @@ public:
 
     [[nodiscard]] static bool verify(Hash h, std::span<const uint8_t> key, std::span<const uint8_t> msg,
                                      std::span<const uint8_t> tag) {
+        const ::crypto::detail::SignalShield shield;
         auto t = compute(h, key, msg);
         if (t.is_err() || t.value().size() != tag.size()) return false;
         return CRYPTO_memcmp(t.value().data(), tag.data(), tag.size()) == 0;
@@ -126,6 +131,7 @@ public:
     [[nodiscard]] static Result<SecureBuffer>
     derive(Hash h, std::span<const uint8_t> ikm, std::span<const uint8_t> salt,
            std::span<const uint8_t> info, std::size_t out_len, Mode mode = Mode::ExtractAndExpand) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         if (out_len == 0) return Result<SecureBuffer>::err("fips: HKDF output length must be positive");
         detail::Kdf kdf{ EVP_KDF_fetch(nullptr, "HKDF", Provider::PROPERTIES) };
@@ -159,6 +165,7 @@ public:
     [[nodiscard]] static Result<SecureBuffer>
     derive(Hash h, std::span<const uint8_t> password, std::span<const uint8_t> salt,
            unsigned iterations, std::size_t out_len) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         if (salt.size() < MIN_SALT_BYTES) return Result<SecureBuffer>::err("fips: PBKDF2 salt must be at least 16 bytes");
         if (iterations < MIN_ITERATIONS) return Result<SecureBuffer>::err("fips: PBKDF2 needs at least 1000 iterations");
@@ -185,6 +192,7 @@ public:
 class Random {
 public:
     [[nodiscard]] static Result<SecureBuffer> bytes(std::size_t n) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         SecureBuffer out(n);
         if (n > 0 && RAND_bytes_ex(nullptr, out.data(), n, 0) != 1)
@@ -202,6 +210,7 @@ public:
 
     [[nodiscard]] static Result<PublicBuffer>
     encrypt(std::span<const uint8_t> key, std::span<const uint8_t> plaintext, std::span<const uint8_t> aad = {}) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<PublicBuffer>::err(r.error().message);
         if (key.size() != KEY_BYTES) return Result<PublicBuffer>::err("fips: AES-256-GCM key must be 32 bytes");
         if (!crypto::detail::fits_int(plaintext.size()) || !crypto::detail::fits_int(aad.size()))
@@ -233,6 +242,7 @@ public:
 
     [[nodiscard]] static Result<SecureBuffer>
     decrypt(std::span<const uint8_t> key, std::span<const uint8_t> wire, std::span<const uint8_t> aad = {}) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         if (key.size() != KEY_BYTES) return Result<SecureBuffer>::err("fips: AES-256-GCM key must be 32 bytes");
         if (wire.size() < IV_BYTES + TAG_BYTES) return Result<SecureBuffer>::err("fips: ciphertext too short");
@@ -267,6 +277,7 @@ public:
     struct KeyPair { PublicBuffer public_key; SecureBuffer private_key; };
 
     [[nodiscard]] static Result<KeyPair> generate_keypair() {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<KeyPair>::err(r.error().message);
         detail::Pkey key{ EVP_PKEY_Q_keygen(nullptr, Provider::PROPERTIES, "EC", "P-256") };
         if (!key) return Result<KeyPair>::err("fips: P-256 key generation failed");
@@ -275,6 +286,7 @@ public:
 
     [[nodiscard]] static Result<SecureBuffer>
     ecdh(std::span<const uint8_t> private_key, std::span<const uint8_t> peer_public) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<SecureBuffer>::err(r.error().message);
         auto mine = import_private(private_key);
         auto peer = import_public(peer_public);
@@ -292,6 +304,7 @@ public:
 
     [[nodiscard]] static Result<PublicBuffer>
     sign(std::span<const uint8_t> private_key, std::span<const uint8_t> message) {
+        const ::crypto::detail::SignalShield shield;
         if (auto r = require_ready(); r.is_err()) return Result<PublicBuffer>::err(r.error().message);
         auto key = import_private(private_key);
         if (!key) return Result<PublicBuffer>::err("fips: invalid P-256 private key");
@@ -309,6 +322,7 @@ public:
 
     [[nodiscard]] static bool
     verify(std::span<const uint8_t> public_key, std::span<const uint8_t> message, std::span<const uint8_t> signature) {
+        const ::crypto::detail::SignalShield shield;
         if (!Provider::is_ready()) return false;
         auto key = import_public(public_key);
         if (!key) return false;
@@ -325,6 +339,7 @@ public:
     /// needs this call. Every keyed service (keygen, ECDH, ECDSA) stays in
     /// the module.
     [[nodiscard]] static Result<PublicBuffer> public_key_of(std::span<const uint8_t> private_key) {
+        const ::crypto::detail::SignalShield shield;
         if (private_key.size() != PRIVATE_BYTES) return Result<PublicBuffer>::err("fips: P-256 private key must be 32 bytes");
         detail::Bn d{ BN_bin2bn(private_key.data(), static_cast<int>(private_key.size()), nullptr) };
         detail::EcGroup group{ EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1) };

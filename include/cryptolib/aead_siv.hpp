@@ -22,6 +22,7 @@
 #ifdef CRYPTOLIB_HAS_OPENSSL
 
 #include "types.hpp"
+#include "detail/openssl_threads.hpp"
 
 #include <openssl/evp.h>
 #include <sodium.h>        // randombytes_buf
@@ -37,8 +38,12 @@ public:
     static constexpr std::size_t TAG_BYTES   = 16;
     static constexpr const char* ALG         = "AES-256-GCM-SIV";
 
-    /// True if the linked OpenSSL provides AES-256-GCM-SIV.
+    /// True if the linked OpenSSL provides AES-256-GCM-SIV. Every call here
+    /// holds a detail::OpensslCall, so it is safe from many threads under
+    /// signals.
     [[nodiscard]] static bool is_available() {
+        const detail::OpensslCall call;
+        if (!call.ready()) return false;
         CipherPtr c{EVP_CIPHER_fetch(nullptr, ALG, nullptr)};
         return c != nullptr;
     }
@@ -54,6 +59,8 @@ public:
     encrypt(std::span<const uint8_t> plaintext,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("AES-256-GCM-SIV: OpenSSL init failed");
         if (key.size() != KEY_BYTES)
             return Result<PublicBuffer>::err("AES-256-GCM-SIV: key must be 32 bytes");
         auto cipher = fetch();
@@ -93,6 +100,8 @@ public:
     decrypt(std::span<const uint8_t> wire,
             std::span<const uint8_t> key,
             std::span<const uint8_t> aad = {}) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("AES-256-GCM-SIV: OpenSSL init failed");
         if (key.size() != KEY_BYTES)
             return Result<SecureBuffer>::err("AES-256-GCM-SIV: key must be 32 bytes");
         if (wire.size() < NONCE_BYTES + TAG_BYTES)

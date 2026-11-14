@@ -12,6 +12,7 @@
  */
 #if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
 #include "types.hpp"
+#include "detail/openssl_threads.hpp"
 #include "detail/sha3_evp.hpp"
 #include <oqs/oqs.h>
 #include <sodium.h>
@@ -47,6 +48,8 @@ public:
 
     /// Draft section 5.2: expand the seed with SHAKE256 to (d || z, sk_X).
     [[nodiscard]] static Result<KeyPair> keypair_from_seed(std::span<const uint8_t> seed) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("X-Wing: libcrypto initialisation failed");
         if (seed.size() != SEED_BYTES) return Result<KeyPair>::err("X-Wing: seed must be 32 bytes");
         Expanded e;
         if (!expand(seed, e)) return Result<KeyPair>::err("X-Wing: seed expansion failed");
@@ -59,6 +62,8 @@ public:
     }
 
     [[nodiscard]] static Result<EncapsResult> encapsulate(std::span<const uint8_t> public_key) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<EncapsResult>::err("X-Wing: libcrypto initialisation failed");
         uint8_t eseed[ESEED_BYTES];
         randombytes_buf(eseed, sizeof eseed);
         auto r = encapsulate_derand(public_key, eseed);
@@ -97,6 +102,8 @@ public:
     /// error (ML-KEM's implicit rejection), as the draft specifies.
     [[nodiscard]] static Result<SecureBuffer>
     decapsulate(std::span<const uint8_t> ciphertext, std::span<const uint8_t> seed) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("X-Wing: libcrypto initialisation failed");
         if (ciphertext.size() != CT_BYTES) return Result<SecureBuffer>::err("X-Wing: ciphertext must be 1120 bytes");
         if (seed.size() != SEED_BYTES) return Result<SecureBuffer>::err("X-Wing: seed must be 32 bytes");
         Expanded e;

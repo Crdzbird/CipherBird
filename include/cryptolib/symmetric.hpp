@@ -16,6 +16,7 @@
 #include <sodium.h>
 #ifdef CRYPTOLIB_HAS_OPENSSL
 #include <openssl/evp.h>
+#include "detail/openssl_threads.hpp"
 #include <cstring>
 #include <memory>
 #endif
@@ -225,6 +226,8 @@ private:
     static Result<Buffer> evp_gcm(bool encrypt, std::span<const uint8_t> key,
                                   std::span<const uint8_t> nonce, std::span<const uint8_t> aad,
                                   std::span<const uint8_t> in, Buffer out) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<Buffer>::err("AES-256-GCM: OpenSSL init failed");
         struct CipherFree { void operator()(EVP_CIPHER* c) const { if (c) EVP_CIPHER_free(c); } };
         struct CtxFree { void operator()(EVP_CIPHER_CTX* c) const { if (c) EVP_CIPHER_CTX_free(c); } };
         std::unique_ptr<EVP_CIPHER, CipherFree> cipher{ EVP_CIPHER_fetch(nullptr, "AES-256-GCM", nullptr) };

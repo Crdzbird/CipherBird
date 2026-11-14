@@ -10,13 +10,18 @@
 #include <memory>
 #include <span>
 
+#include "openssl_threads.hpp"
+
 namespace crypto::detail {
 
 struct MdCtxFree { void operator()(EVP_MD_CTX* c) const { if (c) EVP_MD_CTX_free(c); } };
 struct MdFree    { void operator()(EVP_MD* m) const { if (m) EVP_MD_free(m); } };
 
 /// SHA3-256 of the concatenation of `parts`. Returns false if libcrypto fails.
+/// Holds a detail::OpensslCall, so it is safe from many threads under signals.
 inline bool sha3_256(std::span<const std::span<const uint8_t>> parts, uint8_t out[32]) {
+    const OpensslCall call;
+    if (!call.ready()) return false;
     std::unique_ptr<EVP_MD, MdFree> md{ EVP_MD_fetch(nullptr, "SHA3-256", nullptr) };
     std::unique_ptr<EVP_MD_CTX, MdCtxFree> ctx{ EVP_MD_CTX_new() };
     if (!md || !ctx || EVP_DigestInit_ex(ctx.get(), md.get(), nullptr) != 1) return false;
@@ -26,8 +31,10 @@ inline bool sha3_256(std::span<const std::span<const uint8_t>> parts, uint8_t ou
     return EVP_DigestFinal_ex(ctx.get(), out, &len) == 1 && len == 32;
 }
 
-/// SHAKE256(input, out_len bytes).
+/// SHAKE256(input, out_len bytes). Holds a detail::OpensslCall.
 inline bool shake256(std::span<const uint8_t> input, uint8_t* out, std::size_t out_len) {
+    const OpensslCall call;
+    if (!call.ready()) return false;
     std::unique_ptr<EVP_MD, MdFree> md{ EVP_MD_fetch(nullptr, "SHAKE256", nullptr) };
     std::unique_ptr<EVP_MD_CTX, MdCtxFree> ctx{ EVP_MD_CTX_new() };
     if (!md || !ctx || EVP_DigestInit_ex(ctx.get(), md.get(), nullptr) != 1) return false;
