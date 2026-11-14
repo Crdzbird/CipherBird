@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
+- Fixed: calls into libcrypto from many threads could hang on macOS. P-256,
+  AES-256-GCM, AES-256-GCM-SIV, HPKE, X-Wing, ML-KEM, ML-DSA, SLH-DSA and
+  sntrup761 could stop forever when a signal arrived while a thread waited
+  for one of libcrypto's locks, the first calls of a process most of all.
+  The engine now does libcrypto's first-use work once, holds signals back
+  from a thread while it is inside libcrypto, and runs libcrypto's
+  per-thread cleanup with signals blocked when a thread exits. Results are
+  unchanged byte for byte.
 - P-256 ECDSA with SHA-256 (ES256): `p256Available`,
   `p256DeterministicNonces`, `p256GenerateKey`, `p256PublicKey`, `p256Sign`,
   `p256Verify`, `p256PrivateKeyFromPkcs8` and `p256PrivateKeyFromPem`. Raw

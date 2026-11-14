@@ -1,4 +1,18 @@
-## Unreleased
+## 1.5.0
+
+Fixed: calls into libcrypto from many threads could hang on macOS and iOS.
+
+- Concurrent calls of P-256, AES-256-GCM, AES-256-GCM-SIV (and the
+  molecular vault), HPKE, X-Wing, ML-KEM, ML-DSA, SLH-DSA and sntrup761
+  could stop forever when a signal arrived while a thread waited for one of
+  libcrypto's locks, which on Apple platforms can lose its wakeup. The
+  first calls of a process were the likeliest to hang, warm calls and
+  thread exits could too. A host that signals its threads, as the Go
+  runtime and profilers do, met it first. The engine now does libcrypto's
+  first-use work once, holds signals back from a thread while it is inside
+  libcrypto, and runs libcrypto's per-thread cleanup with signals blocked
+  when a thread exits. The cost is about 0.3 microseconds per call. Results
+  are unchanged byte for byte.
 
 Incremental SecretStream.
 
