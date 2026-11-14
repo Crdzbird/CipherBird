@@ -57,6 +57,7 @@
 #include <openssl/params.h>
 #include <sodium.h>
 
+#include "detail/openssl_threads.hpp"
 #include "types.hpp"
 
 namespace crypto::ec {
@@ -158,18 +159,23 @@ public:
     static constexpr bool DETERMINISTIC_NONCES = false;
 #endif
 
-    /// Whether libcrypto offers the curve at run time.
+    /// Whether libcrypto offers the curve at run time and it signs and
+    /// verifies. The first call, from whichever thread, does libcrypto's
+    /// first-use work (detail::openssl_ready) and a sign and verify self-test
+    /// while any concurrent first callers wait; later calls read the result.
+    /// Every other entry point here passes through it, so many threads may
+    /// make their first P-256 call at the same moment. Each entry point also
+    /// holds a detail::SignalShield while it is inside libcrypto.
     [[nodiscard]] static bool available() noexcept {
-        static const bool ok = [] {
-            p256_detail::Group g{EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)};
-            return g != nullptr;
-        }();
-        return ok;
+        const detail::SignalShield shield;
+        return ready();
     }
 
     /// A fresh key pair: the scalar is drawn from libsodium's CSPRNG by
     /// rejection (FIPS 186-5 A.2.2) and the public point derived from it.
     [[nodiscard]] static Result<P256KeyPair> generate_keypair() {
+        const detail::SignalShield shield;
+        if (!ready()) return Result<P256KeyPair>::err(UNAVAILABLE);
         SecureBuffer sk(SECRET_KEY_BYTES);
         do {
             randombytes_buf(sk.data(), SECRET_KEY_BYTES);
@@ -181,6 +187,8 @@ public:
 
     /// The 65-byte public key of a 32-byte secret key.
     [[nodiscard]] static Result<PublicBuffer> public_key(std::span<const uint8_t> secret_key) {
+        const detail::SignalShield shield;
+        if (!ready()) return Result<PublicBuffer>::err(UNAVAILABLE);
         if (secret_key.size() != SECRET_KEY_BYTES) return Result<PublicBuffer>::err("p256: secret key must be 32 bytes");
         if (!p256_detail::in_scalar_range(secret_key.data()))
             return Result<PublicBuffer>::err("p256: secret key out of range");
@@ -190,10 +198,55 @@ public:
     /// ECDSA over SHA-256(message): the 64-byte r || s.
     [[nodiscard]] static Result<PublicBuffer> sign(std::span<const uint8_t> secret_key,
                                                    std::span<const uint8_t> message) {
+        const detail::SignalShield shield;
+        if (!ready()) return Result<PublicBuffer>::err(UNAVAILABLE);
         if (secret_key.size() != SECRET_KEY_BYTES) return Result<PublicBuffer>::err("p256: secret key must be 32 bytes");
         if (!p256_detail::in_scalar_range(secret_key.data()))
             return Result<PublicBuffer>::err("p256: secret key out of range");
-        p256_detail::Pkey key = import_secret(secret_key.data());
+        return sign_unchecked(secret_key.data(), message);
+    }
+
+    /// True only for a 64-byte signature with 1 <= r, s < n that verifies
+    /// over SHA-256(message) under a 65-byte uncompressed public key whose
+    /// point is on the curve. Both halves of the s range are accepted.
+    [[nodiscard]] static bool verify(std::span<const uint8_t> public_key, std::span<const uint8_t> message,
+                                     std::span<const uint8_t> signature) noexcept {
+        const detail::SignalShield shield;
+        return ready() && verify_unchecked(public_key, message, signature);
+    }
+
+    /// Whether public_key is a 65-byte uncompressed point on the curve with
+    /// both coordinates below the field prime (SP 800-56A full validation,
+    /// as libcrypto performs it).
+    [[nodiscard]] static bool valid_public_key(std::span<const uint8_t> public_key) noexcept {
+        try {
+            const detail::SignalShield shield;
+            return ready() && import_public(public_key) != nullptr;
+        } catch (...) {
+            return false;
+        }
+    }
+
+private:
+    static constexpr const char* UNAVAILABLE = "p256: the curve is unavailable";
+
+    /// available() without its shield, for callers that already hold one.
+    static bool ready() noexcept {
+        static const bool ok = [] {
+            try {
+                if (!detail::openssl_ready()) return false;
+                p256_detail::Group g{EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)};
+                return g != nullptr && self_test();
+            } catch (...) {
+                return false;
+            }
+        }();
+        return ok;
+    }
+
+    /// Signs with a scalar already checked to be in 1..n-1.
+    static Result<PublicBuffer> sign_unchecked(const uint8_t* secret_key, std::span<const uint8_t> message) {
+        p256_detail::Pkey key = import_secret(secret_key);
         p256_detail::MdCtx ctx{EVP_MD_CTX_new()};
         EVP_PKEY_CTX* pctx = nullptr;
         if (!key || !ctx ||
@@ -222,11 +275,8 @@ public:
         return Result<PublicBuffer>::ok(std::move(out));
     }
 
-    /// True only for a 64-byte signature with 1 <= r, s < n that verifies
-    /// over SHA-256(message) under a 65-byte uncompressed public key whose
-    /// point is on the curve. Both halves of the s range are accepted.
-    [[nodiscard]] static bool verify(std::span<const uint8_t> public_key, std::span<const uint8_t> message,
-                                     std::span<const uint8_t> signature) noexcept {
+    static bool verify_unchecked(std::span<const uint8_t> public_key, std::span<const uint8_t> message,
+                                 std::span<const uint8_t> signature) noexcept {
         try {
             if (signature.size() != SIGNATURE_BYTES || !p256_detail::in_scalar_range(signature.data()) ||
                 !p256_detail::in_scalar_range(signature.data() + 32))
@@ -256,17 +306,23 @@ public:
         }
     }
 
-    /// Whether public_key is a 65-byte uncompressed point on the curve with
-    /// both coordinates below the field prime (SP 800-56A full validation,
-    /// as libcrypto performs it).
-    [[nodiscard]] static bool valid_public_key(std::span<const uint8_t> public_key) noexcept {
-        try {
-            return import_public(public_key) != nullptr;
-        } catch (...) {
-            return false;
-        }
+    /// Signs and verifies once with a fixed key, through the same libcrypto
+    /// paths every later call takes, and checks that a changed message fails.
+    static bool self_test() {
+        static constexpr uint8_t D[SECRET_KEY_BYTES] = {
+            0xC9, 0xAF, 0xA9, 0xD8, 0x45, 0xBA, 0x75, 0x16, 0x6B, 0x5C, 0x21, 0x57, 0x67, 0xB1, 0xD6, 0x93,
+            0x4E, 0x50, 0xC3, 0xDB, 0x36, 0xE8, 0x9B, 0x12, 0x7B, 0x8A, 0x62, 0x2B, 0x12, 0x0F, 0x67, 0x21};
+        static constexpr uint8_t MESSAGE[] = {'s', 'a', 'm', 'p', 'l', 'e'};
+        static constexpr uint8_t OTHER[] = {'t', 'e', 's', 't'};
+        auto pk = derive(D);
+        if (pk.is_err()) return false;
+        auto sig = sign_unchecked(D, MESSAGE);
+        if (sig.is_err()) return false;
+        return verify_unchecked(pk.value().span(), MESSAGE, sig.value().span()) &&
+               !verify_unchecked(pk.value().span(), OTHER, sig.value().span());
     }
 
+public:
     /// Imports an unencrypted PKCS#8 PrivateKeyInfo (RFC 5208) holding an
     /// ECPrivateKey (RFC 5915), DER. Refused: any trailing byte, a bare SEC 1
     /// ECPrivateKey, a version other than 0, an algorithm other than id-ecPublicKey, a curve other
@@ -277,6 +333,8 @@ public:
     [[nodiscard]] static Result<P256KeyPair> from_pkcs8_der(std::span<const uint8_t> der) {
         using namespace p256_detail;
         using R = Result<P256KeyPair>;
+        const detail::SignalShield shield;
+        if (!ready()) return R::err(UNAVAILABLE);
         if (der.empty() || der.size() > MAX_PKCS8_BYTES) return R::err("p256: PKCS#8 input has an unsupported size");
         Der all{der.data(), der.size()};
         Der info{};

@@ -173,16 +173,32 @@
 
 #include <sodium.h>
 
+#ifdef CRYPTOLIB_HAS_OPENSSL
+#include "detail/openssl_threads.hpp"
+#endif
+
 namespace crypto {
 
-/// Must be called once at program startup before any crypto operation.
 static_assert(SODIUM_LIBRARY_VERSION_MAJOR > 26 ||
               (SODIUM_LIBRARY_VERSION_MAJOR == 26 && SODIUM_LIBRARY_VERSION_MINOR >= 3),
               "cryptolib requires libsodium 1.0.21 or newer (CVE-2025-69277 affects earlier releases)");
 
+/// Must be called at program startup before any crypto operation; later
+/// calls, from any thread, are harmless. Where the build links OpenSSL it
+/// also does libcrypto's first-use work exactly once (detail::openssl_ready),
+/// so the first OpenSSL-backed calls may then run on many threads at once.
+/// The fips profile leaves that to fips::Provider::init, which must load its
+/// module first.
 inline void init() {
     if (sodium_init() < 0)
         throw std::runtime_error("libsodium initialisation failed");
+#if defined(CRYPTOLIB_HAS_OPENSSL) && !defined(CRYPTOLIB_PROFILE_FIPS)
+    if (!detail::openssl_ready())
+        throw std::runtime_error("libcrypto initialisation failed");
+#ifdef CRYPTOLIB_HAS_P256
+    (void)ec::P256::available();
+#endif
+#endif
 }
 
 /// Cryptographically secure random bytes.
