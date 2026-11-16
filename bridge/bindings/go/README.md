@@ -156,6 +156,7 @@ pkg.go.dev.
 | Vault / Keyring | `Vault` (KDF→integrity→AEAD→signature), `Keyring` (revocable device/passphrase slots) |
 | Media entropy | `EntropyFromFiles`, `EntropyFromFilesDeterministic`, `Entropy` derivations |
 | P-256 (ES256) | `P256GenerateKey`, `P256PublicKey`, `P256Sign`, `P256Verify` (raw `r \|\| s`, SHA-256, RFC 6979 nonces), `P256PrivateKeyFromPKCS8`, `P256PrivateKeyFromPEM`, `P256Available`; see `docs/P256.md` |
+| Tokens | `TokenFormats`, `TokenKeygen`, `TokenIssue`, `TokenAccept`, `TokenAcceptTo`, `TokenPeekFormat`, `TokenPeekFooter` for any format by name (`v4.local`, `cb1.local`, `cb1.public`; see `docs/TOKEN_API.md`); `PasetoV4LocalEncrypt/Decrypt`, `Cb1LocalEncrypt/Decrypt`, `Cb1PublicSign/Verify` are the same calls with the format fixed |
 | EVM / Bitcoin | `Keccak256`, `Ripemd160`, `Secp256k1Keygen/Pubkey/Sign/Verify/Recover` |
 
 ---
@@ -187,9 +188,34 @@ followed by GC cannot double-free. A finalizer exists as a safety net, but
 relying on it is discouraged — close deterministically.
 
 **Concurrency.** Stateless top-level functions are safe to call from many
-goroutines. The handle types hold mutable native state and are **not** safe for
-concurrent use of the *same* handle — use one per goroutine or guard with a
-mutex.
+goroutines, a process's first calls included. The handle types hold mutable
+native state and are **not** safe for concurrent use of the *same* handle: use
+one per goroutine or guard with a mutex.
+
+On macOS, engines before the 1.5.0 thread fixes could hang here: a thread
+waiting for one of OpenSSL's locks while a signal reached it could miss its
+wakeup, and the Go runtime signals its threads constantly, so the first
+concurrent `P256Sign` calls of a server (and the AES-GCM, GCM-SIV, HPKE, X-Wing
+and post-quantum calls) stopped forever. The engine now does OpenSSL's
+first-use work once in `Init`, holds signals back while a thread is inside
+OpenSSL and shields a thread's exit. Rebuild the native library (`make lib`)
+after updating this module; `docs/P256.md` has the details under "Threads".
+
+**ES256 for a JWT.** `P256Sign` hashes the message with SHA-256 and returns the
+raw 64-byte `r || s` a JWS carries; load an Apple `.p8` key with
+`P256PrivateKeyFromPEM`:
+
+```go
+key, err := cryptolib.P256PrivateKeyFromPEM(p8)
+if err != nil { /* ... */ }
+defer cryptolib.Secret(key.Secret).Wipe()
+sig, err := cryptolib.P256Sign(key.Secret, []byte(header+"."+claims))
+jwt := header + "." + claims + "." + base64.RawURLEncoding.EncodeToString(sig)
+```
+
+`P256Available()` is false when the linked library was built without OpenSSL's
+elliptic curves; the default `build/release` library and the sealed static
+archive both have them.
 
 **secp256k1 signature lengths.** `Secp256k1Sign` returns a 65-byte recoverable
 signature (`r‖s‖v`). `Secp256k1Verify` expects the 64-byte compact form, so drop

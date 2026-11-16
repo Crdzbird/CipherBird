@@ -13,7 +13,12 @@ Fixed: calls into libcrypto from many threads could hang on macOS and iOS.
   libcrypto, and runs libcrypto's per-thread cleanup with signals blocked
   when a thread exits. The cost is about 0.3 microseconds per call. Results
   are unchanged byte for byte.
-- The engines are the attested build of Engines run 43595023682.
+- The engines are the attested build of Engines run 43595023682. Every one,
+  the WebAssembly engine included, exports the 356 functions of this
+  release (341 in 1.4.0), so the generic token calls work in the browser
+  too. The macOS engine is about 0.6 MB larger because it now carries the
+  P-256 curve; the Android, iOS and web engines stay within about 20 KB of
+  their 1.4.0 size.
 
 Incremental SecretStream.
 

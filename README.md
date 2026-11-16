@@ -72,7 +72,7 @@ define lets the await be dropped there too, see the package README. Each package
 | **High-level** | Vault (KDF to integrity to AEAD to signature), **MolecularVault** (cascade + Argon2id + committing, PQ-composable), Keyring (envelope encryption with device + passphrase slots, rotation, anti-downgrade), Shamir M-of-N secret sharing |  |
 | **Defense-in-depth** | Steganography (DCT/QIM, phase coding) and LavaRand-style media entropy, framed as novelty / defense-in-depth, not as confidentiality primitives | PPM / BMP / PNG / GIF / JPEG / WAV / FLAC / MP3 / MP4 / AVI / CRVF |
 
-- **Tokens.** PASETO v4.local, byte for byte the specification, and cb1, CipherBird's own tokens on BLAKE3 and the Ed25519 + ML-DSA-65 hybrid signature (`docs/CB1_TOKEN.md`), in C++, Go, Node and both Dart packages.
+- **Tokens.** PASETO v4.local, byte for byte the specification, and cb1, CipherBird's own tokens on BLAKE3 and the Ed25519 + ML-DSA-65 hybrid signature (`docs/CB1_TOKEN.md`), in C++, Go, Node and both Dart packages. One API reaches every format by its name (`v4.local`, `cb1.local`, `cb1.public`): list the formats, generate keys, issue, accept and peek, with the caller always naming the format it expects, so a new format is an engine change and nothing in the bindings (`docs/TOKEN_API.md`).
 
 ### MolecularVault, maximum-assurance layered encryption
 
@@ -281,9 +281,9 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 
 | Discipline | Status |
 |---|---|
-| Test suite | **495 / 495 passing** locally on macOS arm64 (custom zero-dependency runner) |
+| Test suite | **606 / 606 passing** locally on macOS arm64 (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
-| Concurrency | **ThreadSanitizer clean** (multithreaded stress test) |
+| Concurrency | **ThreadSanitizer clean** (multithreaded stress test); every call that reaches OpenSSL is tested cold from many threads under signals and at thread exit, after the macOS lock-wait hang fixed in 1.5.0 (`docs/P256.md`, "Threads") |
 | Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
 | Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCRYPTOLIB_CT_VALGRIND=ON`); the Linux `ctgrind` CI job blocks on any secret-dependent branch |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |

@@ -16,7 +16,7 @@ sealed here opens there.
 | Hashing | SHA-256, SHA-512, BLAKE2b, BLAKE3, Keccak-256, RIPEMD-160 | HMAC, HKDF, incremental BLAKE3 |
 | Passwords | Argon2id | PHC strings, derived keys, three cost profiles |
 | Symmetric | XChaCha20-Poly1305, AES-256-GCM, key-committing AEAD, SecretStream | the committing mode is the default in easy mode |
-| Public key | X25519, Ed25519, boxes, sealed boxes, secp256k1 | EVM addresses and recovery |
+| Public key | X25519, Ed25519, boxes, sealed boxes, secp256k1, P-256 ECDSA | EVM addresses and recovery; ES256 where the engine carries the curve |
 | Post-quantum | ML-KEM, ML-DSA, SLH-DSA, sntrup761, X-Wing | FIPS 203, 204 and 205 through liboqs |
 | Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
 | Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchets | composition of the primitives above |
@@ -93,6 +93,7 @@ cipherbird.rng.live().feed(cameraFrame);
 | `entropy`, `rng` | media entropy, the health report, the entropy policy, the live source, DRBG, Fortuna |
 | `stego`, `composed` | steganography across eleven carriers, the composed seals, forward error correction |
 | `chain` | secp256k1, Keccak, EVM addresses and recovery |
+| `p256*` | P-256 ECDSA with SHA-256 (ES256): keys, raw 64-byte signatures, strict PKCS#8 import; flat functions |
 | `fips` | the FIPS profile surface; `fips.available()` is false in this build |
 
 Recipes compose the protections into one envelope that opens in every
@@ -147,6 +148,36 @@ format fixed. `Tokens`, `Paseto`, `Cb1` and the `tokens` namespace carry the
 length helpers too, and every call runs on the worker through
 `cipherbird.async`. `blake2bKeyed` computes BLAKE2b at a chosen length and
 `blake2bKeyedInto` fills a buffer.
+
+## P-256 (ES256)
+
+ECDSA over P-256 with SHA-256: the ES256 signature of JSON Web Tokens
+(RFC 7518), the one Apple push authenticates a provider with. The secret
+key is the 32-byte scalar, the public key the 65-byte uncompressed point,
+and the signature the raw 64-byte `r || s`. The message is hashed inside
+the call.
+
+```js
+const key = cipherbird.p256PrivateKeyFromPem(p8Text);
+const signature = cipherbird.p256Sign(key.secretKey, Buffer.from(signingInput));
+const ok = cipherbird.p256Verify(key.publicKey, Buffer.from(signingInput), signature);
+```
+
+`p256GenerateKey` makes a fresh pair and `p256PublicKey` gives the public
+key of a scalar. `p256PrivateKeyFromPkcs8` (DER) and `p256PrivateKeyFromPem`
+import an unencrypted PKCS#8 key and return the secret key with the public
+key derived from it; the import is strict and throws on trailing bytes,
+another curve or algorithm, an encrypted key and a public key that does not
+belong to the scalar. Nonces are deterministic (RFC 6979), which
+`p256DeterministicNonces()` reports. Signatures are not normalised to low
+`s`, as JWS allows, so a signature must not serve as an identifier. The
+bundled darwin-arm64 engine carries the curve; `p256Available()` says
+whether a custom engine does. The decisions are in the repository's
+`docs/P256.md`.
+
+Since 1.5.0 every call that reaches OpenSSL is safe from many threads with
+signals arriving: the engine does OpenSSL's first-use work once and holds
+signals back while a thread is inside it, which fixed a hang on macOS.
 
 ## Media on bytes
 

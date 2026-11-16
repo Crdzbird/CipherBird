@@ -14,7 +14,7 @@ platform channels and no setup. The Dart API carries the package name: `CipherBi
 | Hashing | SHA-256, SHA-512, BLAKE2b, BLAKE3, Keccak-256 | HMAC, HKDF, incremental BLAKE3 |
 | Passwords | Argon2id | PHC strings, derive keys, three cost profiles |
 | Symmetric | XChaCha20-Poly1305, AES-256-GCM, key-committing AEAD, SecretStream | the committing mode is the default in easy mode |
-| Public key | X25519, Ed25519, boxes, sealed boxes, secp256k1 | EVM addresses and recovery |
+| Public key | X25519, Ed25519, boxes, sealed boxes, secp256k1, P-256 ECDSA | EVM addresses and recovery; ES256 where the engine carries the curve |
 | Post-quantum | ML-KEM, ML-DSA, SLH-DSA, sntrup761 | FIPS 203, 204 and 205 through liboqs |
 | Hybrid | X25519 plus ML-KEM-768, Ed25519 plus ML-DSA-65, X25519 plus sntrup761 | secure if either half holds |
 | Protocols | sealed messaging, Noise XX, HPKE, OPAQUE, OPRF, BBS, FROST, ECVRF, BLS, session ratchet | composition of the primitives above |
@@ -220,6 +220,7 @@ final opened = lib.pq.hybridKem.decapsulate(ciphertext, pair.secretKey);
 | `lib.entropy`, `lib.stego`, `lib.rng` | media entropy and health, DRBG, Fortuna, steganography, forward error correction |
 | `lib.chain` | Keccak-256, secp256k1 sign and recover, EVM addresses |
 | `lib.tokens` | any token format by name: PASETO v4.local, cb1.local and cb1.public today; keyed BLAKE2b at a chosen length |
+| `p256*` | P-256 ECDSA with SHA-256 (ES256): keys, raw 64-byte signatures, strict PKCS#8 import; flat methods |
 
 ## Post-quantum envelopes
 
@@ -729,6 +730,42 @@ cb1 is library-native and absent from the bank profile, where the calls
 report `TokenStatus.unavailable`; PASETO v4.local is in every profile but
 fips.
 
+## P-256 (ES256)
+
+ECDSA over P-256 with SHA-256: the ES256 signature of JSON Web Tokens
+(RFC 7518), the one Apple push authenticates a provider with and WebCrypto
+peers speak. The secret key is the 32-byte scalar, the public key the
+65-byte uncompressed point, and the signature the raw 64-byte `r || s`. The
+message is hashed inside the call.
+
+```dart
+if (lib.p256Available()) {
+  final key = lib.p256PrivateKeyFromPem(p8Text);
+  final signature = lib.p256Sign(key.secretKey, signingInput);
+  final ok = lib.p256Verify(key.publicKey, signingInput, signature);
+}
+```
+
+`p256GenerateKey` makes a fresh pair and `p256PublicKey` gives the public
+key of a scalar. `p256PrivateKeyFromPkcs8` (DER) and `p256PrivateKeyFromPem`
+import an unencrypted PKCS#8 key, the `.p8` file Apple issues, and return
+the secret key with the public key derived from it. The import is strict:
+trailing bytes, another curve or algorithm, an encrypted key, attributes, a
+scalar out of range and an embedded public key that does not belong to the
+scalar all throw. Nonces are deterministic (RFC 6979) where the engine's
+OpenSSL offers them, which `p256DeterministicNonces()` reports, so signing
+draws no randomness. Signatures are not normalised to low `s`, as JWS
+allows: a signature is malleable and must not serve as an identifier.
+`p256Verify` is false for anything but a 64-byte signature with both halves
+in range under a 65-byte point on the curve.
+
+The macOS engine carries the curve. The Android, iOS and web engines are
+built with a libcrypto trimmed of elliptic curves, so `p256Available()` is
+false there and the other calls throw; on those devices the platform's own
+P-256 is reached through `DeviceFips` (see [Validated modules](#validated-modules)).
+
+The decisions behind this are in `docs/P256.md` of the repository.
+
 ## Interoperability
 
 Every binding of the same engine (Go, Node, Swift, Java, Kotlin, Python, Ruby, Rust,
@@ -947,3 +984,19 @@ on every platform, the web included, and a stream written here is read by
 `StreamDecryptor` of the Go binding and the reverse; `make stream-interop`
 checks both directions. The same two calls live on `lib.aead` as
 `streamEncryptor` and `streamDecryptor`.
+
+## Calling from many threads
+
+Every call is safe from several isolates and native threads at once, a
+process's first calls included. Version 1.5.0 fixed a hang on macOS and
+iOS: a thread waiting for one of OpenSSL's locks while a signal reached it
+could miss its wakeup and wait forever, which a host that signals its
+threads constantly (the Go runtime, a profiler) met within moments. It
+affected every call that reaches OpenSSL: P-256, AES-256-GCM,
+AES-256-GCM-SIV and the molecular vault, HPKE, X-Wing, ML-KEM, ML-DSA,
+SLH-DSA and sntrup761. The engine now does OpenSSL's first-use work once,
+holds asynchronous signals back from a thread while it is inside OpenSSL,
+and runs OpenSSL's per-thread cleanup with signals blocked when a thread
+exits. Results are unchanged byte for byte and the cost is about 0.3
+microseconds per call. `docs/P256.md` in the repository has the details
+under "Threads".

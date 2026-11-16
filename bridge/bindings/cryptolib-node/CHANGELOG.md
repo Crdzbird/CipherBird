@@ -11,21 +11,20 @@
   per-thread cleanup with signals blocked when a thread exits. Results are
   unchanged byte for byte.
 - The bundled darwin-arm64 engine is the attested build of Engines run
-  43595023682.
+  43595023682. It exports 356 functions (341 in 1.4.0): the eight generic
+  token calls and the seven P-256 calls below.
 - P-256 ECDSA with SHA-256 (ES256): `p256Available`,
   `p256DeterministicNonces`, `p256GenerateKey`, `p256PublicKey`, `p256Sign`,
   `p256Verify`, `p256PrivateKeyFromPkcs8` and `p256PrivateKeyFromPem`. Raw
   64-byte `r || s` signatures, RFC 6979 nonces, strict PKCS#8 import; the
-  engine gains seven entry points (356 shipped), and the bundled desktop
-  engine is built with the curve. See `docs/P256.md`.
+  bundled desktop engine is built with the curve. See `docs/P256.md`.
 - One token API for every format (`docs/TOKEN_API.md`): `Tokens` with
   `formats`, `keygen`, `issue`, `accept`, `peekFormat` and `peekFooter`,
   also as `tokenFormats`, `tokenKeygen`, `tokenIssue`, `tokenAccept`,
   `tokenPeekFormat`, `tokenPeekFooter` and on the `tokens` namespace. A
   format is named by its token header (`v4.local`, `cb1.local`,
   `cb1.public`); the caller always names the one it expects. `TokenStatus`
-  gains `format` (-5). The engine grows by the eight generic entry points
-  (349 shipped); the format-named functions of 1.4.0 remain as the same
+  gains `format` (-5). The format-named functions of 1.4.0 remain as the same
   calls with the format fixed. The common-schema vectors under
   `tests/vectors/tokens/` run through the generic calls.
 

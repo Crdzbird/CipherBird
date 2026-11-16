@@ -23,7 +23,7 @@ locks pages with `sodium_mlock`, which marks them `MADV_DONTDUMP`.
 
 ## 2. Minimal surface
 
-- **Exports:** only the `cryptolib_*` C ABI is exported (145 symbols). Every
+- **Exports:** only the `cryptolib_*` C ABI is exported (356 symbols). Every
   statically-linked dependency symbol (liboqs, blst, …) is hidden via an
   exported-symbols list (macOS) / version script (ELF). Down from 1757.
 - **libcrypto only:** we link OpenSSL's `libcrypto` (EVP: AES-256-GCM-SIV,
