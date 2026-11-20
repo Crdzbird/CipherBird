@@ -53,9 +53,11 @@ final Map<String, Function> _registry05 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cipherbird_token_formats': (Pointer<NativeType> out, int outCap) => WebEngine
-      .current
-      .callInt('_cbw_cipherbird_token_formats', [out.address.toJS, outCap.toJS]),
+  'cipherbird_token_formats': (Pointer<NativeType> out, int outCap) =>
+      WebEngine.current.callInt('_cbw_cipherbird_token_formats', [
+        out.address.toJS,
+        outCap.toJS,
+      ]),
   'cipherbird_token_issue_len':
       (Pointer<NativeType> format, int payloadLen, int footerLen) =>
           WebEngine.current.callInt('_cbw_cipherbird_token_issue_len', [

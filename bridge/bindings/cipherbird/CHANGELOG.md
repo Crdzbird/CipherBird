@@ -1,3 +1,19 @@
+## Unreleased
+
+The engine is renamed CipherBird.
+
+- The C functions are `cipherbird_*` (were `cryptolib_*`), the header is
+  `cipherbird_c.h` and a library built from source is `libcipherbird_c`.
+  The bundled engines are the attested build of Engines run 44712348970 and
+  export the same 356 functions under the new prefix. The Dart API does not
+  change.
+- A library passed to `CipherBird.load` or named by `CIPHERBIRD_LIBRARY` must
+  come from this release or later: an engine built before the rename does
+  not load. `CRYPTOLIB_DYLIB` is still read when `CIPHERBIRD_LIBRARY` is
+  unset.
+- Envelopes, tokens, sessions and keys are unchanged byte for byte: the
+  derivation and domain separation labels keep their `cryptolib` text.
+
 ## 1.5.0
 
 Fixed: calls into libcrypto from many threads could hang on macOS and iOS.

@@ -54,8 +54,8 @@ final Map<String, Function> _registry22 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cipherbird_noise_split': (Pointer<NativeType> h) =>
-      WebEngine.current.callInt('_cbw_cipherbird_noise_split', [h.address.toJS]),
+  'cipherbird_noise_split': (Pointer<NativeType> h) => WebEngine.current
+      .callInt('_cbw_cipherbird_noise_split', [h.address.toJS]),
   'cipherbird_noise_encrypt':
       (
         Pointer<NativeType> h,

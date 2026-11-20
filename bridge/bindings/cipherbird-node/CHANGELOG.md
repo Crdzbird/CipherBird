@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- The engine is renamed CipherBird: its C functions are `cipherbird_*` (were
+  `cryptolib_*`) and a library built from source is `libcipherbird_c`. The
+  bundled darwin-arm64 engine is the attested build of Engines run
+  44712348970. The JavaScript API does not change. A library named by
+  `CIPHERBIRD_LIBRARY` or `CRYPTOLIB_DYLIB` must come from this release or
+  later.
+- The binding's directory in the repository is `bridge/bindings/cipherbird-node`.
+- Envelopes, tokens, sessions and keys are unchanged byte for byte.
+
 ## 1.5.0
 
 - Fixed: calls into libcrypto from many threads could hang on macOS. P-256,

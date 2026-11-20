@@ -3,8 +3,8 @@ part of '../web_platform.dart';
 final Map<String, Function> _registry01 = {
   'cipherbird_buffer_free': (Pointer<NativeType> buf) => WebEngine.current
       .callVoid('_cbw_cipherbird_buffer_free', [buf.address.toJS]),
-  'cipherbird_str_free': (Pointer<NativeType> str) =>
-      WebEngine.current.callVoid('_cbw_cipherbird_str_free', [str.address.toJS]),
+  'cipherbird_str_free': (Pointer<NativeType> str) => WebEngine.current
+      .callVoid('_cbw_cipherbird_str_free', [str.address.toJS]),
   'cipherbird_keypair_free': (Pointer<NativeType> kp) => WebEngine.current
       .callVoid('_cbw_cipherbird_keypair_free', [kp.address.toJS]),
   'cipherbird_bundle_free': (Pointer<NativeType> b) => WebEngine.current
@@ -13,9 +13,11 @@ final Map<String, Function> _registry01 = {
       .callVoid('_cbw_cipherbird_packet_free', [p.address.toJS]),
   'cipherbird_derived_keys_free': (Pointer<NativeType> dk) => WebEngine.current
       .callVoid('_cbw_cipherbird_derived_keys_free', [dk.address.toJS]),
-  'cipherbird_entropy_info_free': (Pointer<NativeType> info) => WebEngine.current
+  'cipherbird_entropy_info_free': (Pointer<NativeType> info) => WebEngine
+      .current
       .callVoid('_cbw_cipherbird_entropy_info_free', [info.address.toJS]),
-  'cipherbird_init': () => WebEngine.current.callInt('_cbw_cipherbird_init', []),
+  'cipherbird_init': () =>
+      WebEngine.current.callInt('_cbw_cipherbird_init', []),
   'cipherbird_random_bytes': (int n) => WebEngine.current.callStruct(
     '_cbw_cipherbird_random_bytes',
     [n.toJS],

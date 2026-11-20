@@ -1,4 +1,4 @@
 framework module CipherBird {
-    header "cryptolib_c.h"
+    header "cipherbird_c.h"
     export *
 }

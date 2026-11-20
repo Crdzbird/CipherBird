@@ -37,7 +37,8 @@ extension CipherBirdSuite on CipherBird {
     Uint8List envelope,
     Uint8List recipientKemSecret, {
     Uint8List? aad,
-  }) => _suiteBuf('cipherbird_suite_open_pq', envelope, recipientKemSecret, aad);
+  }) =>
+      _suiteBuf('cipherbird_suite_open_pq', envelope, recipientKemSecret, aad);
 
   /// Flagship: post-quantum confidentiality (hybrid KEM) + post-quantum
   /// authenticity (Ed25519+ML-DSA-65). [suiteOpenSignedPq] returns plaintext

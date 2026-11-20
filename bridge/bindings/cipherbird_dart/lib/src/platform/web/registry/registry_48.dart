@@ -22,7 +22,8 @@ final Map<String, Function> _registry48 = {
       ),
   'cipherbird_fortuna_reseed': (Pointer<NativeType> h) => WebEngine.current
       .callVoid('_cbw_cipherbird_fortuna_reseed', [h.address.toJS]),
-  'cipherbird_fortuna_reseed_count': (Pointer<NativeType> h) => WebEngine.current
+  'cipherbird_fortuna_reseed_count': (Pointer<NativeType> h) => WebEngine
+      .current
       .callU64('_cbw_cipherbird_fortuna_reseed_count', [h.address.toJS]),
   'cipherbird_fortuna_free': (Pointer<NativeType> h) => WebEngine.current
       .callVoid('_cbw_cipherbird_fortuna_free', [h.address.toJS]),
