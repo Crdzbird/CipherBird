@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace crypto::stego {
@@ -67,6 +68,21 @@ public:
         return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
+    /// Width and height of a GIF whose image data is complete: every pixel the
+    /// descriptor declares is present in a properly terminated LZW stream.
+    /// Stricter than embed(), which pads a short stream with index 0.
+    [[nodiscard]] static Result<std::pair<std::size_t, std::size_t>>
+    dimensions(const std::string& path) {
+        using Dims = std::pair<std::size_t, std::size_t>;
+        auto gif = parse_gif(path);
+        if (gif.is_err()) return Result<Dims>::err(gif.error().message);
+        const auto& g = gif.value();
+        if (!g.complete)
+            return Result<Dims>::err("GIF: image data ends before all "
+                + std::to_string(std::size_t(g.width) * g.height) + " pixels in '" + path + "'");
+        return Result<Dims>::ok({ g.width, g.height });
+    }
+
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {
         std::size_t bits = w * h;
         std::size_t bytes = bits / 8;
@@ -106,6 +122,7 @@ private:
         std::vector<uint8_t> palette; // 256 * 3 bytes (R,G,B)
         std::vector<uint8_t> indices; // width * height palette indices
         uint8_t bg_color;
+        bool complete = false;
     };
 
     // ── GIF Parser ───────────────────────────────────────────────────────────
@@ -215,20 +232,23 @@ private:
 
                 // Collect all sub-block data
                 Bytes lzw_data;
+                bool terminated = false;
                 while (pos < data.size()) {
                     uint8_t bsz = data[pos++];
-                    if (bsz == 0) break;
+                    if (bsz == 0) { terminated = true; break; }
                     if (pos + bsz > data.size()) break;
                     lzw_data.insert(lzw_data.end(), data.begin()+pos, data.begin()+pos+bsz);
                     pos += bsz;
                 }
 
                 // Decode LZW to indices
+                std::size_t decoded_pixels = 0;
                 auto decoded = lzw_decode(lzw_data, min_code_size,
-                                          std::size_t(g.width) * g.height);
+                                          std::size_t(g.width) * g.height, &decoded_pixels);
                 if (decoded.is_err())
                     return Result<GifData>::err(decoded.error().message);
 
+                g.complete = terminated && decoded_pixels >= std::size_t(g.width) * g.height;
                 g.indices = std::move(decoded.value());
                 return Result<GifData>::ok(std::move(g));
             }
@@ -240,7 +260,8 @@ private:
     // ── LZW Decoder ─────────────────────────────────────────────────────────
 
     [[nodiscard]] static Result<Bytes> lzw_decode(
-        const Bytes& data, uint8_t min_code_size, std::size_t expected_pixels)
+        const Bytes& data, uint8_t min_code_size, std::size_t expected_pixels,
+        std::size_t* decoded_pixels = nullptr)
     {
         int clear_code = 1 << min_code_size;
         int eoi_code = clear_code + 1;
@@ -362,6 +383,7 @@ private:
                 code_size++;
         }
 
+        if (decoded_pixels) *decoded_pixels = output.size();
         if (output.size() < expected_pixels)
             output.resize(expected_pixels, 0); // pad with zeros
 

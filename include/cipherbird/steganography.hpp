@@ -287,14 +287,37 @@ public:
                 + " DCT/QIM -> " + std::to_string(cap) + " bytes"
             });
         }
-        case MediaFormat::BMP_IMAGE:
-        case MediaFormat::PNG_IMAGE:
-        case MediaFormat::GIF_IMAGE: {
-            // For these formats, capacity depends on image dimensions
-            // Return a generic message — exact capacity requires reading the file
+        case MediaFormat::BMP_IMAGE: {
+            auto dims = BmpSteganographer::dimensions(std::string(cover_path));
+            if (dims.is_err()) return Result<StegoCapacity>::err(dims.error().message);
+            auto [w, h] = dims.value();
+            std::size_t cap = BmpSteganographer::capacity(w, h);
             return Result<StegoCapacity>::ok(StegoCapacity{
-                0, StegoHeader::SIZE,
-                "Capacity depends on image dimensions (read file to determine)"
+                cap, StegoHeader::SIZE,
+                "BMP " + std::to_string(w) + "x" + std::to_string(h)
+                + " DCT/QIM -> " + std::to_string(cap) + " bytes"
+            });
+        }
+        case MediaFormat::PNG_IMAGE: {
+            auto dims = PngSteganographer::dimensions(std::string(cover_path));
+            if (dims.is_err()) return Result<StegoCapacity>::err(dims.error().message);
+            auto [w, h] = dims.value();
+            std::size_t cap = PngSteganographer::capacity(w, h);
+            return Result<StegoCapacity>::ok(StegoCapacity{
+                cap, StegoHeader::SIZE,
+                "PNG " + std::to_string(w) + "x" + std::to_string(h)
+                + " DCT/QIM -> " + std::to_string(cap) + " bytes"
+            });
+        }
+        case MediaFormat::GIF_IMAGE: {
+            auto dims = GifSteganographer::dimensions(std::string(cover_path));
+            if (dims.is_err()) return Result<StegoCapacity>::err(dims.error().message);
+            auto [w, h] = dims.value();
+            std::size_t cap = GifSteganographer::capacity(w, h);
+            return Result<StegoCapacity>::ok(StegoCapacity{
+                cap, StegoHeader::SIZE,
+                "GIF " + std::to_string(w) + "x" + std::to_string(h)
+                + " palette-index LSB -> " + std::to_string(cap) + " bytes"
             });
         }
         case MediaFormat::JPEG_IMAGE: {

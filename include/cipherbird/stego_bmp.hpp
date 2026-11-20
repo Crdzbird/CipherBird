@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace crypto::stego {
@@ -57,6 +58,15 @@ public:
         return parse_embed_stream(std::span<const uint8_t>(raw), key);
     }
 
+    /// Width and height of a 24-bit BMP whose every pixel row is present.
+    [[nodiscard]] static Result<std::pair<std::size_t, std::size_t>>
+    dimensions(const std::string& path) {
+        using Dims = std::pair<std::size_t, std::size_t>;
+        auto img = read_bmp(path);
+        if (img.is_err()) return Result<Dims>::err(img.error().message);
+        return Result<Dims>::ok({ img.value().w, img.value().h });
+    }
+
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {
         return DctQimEngine::capacity(w, h);
     }
@@ -87,7 +97,9 @@ private:
         // File header (14 bytes)
         uint8_t fh[14];
         f.read(reinterpret_cast<char*>(fh), 14);
-        if (!f || fh[0] != 'B' || fh[1] != 'M')
+        if (!f)
+            return Result<BmpImage>::err("BMP: truncated file header");
+        if (fh[0] != 'B' || fh[1] != 'M')
             return Result<BmpImage>::err("BMP: invalid magic");
 
         uint32_t pixel_offset = le32(fh + 10);

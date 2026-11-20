@@ -1,7 +1,7 @@
 import { row, refuses } from '../kit.js';
 import { same, utf8, concat } from '../bytes.js';
 import {
-  makeBmp, makeWav, bmpFromRgb, ppmFromRgb, pixelsOf, pixelDiff, samplesFromWav, sampleDiff,
+  makeBmp, makeWav, bmpFromRgb, pixelsOf, pixelDiff, samplesFromWav, sampleDiff,
   carrierFrom, outExt, imageMime, fileMime, plain, workspace,
 } from '../media.js';
 
@@ -25,14 +25,6 @@ function showCarrier(label, bytes, ext, name) {
     : ppm ? [row.image(label, bmpFromRgb(ppm.rgb, ppm.width, ppm.height), 'image/bmp', 'shown as BMP; the file itself is PPM')] : [];
   rows.push(row.file(`Download: ${label.toLowerCase()}`, bytes, name, fileMime(ext)));
   return rows;
-}
-
-/** Capacity in bytes; a BMP is measured through a PPM copy of the same pixels. */
-function capacityOf(cb, ws, path, carrier) {
-  const pixels = carrier.ext === '.bmp' ? pixelsOf(carrier.bytes, '.bmp') : null;
-  if (!pixels) return { bytes: cb.call('stego_capacity', path), via: 'stego_capacity' };
-  const twin = ws.put('twin.ppm', ppmFromRgb(pixels.rgb, pixels.width, pixels.height));
-  return { bytes: cb.call('stego_capacity', twin), via: 'stego_capacity of a PPM copy (same DCT grid)' };
 }
 
 /** How far the carrier moved: pixels for BMP and PPM, samples for WAV. */
@@ -78,7 +70,7 @@ export default {
           const c = carrierFrom(carrier, kind === 'sound' ? sound : picture);
           const cover = ws.put(`cover${c.ext}`, c.bytes);
           const out = ws.path(`hidden${outExt(c.ext)}`);
-          const cap = capacityOf(cb, ws, cover, c);
+          const cap = { bytes: cb.call('stego_capacity', cover), via: 'stego_capacity' };
           cb.call('stego_embed', cover, message, out);
           const stego = cb.readFile(out);
           const back = cb.call('stego_extract', out);
@@ -200,7 +192,7 @@ export default {
     {
       id: 'analysis',
       title: 'Inspect and fingerprint a carrier',
-      statement: 'stego_inspect reads the magic bytes and says whether a file is the format its name claims. A stored content digest catches any change at all, including the few pixels a hidden message moves.',
+      statement: 'stego_inspect reads the magic bytes, says whether a file is the format its name claims, and checks that the file holds every pixel its header promises. A stored content digest catches any change at all, including the few pixels a hidden message moves.',
       inputs: [
         { name: 'message', label: 'Message to hide', kind: 'text', value: 'a few bytes are enough' },
         pictureInput,
@@ -234,7 +226,7 @@ export default {
               [look(cover), look(out), look(renamed), look(blank), look(cut)]),
             row.check(`A ${c.ext} file renamed to ${disguise} is caught`, named.ext_matches === 0, plain(named.detail)),
             row.check('A file with its magic bytes wiped is not recognised', unknown.parses === 0, plain(unknown.detail)),
-            row.text('A copy cut to 40 bytes', short.parses ? 'still parses: inspect reads the header, not the whole file' : 'does not parse'),
+            row.check('A copy cut to 40 bytes does not parse', short.parses === 0, plain(short.detail)),
             row.bytes('Digest of the carrier', before),
             row.bytes('Digest after hiding the message', after),
             row.check('A copy of the carrier has the same digest', cb.call('secure_equal', before, again) === 1, 'equal'),
@@ -249,7 +241,7 @@ export default {
     {
       id: 'fec',
       title: 'Error correction for a noisy channel',
-      statement: 'Classic codes trade capacity for repair. Within its bound the code fixes every flipped bit; past it, it decodes wrong without warning, which is why a payload should also carry an AEAD tag.',
+      statement: 'Classic codes trade capacity for repair. Within its bound the code fixes every flipped bit; past it, it decodes wrong without warning. These are perfect codes, so every received group sits next to some codeword and no decoder can notice, which is why a payload should also carry an AEAD tag.',
       inputs: [
         { name: 'message', label: 'Message', kind: 'text', value: 'attack at dawn' },
         { name: 'scheme', label: 'Code', kind: 'select', value: 'Repetition-3', options: ['Repetition-3', 'Repetition-5', 'Hamming(7,4)'] },
