@@ -1,10 +1,20 @@
-name: Showcase on Pages
+name: Pages
 
-# Builds the Flutter showcase for the web and publishes it with GitHub Pages
-# so every capability can be tried in a browser without building. The
-# engine is served from the package assets with its integrity digests.
-# Enable Pages with "GitHub Actions" as the source once, then run this.
+# Publishes the demo site (site/) with the Flutter showcase under /showcase/
+# to GitHub Pages. The site loads the committed web engine from the Flutter
+# plugin's assets, checked against its recorded SHA-384 digests; every demo
+# runs under Node against that engine before anything is published.
+# Pages is configured with "GitHub Actions" as the source.
 on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - bridge/bindings/cipherbird/assets/**
+      - bridge/bindings/cipherbird/lib/src/engine_integrity.dart
+      - bridge/bindings/cipherbird/example/lib/**
+      - scripts/web/build_site.sh
+      - .github/workflows/pages.yml
   workflow_dispatch:
 
 permissions:
@@ -21,17 +31,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Run every demo against the committed engine
+        run: node site/test/run_demos.mjs
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
-      - name: Build the showcase for the web
-        run: |
-          cd bridge/bindings/cipherbird/example
-          flutter pub get
-          flutter build web --release --base-href "/${GITHUB_REPOSITORY#*/}/"
+      - name: Assemble the site and build the showcase
+        run: SHOWCASE_BASE_HREF="/${GITHUB_REPOSITORY#*/}/showcase/" scripts/web/build_site.sh _site --showcase
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
-          path: bridge/bindings/cipherbird/example/build/web
+          path: _site
   deploy:
     needs: build
     runs-on: ubuntu-latest

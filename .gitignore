@@ -109,3 +109,6 @@ local/
 # The WebAssembly engine ships inside both Dart packages.
 !bridge/bindings/cipherbird/assets/cipherbird.wasm
 !bridge/bindings/cipherbird_dart/lib/assets/cipherbird.wasm
+
+# Design working files of the demo site
+.taste-skill/

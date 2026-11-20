@@ -23,6 +23,11 @@ in another.
 #include <cipherbird/cipherbird.hpp>
 ```
 
+**Try it in your browser:** [crdzbird.github.io/CipherBird](https://crdzbird.github.io/CipherBird/)
+runs the WebAssembly engine with a tour of every capability (104 working demos,
+each with the cases that matter), an explorer that calls any of the 356 C ABI
+functions, and the Flutter showcase. The site's source is in [`site/`](site/README.md).
+
 ---
 
 ## Packages on pub.dev

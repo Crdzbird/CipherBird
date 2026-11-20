@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CipherBird, live in your browser</title>
+<meta name="description" content="CipherBird is a C++20 cryptography library with post-quantum envelopes, threshold signatures, anonymous credentials and more. Every demo on this site runs the real engine in your browser.">
+<meta name="theme-color" content="#161c1a">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Stack+Sans+Headline:wght@300&family=Stack+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<script>document.documentElement.classList.add('js');setTimeout(function(){if(!self.cipherbirdMotion)document.documentElement.classList.remove('js');},2500);</script>
+<script type="module" src="js/pages/home.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="hero">
+  <div class="hero-text">
+    <a class="wordmark" href="./" aria-label="CipherBird home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#9fc7b8" d="M4 22c6-1 10-5 12-11 2 6 6 10 12 11-6 1-10 4-12 7-2-3-6-6-12-7z"/><circle cx="16" cy="7" r="3" fill="#e3e2da"/></svg>
+      CipherBird
+    </a>
+    <h1><span class="line"><span>Post-quantum crypto,</span></span><span class="line"><span>live in this tab</span></span></h1>
+    <p class="hero-sentence">CipherBird is a C++20 cryptography library with a C ABI and bindings for twelve languages. This site runs its WebAssembly build: every demo calls the real engine, and nothing leaves the page.</p>
+    <div class="hero-actions">
+      <a class="button" href="tour.html">Take the tour</a>
+      <a class="text-link" href="explorer.html">Call any of the 356 functions</a>
+    </div>
+  </div>
+  <div class="hero-stage">
+    <a class="top-link" href="https://github.com/Crdzbird/CipherBird">Source on GitHub</a>
+    <section class="check-panel" data-ui aria-label="Engine self-check" id="self-check">
+      <header><strong>cipherbird.wasm</strong><span id="sc-version">loading</span></header>
+      <dl>
+        <div class="kv"><dt>Size</dt><dd id="sc-size">-</dd></div>
+        <div class="kv"><dt>SHA-384, attested</dt><dd><code id="sc-attested">-</code></dd></div>
+        <div class="kv"><dt>Integrity check</dt><dd id="sc-integrity"><span class="badge is-wait">waiting</span></dd></div>
+        <div class="kv"><dt>BLAKE3 of itself</dt><dd><code id="sc-blake3">-</code></dd></div>
+        <div class="kv"><dt>SHA-256 of this page</dt><dd><code id="sc-page">-</code></dd></div>
+        <div class="kv"><dt>Functions</dt><dd id="sc-functions">-</dd></div>
+      </dl>
+      <footer><button class="ui-button" type="button" id="sc-again">Hash it again</button><span id="sc-time">Starting the engine</span></footer>
+    </section>
+  </div>
+</header>
+
+<main id="main">
+  <section class="intro" aria-labelledby="intro-title">
+    <div class="intro-text" data-enter>
+      <h2 id="intro-title">Why a bird</h2>
+      <p>In the winter of 1870 Paris was surrounded, and its post went out by pigeon.</p>
+      <p>Thousands of dispatches were photographed onto a sheet of film small enough to roll into a quill and tie to a tail feather. One bird could carry a whole newspaper of private letters.</p>
+      <p>What it could not carry was secrecy. A bird shot down was a mailbag opened, and nobody could tell a forged dispatch from a real one.</p>
+      <p>CipherBird is the missing half: envelopes only the recipient can open, signatures nobody can forge, and keys built to outlast a quantum computer. <a href="tour.html#sealed">See a sealed message</a>.</p>
+    </div>
+    <figure class="frame-crop">
+      <img class="drift" src="assets/npm-pigeon-post-microfilm-0-260305-10.jpg" width="1600" height="1089" alt="A pigeon-post dispatch sheet from 1870: dozens of columns of tiny printed private messages addressed for delivery in Paris.">
+      <figcaption>A pigeon-post dispatch sheet, Paris, 1870. Each column is a page of private messages, printed small enough to fly.</figcaption>
+    </figure>
+  </section>
+
+  <section class="showcase" aria-labelledby="showcase-title">
+    <h2 id="showcase-title">Type a message and watch it travel</h2>
+    <div class="showcase-grid">
+      <div class="type-line-wrap" data-ui>
+        <label class="skip" for="type-line">Message</label>
+        <input class="type-line" id="type-line" value="meet at the north gate" maxlength="200" spellcheck="false" autocomplete="off">
+      </div>
+      <div>
+        <div class="answer" data-ui>
+          <ol class="rows" id="answer" aria-live="polite">
+            <li><span>Engine</span><span>Starting</span></li>
+          </ol>
+        </div>
+        <div class="examples" aria-label="Examples">
+          <button type="button">pay Alice 100</button>
+          <button type="button">the vault code is 0427</button>
+          <button type="button">launch at dawn</button>
+        </div>
+      </div>
+      <figure class="frame-crop">
+        <img src="assets/world-war-i-carrier-pigeon-message-capsule.jpg" width="1244" height="1600" loading="lazy" alt="A handwritten pigeon-service message form from 1918 beside the small aluminium capsule it was carried in.">
+        <figcaption>A pigeon-service message and its capsule, 1918. Anyone who caught the bird could read it.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="features" aria-labelledby="features-title">
+    <h2 id="features-title">Things a browser cannot do alone</h2>
+    <div class="cells" id="cells"></div>
+  </section>
+
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">One engine, every language</h2>
+    <div class="exchange" data-enter>
+      <p>First, hash something in C.</p>
+      <div class="call"><pre><code>cipherbird_init();
+CryptoBufferResult r = cipherbird_blake3(
+    (const uint8_t*)"meet at dawn", 12, 32);
+/* r.buf.data holds 32 bytes; free with cipherbird_buffer_free */</code></pre></div>
+      <div class="response" data-ui id="how-1"></div>
+    </div>
+    <div class="exchange" data-enter>
+      <p>Then seal it in Dart.</p>
+      <div class="call"><pre><code>final key = SymmetricKey.generate();
+final box = key.encryptText('meet at dawn', aad: 'thread 7');</code></pre></div>
+      <div class="response" data-ui id="how-2"></div>
+    </div>
+    <div class="exchange is-final" data-enter>
+      <p>Open it in Node, and watch a forgery fail.</p>
+      <div class="call"><pre><code>const cipherbird = require('cipherbird');
+const key = cipherbird.SymmetricKey.fromHex(keyHex);
+key.decryptText(box, { aad: 'thread 7' });</code></pre></div>
+      <div class="response" data-ui id="how-3"></div>
+    </div>
+  </section>
+
+  <section class="catalogue" aria-labelledby="catalogue-title">
+    <div class="catalogue-head">
+      <h2 id="catalogue-title"><span class="soft">Every function,</span> by area</h2>
+      <a class="button" href="explorer.html">Open the explorer</a>
+    </div>
+    <div class="catalogue-body">
+      <div class="tabs" role="tablist" aria-label="Areas" id="tabs"></div>
+      <ol class="bands" id="bands" role="tabpanel"></ol>
+    </div>
+  </section>
+
+  <section class="faq" aria-labelledby="faq-title">
+    <ol class="faq-list" id="faq">
+      <li><h2 id="faq-title">Questions</h2></li>
+    </ol>
+    <div class="faq-pane" id="faq-pane" aria-live="polite"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="closing">
+    <span>CipherBird, a cryptography library</span>
+    <nav aria-label="Site">
+      <a href="tour.html">Tour</a>
+      <a href="explorer.html">Explorer</a>
+      <a href="showcase/">Flutter showcase</a>
+      <a href="https://github.com/Crdzbird/CipherBird">GitHub</a>
+    </nav>
+    <span class="end">2026, <a href="https://github.com/Crdzbird/CipherBird/blob/main/LICENSE">licence</a></span>
+  </div>
+  <p class="credits" id="credits">Pictures: "NPM-pigeon-post-microfilm-0 260305 10 36 1 r", Northeast Document Conservation Center, public domain, via <a href="https://commons.wikimedia.org/wiki/File:NPM-pigeon-post-microfilm-0_260305_10_36_1_r.jpg">Wikimedia Commons</a>. "World War I Carrier Pigeon Message Capsule with Original Message", public domain, via <a href="https://commons.wikimedia.org/wiki/File:World_War_I_Carrier_Pigeon_Message_Capsule_with_Original_Message.jpg">Wikimedia Commons</a>.</p>
+</footer>
+</body>
+</html>

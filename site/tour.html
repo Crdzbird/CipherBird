@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CipherBird tour</title>
+<meta name="description" content="Every CipherBird capability as a working demo in your browser: hashing, AEAD, post-quantum keys and signatures, sealed envelopes, HPKE, tokens, vaults, keyrings, threshold and aggregate signatures, anonymous credentials, OPAQUE, VRFs, secure channels, steganography, entropy and the FIPS profile.">
+<meta name="theme-color" content="#161c1a">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Stack+Sans+Headline:wght@300&family=Stack+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css">
+<script>document.documentElement.classList.add('js');setTimeout(function(){if(!self.cipherbirdMotion)document.documentElement.classList.remove('js');},2500);</script>
+<script type="module" src="js/pages/tour.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="topbar">
+  <a class="wordmark" href="./" aria-label="CipherBird home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#9fc7b8" d="M4 22c6-1 10-5 12-11 2 6 6 10 12 11-6 1-10 4-12 7-2-3-6-6-12-7z"/><circle cx="16" cy="7" r="3" fill="#e3e2da"/></svg>
+    CipherBird
+  </a>
+  <nav aria-label="Site">
+    <a href="tour.html" aria-current="page">Tour</a>
+    <a href="explorer.html">Explorer</a>
+    <a href="https://github.com/Crdzbird/CipherBird">GitHub</a>
+  </nav>
+</header>
+
+<section class="tour-head" id="top">
+  <div>
+    <h1>Every capability, running</h1>
+    <p>Seventeen chapters, one working demo per capability, each with the cases that matter: the forgery that is refused, the wrong key that opens nothing, the share that gives a cheater away. Change any input and the demo runs again on the real engine.</p>
+    <p class="status" id="status" aria-live="polite">Starting the engine</p>
+  </div>
+  <figure class="frame-crop">
+    <img class="drift" src="assets/homing-pigeon-2.jpg" width="1600" height="1200" alt="A grey homing pigeon with a red eye looks down through the wire of its loft.">
+    <figcaption class="caption">A homing pigeon in its loft.</figcaption>
+  </figure>
+</section>
+
+<nav class="tour-nav" aria-labelledby="chapters-title"><h2 id="chapters-title">Seventeen chapters</h2><ol id="chapter-nav"></ol></nav>
+<main id="main" class="tour-main">
+  <div id="chapters"></div>
+</main>
+
+<footer>
+  <div class="closing">
+    <span>CipherBird, a cryptography library</span>
+    <nav aria-label="Site">
+      <a href="./">Home</a>
+      <a href="explorer.html">Explorer</a>
+      <a href="showcase/">Flutter showcase</a>
+      <a href="https://github.com/Crdzbird/CipherBird">GitHub</a>
+    </nav>
+    <span class="end">2026, <a href="https://github.com/Crdzbird/CipherBird/blob/main/LICENSE">licence</a></span>
+  </div>
+  <p class="credits">Pictures: "Homing pigeon 2" by Anandjpanchal, CC0, via <a href="https://commons.wikimedia.org/wiki/File:Homing_pigeon_2.jpg">Wikimedia Commons</a>. "Siege of Paris 1870-1871, Pigeon Post Medal for French Military Communications" by Berlin-George, public domain, via <a href="https://commons.wikimedia.org/wiki/File:Siege_of_Paris_1870-1871,_Pigeon_Post_Medal_for_French_Military_Communications.jpg">Wikimedia Commons</a>.</p>
+</footer>
+</body>
+</html>
