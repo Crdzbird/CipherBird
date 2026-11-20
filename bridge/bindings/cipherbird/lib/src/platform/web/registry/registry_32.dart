@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry32 = {
-  'cryptolib_hpke_seal':
+  'cipherbird_hpke_seal':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> aad,
@@ -9,7 +9,7 @@ final Map<String, Function> _registry32 = {
         Pointer<NativeType> pt,
         int ptLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_seal',
+        '_cbw_cipherbird_hpke_seal',
         [
           h.address.toJS,
           aad.address.toJS,
@@ -20,7 +20,7 @@ final Map<String, Function> _registry32 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hpke_open':
+  'cipherbird_hpke_open':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> aad,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry32 = {
         Pointer<NativeType> ct,
         int ctLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_open',
+        '_cbw_cipherbird_hpke_open',
         [
           h.address.toJS,
           aad.address.toJS,
@@ -39,14 +39,14 @@ final Map<String, Function> _registry32 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hpke_export':
+  'cipherbird_hpke_export':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> exporterContext,
         int ctxLen,
         int length,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_export',
+        '_cbw_cipherbird_hpke_export',
         [
           h.address.toJS,
           exporterContext.address.toJS,
@@ -56,36 +56,36 @@ final Map<String, Function> _registry32 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hpke_context_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_hpke_context_free', [h.address.toJS]),
-  'cryptolib_ecvrf_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_ecvrf_keygen',
+  'cipherbird_hpke_context_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_hpke_context_free', [h.address.toJS]),
+  'cipherbird_ecvrf_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cipherbird_ecvrf_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
-  'cryptolib_ecvrf_public_key': (Pointer<NativeType> sk, int skLen) =>
+  'cipherbird_ecvrf_public_key': (Pointer<NativeType> sk, int skLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_ecvrf_public_key',
+        '_cbw_cipherbird_ecvrf_public_key',
         [sk.address.toJS, skLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_ecvrf_prove':
+  'cipherbird_ecvrf_prove':
       (
         Pointer<NativeType> sk,
         int skLen,
         Pointer<NativeType> alpha,
         int alphaLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ecvrf_prove',
+        '_cbw_cipherbird_ecvrf_prove',
         [sk.address.toJS, skLen.toJS, alpha.address.toJS, alphaLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_ecvrf_proof_to_hash': (Pointer<NativeType> pi, int piLen) =>
+  'cipherbird_ecvrf_proof_to_hash': (Pointer<NativeType> pi, int piLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_ecvrf_proof_to_hash',
+        '_cbw_cipherbird_ecvrf_proof_to_hash',
         [pi.address.toJS, piLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,

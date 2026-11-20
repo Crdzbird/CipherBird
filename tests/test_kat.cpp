@@ -74,7 +74,7 @@ TEST("kat/ed25519/rfc8032-test1") {
                                               kp.value().public_key.span()));
 }
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 // ── ML-KEM parameter sizes — FIPS 203 ────────────────────────────────────────
 TEST("kat/ml-kem/fips203-sizes") {
     using K = crypto::pq::MlKem;
@@ -121,13 +121,13 @@ TEST("kat/slh-dsa/fips205-sizes-128f") {
     CHECK(s.value().secret_key == 64);   // 4n
     CHECK(s.value().signature  == 17088);
 }
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_kat() {
     RUN("kat/x25519/rfc7748");
     RUN("kat/ed25519/rfc8032-test1");
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     RUN("kat/ml-kem/fips203-sizes");
     RUN("kat/ml-dsa/fips204-sizes");
     RUN("kat/slh-dsa/fips205-sizes-128f");

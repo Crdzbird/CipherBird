@@ -29,7 +29,7 @@ export default function App() {
     <main style={{ fontFamily: 'system-ui', maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
       <h1>CipherBird · React</h1>
       <p style={{ color: '#666' }}>
-        React UI → <code>/api</code> → Node + koffi → native <code>libcryptolib_c</code>.
+        React UI → <code>/api</code> → Node + koffi → native <code>libcipherbird_c</code>.
       </p>
 
       <button onClick={call(async () => setVersion((await api('version')).version))}>

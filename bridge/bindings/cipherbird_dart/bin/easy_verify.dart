@@ -181,9 +181,10 @@ void main(List<String> args) {
       expect(lib.recipe().withKey(key.bytes).open(env).text, 'r');
     });
 
-    test('destroy wipes the key', () {
+    test('destroy wipes the key and refuses later reads', () {
       final key = SymmetricKey.generate()..destroy();
-      expect(key.bytes.every((b) => b == 0), isTrue);
+      expect(key.isDestroyed, isTrue);
+      expect(() => key.bytes, throwsA(null));
     });
   });
 

@@ -1,6 +1,6 @@
 /**
  * ╔════════════════════════════════════════════════════════════════════════════╗
- * ║  CryptoLib — Full Showcase                                                ║
+ * ║  CipherBird — Full Showcase                                                ║
  * ║                                                                            ║
  * ║  A single example that exercises every feature of the library and         ║
  * ║  combines them into realistic multi-layer workflows.                      ║
@@ -27,17 +27,17 @@
  * ║    .jpg  — JPEG (image, lossy — JSteg)                                    ║
  * ║    .wav  — RIFF/WAVE 16-bit PCM (audio)                                   ║
  * ║    .mp3  — MPEG Audio Layer III (audio, ancillary data)                   ║
- * ║    .crvf — CryptoLib Raw Video Format (video)                             ║
+ * ║    .crvf — CipherBird Raw Video Format (video)                             ║
  * ║    .avi  — Audio Video Interleave (video, uncompressed)                   ║
  * ║    .mp4  — MPEG-4 Part 14 (video, container-level)                       ║
  * ║                                                                            ║
  * ║  Build:                                                                    ║
- * ║    cmake --build build --target cryptolib_showcase                         ║
- * ║    ./build/cryptolib_showcase [output_dir]                                ║
+ * ║    cmake --build build --target cipherbird_showcase                         ║
+ * ║    ./build/cipherbird_showcase [output_dir]                                ║
  * ╚════════════════════════════════════════════════════════════════════════════╝
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include "bank_demo.hpp"
 
 #include <cassert>
@@ -90,7 +90,7 @@ static void demo_hashing() {
     using namespace crypto::hash;
     section("1. Hashing Primitives");
 
-    const std::string msg = "CryptoLib showcase — hash me!";
+    const std::string msg = "CipherBird showcase — hash me!";
 
     // Blake2b — one-shot
     {
@@ -1250,7 +1250,7 @@ static void demo_media_entropy(const std::string& dir) {
 // 9. POST-QUANTUM CRYPTOGRAPHY
 // ─────────────────────────────────────────────────────────────────────────────
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 static void demo_pq() {
     using namespace crypto::pq;
     section("9. Post-Quantum Cryptography (FIPS 203/204/205)");
@@ -1493,13 +1493,13 @@ static void demo_pq() {
                   << " (s=smaller sig, f=faster signing)\n";
     }
 }
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 10. BLS12-381
 // ─────────────────────────────────────────────────────────────────────────────
 
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
 static void demo_bls() {
     using namespace crypto::bls;
     section("10. BLS12-381 Signatures and Aggregation");
@@ -1608,7 +1608,7 @@ static void demo_bls() {
                   << " bytes (constant, regardless of N signers)\n";
     }
 }
-#endif // CRYPTOLIB_HAS_BLS
+#endif // CIPHERBIRD_HAS_BLS
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 11. BLAKE3 + HKDF
@@ -1623,7 +1623,7 @@ static void demo_hkdf_blake3() {
         reinterpret_cast<const uint8_t*>(msg.data()), msg.size()};
 
     // ── BLAKE3 ──────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
     // One-shot unkeyed hash
     {
         auto h = Blake3::digest(msg);
@@ -1671,8 +1671,8 @@ static void demo_hkdf_blake3() {
               "BLAKE3 streaming == one-shot");
     }
 #else
-    std::cout << "  [SKIP] BLAKE3 not available (CRYPTOLIB_BLAKE3=OFF)\n";
-#endif // CRYPTOLIB_HAS_BLAKE3
+    std::cout << "  [SKIP] BLAKE3 not available (CIPHERBIRD_BLAKE3=OFF)\n";
+#endif // CIPHERBIRD_HAS_BLAKE3
 
     // ── HMAC-SHA256 ─────────────────────────────────────────────────────
     {
@@ -2085,11 +2085,11 @@ int main(int argc, char* argv[]) {
     crypto::init();
 
     // Default output directory: system temp path (fully portable, no hardcoded paths)
-    std::string out_dir = (fs::temp_directory_path() / "cryptolib_showcase").string();
+    std::string out_dir = (fs::temp_directory_path() / "cipherbird_showcase").string();
     if (argc > 1) out_dir = argv[1];
 
     fs::create_directories(out_dir);
-    std::cout << "CryptoLib v3.0.0 — Full Showcase\n"
+    std::cout << "CipherBird v3.0.0 — Full Showcase\n"
               << "Output directory: " << out_dir << "\n";
 
     // Run all demos
@@ -2101,15 +2101,15 @@ int main(int argc, char* argv[]) {
     demo_steganography(out_dir);
     demo_extended_stego(out_dir);
     demo_media_entropy(out_dir);
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     demo_pq();
 #endif
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
     demo_bls();
 #endif
     demo_hkdf_blake3();
     demo_keyring();
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
     section("14. Bank profile: X-Wing, HPKE with ML-KEM, Suite v2, Session v2");
     bank_demo::run([](bool ok, const std::string& label) { CHECK(ok, label); });
 #endif
@@ -2122,7 +2122,7 @@ int main(int argc, char* argv[]) {
               << "  Total:  " << (g_pass + g_fail) << "\n\n";
 
     if (g_fail == 0) {
-        std::cout << "  ALL CHECKS PASSED — every CryptoLib feature verified.\n\n";
+        std::cout << "  ALL CHECKS PASSED — every CipherBird feature verified.\n\n";
         std::cout << "  Features exercised:\n"
                   << "    - Blake2b (one-shot, streaming, keyed)\n"
                   << "    - SHA-256 (one-shot, streaming)\n"
@@ -2154,16 +2154,16 @@ int main(int argc, char* argv[]) {
                   << "    - Vault seal_into/open_from (PPM, WAV, CRVF)\n"
                   << "    - AsymmetricVault seal_into/open_from\n"
                   << "    - MediaEntropy seal_into/open_from\n"
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
                   << "    - ML-KEM (512/768/1024 encaps/decaps, wrong-key detection)\n"
                   << "    - Hybrid KEM (X25519 + ML-KEM-768, HKDF combiner)\n"
                   << "    - ML-DSA (44/65/87 sign/verify, tamper/wrong-key rejection)\n"
                   << "    - SLH-DSA (128f/128s SHA2 sign/verify, size comparison)\n"
 #endif
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
                   << "    - BLS12-381 (keygen, IKM keygen, sign/verify, aggregation)\n"
 #endif
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
                   << "    - BLAKE3 (one-shot, keyed, derive_key, streaming)\n"
 #endif
                   << "    - HMAC-SHA256 (compute, verify, wrong-key rejection)\n"

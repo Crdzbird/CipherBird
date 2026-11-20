@@ -52,7 +52,7 @@ extension CipherBirdBbsVerifyBlindSign on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_bbs_verify_blind_sign')(
+          >('cipherbird_bbs_verify_blind_sign')(
             pk,
             publicKey.length,
             s,

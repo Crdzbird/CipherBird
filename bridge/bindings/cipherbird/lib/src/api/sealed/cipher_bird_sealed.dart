@@ -8,13 +8,13 @@ extension CipherBirdSealed on CipherBird {
       _lib.lookupFunction<
         CipherBirdKeyPair Function(Int32),
         CipherBirdKeyPair Function(int)
-      >('cryptolib_sealed_generate_recipient')(tier.value),
+      >('cipherbird_sealed_generate_recipient')(tier.value),
     );
     final s = _extractKeyPair(
       _lib.lookupFunction<
         CipherBirdKeyPair Function(Int32),
         CipherBirdKeyPair Function(int)
-      >('cryptolib_sealed_generate_sender')(tier.value),
+      >('cipherbird_sealed_generate_sender')(tier.value),
     );
     return Identity(
       this,
@@ -34,7 +34,7 @@ extension CipherBirdSealed on CipherBird {
           .lookupFunction<
             CipherBirdSealedInfo Function(Pointer<Uint8>, Size),
             CipherBirdSealedInfo Function(Pointer<Uint8>, int)
-          >('cryptolib_sealed_inspect')(pe, envelope.length);
+          >('cipherbird_sealed_inspect')(pe, envelope.length);
       if (info.ok == 0) {
         return null;
       }
@@ -63,7 +63,7 @@ extension CipherBirdSealed on CipherBird {
       return _lib.lookupFunction<
             Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
             int Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
-          >('cryptolib_sealed_addressed_to')(
+          >('cipherbird_sealed_addressed_to')(
             pe,
             envelope.length,
             pr,

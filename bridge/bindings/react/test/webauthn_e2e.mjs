@@ -15,15 +15,15 @@ import { fileURLToPath } from 'node:url';
 
 const PORT = 8787;
 const reactDir = fileURLToPath(new URL('..', import.meta.url));
-const dylib = process.env.CRYPTOLIB_DYLIB
-  || fileURLToPath(new URL('../../../../build/release/libcryptolib_c.dylib', import.meta.url));
+const dylib = process.env.CIPHERBIRD_LIBRARY
+  || fileURLToPath(new URL('../../../../build/release/libcipherbird_c.dylib', import.meta.url));
 
 function fail(msg) { console.error('WEBAUTHN E2E FAIL:', msg); process.exit(1); }
 
 // 1. Start the server (serves UI + /api).
 const srv = spawn('node', ['server.mjs'], {
   cwd: reactDir,
-  env: { ...process.env, CRYPTOLIB_DYLIB: dylib },
+  env: { ...process.env, CIPHERBIRD_LIBRARY: dylib },
   stdio: 'inherit',
 });
 const cleanup = () => { try { srv.kill('SIGKILL'); } catch {} };

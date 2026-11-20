@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry09 = {
-  'cryptolib_suite_open_pq':
+  'cipherbird_suite_open_pq':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry09 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_pq',
+        '_cbw_cipherbird_suite_open_pq',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -22,7 +22,7 @@ final Map<String, Function> _registry09 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_signed_pq':
+  'cipherbird_suite_seal_signed_pq':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -33,7 +33,7 @@ final Map<String, Function> _registry09 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_signed_pq',
+        '_cbw_cipherbird_suite_seal_signed_pq',
         [
           pt.address.toJS,
           ptLen.toJS,
@@ -47,7 +47,7 @@ final Map<String, Function> _registry09 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_signed_pq_sntrup':
+  'cipherbird_suite_seal_signed_pq_sntrup':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -58,7 +58,7 @@ final Map<String, Function> _registry09 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_signed_pq_sntrup',
+        '_cbw_cipherbird_suite_seal_signed_pq_sntrup',
         [
           pt.address.toJS,
           ptLen.toJS,

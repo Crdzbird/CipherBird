@@ -12,17 +12,17 @@
 ///
 ///   cold-start   kChildThreads threads make the process's first calls of
 ///                one family together while the main thread signals them
-///                with pthread_kill; once with cryptolib_init first, once
+///                with pthread_kill; once with cipherbird_init first, once
 ///                with only libsodium initialised.
 ///   thread-exit  a warm process starts waves of short-lived threads that
 ///                make one call each and exit while being signalled, so
 ///                libcrypto's thread-local cleanup runs under signals.
 #include "test_framework.hpp"
-#include "cryptolib_c.h"
-#include <cryptolib/cryptolib.hpp>
-#ifdef CRYPTOLIB_HAS_OPENSSL
-#include <cryptolib/detail/sha3_evp.hpp>
-#include <cryptolib/hpke.hpp>
+#include "cipherbird_c.h"
+#include <cipherbird/cipherbird.hpp>
+#ifdef CIPHERBIRD_HAS_OPENSSL
+#include <cipherbird/detail/sha3_evp.hpp>
+#include <cipherbird/hpke.hpp>
 #endif
 #include <atomic>
 #include <chrono>
@@ -67,7 +67,7 @@ bool same(const A& a, const B& b) {
 }
 
 int aes_gcm_round(uint8_t tag) {
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
     using crypto::symmetric::Aes256Gcm;
     const uint8_t message[] = {'a', 'e', 's', '-', 'g', 'c', 'm', tag};
     const auto key = Aes256Gcm::generate_key();
@@ -82,7 +82,7 @@ int aes_gcm_round(uint8_t tag) {
 }
 
 int gcm_siv_round(uint8_t tag) {
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
     using crypto::symmetric::Aes256GcmSiv;
     if (!Aes256GcmSiv::is_available()) return 0;
     const uint8_t message[] = {'g', 'c', 'm', '-', 's', 'i', 'v', tag};
@@ -98,7 +98,7 @@ int gcm_siv_round(uint8_t tag) {
 }
 
 int sha3_round(uint8_t tag) {
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
     const uint8_t message[] = {'s', 'h', 'a', '3', tag};
     const Span parts[] = {Span(message, 2), Span(message + 2, 3)};
     uint8_t split[32], whole[32], xof[64];
@@ -113,7 +113,7 @@ int sha3_round(uint8_t tag) {
 }
 
 int hpke_round(uint8_t tag) {
-#if defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_OPENSSL)
     using crypto::Hpke;
     const uint8_t message[] = {'h', 'p', 'k', 'e', tag};
     int bad = 0;
@@ -124,7 +124,7 @@ int hpke_round(uint8_t tag) {
     auto opened = Hpke::open_base(Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm, sealed.value().enc.span(),
                                   kp.secret_key.span(), bytes("info"), bytes("aad"), sealed.value().ct.span());
     if (opened.is_err() || !same(opened.value().span(), Span(message))) ++bad;
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     auto pq = Hpke::generate_keypair(Hpke::Kem::MlKem768);
     if (pq.is_err()) return bad + 1;
     auto pq_sealed = Hpke::seal_base(Hpke::Kem::MlKem768, Hpke::Kdf::HkdfSha256, Hpke::Aead::Aes256Gcm,
@@ -152,7 +152,7 @@ int hpke_round(uint8_t tag) {
 }
 
 int pq_round(uint8_t tag) {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     using namespace crypto::pq;
     const uint8_t message[] = {'p', 'q', tag};
     int bad = 0;
@@ -220,7 +220,7 @@ void install_handler() {
 /// thread never came back.
 int cold_child(const Family& family, bool with_init) {
     install_handler();
-    if (with_init ? cryptolib_init() != 0 : sodium_init() < 0) return 1;
+    if (with_init ? cipherbird_init() != 0 : sodium_init() < 0) return 1;
     std::atomic<int> ready{0}, finished{0}, bad{0};
     std::atomic<bool> go{false}, release{false};
     std::vector<pthread_t> ids(kChildThreads);
@@ -265,9 +265,9 @@ int cold_child(const Family& family, bool with_init) {
 /// when a thread never finished exiting.
 int exit_child(const Family& family) {
     install_handler();
-    if (cryptolib_init() != 0 || family.round(0xFF) != 0) return 1;
-    const int waves = env_count("CRYPTOLIB_OPENSSL_EXIT_WAVES", kExitWaves);
-    const int threads = env_count("CRYPTOLIB_OPENSSL_EXIT_THREADS", kExitThreads);
+    if (cipherbird_init() != 0 || family.round(0xFF) != 0) return 1;
+    const int waves = env_count("CIPHERBIRD_OPENSSL_EXIT_WAVES", kExitWaves);
+    const int threads = env_count("CIPHERBIRD_OPENSSL_EXIT_THREADS", kExitThreads);
     std::atomic<int> bad{0};
     for (int wave = 0; wave < waves; ++wave) {
         std::vector<std::thread> pool;
@@ -331,7 +331,7 @@ int run_child(std::string_view flag, std::string_view family, const char* mode) 
     return -1;
 }
 
-int repeat_from_env() { return env_count("CRYPTOLIB_OPENSSL_THREADS_REPEAT", 1); }
+int repeat_from_env() { return env_count("CIPHERBIRD_OPENSSL_THREADS_REPEAT", 1); }
 
 }
 

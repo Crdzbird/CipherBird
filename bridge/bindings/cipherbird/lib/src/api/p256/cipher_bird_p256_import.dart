@@ -8,7 +8,7 @@ extension CipherBirdP256Import on CipherBird {
   /// scalar out of range and an embedded public key that does not belong to
   /// the scalar all throw. Wipe the secret key when done.
   KeyPairResult p256PrivateKeyFromPkcs8(Uint8List der) =>
-      _p256Split(_p256Bytes('cryptolib_p256_import_pkcs8_der', der));
+      _p256Split(_p256Bytes('cipherbird_p256_import_pkcs8_der', der));
 
   /// [p256PrivateKeyFromPkcs8] on one PEM block labelled `PRIVATE KEY`, the
   /// `.p8` file Apple issues for push. Only whitespace may surround the
@@ -17,7 +17,7 @@ extension CipherBirdP256Import on CipherBird {
   KeyPairResult p256PrivateKeyFromPem(String pem) {
     final text = Uint8List.fromList(utf8.encode(pem));
     try {
-      return _p256Split(_p256Bytes('cryptolib_p256_import_pkcs8_pem', text));
+      return _p256Split(_p256Bytes('cipherbird_p256_import_pkcs8_pem', text));
     } finally {
       text.fillRange(0, text.length, 0);
     }

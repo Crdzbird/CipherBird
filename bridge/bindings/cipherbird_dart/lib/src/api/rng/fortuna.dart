@@ -21,7 +21,7 @@ final class Fortuna {
       _lib._lib.lookupFunction<
         Void Function(Pointer<Void>, Uint8, Pointer<Uint8>, Size),
         void Function(Pointer<Void>, int, Pointer<Uint8>, int)
-      >('cryptolib_fortuna_add_entropy')(_h, sourceId, d, data.length);
+      >('cipherbird_fortuna_add_entropy')(_h, sourceId, d, data.length);
     } finally {
       if (d != nullptr) {
         calloc.free(d);
@@ -34,7 +34,7 @@ final class Fortuna {
     _lib._lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>, Size),
       CipherBirdBufferResult Function(Pointer<Void>, int)
-    >('cryptolib_fortuna_generate')(_h, numBytes),
+    >('cipherbird_fortuna_generate')(_h, numBytes),
   );
 
   /// Force a reseed now, without waiting for the accumulation threshold.
@@ -43,7 +43,7 @@ final class Fortuna {
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
       >(
-        'cryptolib_fortuna_reseed',
+        'cipherbird_fortuna_reseed',
       )(_h);
 
   /// How many times the pool has reseeded. `0` means never seeded, so
@@ -52,7 +52,7 @@ final class Fortuna {
       _lib._lib.lookupFunction<
         Uint64 Function(Pointer<Void>),
         int Function(Pointer<Void>)
-      >('cryptolib_fortuna_reseed_count')(_h);
+      >('cipherbird_fortuna_reseed_count')(_h);
 
   /// Release the native handle. Idempotent; safe to call more than once.
   void close() {
@@ -61,7 +61,7 @@ final class Fortuna {
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
       >(
-        'cryptolib_fortuna_free',
+        'cipherbird_fortuna_free',
       )(_h);
       _h = nullptr;
     }

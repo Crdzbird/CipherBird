@@ -21,7 +21,7 @@ extension CipherBirdLiveEntropy on CipherBird {
               Pointer<Pointer<Utf8>>,
             ),
             Pointer<Void> Function(double, int, double, Pointer<Pointer<Utf8>>)
-          >('cryptolib_live_entropy_new')(
+          >('cipherbird_live_entropy_new')(
             minBitsPerByte,
             requireRct ? 1 : 0,
             minCreditedBits,

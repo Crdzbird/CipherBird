@@ -4,7 +4,7 @@
 //
 //	cd /path/to/cipherbird
 //	cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-//	cmake --build build/release --target cryptolib_c
+//	cmake --build build/release --target cipherbird_c
 //
 // Run this example:
 //
@@ -920,7 +920,7 @@ func main() {
 			} else {
 				// No external file — create a temp file with sample binary content
 				tempContent := []byte(`{"demo":"CipherBird file-in-file steganography","version":"3.0.0","data":[1,2,3,4,5]}`)
-				tempPath := filepath.Join(os.TempDir(), "cryptolib_stego_demo.json")
+				tempPath := filepath.Join(os.TempDir(), "cipherbird_stego_demo.json")
 
 				if err := os.WriteFile(tempPath, tempContent, 0644); err != nil {
 					fmt.Fprintf(os.Stderr, "  Could not create temp file: %v\n", err)

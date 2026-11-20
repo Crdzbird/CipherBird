@@ -1,0 +1,4614 @@
+/**
+#include <optional>
+ * CipherBird C FFI Bridge — Implementation
+ *
+ * Wraps the C++20 header-only library into a flat C API.
+ * Compiles as a shared library (libcipherbird_c.dylib / .so / .dll).
+ *
+ * BOUNDARY CONTRACT: no C++ exception may cross the extern "C" boundary — that
+ * is undefined behaviour in the host runtime (Dart/Go/Python/...). Every entry
+ * point that can allocate is therefore a function-try-block whose catch returns
+ * a safe failure value via the CL_FAIL_* macros below. The catch handlers only
+ * use dup_err_cstr() (malloc-based, noexcept) so they cannot themselves throw.
+ */
+
+#ifndef CIPHERBIRD_BUILD_SHARED
+#define CIPHERBIRD_BUILD_SHARED
+#endif
+#include "cipherbird_c.h"
+#include <cipherbird/cipherbird.hpp>
+
+#include <cstdlib>
+#include <cstring>
+#include <new>
+#include <string>
+#include <vector>
+#include <filesystem>
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Internal helpers
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+namespace {
+
+/** Copy a SecureBuffer into a malloc'd CryptoBuffer. */
+CryptoBuffer to_cbuf(const crypto::SecureBuffer& sb) {
+    CryptoBuffer cb;
+    cb.len = sb.size();
+    if (cb.len == 0) { cb.data = nullptr; return cb; }
+    cb.data = static_cast<uint8_t*>(std::malloc(cb.len));
+    if (!cb.data) { cb.len = 0; return cb; }   // keep len consistent on OOM
+    std::memcpy(cb.data, sb.data(), cb.len);
+    return cb;
+}
+
+/** Copy a public buffer into a malloc'd CryptoBuffer. */
+CryptoBuffer to_cbuf(const crypto::PublicBuffer& sb) {
+    CryptoBuffer cb;
+    cb.len = sb.size();
+    if (cb.len == 0) { cb.data = nullptr; return cb; }
+    cb.data = static_cast<uint8_t*>(std::malloc(cb.len));
+    if (!cb.data) { cb.len = 0; return cb; }   // keep len consistent on OOM
+    std::memcpy(cb.data, sb.data(), cb.len);
+    return cb;
+}
+
+/** Copy raw span into a malloc'd CryptoBuffer. */
+CryptoBuffer to_cbuf(std::span<const uint8_t> sp) {
+    CryptoBuffer cb;
+    cb.len = sp.size();
+    if (cb.len == 0) { cb.data = nullptr; return cb; }
+    cb.data = static_cast<uint8_t*>(std::malloc(cb.len));
+    if (!cb.data) { cb.len = 0; return cb; }   // keep len consistent on OOM
+    std::memcpy(cb.data, sp.data(), cb.len);
+    return cb;
+}
+
+/** Heap-duplicate a C++ string as a C string. */
+char* dup_str(const std::string& s) {
+    char* p = static_cast<char*>(std::malloc(s.size() + 1));
+    if (p) { std::memcpy(p, s.c_str(), s.size() + 1); }
+    return p;
+}
+
+/** Heap-duplicate a C string literal — noexcept, safe to call from catch. */
+char* dup_err_cstr(const char* s) noexcept {
+    std::size_t n = std::strlen(s);
+    char* p = static_cast<char*>(std::malloc(n + 1));
+    if (p) std::memcpy(p, s, n + 1);
+    return p;
+}
+
+/** Make a success CryptoBufferResult. */
+CryptoBufferResult ok_buf(const crypto::SecureBuffer& sb) {
+    return { to_cbuf(sb), nullptr };
+}
+
+/** Make a success CryptoBufferResult from a public buffer. */
+CryptoBufferResult ok_buf(const crypto::PublicBuffer& d) {
+    auto* p = static_cast<uint8_t*>(std::malloc(d.size() ? d.size() : 1));
+    if (!p) return { {nullptr, 0}, dup_err_cstr("out of memory") };
+    std::memcpy(p, d.data(), d.size());
+    return { {p, d.size()}, nullptr };
+}
+
+/** A malloc'd output buffer of n bytes for a digest written in place. */
+CryptoBufferResult digest_buf(size_t n) {
+    auto* p = static_cast<uint8_t*>(std::malloc(n ? n : 1));
+    if (!p) return { {nullptr, 0}, dup_err_cstr("out of memory") };
+    return { {p, n}, nullptr };
+}
+
+/** Make an error CryptoBufferResult. */
+CryptoBufferResult err_buf(const std::string& msg) {
+    return { {nullptr, 0}, dup_str(msg) };
+}
+
+/** Make a null CryptoBuffer. */
+CryptoBuffer null_buf() { return {nullptr, 0}; }
+
+/** span from raw pointer + len */
+std::span<const uint8_t> sp(const uint8_t* p, size_t n) {
+    return {p, n};
+}
+
+const char* const kNotInProfile = "not available in this build profile";
+
+std::span<const uint8_t> opt_aad(const uint8_t* aad, size_t len) {
+    return aad ? sp(aad, len) : std::span<const uint8_t>{};
+}
+
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
+using PasetoV4 = crypto::paseto::V4Local;
+
+int paseto_rc(PasetoV4::Status s) noexcept {
+    switch (s) {
+        case PasetoV4::Status::ok:       return CIPHERBIRD_PASETO_OK;
+        case PasetoV4::Status::invalid:  return CIPHERBIRD_PASETO_ERR_INVALID;
+        case PasetoV4::Status::argument: return CIPHERBIRD_PASETO_ERR_ARGUMENT;
+        case PasetoV4::Status::internal: return CIPHERBIRD_PASETO_ERR_INTERNAL;
+    }
+    return CIPHERBIRD_PASETO_ERR_INTERNAL;
+}
+
+bool paseto_bad(const void* p, size_t n) noexcept { return p == nullptr && n != 0; }
+
+std::span<const uint8_t> paseto_in(const uint8_t* p, size_t n) noexcept {
+    return n ? std::span<const uint8_t>(p, n) : std::span<const uint8_t>{};
+}
+
+std::span<uint8_t> paseto_out(uint8_t* p, size_t n) noexcept {
+    return n ? std::span<uint8_t>(p, n) : std::span<uint8_t>{};
+}
+#endif
+namespace tok = crypto::token;
+int tok_rc(tok::Status s) noexcept {
+    switch (s) {
+        case tok::Status::ok:          return CIPHERBIRD_TOKEN_OK;
+        case tok::Status::invalid:     return CIPHERBIRD_TOKEN_ERR_INVALID;
+        case tok::Status::argument:    return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+        case tok::Status::internal:    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+        case tok::Status::unavailable: return CIPHERBIRD_TOKEN_ERR_UNAVAILABLE;
+        case tok::Status::format:      return CIPHERBIRD_TOKEN_ERR_FORMAT;
+    }
+    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+}
+bool tok_bad(const void* p, size_t n) noexcept { return p == nullptr && n != 0; }
+std::span<const uint8_t> tok_in(const uint8_t* p, size_t n) noexcept {
+    return n ? std::span<const uint8_t>(p, n) : std::span<const uint8_t>{};
+}
+std::span<uint8_t> tok_out(uint8_t* p, size_t n) noexcept {
+    return n ? std::span<uint8_t>(p, n) : std::span<uint8_t>{};
+}
+
+/** Build a SecureBuffer from a borrowed CryptoBuffer, tolerating null data. */
+crypto::SecureBuffer sb_from(const CryptoBuffer& cb) {
+    if (!cb.data || cb.len == 0) return crypto::SecureBuffer{};
+    return crypto::SecureBuffer(cb.data, cb.len);
+}
+
+} // anonymous namespace
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Exception-isolation fallbacks (one per return type).
+ * Used as the catch clause of each function-try-block.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#define CL_FAIL_BUFRES catch (...) { return CryptoBufferResult{ {nullptr, 0}, dup_err_cstr("internal error") }; }
+#define CL_FAIL_BUF    catch (...) { return CryptoBuffer{nullptr, 0}; }
+#define CL_FAIL_INT    catch (...) { return 0; }
+#define CL_FAIL_PTR    catch (...) { return nullptr; }
+#define CL_FAIL_VOID   catch (...) { return; }
+#define CL_FAIL_KP     catch (...) { return CryptoKeyPair{}; }
+#define CL_FAIL_BUNDLE catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return CryptoAsymBundle{}; }
+#define CL_FAIL_BUNDLE_NOERR catch (...) { return CryptoAsymBundle{}; }
+#define CL_FAIL_PKT    catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return CryptoPacket{}; }
+#define CL_FAIL_DERIVED catch (...) { return CryptoDerivedKeys{}; }
+#define CL_FAIL_KEM    catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return CryptoKemEncapsResult{ {nullptr,0}, {nullptr,0} }; }
+#define CL_FAIL_INFO   catch (...) { return CryptoEntropyInfo{nullptr, 0, 0, 0.0}; }
+#define CL_FAIL_RESULT catch (...) { return CryptoResult{0, dup_err_cstr("internal error")}; }
+#define CL_FAIL_SIZE   catch (...) { return 0; }
+#define CL_FAIL_PASETO catch (...) { if (out_len) *out_len = 0; return CIPHERBIRD_PASETO_ERR_INTERNAL; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Opaque handle internals
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
+struct VaultImpl     { crypto::SecureVault vault; };
+struct StreamEncImpl { crypto::symmetric::SecretStream::Encryptor enc; };
+struct StreamDecImpl { crypto::symmetric::SecretStream::Decryptor dec; };
+struct KeyringImpl   { crypto::Keyring kr; };
+struct DrbgImpl      { crypto::entropy::HmacDrbg d; };
+struct FortunaImpl   { crypto::entropy::FortunaPool p; };
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+struct LiveImpl      { crypto::entropy::LiveEntropy live; };
+#endif
+#endif
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+struct EntropyImpl   { crypto::entropy::MediaEntropy me; };
+#endif
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Memory management
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+extern "C" {
+
+CRYPTO_API void cipherbird_buffer_free(CryptoBuffer* buf) {
+    if (!buf || !buf->data) return;
+    // Secure zeroisation before free
+    volatile uint8_t* p = buf->data;
+    for (size_t i = 0; i < buf->len; ++i) p[i] = 0;
+    std::free(buf->data);
+    buf->data = nullptr;
+    buf->len = 0;
+}
+
+CRYPTO_API void cipherbird_str_free(char* str) {
+    std::free(str);
+}
+
+CRYPTO_API void cipherbird_keypair_free(CryptoKeyPair* kp) {
+    if (!kp) return;
+    cipherbird_buffer_free(&kp->public_key);
+    cipherbird_buffer_free(&kp->secret_key);
+}
+
+CRYPTO_API void cipherbird_bundle_free(CryptoAsymBundle* b) {
+    if (!b) return;
+    cipherbird_buffer_free(&b->box_public);
+    cipherbird_buffer_free(&b->box_secret);
+    cipherbird_buffer_free(&b->sign_public);
+    cipherbird_buffer_free(&b->sign_secret);
+}
+
+CRYPTO_API void cipherbird_packet_free(CryptoPacket* p) {
+    if (!p) return;
+    cipherbird_buffer_free(&p->ciphertext);
+    cipherbird_buffer_free(&p->signature);
+    cipherbird_buffer_free(&p->kdf_salt);
+}
+
+CRYPTO_API void cipherbird_derived_keys_free(CryptoDerivedKeys* dk) {
+    if (!dk) return;
+    cipherbird_buffer_free(&dk->symmetric_key);
+    cipherbird_buffer_free(&dk->vault_master_key);
+    cipherbird_buffer_free(&dk->signing_seed);
+    cipherbird_buffer_free(&dk->box_seed);
+    cipherbird_buffer_free(&dk->stream_key);
+    cipherbird_buffer_free(&dk->raw_entropy);
+}
+
+CRYPTO_API void cipherbird_entropy_info_free(CryptoEntropyInfo* info) {
+    if (!info) return;
+    std::free(info->path);
+    info->path = nullptr;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Initialisation & utilities
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten/em_js.h>
+
+/* Under Emscripten libsodium's default source is /dev/urandom on the in-memory
+ * filesystem, which the runtime serves one byte per JavaScript call (about
+ * 1.2 us per byte). This provider fills the whole buffer with the platform
+ * CSPRNG in one crossing per 64 KiB, the limit crypto.getRandomValues
+ * accepts. It adds no user-space generator: every byte still comes from the
+ * browser's CSPRNG. */
+EM_JS(void, cipherbird_fill_random, (uint8_t* ptr, size_t len), {
+    var view = HEAPU8.subarray(ptr, ptr + len);
+    for (var off = 0; off < len; off += 65536) {
+        crypto.getRandomValues(view.subarray(off, Math.min(off + 65536, len)));
+    }
+});
+
+namespace {
+const char* wasm_random_name(void) { return "cipherbird_getrandomvalues"; }
+void wasm_random_buf(void* const buf, const size_t size) {
+    if (size > 0) cipherbird_fill_random(static_cast<uint8_t*>(buf), size);
+}
+uint32_t wasm_random(void) {
+    uint32_t value = 0;
+    wasm_random_buf(&value, sizeof value);
+    return value;
+}
+const randombytes_implementation wasm_random_impl = {
+    wasm_random_name, wasm_random, nullptr, nullptr, wasm_random_buf, nullptr
+};
+}
+#endif
+
+#ifdef CIPHERBIRD_TESTING
+/* Test builds may substitute the initialisation step to exercise the failure
+ * path; production builds do not compile this symbol. */
+void (*cipherbird_testing_init_override)(void) = nullptr;
+#endif
+
+/* Returns 0 on success and -1 on any failure. This function must not share
+ * the generic int fallback, whose 0 would read as success here. */
+CRYPTO_API int cipherbird_init(void) {
+    try {
+#ifdef __EMSCRIPTEN__
+        if (randombytes_set_implementation(&wasm_random_impl) != 0) return -1;
+#endif
+#ifdef CIPHERBIRD_TESTING
+        if (cipherbird_testing_init_override) {
+            cipherbird_testing_init_override();
+            return 0;
+        }
+#endif
+        crypto::init();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_random_bytes(size_t n) try {
+#ifdef CIPHERBIRD_PROFILE_FIPS
+    auto r = crypto::fips::Random::bytes(n);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    return ok_buf(crypto::random_bytes(n));
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_secure_equal(const uint8_t* a, size_t a_len,
+                                       const uint8_t* b, size_t b_len) try {
+    return crypto::secure_equal(sp(a, a_len), sp(b, b_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Hashing
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cipherbird_blake2b(const uint8_t* msg, size_t msg_len,
+                                                 const uint8_t* key, size_t key_len) try {
+    if (key && key_len > 0) {
+        auto r = crypto::hash::Blake2b::keyed(sp(msg, msg_len), sp(key, key_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        return ok_buf(r.value());
+    }
+    auto out = digest_buf(crypto::hash::Blake2b::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_generichash(out.buf.data, out.buf.len, msg, msg_len, nullptr, 0) != 0) {
+        std::free(out.buf.data);
+        return err_buf("Blake2b: hashing failed");
+    }
+    return out;
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_blake2b_keyed(const uint8_t* msg, size_t msg_len,
+                                                       const uint8_t* key, size_t key_len,
+                                                       size_t out_len) try {
+    using B = crypto::hash::Blake2b;
+    if (out_len < B::OUT_BYTES_MIN || out_len > B::OUT_BYTES_MAX)
+        return err_buf("Blake2b: invalid output length");
+    if (key_len != 0 && (key_len < B::KEY_BYTES_MIN || key_len > B::KEY_BYTES_MAX))
+        return err_buf("Blake2b: invalid key length");
+    if ((!msg && msg_len != 0) || (!key && key_len != 0))
+        return err_buf("Blake2b: null input");
+    auto out = digest_buf(out_len);
+    if (out.error) return out;
+    if (crypto_generichash(out.buf.data, out_len, msg_len ? msg : nullptr, msg_len,
+                           key_len ? key : nullptr, key_len) != 0) {
+        cipherbird_buffer_free(&out.buf);
+        return err_buf("Blake2b: hashing failed");
+    }
+    return out;
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sha256(const uint8_t* msg, size_t msg_len) try {
+    auto out = digest_buf(crypto::hash::Sha256::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_hash_sha256(out.buf.data, msg, msg_len) != 0) {
+        std::free(out.buf.data);
+        return err_buf("SHA256: failed");
+    }
+    return out;
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sha512(const uint8_t* msg, size_t msg_len) try {
+    auto out = digest_buf(crypto::hash::Sha512::DIGEST_BYTES);
+    if (out.error) return out;
+    if (crypto_hash_sha512(out.buf.data, msg, msg_len) != 0) {
+        std::free(out.buf.data);
+        return err_buf("SHA512: failed");
+    }
+    return out;
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hmac_sha512(const uint8_t* msg, size_t msg_len,
+                                                     const uint8_t* key, size_t key_len) try {
+    auto r = crypto::hash::HmacSha512::compute(sp(msg, msg_len), sp(key, key_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_hmac_sha512_verify(const uint8_t* msg, size_t msg_len,
+                                             const uint8_t* mac, size_t mac_len,
+                                             const uint8_t* key, size_t key_len) try {
+    return crypto::hash::HmacSha512::verify(sp(msg, msg_len), sp(mac, mac_len), sp(key, key_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_argon2id_hash_str(const char* password,
+                                                           uint64_t ops, size_t mem) try {
+    auto r = crypto::hash::Argon2id::hash_password_str(password, ops, mem);
+    if (r.is_err()) return err_buf(r.error().message);
+    auto& s = r.value();
+    CryptoBuffer buf;
+    buf.len = s.size();
+    buf.data = static_cast<uint8_t*>(std::malloc(buf.len + 1));
+    if (!buf.data) { buf.len = 0; return { buf, dup_err_cstr("internal error") }; }
+    std::memcpy(buf.data, s.data(), buf.len);
+    buf.data[buf.len] = 0; // null terminate
+    return { buf, nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_argon2id_verify_str(const char* password, const char* phc_str) try {
+    return crypto::hash::Argon2id::verify_str(password, phc_str) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_argon2id_derive(const char* password,
+                                                         const uint8_t* salt, size_t salt_len,
+                                                         size_t key_len, uint64_t ops, size_t mem) try {
+    auto r = crypto::hash::Argon2id::derive_key(password, sp(salt, salt_len), key_len, ops, mem);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Symmetric encryption
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cipherbird_sym_keygen(void) try {
+    return ok_buf(crypto::symmetric::XChaCha20Poly1305::generate_key());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_xchacha20_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::XChaCha20Poly1305::encrypt(
+        sp(plaintext, pt_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_xchacha20_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::XChaCha20Poly1305::decrypt(
+        sp(ciphertext, ct_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+CRYPTO_API int cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || !nonce || paseto_bad(msg, msg_len) ||
+        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
+        return CIPHERBIRD_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = PasetoV4::seal_with_nonce_for_testing(
+        paseto_out(out, out_cap), n, paseto_in(key, key_len), paseto_in(msg, msg_len),
+        paseto_in(footer, footer_len), paseto_in(implicit, implicit_len),
+        paseto_in(nonce, nonce_len));
+    *out_len = n;
+    return paseto_rc(s);
+} CL_FAIL_PASETO
+#endif
+
+CRYPTO_API int cipherbird_blake2b_keyed_into(uint8_t* out, size_t out_len,
+                                            const uint8_t* msg, size_t msg_len,
+                                            const uint8_t* key, size_t key_len) try {
+    using B = crypto::hash::Blake2b;
+    if (!out || out_len < B::OUT_BYTES_MIN || out_len > B::OUT_BYTES_MAX ||
+        (key_len != 0 && (key_len < B::KEY_BYTES_MIN || key_len > B::KEY_BYTES_MAX)) ||
+        paseto_bad(msg, msg_len) || paseto_bad(key, key_len))
+        return CIPHERBIRD_PASETO_ERR_ARGUMENT;
+    if (crypto_generichash(out, out_len, msg_len ? msg : nullptr, msg_len,
+                           key_len ? key : nullptr, key_len) != 0) {
+        sodium_memzero(out, out_len);
+        return CIPHERBIRD_PASETO_ERR_INTERNAL;
+    }
+    return CIPHERBIRD_PASETO_OK;
+} catch (...) { return CIPHERBIRD_PASETO_ERR_INTERNAL; }
+
+#if defined(CIPHERBIRD_HAS_BLAKE3) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_PASETO_TEST_NONCE)
+CRYPTO_API int cipherbird_cb1_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len) try
+{
+    if (out_len) *out_len = 0;
+    if (!out_len || !out || !key || !nonce || paseto_bad(msg, msg_len) ||
+        paseto_bad(footer, footer_len) || paseto_bad(implicit, implicit_len))
+        return CIPHERBIRD_PASETO_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = crypto::cb1::Local::seal_with_nonce_for_testing(
+        paseto_out(out, out_cap), n, paseto_in(key, key_len), paseto_in(msg, msg_len),
+        paseto_in(footer, footer_len), paseto_in(implicit, implicit_len),
+        paseto_in(nonce, nonce_len));
+    *out_len = n;
+    return tok_rc(tok::detail::map(s));
+} CL_FAIL_PASETO
+#endif
+
+CRYPTO_API CryptoBufferResult cipherbird_committing_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::CommittingAead::encrypt(
+        sp(plaintext, pt_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_committing_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::CommittingAead::decrypt(
+        sp(ciphertext, ct_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+// ── MolecularVault ──────────────────────────────────────────────────────────
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS)
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len,
+    uint64_t ops, size_t mem) try
+{
+    crypto::MolecularVault::KdfParams p;
+    if (ops != 0) p.ops = ops;   // 0 → keep the SENSITIVE default
+    if (mem != 0) p.mem = mem;
+    auto r = crypto::MolecularVault::seal(
+        sp(plaintext, pt_len), passphrase ? passphrase : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{}, p);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open(
+    const uint8_t* envelope, size_t env_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::open(
+        sp(envelope, env_len), passphrase ? passphrase : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal_with_key(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::seal_with_key(
+        sp(plaintext, pt_len), sp(master_key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open_with_key(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::MolecularVault::open_with_key(
+        sp(envelope, env_len), sp(master_key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+#else  // stubs when the native combiners or GCM-SIV are unavailable
+static CryptoBufferResult molecular_unavailable() {
+    return err_buf("MolecularVault requires OpenSSL (AES-256-GCM-SIV) — not compiled in");
+}
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal(
+    const uint8_t*, size_t, const char*, const uint8_t*, size_t, uint64_t, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open(
+    const uint8_t*, size_t, const char*, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal_with_key(
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open_with_key(
+    const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) {
+    return molecular_unavailable();
+}
+#endif // CIPHERBIRD_HAS_OPENSSL
+
+// ── Suite — one-call advanced combinations ──────────────────────────────────
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
+namespace {
+// Serialise Shamir shares to a flat blob: each record = index(1) | ylen(4 LE) | y.
+CryptoBuffer serialise_shares(const std::vector<crypto::Shamir::Share>& shares) {
+    std::vector<uint8_t> out;
+    for (const auto& s : shares) {
+        out.push_back(s.index);
+        uint32_t n = static_cast<uint32_t>(s.y.size());
+        for (int i = 0; i < 4; ++i) out.push_back(static_cast<uint8_t>((n >> (8 * i)) & 0xff));
+        out.insert(out.end(), s.y.span().begin(), s.y.span().end());
+    }
+    CryptoBuffer cb = to_cbuf(std::span<const uint8_t>(out.data(), out.size()));
+    sodium_memzero(out.data(), out.size());
+    return cb;
+}
+// Parse a concatenation of those records back into shares.
+bool parse_shares(std::span<const uint8_t> blob, std::vector<crypto::Shamir::Share>& out) {
+    size_t off = 0;
+    while (off < blob.size()) {
+        if (off + 5 > blob.size()) return false;
+        uint8_t index = blob[off];
+        uint32_t ylen = 0;
+        for (int i = 0; i < 4; ++i) ylen |= static_cast<uint32_t>(blob[off + 1 + i]) << (8 * i);
+        off += 5;
+        if (ylen > blob.size() - off) return false;
+        crypto::SecureBuffer y(blob.data() + off, ylen);
+        out.push_back(crypto::Shamir::Share{index, std::move(y)});
+        off += ylen;
+    }
+    return !out.empty();
+}
+crypto::Keyring* kr_of(CryptoKeyringHandle kr) {
+    return kr ? &static_cast<KeyringImpl*>(kr)->kr : nullptr;
+}
+} // namespace
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_pq(sp(pt, pt_len), sp(kem_pub, kem_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq_sntrup(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_pq_sntrup(sp(pt, pt_len), sp(kem_pub, kem_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_pq(
+    const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
+    const uint8_t* aad, size_t aad_len) try {
+    // Auto-detects ML-KEM vs sntrup761 from the envelope's suite id.
+    auto r = crypto::Suite::open_pq(sp(env, env_len), sp(kem_sec, kem_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* sig_sec, size_t sig_sec_len, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_signed_pq(sp(pt, pt_len), sp(kem_pub, kem_pub_len),
+                                           sp(sig_sec, sig_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq_sntrup(
+    const uint8_t* pt, size_t pt_len, const uint8_t* kem_pub, size_t kem_pub_len,
+    const uint8_t* sig_sec, size_t sig_sec_len, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_signed_pq_sntrup(sp(pt, pt_len), sp(kem_pub, kem_pub_len),
+                                                  sp(sig_sec, sig_sec_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_signed_pq(
+    const uint8_t* env, size_t env_len, const uint8_t* kem_sec, size_t kem_sec_len,
+    const uint8_t* sig_pub, size_t sig_pub_len, const uint8_t* aad, size_t aad_len) try {
+    // Auto-detects ML-KEM vs sntrup761 from the envelope's suite id.
+    auto r = crypto::Suite::open_signed_pq(sp(env, env_len), sp(kem_sec, kem_sec_len),
+                                           sp(sig_pub, sig_pub_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_file(
+    const uint8_t* pt, size_t pt_len, const char* path, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::seal_with_file(sp(pt, pt_len), path ? path : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_file(
+    const uint8_t* env, size_t env_len, const char* path, const uint8_t* aad, size_t aad_len) try {
+    auto r = crypto::Suite::open_with_file(sp(env, env_len), path ? path : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_device(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const uint8_t* factor, size_t factor_len, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::seal_with_keyring_device(sp(pt, pt_len), *k, sp(factor, factor_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_device(
+    const uint8_t* env, size_t env_len, CryptoKeyringHandle kr,
+    const uint8_t* factor, size_t factor_len, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::open_with_keyring_device(sp(env, env_len), *k, sp(factor, factor_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_passphrase(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::seal_with_keyring_passphrase(sp(pt, pt_len), *k, passphrase ? passphrase : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_passphrase(
+    const uint8_t* env, size_t env_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len) try {
+    auto* k = kr_of(kr); if (!k) return err_buf("null keyring");
+    auto r = crypto::Suite::open_with_keyring_passphrase(sp(env, env_len), *k, passphrase ? passphrase : "", opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_threshold(
+    const uint8_t* pt, size_t pt_len, uint8_t n, uint8_t k,
+    const uint8_t* aad, size_t aad_len, CryptoBuffer* out_shares) try {
+    if (out_shares) *out_shares = CryptoBuffer{nullptr, 0};
+    auto r = crypto::Suite::seal_threshold(sp(pt, pt_len), n, k, opt_aad(aad, aad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    if (out_shares) *out_shares = serialise_shares(r.value().shares);
+    return ok_buf(r.value().envelope);
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_threshold(
+    const uint8_t* env, size_t env_len, const uint8_t* shares, size_t shares_len,
+    const uint8_t* aad, size_t aad_len) try {
+    std::vector<crypto::Shamir::Share> parsed;
+    if (!parse_shares(sp(shares, shares_len), parsed)) return err_buf("Suite: malformed shares blob");
+    auto r = crypto::Suite::open_threshold(sp(env, env_len), {parsed.data(), parsed.size()}, opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite_evm_address(
+    const uint8_t* pk, size_t pk_len) try {
+    auto r = crypto::Suite::evm_address(sp(pk, pk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+// ── Flagship / Fortress — sealed messaging (tier-parameterized) ──────────────
+namespace {
+struct SealedSealerImpl {
+    std::optional<crypto::Flagship::StreamSealer> fl;
+    std::optional<crypto::Fortress::StreamSealer> fo;
+};
+struct SealedOpenerImpl {
+    std::optional<crypto::Flagship::StreamOpener> fl;
+    std::optional<crypto::Fortress::StreamOpener> fo;
+};
+} // namespace
+
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_recipient(int tier) try {
+    if (tier == 1) { auto r = crypto::Fortress::generate_recipient();
+        return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) }; }
+    auto r = crypto::Flagship::generate_recipient();
+    return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_sender(int tier) try {
+    if (tier == 1) { auto r = crypto::Fortress::generate_sender();
+        return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) }; }
+    auto r = crypto::Flagship::generate_sender();
+    return r.is_err() ? CryptoKeyPair{} : CryptoKeyPair{ to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_seal(
+    int tier, const uint8_t* pt, size_t pt_len,
+    const uint8_t* rpub, size_t rpub_len, const uint8_t* ssec, size_t ssec_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* purpose, size_t purpose_len) try {
+    auto go = [&](auto tag) {
+        using P = decltype(tag);
+        auto r = P::seal(sp(pt, pt_len), sp(rpub, rpub_len), sp(ssec, ssec_len),
+                         opt_aad(aad, aad_len), opt_aad(purpose, purpose_len));
+        return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+    };
+    return tier == 1 ? go(crypto::Fortress{}) : go(crypto::Flagship{});
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_open(
+    int tier, const uint8_t* env, size_t env_len,
+    const uint8_t* rsec, size_t rsec_len, const uint8_t* rpub, size_t rpub_len,
+    const uint8_t* spub, size_t spub_len, const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len) try {
+    auto go = [&](auto tag) {
+        using P = decltype(tag);
+        auto r = P::open(sp(env, env_len), sp(rsec, rsec_len), sp(rpub, rpub_len),
+                         sp(spub, spub_len), opt_aad(aad, aad_len), opt_aad(purpose, purpose_len));
+        return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+    };
+    return tier == 1 ? go(crypto::Fortress{}) : go(crypto::Flagship{});
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSealedInfo cipherbird_sealed_inspect(const uint8_t* env, size_t env_len) try {
+    CryptoSealedInfo out{};
+    auto info = crypto::Flagship::inspect(sp(env, env_len)); // header parse is tier-agnostic
+    if (info.is_err()) return out;
+    out.ok = 1;
+    out.version = info.value().version;
+    out.suite = info.value().suite;
+    out.streaming = info.value().streaming ? 1 : 0;
+    std::memcpy(out.fingerprint, info.value().recipient_fingerprint.data(), 16);
+    out.kem_ciphertext_len = info.value().kem_ciphertext_len;
+    return out;
+} catch (...) { return CryptoSealedInfo{}; }
+
+CRYPTO_API int cipherbird_sealed_addressed_to(
+    const uint8_t* env, size_t env_len, const uint8_t* rpub, size_t rpub_len) try {
+    return crypto::Flagship::addressed_to(sp(env, env_len), sp(rpub, rpub_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoSealedSealer cipherbird_sealed_sealer_begin(
+    int tier, const uint8_t* rpub, size_t rpub_len, const uint8_t* ssec, size_t ssec_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto* impl = new SealedSealerImpl{};
+    if (tier == 1) {
+        auto r = crypto::Fortress::StreamSealer::begin(sp(rpub, rpub_len), sp(ssec, ssec_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fo.emplace(std::move(r.value()));
+    } else {
+        auto r = crypto::Flagship::StreamSealer::begin(sp(rpub, rpub_len), sp(ssec, ssec_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fl.emplace(std::move(r.value()));
+    }
+    return static_cast<CryptoSealedSealer>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_preamble(CryptoSealedSealer h) try {
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) return ok_buf(impl->fl->preamble());
+    if (impl->fo) return ok_buf(impl->fo->preamble());
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_push(
+    CryptoSealedSealer h, const uint8_t* chunk, size_t chunk_len) try {
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) { auto r = impl->fl->push(sp(chunk, chunk_len)); return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value()); }
+    if (impl->fo) { auto r = impl->fo->push(sp(chunk, chunk_len)); return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value()); }
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_finalize(
+    CryptoSealedSealer h, const uint8_t* last, size_t last_len, CryptoBuffer* out_trailer) try {
+    if (out_trailer) *out_trailer = CryptoBuffer{nullptr, 0};
+    auto* impl = static_cast<SealedSealerImpl*>(h);
+    if (!impl) return err_buf("sealed: null sealer");
+    if (impl->fl) {
+        auto r = impl->fl->finalize(opt_aad(last, last_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        if (out_trailer) *out_trailer = to_cbuf(r.value().trailer);
+        return ok_buf(r.value().ciphertext);
+    }
+    if (impl->fo) {
+        auto r = impl->fo->finalize(opt_aad(last, last_len));
+        if (r.is_err()) return err_buf(r.error().message);
+        if (out_trailer) *out_trailer = to_cbuf(r.value().trailer);
+        return ok_buf(r.value().ciphertext);
+    }
+    return err_buf("sealed: invalid sealer");
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_sealed_sealer_free(CryptoSealedSealer h) {
+    delete static_cast<SealedSealerImpl*>(h);
+}
+
+CRYPTO_API CryptoSealedOpener cipherbird_sealed_opener_begin(
+    int tier, const uint8_t* preamble, size_t pre_len,
+    const uint8_t* rsec, size_t rsec_len, const uint8_t* rpub, size_t rpub_len,
+    const uint8_t* spub, size_t spub_len, const uint8_t* purpose, size_t purpose_len,
+    char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto* impl = new SealedOpenerImpl{};
+    if (tier == 1) {
+        auto r = crypto::Fortress::StreamOpener::begin(sp(preamble, pre_len), sp(rsec, rsec_len),
+                    sp(rpub, rpub_len), sp(spub, spub_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fo.emplace(std::move(r.value()));
+    } else {
+        auto r = crypto::Flagship::StreamOpener::begin(sp(preamble, pre_len), sp(rsec, rsec_len),
+                    sp(rpub, rpub_len), sp(spub, spub_len), opt_aad(purpose, purpose_len));
+        if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); delete impl; return nullptr; }
+        impl->fl.emplace(std::move(r.value()));
+    }
+    return static_cast<CryptoSealedOpener>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_pull(
+    CryptoSealedOpener h, const uint8_t* ct, size_t ct_len, int* out_final) try {
+    if (out_final) *out_final = 0;
+    auto* impl = static_cast<SealedOpenerImpl*>(h);
+    if (!impl) return err_buf("sealed: null opener");
+    if (impl->fl) { auto r = impl->fl->pull(sp(ct, ct_len)); if (r.is_err()) return err_buf(r.error().message);
+        if (out_final) *out_final = r.value().final ? 1 : 0; return ok_buf(r.value().plaintext); }
+    if (impl->fo) { auto r = impl->fo->pull(sp(ct, ct_len)); if (r.is_err()) return err_buf(r.error().message);
+        if (out_final) *out_final = r.value().final ? 1 : 0; return ok_buf(r.value().plaintext); }
+    return err_buf("sealed: invalid opener");
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_finalize(
+    CryptoSealedOpener h, const uint8_t* trailer, size_t trailer_len) try {
+    auto* impl = static_cast<SealedOpenerImpl*>(h);
+    if (!impl) return err_buf("sealed: null opener");
+    if (impl->fl) { auto r = impl->fl->finalize(sp(trailer, trailer_len)); return r.is_err() ? err_buf(r.error().message) : CryptoBufferResult{ null_buf(), nullptr }; }
+    if (impl->fo) { auto r = impl->fo->finalize(sp(trailer, trailer_len)); return r.is_err() ? err_buf(r.error().message) : CryptoBufferResult{ null_buf(), nullptr }; }
+    return err_buf("sealed: invalid opener");
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_sealed_opener_free(CryptoSealedOpener h) {
+    delete static_cast<SealedOpenerImpl*>(h);
+}
+
+#else  // Suite requires OpenSSL + PQ — ABI-stable stubs otherwise
+static CryptoBufferResult suite_unavailable() {
+    return err_buf("Suite requires OpenSSL + post-quantum support — not compiled in");
+}
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq_sntrup(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq_sntrup(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_signed_pq(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_file(const uint8_t*, size_t, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_device(const uint8_t*, size_t, CryptoKeyringHandle, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_device(const uint8_t*, size_t, CryptoKeyringHandle, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_passphrase(const uint8_t*, size_t, CryptoKeyringHandle, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_passphrase(const uint8_t*, size_t, CryptoKeyringHandle, const char*, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_threshold(const uint8_t*, size_t, uint8_t, uint8_t, const uint8_t*, size_t, CryptoBuffer* out_shares) { if (out_shares) *out_shares = CryptoBuffer{nullptr, 0}; return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_threshold(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_suite_evm_address(const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_recipient(int) { return CryptoKeyPair{}; }
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_sender(int) { return CryptoKeyPair{}; }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_seal(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_open(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoSealedInfo cipherbird_sealed_inspect(const uint8_t*, size_t) { return CryptoSealedInfo{}; }
+CRYPTO_API int cipherbird_sealed_addressed_to(const uint8_t*, size_t, const uint8_t*, size_t) { return 0; }
+CRYPTO_API CryptoSealedSealer cipherbird_sealed_sealer_begin(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("Suite requires OpenSSL + post-quantum support — not compiled in"); return nullptr; }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_preamble(CryptoSealedSealer) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_push(CryptoSealedSealer, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_finalize(CryptoSealedSealer, const uint8_t*, size_t, CryptoBuffer* t) { if (t) *t = CryptoBuffer{nullptr, 0}; return suite_unavailable(); }
+CRYPTO_API void cipherbird_sealed_sealer_free(CryptoSealedSealer) {}
+CRYPTO_API CryptoSealedOpener cipherbird_sealed_opener_begin(int, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("Suite requires OpenSSL + post-quantum support — not compiled in"); return nullptr; }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_pull(CryptoSealedOpener, const uint8_t*, size_t, int* f) { if (f) *f = 0; return suite_unavailable(); }
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_finalize(CryptoSealedOpener, const uint8_t*, size_t) { return suite_unavailable(); }
+CRYPTO_API void cipherbird_sealed_opener_free(CryptoSealedOpener) {}
+#endif // CIPHERBIRD_HAS_OPENSSL && CIPHERBIRD_HAS_PQ
+
+CRYPTO_API CryptoBufferResult cipherbird_aes256gcm_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::Aes256Gcm::encrypt(
+        sp(plaintext, pt_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_aes256gcm_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len) try
+{
+    auto r = crypto::symmetric::Aes256Gcm::decrypt(
+        sp(ciphertext, ct_len), sp(key, key_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_aes256gcm_available(void) try {
+    return crypto::symmetric::Aes256Gcm::is_available() ? 1 : 0;
+} CL_FAIL_INT
+
+/* ─── SecretStream ────────────────────────────────────────────────────────── */
+
+CRYPTO_API CryptoStreamEncHandle cipherbird_stream_enc_create(const uint8_t* key) try {
+    auto* h = new StreamEncImpl{crypto::symmetric::SecretStream::Encryptor(sp(key, 32))};
+    return static_cast<CryptoStreamEncHandle>(h);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_stream_enc_header(CryptoStreamEncHandle h) try {
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<StreamEncImpl*>(h);
+    return ok_buf(impl->enc.header());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_stream_enc_push(
+    CryptoStreamEncHandle h,
+    const uint8_t* plaintext, size_t pt_len, uint8_t tag) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<StreamEncImpl*>(h);
+    auto ct = impl->enc.push(sp(plaintext, pt_len), tag);
+    return ok_buf(ct);
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_stream_enc_free(CryptoStreamEncHandle h) {
+    delete static_cast<StreamEncImpl*>(h);
+}
+
+CRYPTO_API CryptoStreamDecHandle cipherbird_stream_dec_create(
+    const uint8_t* key, const uint8_t* header) try
+{
+    auto* h = new StreamDecImpl{crypto::symmetric::SecretStream::Decryptor(sp(key, 32), sp(header, 24))};
+    return static_cast<CryptoStreamDecHandle>(h);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_stream_dec_pull(
+    CryptoStreamDecHandle h,
+    const uint8_t* ciphertext, size_t ct_len, uint8_t* out_tag) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<StreamDecImpl*>(h);
+    auto r = impl->dec.pull(sp(ciphertext, ct_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    if (out_tag) *out_tag = r.value().tag;
+    return ok_buf(r.value().plaintext);
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_stream_dec_free(CryptoStreamDecHandle h) {
+    delete static_cast<StreamDecImpl*>(h);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Asymmetric
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoKeyPair cipherbird_ed25519_keygen(void) try {
+    auto kp = crypto::asymmetric::Ed25519::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_ed25519_keygen_from_seed(const uint8_t* seed, size_t seed_len) try {
+    auto r = crypto::asymmetric::Ed25519::keypair_from_seed(sp(seed, seed_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_ed25519_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len) try
+{
+    auto r = crypto::asymmetric::Ed25519::sign(sp(msg, msg_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_ed25519_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len) try
+{
+    return crypto::asymmetric::Ed25519::verify(sp(msg, msg_len), sp(sig, sig_len), sp(public_key, pk_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cipherbird_x25519_keygen(void) try {
+    auto kp = crypto::asymmetric::X25519::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_x25519_shared_secret(
+    const uint8_t* our_secret, size_t our_len,
+    const uint8_t* their_public, size_t their_len) try
+{
+    auto r = crypto::asymmetric::X25519::shared_secret(sp(our_secret, our_len), sp(their_public, their_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cipherbird_box_keygen(void) try {
+    auto kp = crypto::asymmetric::Box::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_box_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_pub, size_t rpub_len,
+    const uint8_t* sender_sec, size_t ssec_len) try
+{
+    auto r = crypto::asymmetric::Box::encrypt(sp(plaintext, pt_len), sp(recipient_pub, rpub_len), sp(sender_sec, ssec_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_box_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* sender_pub, size_t spub_len,
+    const uint8_t* recipient_sec, size_t rsec_len) try
+{
+    auto r = crypto::asymmetric::Box::decrypt(sp(ciphertext, ct_len), sp(sender_pub, spub_len), sp(recipient_sec, rsec_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealedbox_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_pub, size_t rpub_len) try
+{
+    auto r = crypto::asymmetric::SealedBox::encrypt(sp(plaintext, pt_len), sp(recipient_pub, rpub_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_sealedbox_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* recipient_pub, size_t rpub_len,
+    const uint8_t* recipient_sec, size_t rsec_len) try
+{
+    auto r = crypto::asymmetric::SealedBox::decrypt(sp(ciphertext, ct_len), sp(recipient_pub, rpub_len), sp(recipient_sec, rsec_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Vault
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoVaultHandle cipherbird_vault_create(
+    const uint8_t* master_key, size_t mk_len, int kdf_preset) try
+{
+    auto params = kdf_preset == 1
+        ? crypto::KdfParams::sensitive()
+        : crypto::KdfParams::interactive();
+    auto kp = crypto::SecureVault::generate_keypair();
+    auto* h = new VaultImpl{crypto::SecureVault(sp(master_key, mk_len), std::move(kp), params)};
+    return static_cast<CryptoVaultHandle>(h);
+} CL_FAIL_PTR
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoVaultHandle cipherbird_vault_from_entropy(
+    CryptoEntropyHandle entropy, int kdf_preset) try
+{
+    if (!entropy) return nullptr;
+    auto* me = static_cast<EntropyImpl*>(entropy);
+    auto params = kdf_preset == 1
+        ? crypto::KdfParams::sensitive()
+        : crypto::KdfParams::interactive();
+    auto r = me->me.make_vault(params);
+    if (r.is_err()) return nullptr;
+    auto* h = new VaultImpl{std::move(r.value())};
+    return static_cast<CryptoVaultHandle>(h);
+} CL_FAIL_PTR
+#endif
+
+static CryptoPacket packet_from_cpp(const crypto::EncryptedPacket& pkt) {
+    return {
+        to_cbuf(pkt.ciphertext),
+        to_cbuf(pkt.signature),
+        to_cbuf(pkt.kdf_salt)
+    };
+}
+
+static crypto::EncryptedPacket packet_to_cpp(const CryptoPacket* p) {
+    return {
+        sb_from(p->ciphertext),
+        sb_from(p->signature),
+        sb_from(p->kdf_salt)
+    };
+}
+
+CRYPTO_API CryptoPacket cipherbird_vault_seal(
+    CryptoVaultHandle vault,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, char** out_error) try
+{
+    if (!vault) {
+        if (out_error) *out_error = dup_str("null vault handle");
+        return {{}, {}, {}};
+    }
+    auto* v = static_cast<VaultImpl*>(vault);
+    auto r = v->vault.seal(
+        std::string_view(reinterpret_cast<const char*>(plaintext), pt_len),
+        aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {{}, {}, {}};
+    }
+    if (out_error) *out_error = nullptr;
+    return packet_from_cpp(r.value());
+} CL_FAIL_PKT
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoPacket cipherbird_vault_seal_boosted(
+    CryptoVaultHandle vault,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, CryptoEntropyHandle boost, char** out_error) try
+{
+    if (!vault || !boost) {
+        if (out_error) *out_error = dup_str("null handle");
+        return {{}, {}, {}};
+    }
+    auto* v = static_cast<VaultImpl*>(vault);
+    auto* me = static_cast<EntropyImpl*>(boost);
+    auto r = v->vault.seal(
+        std::string_view(reinterpret_cast<const char*>(plaintext), pt_len),
+        aad ? std::string_view(aad) : std::string_view{},
+        me->me);
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {{}, {}, {}};
+    }
+    if (out_error) *out_error = nullptr;
+    return packet_from_cpp(r.value());
+} CL_FAIL_PKT
+#endif
+
+CRYPTO_API CryptoBufferResult cipherbird_vault_open(
+    CryptoVaultHandle vault,
+    const CryptoPacket* packet, const char* aad) try
+{
+    if (!vault || !packet) return err_buf("null handle/packet");
+    auto* v = static_cast<VaultImpl*>(vault);
+    auto pkt = packet_to_cpp(packet);
+    auto r = v->vault.open(pkt, aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoBufferResult cipherbird_vault_open_boosted(
+    CryptoVaultHandle vault,
+    const CryptoPacket* packet, const char* aad,
+    CryptoEntropyHandle boost) try
+{
+    if (!vault || !packet || !boost) return err_buf("null handle/packet/boost");
+    auto* v = static_cast<VaultImpl*>(vault);
+    auto* me = static_cast<EntropyImpl*>(boost);
+    auto pkt = packet_to_cpp(packet);
+    auto r = v->vault.open(pkt,
+        aad ? std::string_view(aad) : std::string_view{},
+        me->me);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+#endif
+
+CRYPTO_API CryptoBufferResult cipherbird_vault_public_key(CryptoVaultHandle vault) try {
+    if (!vault) return err_buf("null handle");
+    auto* v = static_cast<VaultImpl*>(vault);
+    return { to_cbuf(v->vault.public_key()), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_packet_serialise(const CryptoPacket* packet) try {
+    if (!packet) return err_buf("null packet");
+    auto pkt = packet_to_cpp(packet);
+    auto wire = pkt.serialise();
+    return ok_buf(wire);
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoPacket cipherbird_packet_deserialise(
+    const uint8_t* data, size_t len, char** out_error) try
+{
+    auto r = crypto::EncryptedPacket::deserialise(sp(data, len));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {{}, {}, {}};
+    }
+    if (out_error) *out_error = nullptr;
+    return packet_from_cpp(r.value());
+} CL_FAIL_PKT
+
+CRYPTO_API void cipherbird_vault_free(CryptoVaultHandle vault) {
+    delete static_cast<VaultImpl*>(vault);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Asymmetric Vault
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoAsymBundle cipherbird_asym_bundle_generate(void) try {
+    auto b = crypto::AsymmetricVault::generate_bundle();
+    return {
+        to_cbuf(b.box_public), to_cbuf(b.box_secret),
+        to_cbuf(b.sign_public), to_cbuf(b.sign_secret)
+    };
+} CL_FAIL_BUNDLE_NOERR
+
+static crypto::AsymKeyBundle bundle_to_cpp(const CryptoAsymBundle* b) {
+    return {
+        sb_from(b->box_public),
+        sb_from(b->box_secret),
+        sb_from(b->sign_public),
+        sb_from(b->sign_secret)
+    };
+}
+
+CRYPTO_API CryptoPacket cipherbird_asym_vault_seal(
+    const CryptoAsymBundle* sender,
+    const uint8_t* recipient_box_pub, size_t rpub_len,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, char** out_error) try
+{
+    if (!sender) {
+        if (out_error) *out_error = dup_str("null sender");
+        return {{}, {}, {}};
+    }
+    auto s = bundle_to_cpp(sender);
+    auto r = crypto::AsymmetricVault::seal(
+        std::string_view(reinterpret_cast<const char*>(plaintext), pt_len),
+        s, sp(recipient_box_pub, rpub_len),
+        aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {{}, {}, {}};
+    }
+    if (out_error) *out_error = nullptr;
+    return packet_from_cpp(r.value());
+} CL_FAIL_PKT
+
+CRYPTO_API CryptoBufferResult cipherbird_asym_vault_open(
+    const CryptoPacket* packet,
+    const CryptoAsymBundle* recipient,
+    const uint8_t* sender_sign_pub, size_t spub_len,
+    const char* aad) try
+{
+    if (!packet || !recipient) return err_buf("null packet/recipient");
+    auto pkt = packet_to_cpp(packet);
+    auto rec = bundle_to_cpp(recipient);
+    auto r = crypto::AsymmetricVault::open(
+        pkt, rec, sp(sender_sign_pub, spub_len),
+        aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Media Entropy
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file(
+    const char* path, char** out_error) try
+{
+    auto r = crypto::entropy::MediaEntropy::from_file(path);
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return nullptr;
+    }
+    auto* h = new EntropyImpl{std::move(r.value())};
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoEntropyHandle>(h);
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file_deterministic(
+    const char* path, char** out_error) try
+{
+    auto r = crypto::entropy::MediaEntropy::from_file_deterministic(path);
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return nullptr;
+    }
+    auto* h = new EntropyImpl{std::move(r.value())};
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoEntropyHandle>(h);
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_files(
+    const char** paths, size_t count, char** out_error) try
+{
+    std::vector<std::filesystem::path> ps;
+    for (size_t i = 0; i < count; ++i) ps.emplace_back(paths[i]);
+    auto r = crypto::entropy::MediaEntropy::from_files(ps);
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return nullptr;
+    }
+    auto* h = new EntropyImpl{std::move(r.value())};
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoEntropyHandle>(h);
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_files_deterministic(
+    const char** paths, size_t count, char** out_error) try
+{
+    std::vector<std::filesystem::path> ps;
+    for (size_t i = 0; i < count; ++i) ps.emplace_back(paths[i]);
+    auto r = crypto::entropy::MediaEntropy::from_files_deterministic(ps);
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return nullptr;
+    }
+    auto* h = new EntropyImpl{std::move(r.value())};
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoEntropyHandle>(h);
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoDerivedKeys cipherbird_entropy_derive_all(CryptoEntropyHandle h) try {
+    if (!h) return {};
+    auto* impl = static_cast<EntropyImpl*>(h);
+    auto dk = impl->me.derive_all();
+    return {
+        to_cbuf(dk.symmetric_key),
+        to_cbuf(dk.vault_master_key),
+        to_cbuf(dk.signing_seed),
+        to_cbuf(dk.box_seed),
+        to_cbuf(dk.stream_key),
+        to_cbuf(dk.raw_entropy)
+    };
+} CL_FAIL_DERIVED
+
+CRYPTO_API CryptoBufferResult cipherbird_entropy_symmetric_key(CryptoEntropyHandle h) try {
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<EntropyImpl*>(h);
+    return ok_buf(impl->me.symmetric_key());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_entropy_raw(CryptoEntropyHandle h) try {
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<EntropyImpl*>(h);
+    return ok_buf(impl->me.raw());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_entropy_boost(CryptoEntropyHandle h) try {
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<EntropyImpl*>(h);
+    return ok_buf(impl->me.entropy_boost());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoEntropyInfo cipherbird_entropy_info(CryptoEntropyHandle h) try {
+    if (!h) return {nullptr, 0, 0, 0.0};
+    auto* impl = static_cast<EntropyImpl*>(h);
+    auto& info = impl->me.info();
+    return {
+        dup_str(info.path),
+        info.file_size,
+        info.chunks_read,
+        impl->me.entropy_bits()
+    };
+} CL_FAIL_INFO
+
+CRYPTO_API CryptoAsymBundle cipherbird_entropy_asym_bundle(
+    CryptoEntropyHandle h, char** out_error) try
+{
+    if (!h) {
+        if (out_error) *out_error = dup_str("null handle");
+        return {};
+    }
+    auto* impl = static_cast<EntropyImpl*>(h);
+    auto r = impl->me.asym_bundle();
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {};
+    }
+    if (out_error) *out_error = nullptr;
+    return {
+        to_cbuf(r.value().box_public), to_cbuf(r.value().box_secret),
+        to_cbuf(r.value().sign_public), to_cbuf(r.value().sign_secret)
+    };
+} CL_FAIL_BUNDLE
+
+CRYPTO_API void cipherbird_entropy_refresh(CryptoEntropyHandle h) try {
+    if (!h) return;
+    auto* impl = static_cast<EntropyImpl*>(h);
+    impl->me.refresh_system_entropy();
+} CL_FAIL_VOID
+
+CRYPTO_API void cipherbird_entropy_free(CryptoEntropyHandle h) {
+    delete static_cast<EntropyImpl*>(h);
+}
+
+/* ─── Entropy convenience functions ───────────────────────────────────────── */
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoBufferResult cipherbird_key_from_file(const char* path) try {
+    auto r = crypto::entropy::key_from_file(path);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+#endif
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoPacket cipherbird_seal_from_file(
+    const char* path, const char* plaintext, const char* aad, char** out_error) try
+{
+    auto r = crypto::entropy::seal_from_file(
+        path, plaintext,
+        aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return {{}, {}, {}};
+    }
+    if (out_error) *out_error = nullptr;
+    return packet_from_cpp(r.value());
+} CL_FAIL_PKT
+#endif
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoBufferResult cipherbird_open_from_file(
+    const char* path, const CryptoPacket* packet, const char* aad) try
+{
+    if (!packet) return err_buf("null packet");
+    auto pkt = packet_to_cpp(packet);
+    auto r = crypto::entropy::open_from_file(
+        path, pkt,
+        aad ? std::string_view(aad) : std::string_view{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+#endif
+
+#endif // CIPHERBIRD_HAS_MEDIA_ENTROPY
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BLAKE3
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cipherbird_blake3(const uint8_t* msg, size_t msg_len,
+                                                size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    auto out = digest_buf(out_len == 0 ? 32 : out_len);
+    if (out.error) return out;
+    crypto::hash::blake3_hasher h;
+    crypto::hash::blake3_hasher_init(&h);
+    crypto::hash::blake3_hasher_update(&h, msg, msg_len);
+    crypto::hash::blake3_hasher_finalize(&h, out.buf.data, out.buf.len);
+    sodium_memzero(&h, sizeof(h));
+    return out;
+#else
+    (void)msg; (void)msg_len; (void)out_len;
+    return err_buf("BLAKE3 not enabled (build with -DCIPHERBIRD_BLAKE3=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_blake3_keyed(const uint8_t* msg, size_t msg_len,
+                                                      const uint8_t* key, size_t key_len,
+                                                      size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    auto r = crypto::hash::Blake3::keyed(sp(msg, msg_len), sp(key, key_len), out_len == 0 ? 32 : out_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)msg; (void)msg_len; (void)key; (void)key_len; (void)out_len;
+    return err_buf("BLAKE3 not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_blake3_derive_key(const char* context,
+                                                           const uint8_t* ikm, size_t ikm_len,
+                                                           size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    auto r = crypto::hash::Blake3::derive_key(context, sp(ikm, ikm_len), out_len == 0 ? 32 : out_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)context; (void)ikm; (void)ikm_len; (void)out_len;
+    return err_buf("BLAKE3 not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+#ifdef CIPHERBIRD_HAS_BLAKE3
+namespace { struct Blake3StreamImpl { crypto::hash::Blake3::Stream stream; }; }
+#endif
+
+CRYPTO_API CryptoBlake3Handle cipherbird_blake3_hasher_create(const uint8_t* key,
+                                                              size_t key_len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    if (key == nullptr)
+        return static_cast<CryptoBlake3Handle>(new Blake3StreamImpl{});
+    if (key_len != 32) return nullptr;
+    return static_cast<CryptoBlake3Handle>(
+        new Blake3StreamImpl{crypto::hash::Blake3::Stream(sp(key, key_len))});
+#else
+    (void)key; (void)key_len;
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file_with_policy(
+    const char* path, int deterministic, double min_bits_per_byte, int require_rct, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    crypto::entropy::SourcePolicy policy{ min_bits_per_byte, require_rct != 0, false };
+    auto r = deterministic
+        ? crypto::entropy::MediaEntropy::from_file_deterministic(path ? path : "", policy)
+        : crypto::entropy::MediaEntropy::from_file(path ? path : "", policy);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoEntropyHandle>(new EntropyImpl{std::move(r.value())});
+} CL_FAIL_PTR
+
+namespace {
+CryptoHealthReport2 health2_of(const crypto::entropy::HealthReport& v) {
+    return CryptoHealthReport2{
+        v.min_entropy_per_byte, v.mcv_bits_per_byte, v.markov_bits_per_byte, v.floor_bits_per_byte,
+        static_cast<uint64_t>(v.sample_bytes), static_cast<uint64_t>(v.longest_run),
+        static_cast<uint64_t>(v.rct_cutoff), static_cast<uint64_t>(v.max_window_count),
+        static_cast<uint64_t>(v.apt_cutoff), static_cast<uint64_t>(v.apt_window),
+        v.rct_passed ? 1 : 0, v.apt_passed ? 1 : 0, dup_str(v.explain()), nullptr };
+}
+CryptoHealthReport2 health2_error(const char* msg) {
+    return CryptoHealthReport2{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+CryptoLiveFeedReport feed_error(const char* msg) {
+    return CryptoLiveFeedReport{ 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+CryptoLiveStatus status_error(const char* msg) {
+    return CryptoLiveStatus{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, nullptr, dup_err_cstr(msg) };
+}
+} // namespace
+
+CRYPTO_API CryptoHealthReport2 cipherbird_entropy_assess_file_health_v2(
+    const char* path, size_t max_bytes, double floor_bits_per_byte) try
+{
+    auto r = crypto::entropy::MediaEntropy::assess_file_health(
+        path ? path : "", max_bytes ? max_bytes : (1u << 20), floor_bits_per_byte);
+    if (r.is_err()) return health2_error(r.error().message.c_str());
+    return health2_of(r.value());
+} catch (...) {
+    return health2_error("internal error");
+}
+
+CRYPTO_API CryptoLiveEntropyHandle cipherbird_live_entropy_new(
+    double min_bits_per_byte, int require_rct, double min_credited_bits, char** out_error) try
+{
+    if (out_error) *out_error = nullptr;
+    crypto::entropy::SourcePolicy policy{ min_bits_per_byte, require_rct != 0, false };
+    return static_cast<CryptoLiveEntropyHandle>(new LiveImpl{
+        crypto::entropy::LiveEntropy(policy, min_credited_bits > 0 ? min_credited_bits : 256.0) });
+} catch (...) {
+    if (out_error) *out_error = dup_err_cstr("internal error");
+    return nullptr;
+}
+
+CRYPTO_API CryptoLiveFeedReport cipherbird_live_entropy_feed(
+    CryptoLiveEntropyHandle h, const uint8_t* data, size_t len, uint8_t source_id) try
+{
+    if (!h) return feed_error("LiveEntropy: null handle");
+    auto r = static_cast<LiveImpl*>(h)->live.feed(sp(data, len), source_id);
+    return CryptoLiveFeedReport{
+        r.accepted ? 1 : 0, r.credited_bits, r.credited_bits_total, r.ready ? 1 : 0,
+        r.health.min_entropy_per_byte, static_cast<uint64_t>(r.health.longest_run),
+        static_cast<uint64_t>(r.health.rct_cutoff), r.health.rct_passed ? 1 : 0,
+        r.health.apt_passed ? 1 : 0, r.reason.empty() ? nullptr : dup_str(r.reason), nullptr };
+} catch (...) {
+    return feed_error("internal error");
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_live_entropy_generate(
+    CryptoLiveEntropyHandle h, size_t num_bytes) try
+{
+    if (!h) return err_buf("LiveEntropy: null handle");
+    auto r = static_cast<LiveImpl*>(h)->live.generate(num_bytes);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoLiveStatus cipherbird_live_entropy_status(CryptoLiveEntropyHandle h) try {
+    if (!h) return status_error("LiveEntropy: null handle");
+    auto s = static_cast<LiveImpl*>(h)->live.status();
+    return CryptoLiveStatus{
+        s.chunks_fed, s.chunks_accepted, s.chunks_rejected, s.bytes_fed, s.reseeds,
+        s.credited_bits_total, s.credited_bits_since_reseed, s.min_credited_bits, s.ready ? 1 : 0,
+        s.last_health.min_entropy_per_byte, static_cast<uint64_t>(s.last_health.longest_run),
+        static_cast<uint64_t>(s.last_health.rct_cutoff),
+        s.last_reason.empty() ? nullptr : dup_str(s.last_reason), nullptr };
+} catch (...) {
+    return status_error("internal error");
+}
+
+CRYPTO_API void cipherbird_live_entropy_free(CryptoLiveEntropyHandle h) {
+    delete static_cast<LiveImpl*>(h);
+}
+#endif
+
+CRYPTO_API int cipherbird_blake3_hasher_update(CryptoBlake3Handle h,
+                                               const uint8_t* data, size_t len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    if (!h) return 0;
+    static_cast<Blake3StreamImpl*>(h)->stream.update(sp(data, len));
+    return 1;
+#else
+    (void)h; (void)data; (void)len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_blake3_hasher_finalize(
+    CryptoBlake3Handle h, size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<Blake3StreamImpl*>(h);
+    const size_t n = out_len == 0 ? 32 : out_len;
+    if (impl->stream.keyed()) return ok_buf(impl->stream.finalize(n));
+    return ok_buf(impl->stream.finalize_digest(n));
+#else
+    (void)h; (void)out_len;
+    return err_buf("BLAKE3 not enabled (build with -DCIPHERBIRD_BLAKE3=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_blake3_hasher_free(CryptoBlake3Handle h) {
+#ifdef CIPHERBIRD_HAS_BLAKE3
+    delete static_cast<Blake3StreamImpl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Noise XX
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+namespace {
+struct NoiseImpl {
+    std::optional<crypto::NoiseXX>          hs;
+    std::optional<crypto::NoiseXX::Session> session;
+};
+} // anonymous namespace
+
+CRYPTO_API CryptoNoiseHandle cipherbird_noise_create(
+    int initiator,
+    const uint8_t* static_public, size_t static_public_len,
+    const uint8_t* static_secret, size_t static_secret_len,
+    const uint8_t* prologue, size_t prologue_len) try
+{
+    if (!static_public || static_public_len != 32 ||
+        !static_secret || static_secret_len != 32)
+        return nullptr;
+    crypto::asymmetric::EncryptionKeyPair kp;
+    kp.public_key = crypto::SecureBuffer(static_public, static_public_len);
+    kp.secret_key = crypto::SecureBuffer(static_secret, static_secret_len);
+    auto* impl = new NoiseImpl{};
+    impl->hs.emplace(initiator != 0
+        ? crypto::NoiseXX::initiator(kp, sp(prologue, prologue_len))
+        : crypto::NoiseXX::responder(kp, sp(prologue, prologue_len)));
+    return static_cast<CryptoNoiseHandle>(impl);
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_write_message(
+    CryptoNoiseHandle h, const uint8_t* payload, size_t payload_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto r = impl->hs->write_message(sp(payload, payload_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_read_message(
+    CryptoNoiseHandle h, const uint8_t* message, size_t message_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto r = impl->hs->read_message(sp(message, message_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_noise_handshake_finished(CryptoNoiseHandle h) try {
+    if (!h) return 0;
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return 1;  // split already happened, so it finished
+    return impl->hs->handshake_finished() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_handshake_hash(
+    CryptoNoiseHandle h) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    auto span = impl->hs->handshake_hash();
+    return ok_buf(crypto::SecureBuffer(span.data(), span.size()));
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_remote_static(
+    CryptoNoiseHandle h) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs) return err_buf("Noise: state already split");
+    const auto& rs = impl->hs->remote_static();
+    if (rs.size() != 32) return err_buf("Noise: remote static not yet known");
+    return ok_buf(rs);
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_noise_split(CryptoNoiseHandle h) try {
+    if (!h) return 0;
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->hs || impl->session) return 0;
+    auto r = impl->hs->into_session();
+    if (r.is_err()) return 0;
+    // Preserve the handshake state for hash queries but keep the session
+    // authoritative for records; hs is retained (hash/remote_static stay
+    // readable), further handshake calls are rejected by finished checks.
+    impl->session.emplace(std::move(r.value()));
+    return 1;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_encrypt(
+    CryptoNoiseHandle h, const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->send.encrypt(sp(plaintext, pt_len), sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_noise_decrypt(
+    CryptoNoiseHandle h, const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->recv.decrypt(sp(ciphertext, ct_len), sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+// ABI-SAFE: CL_FAIL_BUFRES keeps any C++ exception from crossing the boundary.
+// Re-entrant: reads the recv key, mutates nothing — see the header for the
+// ordering and single-use duties this hands to the caller.
+CRYPTO_API CryptoBufferResult cipherbird_noise_decrypt_at(
+    CryptoNoiseHandle h, uint64_t nonce_counter,
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len) try
+{
+    if (!h) return err_buf("null handle");
+    auto* impl = static_cast<NoiseImpl*>(h);
+    if (!impl->session) return err_buf("Noise: not split yet");
+    auto r = impl->session->recv.decrypt_at(nonce_counter, sp(ciphertext, ct_len),
+                                            sp(ad, ad_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_noise_free(CryptoNoiseHandle h) {
+    delete static_cast<NoiseImpl*>(h);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HMAC-SHA256 & HKDF-SHA256
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cipherbird_hmac_sha256(const uint8_t* msg, size_t msg_len,
+                                                     const uint8_t* key, size_t key_len) try {
+    auto r = crypto::hash::HmacSha256::compute(sp(msg, msg_len), sp(key, key_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_hmac_sha256_verify(const uint8_t* msg, size_t msg_len,
+                                             const uint8_t* mac, size_t mac_len,
+                                             const uint8_t* key, size_t key_len) try {
+    return crypto::hash::HmacSha256::verify(sp(msg, msg_len), sp(mac, mac_len), sp(key, key_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_extract(const uint8_t* salt, size_t salt_len,
+                                                      const uint8_t* ikm, size_t ikm_len) try {
+    auto r = crypto::hash::HkdfSha256::extract(
+        salt ? sp(salt, salt_len) : std::span<const uint8_t>{},
+        sp(ikm, ikm_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_expand(const uint8_t* prk, size_t prk_len,
+                                                     const uint8_t* info, size_t info_len,
+                                                     size_t out_len) try {
+    auto r = crypto::hash::HkdfSha256::expand(
+        sp(prk, prk_len),
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        out_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_derive(const uint8_t* ikm, size_t ikm_len,
+                                                     const uint8_t* salt, size_t salt_len,
+                                                     const uint8_t* info, size_t info_len,
+                                                     size_t out_len) try {
+    auto r = crypto::hash::HkdfSha256::derive(
+        sp(ikm, ikm_len),
+        salt ? sp(salt, salt_len) : std::span<const uint8_t>{},
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        out_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Post-Quantum — ML-KEM, ML-DSA, SLH-DSA
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API void cipherbird_kem_encaps_free(CryptoKemEncapsResult* r) {
+    if (!r) return;
+    cipherbird_buffer_free(&r->ciphertext);
+    cipherbird_buffer_free(&r->shared_secret);
+}
+
+#ifdef CIPHERBIRD_HAS_PQ
+static crypto::pq::MlKem::Level to_kem_level(int l) {
+    switch (l) {
+        case 0: return crypto::pq::MlKem::Level::KEM_512;
+        case 2: return crypto::pq::MlKem::Level::KEM_1024;
+        default: return crypto::pq::MlKem::Level::KEM_768;
+    }
+}
+static crypto::pq::MlDsa::Level to_dsa_level(int l) {
+    switch (l) {
+        case 0: return crypto::pq::MlDsa::Level::DSA_44;
+        case 2: return crypto::pq::MlDsa::Level::DSA_87;
+        default: return crypto::pq::MlDsa::Level::DSA_65;
+    }
+}
+static crypto::pq::SlhDsa::Level to_slh_level(int l) {
+    switch (l) {
+        case 0: return crypto::pq::SlhDsa::Level::L128s;
+        case 1: return crypto::pq::SlhDsa::Level::L128f;
+        case 2: return crypto::pq::SlhDsa::Level::L192s;
+        case 3: return crypto::pq::SlhDsa::Level::L192f;
+        case 4: return crypto::pq::SlhDsa::Level::L256s;
+        case 5: return crypto::pq::SlhDsa::Level::L256f;
+        default: return crypto::pq::SlhDsa::Level::L128f;
+    }
+}
+static crypto::pq::SlhDsa::HashFamily to_slh_hash(int h) {
+    return h == 1 ? crypto::pq::SlhDsa::HashFamily::SHAKE
+                  : crypto::pq::SlhDsa::HashFamily::SHA2;
+}
+#endif
+
+CRYPTO_API CryptoKeyPair cipherbird_ml_kem_keygen(int level) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlKem::generate_keypair(to_kem_level(level));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)level;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKemEncapsResult cipherbird_ml_kem_encapsulate(
+    const uint8_t* public_key, size_t pk_len, int level, char** out_error) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlKem::encapsulate(sp(public_key, pk_len), to_kem_level(level));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return { null_buf(), null_buf() };
+    }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len; (void)level;
+    if (out_error) *out_error = dup_str("PQ not enabled (build with -DCIPHERBIRD_PQ=ON)");
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+
+CRYPTO_API CryptoBufferResult cipherbird_ml_kem_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len, int level) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlKem::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len), to_kem_level(level));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len; (void)level;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cipherbird_hybrid_kem_keygen(void) try {
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS)
+    auto r = crypto::pq::HybridKem::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKemEncapsResult cipherbird_hybrid_kem_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error) try {
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS)
+    auto r = crypto::pq::HybridKem::encapsulate(sp(public_key, pk_len));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return { null_buf(), null_buf() };
+    }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len;
+    if (out_error) *out_error = dup_str("PQ not enabled (build with -DCIPHERBIRD_PQ=ON)");
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+
+CRYPTO_API CryptoBufferResult cipherbird_hybrid_kem_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len) try {
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS)
+    auto r = crypto::pq::HybridKem::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+// ── Hybrid KEM (X25519 + sntrup761) ─────────────────────────────────────────
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
+CRYPTO_API CryptoKeyPair cipherbird_sntrup_x25519_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+#endif
+
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
+CRYPTO_API CryptoKemEncapsResult cipherbird_sntrup_x25519_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::encapsulate(sp(public_key, pk_len));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return { null_buf(), null_buf() };
+    }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len;
+    if (out_error) *out_error = dup_str("PQ not enabled (build with -DCIPHERBIRD_PQ=ON)");
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+#endif
+
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
+CRYPTO_API CryptoBufferResult cipherbird_sntrup_x25519_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SntrupX25519::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+#endif
+
+// ── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ──────────
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS)
+namespace { struct SessionImpl { crypto::Session session; }; }
+
+CRYPTO_API CryptoKeyPair cipherbird_session_generate_prekey(void) try {
+    auto r = crypto::Session::generate_prekey();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoSession cipherbird_session_initiate(
+    const uint8_t* prekey_public, size_t pk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    auto r = crypto::Session::initiate(sp(prekey_public, pk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new SessionImpl{ std::move(r.value()) });
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_session_handshake(CryptoSession h) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    return ok_buf(impl->session.handshake());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cipherbird_session_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* prekey_public, size_t pk_len,
+    const uint8_t* prekey_secret, size_t sk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+    crypto::pq::HybridKem::KeyPair kp{
+        crypto::SecureBuffer(prekey_public, pk_len),
+        crypto::SecureBuffer(prekey_secret, sk_len) };
+    auto r = crypto::Session::accept(sp(handshake, hs_len), kp);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new SessionImpl{ std::move(r.value()) });
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_session_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    auto r = impl->session.encrypt(sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_session_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len) try {
+    auto* impl = static_cast<SessionImpl*>(h);
+    if (!impl) return err_buf("session: null handle");
+    auto r = impl->session.decrypt(sp(msg, msg_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_session_free(CryptoSession h) { delete static_cast<SessionImpl*>(h); }
+
+#else  // PQ disabled — ABI-stable stubs
+CRYPTO_API CryptoKeyPair cipherbird_session_generate_prekey(void) { return { null_buf(), null_buf() }; }
+CRYPTO_API CryptoSession cipherbird_session_initiate(const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("PQ not enabled"); return nullptr; }
+CRYPTO_API CryptoBufferResult cipherbird_session_handshake(CryptoSession) { return err_buf("PQ not enabled"); }
+CRYPTO_API CryptoSession cipherbird_session_accept(const uint8_t*, size_t, const uint8_t*, size_t, const uint8_t*, size_t, char** e) { if (e) *e = dup_err_cstr("PQ not enabled"); return nullptr; }
+CRYPTO_API CryptoBufferResult cipherbird_session_encrypt(CryptoSession, const uint8_t*, size_t, const uint8_t*, size_t) { return err_buf("PQ not enabled"); }
+CRYPTO_API CryptoBufferResult cipherbird_session_decrypt(CryptoSession, const uint8_t*, size_t, const uint8_t*, size_t) { return err_buf("PQ not enabled"); }
+CRYPTO_API void cipherbird_session_free(CryptoSession) {}
+#endif
+
+CRYPTO_API CryptoKeyPair cipherbird_ml_dsa_keygen(int level) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlDsa::generate_keypair(to_dsa_level(level));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)level;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_ml_dsa_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len, int level) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlDsa::sign(sp(msg, msg_len), sp(secret_key, sk_len), to_dsa_level(level));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)msg; (void)msg_len; (void)secret_key; (void)sk_len; (void)level;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_ml_dsa_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len, int level) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::MlDsa::verify(sp(msg, msg_len), sp(sig, sig_len), sp(public_key, pk_len), to_dsa_level(level));
+    return r.is_ok() ? 1 : 0;
+#else
+    (void)msg; (void)msg_len; (void)sig; (void)sig_len; (void)public_key; (void)pk_len; (void)level;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cipherbird_hybrid_sig_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::HybridSig::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_hybrid_sig_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::HybridSig::sign(sp(msg, msg_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)msg; (void)msg_len; (void)secret_key; (void)sk_len;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_hybrid_sig_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::HybridSig::verify(sp(msg, msg_len), sp(sig, sig_len), sp(public_key, pk_len));
+    return r.is_ok() ? 1 : 0;
+#else
+    (void)msg; (void)msg_len; (void)sig; (void)sig_len; (void)public_key; (void)pk_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cipherbird_slh_dsa_keygen(int level, int hash_family) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SlhDsa::generate_keypair(to_slh_level(level), to_slh_hash(hash_family));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)level; (void)hash_family;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_slh_dsa_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len, int level, int hash_family) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SlhDsa::sign(sp(msg, msg_len), sp(secret_key, sk_len), to_slh_level(level), to_slh_hash(hash_family));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)msg; (void)msg_len; (void)secret_key; (void)sk_len; (void)level; (void)hash_family;
+    return err_buf("PQ not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_slh_dsa_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len, int level, int hash_family) try {
+#ifdef CIPHERBIRD_HAS_PQ
+    auto r = crypto::pq::SlhDsa::verify(sp(msg, msg_len), sp(sig, sig_len), sp(public_key, pk_len), to_slh_level(level), to_slh_hash(hash_family));
+    return r.is_ok() ? 1 : 0;
+#else
+    (void)msg; (void)msg_len; (void)sig; (void)sig_len; (void)public_key; (void)pk_len; (void)level; (void)hash_family;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BLS12-381
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoKeyPair cipherbird_bls_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::bls::Bls12381::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_bls_keygen_from_ikm(const uint8_t* ikm, size_t ikm_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::bls::Bls12381::generate_keypair_from_ikm(sp(ikm, ikm_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)ikm; (void)ikm_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_bls_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::bls::Bls12381::sign(sp(msg, msg_len), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)msg; (void)msg_len; (void)secret_key; (void)sk_len;
+    return err_buf("BLS not enabled (build with -DCIPHERBIRD_BLS=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bls_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::bls::Bls12381::verify(sp(msg, msg_len), sp(sig, sig_len), sp(public_key, pk_len));
+    return r.is_ok() ? 1 : 0;
+#else
+    (void)msg; (void)msg_len; (void)sig; (void)sig_len; (void)public_key; (void)pk_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_bls_aggregate(
+    const uint8_t* const* sigs, const size_t* sig_lens, size_t count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    std::vector<std::span<const uint8_t>> sig_spans;
+    sig_spans.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        sig_spans.push_back(sp(sigs[i], sig_lens[i]));
+    auto r = crypto::bls::Bls12381::aggregate_signatures(sig_spans);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)sigs; (void)sig_lens; (void)count;
+    return err_buf("BLS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bls_aggregate_verify(
+    const uint8_t* const* msgs, const size_t* msg_lens,
+    const uint8_t* const* pks,  const size_t* pk_lens,
+    size_t count,
+    const uint8_t* agg_sig, size_t agg_sig_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    std::vector<std::span<const uint8_t>> msg_spans, pk_spans;
+    msg_spans.reserve(count);
+    pk_spans.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        msg_spans.push_back(sp(msgs[i], msg_lens[i]));
+        pk_spans.push_back(sp(pks[i], pk_lens[i]));
+    }
+    auto r = crypto::bls::Bls12381::aggregate_verify(msg_spans, pk_spans, sp(agg_sig, agg_sig_len));
+    return r.is_ok() ? 1 : 0;
+#else
+    (void)msgs; (void)msg_lens; (void)pks; (void)pk_lens; (void)count; (void)agg_sig; (void)agg_sig_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FROST(Ed25519, SHA-512) — RFC 9591 threshold signatures
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Rebuild the commitment list from the three parallel wire arrays.
+static std::vector<crypto::Frost::Commitment>
+frost_commitments(const uint16_t* ids, const uint8_t* hidings,
+                  const uint8_t* bindings, size_t count) {
+    std::vector<crypto::Frost::Commitment> cs;
+    cs.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        cs.push_back(crypto::Frost::Commitment{
+            ids[i],
+            crypto::SecureBuffer(hidings + i * 32, 32),
+            crypto::SecureBuffer(bindings + i * 32, 32) });
+    return cs;
+}
+
+#define CL_FAIL_FROST_KG catch (...) { \
+    CryptoFrostKeyGen o{}; o.error = dup_err_cstr("internal error"); return o; }
+#define CL_FAIL_FROST_COMMIT catch (...) { \
+    CryptoFrostCommit o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API void cipherbird_frost_keygen_free(CryptoFrostKeyGen* kg) {
+    if (!kg) return;
+    cipherbird_buffer_free(&kg->group_public_key);
+    cipherbird_buffer_free(&kg->secret_shares);
+    cipherbird_buffer_free(&kg->public_shares);
+    kg->count = 0;
+    if (kg->error) { std::free(kg->error); kg->error = nullptr; }
+}
+
+CRYPTO_API void cipherbird_frost_commit_free(CryptoFrostCommit* c) {
+    if (!c) return;
+    cipherbird_buffer_free(&c->hiding_nonce);
+    cipherbird_buffer_free(&c->binding_nonce);
+    cipherbird_buffer_free(&c->hiding_commit);
+    cipherbird_buffer_free(&c->binding_commit);
+    if (c->error) { std::free(c->error); c->error = nullptr; }
+}
+
+CRYPTO_API CryptoFrostKeyGen cipherbird_frost_keygen(uint16_t n, uint16_t t) try {
+    CryptoFrostKeyGen out{};
+    auto r = crypto::Frost::keygen(n, t);
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    auto& kg = r.value();
+    const size_t cnt = kg.shares.size();
+    crypto::SecureBuffer secs(cnt * 32), pubs(cnt * 32);
+    for (size_t i = 0; i < cnt; ++i) {
+        std::memcpy(secs.data() + i * 32, kg.shares[i].secret.data(), 32);
+        std::memcpy(pubs.data() + i * 32, kg.public_shares[i].data(), 32);
+    }
+    out.group_public_key = to_cbuf(kg.group_public_key);
+    out.secret_shares    = to_cbuf(secs);
+    out.public_shares    = to_cbuf(pubs);
+    out.count            = cnt;
+    return out;
+} CL_FAIL_FROST_KG
+
+static CryptoFrostCommit frost_commit_result(
+    crypto::Result<std::pair<crypto::Frost::Nonces, crypto::Frost::Commitment>>&& r) {
+    CryptoFrostCommit out{};
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    auto& [nonces, commit] = r.value();
+    out.hiding_nonce   = to_cbuf(nonces.hiding);
+    out.binding_nonce  = to_cbuf(nonces.binding);
+    out.hiding_commit  = to_cbuf(commit.hiding);
+    out.binding_commit = to_cbuf(commit.binding);
+    return out;
+}
+
+CRYPTO_API CryptoFrostCommit cipherbird_frost_commit(
+    const uint8_t* share_secret, size_t sk_len, uint16_t identifier) try {
+    crypto::Frost::SignerShare share{ identifier,
+        crypto::SecureBuffer(share_secret, sk_len) };
+    return frost_commit_result(crypto::Frost::commit(share));
+} CL_FAIL_FROST_COMMIT
+
+CRYPTO_API CryptoFrostCommit cipherbird_frost_commit_with_nonces(
+    uint16_t identifier,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len) try {
+    return frost_commit_result(crypto::Frost::commit_with_nonces(
+        identifier,
+        crypto::SecureBuffer(hiding_nonce, hn_len),
+        crypto::SecureBuffer(binding_nonce, bn_len)));
+} CL_FAIL_FROST_COMMIT
+
+CRYPTO_API CryptoBufferResult cipherbird_frost_sign(
+    uint16_t identifier,
+    const uint8_t* share_secret, size_t sk_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count) try {
+    crypto::Frost::SignerShare share{ identifier,
+        crypto::SecureBuffer(share_secret, sk_len) };
+    crypto::Frost::Nonces nonces{
+        crypto::SecureBuffer(hiding_nonce, hn_len),
+        crypto::SecureBuffer(binding_nonce, bn_len) };
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    auto r = crypto::Frost::sign(share, sp(group_public_key, gpk_len),
+                                 nonces, sp(msg, msg_len), cs);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_frost_aggregate(
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count,
+    const uint8_t* sig_shares) try {
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    std::vector<crypto::SecureBuffer> shares;
+    shares.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        shares.emplace_back(sig_shares + i * 32, 32);
+    auto r = crypto::Frost::aggregate(sp(group_public_key, gpk_len),
+                                      sp(msg, msg_len), cs, shares);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_frost_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* group_public_key, size_t gpk_len) try {
+    return crypto::Frost::verify(sp(msg, msg_len), sp(sig, sig_len),
+                                 sp(group_public_key, gpk_len)) ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API int cipherbird_frost_verify_share(
+    uint16_t identifier,
+    const uint8_t* public_share, size_t ps_len,
+    const uint8_t* sig_share, size_t ss_len,
+    const uint8_t* commit_hiding, size_t ch_len,
+    const uint8_t* commit_binding, size_t cb_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count) try {
+    crypto::Frost::Commitment commitment{
+        identifier,
+        crypto::SecureBuffer(commit_hiding, ch_len),
+        crypto::SecureBuffer(commit_binding, cb_len) };
+    auto cs = frost_commitments(ids, hiding_commits, binding_commits, count);
+    auto r = crypto::Frost::verify_share(
+        identifier, sp(public_share, ps_len), sp(sig_share, ss_len),
+        commitment, sp(group_public_key, gpk_len), sp(msg, msg_len), cs);
+    return (r.is_ok() && r.value()) ? 1 : 0;
+} CL_FAIL_INT
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HPKE — Hybrid Public Key Encryption (RFC 9180)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+struct HpkeCtxImpl { crypto::Hpke::Context ctx; };
+
+static crypto::Hpke::Kdf hpke_kdf(int k) {
+    return k == 3 ? crypto::Hpke::Kdf::HkdfSha512 : crypto::Hpke::Kdf::HkdfSha256;
+}
+static crypto::Hpke::Aead hpke_aead(int a) {
+    switch (a) {
+        case 1:     return crypto::Hpke::Aead::Aes128Gcm;
+        case 2:     return crypto::Hpke::Aead::Aes256Gcm;
+        case 0xFFFF: return crypto::Hpke::Aead::ExportOnly;
+        default:    return crypto::Hpke::Aead::ChaCha20Poly1305;
+    }
+}
+static crypto::Hpke::Mode hpke_mode(int m) {
+    switch (m) {
+        case 1:  return crypto::Hpke::Mode::Psk;
+        case 2:  return crypto::Hpke::Mode::Auth;
+        case 3:  return crypto::Hpke::Mode::AuthPsk;
+        default: return crypto::Hpke::Mode::Base;
+    }
+}
+
+CRYPTO_API CryptoKeyPair cipherbird_hpke_keygen(void) try {
+    auto kp = crypto::Hpke::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_hpke_derive_keypair(const uint8_t* ikm, size_t ikm_len) try {
+    auto r = crypto::Hpke::derive_keypair(sp(ikm, ikm_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_s(
+    int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+    auto r = crypto::Hpke::setup_s(
+        hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+        sp(pkR, pkR_len), sp(info, info_len),
+        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    return new HpkeCtxImpl{ std::move(r.value().ctx) };
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_r(
+    int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error) try {
+    auto r = crypto::Hpke::setup_r(
+        hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+        sp(enc, enc_len), sp(skR, skR_len), sp(info, info_len),
+        sp(psk, psk_len), sp(psk_id, psk_id_len), sp(pkS, pkS_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return new HpkeCtxImpl{ std::move(r.value()) };
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cipherbird_hpke_seal(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.seal(sp(aad, aad_len), sp(pt, pt_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hpke_open(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.open(sp(aad, aad_len), sp(ct, ct_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hpke_export(
+    CryptoHpkeContext h, const uint8_t* exporter_context, size_t ctx_len, size_t length) try {
+    if (!h) return err_buf("HPKE: null context");
+    auto r = static_cast<HpkeCtxImpl*>(h)->ctx.export_secret(sp(exporter_context, ctx_len), length);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_hpke_context_free(CryptoHpkeContext h) {
+    delete static_cast<HpkeCtxImpl*>(h);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BBS Signatures — multi-message signatures + selective disclosure
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#ifdef CIPHERBIRD_HAS_BLS
+static std::vector<std::span<const uint8_t>>
+bbs_msgs(const uint8_t* const* msgs, const size_t* lens, size_t count) {
+    std::vector<std::span<const uint8_t>> out;
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i) out.push_back(sp(msgs[i], lens[i]));
+    return out;
+}
+static std::vector<std::size_t>
+bbs_indexes(const uint64_t* idx, size_t count) {
+    std::vector<std::size_t> out;
+    out.reserve(count);
+    for (size_t i = 0; i < count; ++i) out.push_back(static_cast<std::size_t>(idx[i]));
+    return out;
+}
+#endif
+
+CRYPTO_API CryptoKeyPair cipherbird_bbs_keygen(
+    const uint8_t* key_material, size_t km_len, const uint8_t* key_info, size_t ki_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::keygen(sp(key_material, km_len), sp(key_info, ki_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)key_material; (void)km_len; (void)key_info; (void)ki_len;
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_sk_to_pk(const uint8_t* sk, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::sk_to_pk(sp(sk, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)sk; (void)sk_len;
+    return err_buf("BBS not enabled (build with -DCIPHERBIRD_BLS=ON)");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::sign(sp(sk, sk_len), sp(pk, pk_len), sp(header, header_len),
+                               bbs_msgs(msgs, msg_lens, msg_count));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bbs_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    return crypto::Bbs::verify(sp(pk, pk_len), sp(signature, sig_len), sp(header, header_len),
+                               bbs_msgs(msgs, msg_lens, msg_count)) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint64_t* disclosed_indexes, size_t disclosed_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::proof_gen(sp(pk, pk_len), sp(signature, sig_len),
+                                    sp(header, header_len), sp(ph, ph_len),
+                                    bbs_msgs(msgs, msg_lens, msg_count),
+                                    bbs_indexes(disclosed_indexes, disclosed_count));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)disclosed_indexes;(void)disclosed_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bbs_proof_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    return crypto::Bbs::proof_verify(sp(pk, pk_len), sp(proof, proof_len),
+                                     sp(header, header_len), sp(ph, ph_len),
+                                     bbs_msgs(disclosed_msgs, disclosed_lens, disclosed_count),
+                                     bbs_indexes(disclosed_indexes, indexes_count)) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)proof;(void)proof_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)disclosed_msgs;(void)disclosed_lens;(void)disclosed_count;(void)disclosed_indexes;(void)indexes_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+// ── BBS pseudonyms + blind issuance ──────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cipherbird_bbs_commit_with_nym(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    CryptoBuffer* secret_prover_blind) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::commit_with_nym(
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        bbs_msgs(prover_nyms, nym_lens, nym_count), crypto::Bbs::API_ID_PSEUDONYM);
+    if (secret_prover_blind)
+        *secret_prover_blind = to_cbuf(std::span<const uint8_t>(r.secret_prover_blind.data(), r.secret_prover_blind.size()));
+    return { to_cbuf(std::span<const uint8_t>(r.commitment_with_proof)), nullptr };
+#else
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;(void)prover_nyms;(void)nym_lens;(void)nym_count;
+    if (secret_prover_blind) *secret_prover_blind = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign_with_nym(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len, uint64_t length_nym_vector) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto sig = crypto::Bbs::blind_sign(sp(sk, sk_len), sp(pk, pk_len),
+        sp(commitment_with_proof, commit_len), sp(header, header_len),
+        bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_PSEUDONYM,
+        sp(signer_nym_entropy, entropy_len), length_nym_vector);
+    return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;(void)header;(void)header_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)signer_nym_entropy;(void)entropy_len;(void)length_nym_vector;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_finalize_nym_secrets(
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto secrets = crypto::Bbs::finalize_nym_secrets(
+        bbs_msgs(prover_nyms, nym_lens, nym_count), sp(signer_nym_entropy, entropy_len));
+    std::vector<uint8_t> flat;
+    for (const auto& s : secrets) flat.insert(flat.end(), s.begin(), s.end());
+    CryptoBufferResult out{ to_cbuf(std::span<const uint8_t>(flat)), nullptr };
+    sodium_memzero(flat.data(), flat.size());
+    return out;
+#else
+    (void)prover_nyms;(void)nym_lens;(void)nym_count;(void)signer_nym_entropy;(void)entropy_len;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_calculate_pseudonym(
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto p = crypto::Bbs::calculate_pseudonym(sp(context_id, ctx_len),
+        bbs_msgs(nym_secrets, nym_lens, nym_count), crypto::Bbs::API_ID_PSEUDONYM);
+    return { to_cbuf(std::span<const uint8_t>(p.data(), p.size())), nullptr };
+#else
+    (void)context_id;(void)ctx_len;(void)nym_secrets;(void)nym_lens;(void)nym_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* signer_msgs, const size_t* signer_lens, size_t signer_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count,
+    const uint64_t* disclosed_signer_indexes, size_t disclosed_signer_count,
+    const uint64_t* disclosed_committed_indexes, size_t disclosed_committed_count,
+    CryptoBuffer* pseudonym_out) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::proof_gen_with_pseudonym(sp(pk, pk_len), sp(signature, sig_len),
+        sp(header, header_len), sp(ph, ph_len), sp(context_id, ctx_len),
+        bbs_msgs(signer_msgs, signer_lens, signer_count),
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        sp(secret_prover_blind, spb_len), bbs_msgs(nym_secrets, nym_lens, nym_count),
+        bbs_indexes(disclosed_signer_indexes, disclosed_signer_count),
+        bbs_indexes(disclosed_committed_indexes, disclosed_committed_count),
+        crypto::Bbs::API_ID_PSEUDONYM);
+    if (r.is_err()) { if (pseudonym_out) *pseudonym_out = { nullptr, 0 }; return err_buf(r.error().message); }
+    auto& [proof, pseudonym] = r.value();
+    if (pseudonym_out) *pseudonym_out = to_cbuf(std::span<const uint8_t>(pseudonym.data(), pseudonym.size()));
+    return ok_buf(proof);
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)context_id;(void)ctx_len;(void)signer_msgs;(void)signer_lens;(void)signer_count;
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;(void)secret_prover_blind;(void)spb_len;
+    (void)nym_secrets;(void)nym_lens;(void)nym_count;(void)disclosed_signer_indexes;(void)disclosed_signer_count;
+    (void)disclosed_committed_indexes;(void)disclosed_committed_count;
+    if (pseudonym_out) *pseudonym_out = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bbs_proof_verify_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len, const uint8_t* pseudonym, size_t nym_len,
+    uint64_t L, uint64_t length_nym_vector,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    return crypto::Bbs::proof_verify_with_pseudonym(sp(pk, pk_len), sp(proof, proof_len),
+        sp(header, header_len), sp(ph, ph_len), sp(context_id, ctx_len), sp(pseudonym, nym_len),
+        static_cast<std::size_t>(L), static_cast<std::size_t>(length_nym_vector),
+        bbs_msgs(disclosed_msgs, disclosed_lens, disclosed_count),
+        bbs_indexes(disclosed_indexes, indexes_count), crypto::Bbs::API_ID_PSEUDONYM) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)proof;(void)proof_len;(void)header;(void)header_len;(void)ph;(void)ph_len;
+    (void)context_id;(void)ctx_len;(void)pseudonym;(void)nym_len;(void)L;(void)length_nym_vector;
+    (void)disclosed_msgs;(void)disclosed_lens;(void)disclosed_count;(void)disclosed_indexes;(void)indexes_count;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_commit(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    CryptoBuffer* secret_prover_blind) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto r = crypto::Bbs::blind_commit(
+        bbs_msgs(committed_msgs, committed_lens, committed_count), crypto::Bbs::API_ID_BLIND);
+    if (secret_prover_blind)
+        *secret_prover_blind = to_cbuf(std::span<const uint8_t>(r.secret_prover_blind.data(), r.secret_prover_blind.size()));
+    return { to_cbuf(std::span<const uint8_t>(r.commitment_with_proof)), nullptr };
+#else
+    (void)committed_msgs;(void)committed_lens;(void)committed_count;
+    if (secret_prover_blind) *secret_prover_blind = { nullptr, 0 };
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto sig = crypto::Bbs::blind_sign(sp(sk, sk_len), sp(pk, pk_len),
+        sp(commitment_with_proof, commit_len), sp(header, header_len),
+        bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_BLIND);
+    return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
+#else
+    (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;
+    (void)header;(void)header_len;(void)msgs;(void)msg_lens;(void)msg_count;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_bbs_verify_blind_sign(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    return crypto::Bbs::verify_blind_sign(sp(pk, pk_len), sp(signature, sig_len),
+        sp(header, header_len), bbs_msgs(msgs, msg_lens, msg_count),
+        bbs_msgs(committed_msgs, committed_lens, committed_count),
+        sp(secret_prover_blind, spb_len), crypto::Bbs::API_ID_BLIND) ? 1 : 0;
+#else
+    (void)pk;(void)pk_len;(void)signature;(void)sig_len;(void)header;(void)header_len;
+    (void)msgs;(void)msg_lens;(void)msg_count;(void)committed_msgs;(void)committed_lens;(void)committed_count;
+    (void)secret_prover_blind;(void)spb_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_hash_to_scalar(
+    const uint8_t* msg, size_t msg_len, const uint8_t* dst, size_t dst_len) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto s = crypto::Bbs::hash_to_scalar_bytes(sp(msg, msg_len), sp(dst, dst_len));
+    return { to_cbuf(std::span<const uint8_t>(s.data(), s.size())), nullptr };
+#else
+    (void)msg;(void)msg_len;(void)dst;(void)dst_len;
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_bbs_random_scalar(void) try {
+#ifdef CIPHERBIRD_HAS_BLS
+    auto s = crypto::Bbs::random_scalar_bytes();
+    return { to_cbuf(std::span<const uint8_t>(s.data(), s.size())), nullptr };
+#else
+    return err_buf("BBS not enabled");
+#endif
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ECVRF — Verifiable Random Function (RFC 9381)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoKeyPair cipherbird_ecvrf_keygen(void) try {
+    auto kp = crypto::Ecvrf::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_public_key(const uint8_t* sk, size_t sk_len) try {
+    if (sk_len != crypto::Ecvrf::SK_BYTES) return err_buf("ECVRF: secret key must be 32 bytes");
+    return ok_buf(crypto::Ecvrf::derive_public_key(sp(sk, sk_len)));
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_prove(
+    const uint8_t* sk, size_t sk_len, const uint8_t* alpha, size_t alpha_len) try {
+    auto r = crypto::Ecvrf::prove(sp(sk, sk_len), sp(alpha, alpha_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_proof_to_hash(const uint8_t* pi, size_t pi_len) try {
+    auto r = crypto::Ecvrf::proof_to_hash(sp(pi, pi_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* alpha, size_t alpha_len,
+    const uint8_t* pi, size_t pi_len) try {
+    auto r = crypto::Ecvrf::verify(sp(pk, pk_len), sp(alpha, alpha_len), sp(pi, pi_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OPRF — Oblivious Pseudorandom Function (RFC 9497)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API void cipherbird_oprf_blind_free(CryptoOprfBlind* b) {
+    if (!b) return;
+    cipherbird_buffer_free(&b->blind);
+    cipherbird_buffer_free(&b->blinded_element);
+    if (b->error) { std::free(b->error); b->error = nullptr; }
+}
+
+CRYPTO_API CryptoKeyPair cipherbird_oprf_derive_keypair(
+    const uint8_t* seed, size_t seed_len, const uint8_t* info, size_t info_len) try {
+    auto r = crypto::Oprf::derive_keypair(sp(seed, seed_len), sp(info, info_len));
+    if (r.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+} CL_FAIL_KP
+
+static CryptoOprfBlind oprf_blind_out(crypto::Result<crypto::Oprf::BlindResult>&& r) {
+    CryptoOprfBlind out{};
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.blind = to_cbuf(r.value().blind);
+    out.blinded_element = to_cbuf(r.value().blinded_element);
+    return out;
+}
+
+CRYPTO_API CryptoOprfBlind cipherbird_oprf_blind(const uint8_t* input, size_t input_len) try {
+    return oprf_blind_out(crypto::Oprf::blind(sp(input, input_len)));
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOprfBlind cipherbird_oprf_blind_with_scalar(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len) try {
+    return oprf_blind_out(crypto::Oprf::blind_with_scalar(sp(input, input_len), sp(blind, blind_len)));
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cipherbird_oprf_blind_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* blinded_element, size_t be_len) try {
+    auto r = crypto::Oprf::blind_evaluate(sp(sk, sk_len), sp(blinded_element, be_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_oprf_finalize(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* evaluated_element, size_t ee_len) try {
+    auto r = crypto::Oprf::finalize(sp(input, input_len), sp(blind, blind_len), sp(evaluated_element, ee_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_oprf_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* input, size_t input_len) try {
+    auto r = crypto::Oprf::evaluate(sp(sk, sk_len), sp(input, input_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OPAQUE — asymmetric PAKE (draft-irtf-cfrg-opaque, OPAQUE-3DH)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API void cipherbird_opaque_record_free(CryptoOpaqueRecord* r) {
+    if (!r) return;
+    cipherbird_buffer_free(&r->record);
+    cipherbird_buffer_free(&r->export_key);
+    if (r->error) { std::free(r->error); r->error = nullptr; }
+}
+CRYPTO_API void cipherbird_opaque_ke1_free(CryptoOpaqueKe1* k) {
+    if (!k) return;
+    cipherbird_buffer_free(&k->ke1);
+    cipherbird_buffer_free(&k->client_state);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+CRYPTO_API void cipherbird_opaque_ke2_free(CryptoOpaqueKe2* k) {
+    if (!k) return;
+    cipherbird_buffer_free(&k->ke2);
+    cipherbird_buffer_free(&k->server_state);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+CRYPTO_API void cipherbird_opaque_ke3_free(CryptoOpaqueKe3* k) {
+    if (!k) return;
+    cipherbird_buffer_free(&k->ke3);
+    cipherbird_buffer_free(&k->session_key);
+    cipherbird_buffer_free(&k->export_key);
+    if (k->error) { std::free(k->error); k->error = nullptr; }
+}
+
+CRYPTO_API CryptoOprfBlind cipherbird_opaque_registration_request(
+    const uint8_t* password, size_t password_len) try {
+    CryptoOprfBlind out{};
+    auto r = crypto::Opaque::create_registration_request(sp(password, password_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.blind = to_cbuf(r.value().blind);
+    out.blinded_element = to_cbuf(r.value().blinded_element);
+    return out;
+} catch (...) { CryptoOprfBlind o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cipherbird_opaque_registration_response(
+    const uint8_t* request, size_t request_len, const uint8_t* server_public_key, size_t spk_len,
+    const uint8_t* credential_identifier, size_t ci_len, const uint8_t* oprf_seed, size_t seed_len) try {
+    auto r = crypto::Opaque::create_registration_response(sp(request, request_len),
+        sp(server_public_key, spk_len), sp(credential_identifier, ci_len), sp(oprf_seed, seed_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoOpaqueRecord cipherbird_opaque_finalize_request(
+    const uint8_t* password, size_t password_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* response, size_t response_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueRecord out{};
+    auto r = crypto::Opaque::finalize_registration_request(sp(password, password_len), sp(blind, blind_len),
+        sp(response, response_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.record = to_cbuf(r.value().record);
+    out.export_key = to_cbuf(r.value().export_key);
+    return out;
+} catch (...) { CryptoOpaqueRecord o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe1 cipherbird_opaque_client_init(const uint8_t* password, size_t password_len) try {
+    CryptoOpaqueKe1 out{};
+    auto r = crypto::Opaque::client_generate_ke1(sp(password, password_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke1 = to_cbuf(r.value().ke1);
+    out.client_state = to_cbuf(r.value().client_state);
+    return out;
+} catch (...) { CryptoOpaqueKe1 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe2 cipherbird_opaque_server_respond(
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_private_key, size_t sk_len, const uint8_t* server_public_key, size_t pk_len,
+    const uint8_t* record, size_t record_len, const uint8_t* credential_identifier, size_t ci_len,
+    const uint8_t* oprf_seed, size_t seed_len, const uint8_t* ke1, size_t ke1_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueKe2 out{};
+    auto r = crypto::Opaque::server_generate_ke2(sp(context, context_len), sp(server_private_key, sk_len),
+        sp(server_public_key, pk_len), sp(record, record_len), sp(credential_identifier, ci_len),
+        sp(oprf_seed, seed_len), sp(ke1, ke1_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke2 = to_cbuf(r.value().ke2);
+    out.server_state = to_cbuf(r.value().server_state);
+    return out;
+} catch (...) { CryptoOpaqueKe2 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoOpaqueKe3 cipherbird_opaque_client_finish(
+    const uint8_t* client_state, size_t cs_len, const uint8_t* ke2, size_t ke2_len,
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len) try {
+    CryptoOpaqueKe3 out{};
+    auto r = crypto::Opaque::client_generate_ke3(sp(client_state, cs_len), sp(ke2, ke2_len),
+        sp(context, context_len), sp(server_identity, sid_len), sp(client_identity, cid_len));
+    if (r.is_err()) { out.error = dup_str(r.error().message); return out; }
+    out.ke3 = to_cbuf(r.value().ke3);
+    out.session_key = to_cbuf(r.value().session_key);
+    out.export_key = to_cbuf(r.value().export_key);
+    return out;
+} catch (...) { CryptoOpaqueKe3 o{}; o.error = dup_err_cstr("internal error"); return o; }
+
+CRYPTO_API CryptoBufferResult cipherbird_opaque_server_finish(
+    const uint8_t* server_state, size_t ss_len, const uint8_t* ke3, size_t ke3_len) try {
+    auto r = crypto::Opaque::server_finish(sp(server_state, ss_len), sp(ke3, ke3_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoBufferResult cipherbird_keccak256(const uint8_t* msg, size_t msg_len) try {
+    auto r = crypto::hash::Keccak256::digest(sp(msg, msg_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_ripemd160(const uint8_t* msg, size_t msg_len) try {
+    auto r = crypto::hash::Ripemd160::digest(sp(msg, msg_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cipherbird_secp256k1_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_SECP256K1
+    auto kp = crypto::ec::Secp256k1::generate_keypair();
+    return { to_cbuf(kp.public_key), to_cbuf(kp.secret_key) };
+#else
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_pubkey(
+    const uint8_t* secret_key, size_t sk_len, int compressed) try {
+#ifdef CIPHERBIRD_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::public_key(sp(secret_key, sk_len), compressed != 0);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len; (void)compressed;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_sign(
+    const uint8_t* digest32, const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::sign(sp(digest32, 32), sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)digest32; (void)secret_key; (void)sk_len;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_secp256k1_verify(
+    const uint8_t* digest32,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len) try {
+#ifdef CIPHERBIRD_HAS_SECP256K1
+    return crypto::ec::Secp256k1::verify(sp(digest32, 32), sp(sig, sig_len),
+                                         sp(public_key, pk_len)) ? 1 : 0;
+#else
+    (void)digest32; (void)sig; (void)sig_len; (void)public_key; (void)pk_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_recover(
+    const uint8_t* digest32, const uint8_t* sig65) try {
+#ifdef CIPHERBIRD_HAS_SECP256K1
+    auto r = crypto::ec::Secp256k1::recover(sp(digest32, 32), sp(sig65, 65));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)digest32; (void)sig65;
+    return err_buf("secp256k1 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * P-256 ECDSA with SHA-256 (ES256)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+#ifdef CIPHERBIRD_HAS_P256
+namespace {
+/** secret key (32) followed by public key (65) in one buffer. */
+CryptoBufferResult p256_pair_buf(const crypto::Result<crypto::ec::P256KeyPair>& r) {
+    if (r.is_err()) return err_buf(r.error().message);
+    using P = crypto::ec::P256;
+    crypto::SecureBuffer both(P::SECRET_KEY_BYTES + P::PUBLIC_KEY_BYTES);
+    std::memcpy(both.data(), r.value().secret_key.data(), P::SECRET_KEY_BYTES);
+    std::memcpy(both.data() + P::SECRET_KEY_BYTES, r.value().public_key.data(), P::PUBLIC_KEY_BYTES);
+    return ok_buf(both);
+}
+}
+#endif
+
+CRYPTO_API int cipherbird_p256_available(void) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!crypto::ec::P256::available()) return 0;
+    return crypto::ec::P256::DETERMINISTIC_NONCES ? 2 : 1;
+#else
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cipherbird_p256_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_P256
+    auto kp = crypto::ec::P256::generate_keypair();
+    if (kp.is_err()) return CryptoKeyPair{};
+    return { to_cbuf(kp.value().public_key), to_cbuf(kp.value().secret_key) };
+#else
+    return CryptoKeyPair{};
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_p256_public_key(const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!secret_key) return err_buf("p256: secret key must be 32 bytes");
+    auto r = crypto::ec::P256::public_key(sp(secret_key, sk_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_p256_sign(
+    const uint8_t* secret_key, size_t sk_len, const uint8_t* message, size_t msg_len) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!secret_key) return err_buf("p256: secret key must be 32 bytes");
+    if (!message && msg_len != 0) return err_buf("p256: message is NULL");
+    auto r = crypto::ec::P256::sign(sp(secret_key, sk_len), message ? sp(message, msg_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+#else
+    (void)secret_key; (void)sk_len; (void)message; (void)msg_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!public_key || !signature || (!message && msg_len != 0)) return 0;
+    return crypto::ec::P256::verify(sp(public_key, pk_len),
+                                    message ? sp(message, msg_len) : std::span<const uint8_t>{},
+                                    sp(signature, sig_len)) ? 1 : 0;
+#else
+    (void)public_key; (void)pk_len; (void)message; (void)msg_len; (void)signature; (void)sig_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_p256_import_pkcs8_der(const uint8_t* der, size_t der_len) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!der) return err_buf("p256: PKCS#8 input has an unsupported size");
+    return p256_pair_buf(crypto::ec::P256::from_pkcs8_der(sp(der, der_len)));
+#else
+    (void)der; (void)der_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_p256_import_pkcs8_pem(const uint8_t* pem, size_t pem_len) try {
+#ifdef CIPHERBIRD_HAS_P256
+    if (!pem) return err_buf("p256: PKCS#8 input has an unsupported size");
+    return p256_pair_buf(crypto::ec::P256::from_pkcs8_pem(sp(pem, pem_len)));
+#else
+    (void)pem; (void)pem_len;
+    return err_buf("p256 not enabled in this build");
+#endif
+} CL_FAIL_BUFRES
+
+#ifdef CIPHERBIRD_HAS_STEGO
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Steganography
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoResult cipherbird_stego_embed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path) try
+{
+    auto r = crypto::stego::StegoEngine::embed(cover_path, sp(payload, payload_len), output_path);
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract(const char* stego_path) try {
+    auto r = crypto::stego::StegoEngine::extract(stego_path);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API size_t cipherbird_stego_capacity(const char* cover_path) try {
+    auto r = crypto::stego::StegoEngine::capacity(cover_path);
+    if (r.is_err()) return 0;
+    return r.value().max_payload_bytes;
+} CL_FAIL_SIZE
+
+// ── Keyed steganography ──────────────────────────────────────────────────────
+CRYPTO_API CryptoResult cipherbird_stego_embed_keyed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path,
+    const uint8_t* key, size_t key_len) try
+{
+    crypto::stego::StegoParams p;
+    if (key && key_len) p.key.assign(key, key + key_len);
+    auto r = crypto::stego::StegoEngine::embed(cover_path, sp(payload, payload_len), output_path, p);
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract_keyed(
+    const char* stego_path,
+    const uint8_t* key, size_t key_len) try
+{
+    crypto::stego::StegoParams p;
+    if (key && key_len) p.key.assign(key, key + key_len);
+    auto r = crypto::stego::StegoEngine::extract(stego_path, p);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── Always-encrypt stego (AEAD-then-hide) ────────────────────────────────────
+CRYPTO_API CryptoResult cipherbird_stego_embed_encrypted(
+    const char* cover_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* output_path,
+    const uint8_t* master_key, size_t key_len) try
+{
+    auto r = crypto::stego::StegoEngine::embed_encrypted(
+        cover_path, sp(plaintext, pt_len), output_path, sp(master_key, key_len));
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract_decrypt(
+    const char* stego_path,
+    const uint8_t* master_key, size_t key_len) try
+{
+    auto r = crypto::stego::StegoEngine::extract_decrypt(stego_path, sp(master_key, key_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── PhysicalSeal — two-factor media-entropy seal ─────────────────────────────
+CRYPTO_API CryptoResult cipherbird_physical_seal(
+    const char* key_media_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path,
+    const char* output_path) try
+{
+    auto r = crypto::PhysicalSeal::seal(
+        key_media_path, sp(plaintext, pt_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        cover_path, output_path);
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_physical_open(
+    const char* key_media_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path) try
+{
+    auto r = crypto::PhysicalSeal::open(
+        key_media_path,
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        stego_path);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── Forward error correction ─────────────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cipherbird_fec_encode(
+    const uint8_t* data, size_t len, int scheme) try
+{
+    if (scheme < 0 || scheme > 3) return err_buf("FEC: invalid scheme (0-3)");
+    auto enc = crypto::stego::fec::encode(
+        sp(data, len), static_cast<crypto::stego::fec::Scheme>(scheme));
+    return { to_cbuf(std::span<const uint8_t>(enc)), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
+    const uint8_t* data, size_t len, int scheme, size_t original_len) try
+{
+    if (scheme < 0 || scheme > 3) return err_buf("FEC: invalid scheme (0-3)");
+    auto r = crypto::stego::fec::decode(
+        sp(data, len), static_cast<crypto::stego::fec::Scheme>(scheme), original_len);
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── Carrier analysis ─────────────────────────────────────────────────────────
+CRYPTO_API CryptoFileInspection cipherbird_stego_inspect(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::inspect(path ? path : "");
+    if (r.is_err())
+        return CryptoFileInspection{ 0, 0xFF, 0, 0, 0, 0, nullptr, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoFileInspection{
+        v.parses ? 1 : 0,
+        static_cast<uint8_t>(v.format),
+        v.ext_matches ? 1 : 0,
+        static_cast<uint64_t>(v.width),
+        static_cast<uint64_t>(v.height),
+        static_cast<uint64_t>(v.file_size),
+        dup_str(v.detail),
+        nullptr };
+} catch (...) {
+    return CryptoFileInspection{ 0, 0xFF, 0, 0, 0, 0, nullptr, dup_err_cstr("internal error") };
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_stego_content_digest(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::content_digest(path ? path : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value().data(), r.value().size())), nullptr };
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoHiddenDataReport cipherbird_stego_detect_hidden(const char* path) try {
+    auto r = crypto::stego::StegoAnalyzer::detect_hidden(path ? path : "");
+    if (r.is_err())
+        return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoHiddenDataReport{
+        v.cipherbird_payload ? 1 : 0,
+        v.lsb_chi_square,
+        v.lsb_embedding_likelihood,
+        static_cast<uint64_t>(v.samples_analysed),
+        dup_str(v.note),
+        nullptr };
+} catch (...) {
+    return CryptoHiddenDataReport{ 0, 0.0, 0.0, 0, nullptr, dup_err_cstr("internal error") };
+}
+
+CRYPTO_API CryptoHealthReport cipherbird_entropy_assess_file_health(
+    const char* path, size_t max_bytes) try
+{
+    auto r = crypto::entropy::MediaEntropy::assess_file_health(
+        path ? path : "", max_bytes ? max_bytes : (1u << 20));
+    if (r.is_err())
+        return CryptoHealthReport{ 0.0, 0, 0, 0, 0, dup_str(r.error().message) };
+    const auto& v = r.value();
+    return CryptoHealthReport{
+        v.min_entropy_per_byte,
+        static_cast<uint64_t>(v.longest_run),
+        static_cast<uint64_t>(v.max_window_count),
+        v.rct_passed ? 1 : 0,
+        v.apt_passed ? 1 : 0,
+        nullptr };
+} catch (...) {
+    return CryptoHealthReport{ 0.0, 0, 0, 0, 0, dup_err_cstr("internal error") };
+}
+
+// ── ImageFactorSeal (C2) ─────────────────────────────────────────────────────
+CRYPTO_API CryptoResult cipherbird_image_factor_seal(
+    const uint8_t* oprf_seed, size_t seed_len, const char* ref_img,
+    const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len,
+    const char* cover, const char* out) try
+{
+    auto r = crypto::ImageFactorSeal::seal(
+        sp(oprf_seed, seed_len), ref_img ? ref_img : "",
+        sp(pt, pt_len), aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        cover ? cover : "", out ? out : "");
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_image_factor_open(
+    const uint8_t* oprf_seed, size_t seed_len, const char* ref_img,
+    const uint8_t* aad, size_t aad_len, const char* stego) try
+{
+    auto r = crypto::ImageFactorSeal::open(
+        sp(oprf_seed, seed_len), ref_img ? ref_img : "",
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{}, stego ? stego : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── HpkeStegoSeal (C3) ───────────────────────────────────────────────────────
+CRYPTO_API CryptoBufferResult cipherbird_hpke_stego_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* pt, size_t pt_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* info, size_t info_len,
+    const char* cover, const char* out) try
+{
+    auto r = crypto::HpkeStegoSeal::seal(
+        sp(pkR, pkR_len), sp(pt, pt_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        cover ? cover : "", out ? out : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());   // the public KEM encapsulation `enc`
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_hpke_stego_open(
+    const uint8_t* skR, size_t skR_len, const uint8_t* enc, size_t enc_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* info, size_t info_len,
+    const char* stego) try
+{
+    auto r = crypto::HpkeStegoSeal::open(
+        sp(skR, skR_len), sp(enc, enc_len),
+        aad ? sp(aad, aad_len) : std::span<const uint8_t>{},
+        info ? sp(info, info_len) : std::span<const uint8_t>{},
+        stego ? stego : "");
+    if (r.is_err()) return err_buf(r.error().message);
+    return { to_cbuf(std::span<const uint8_t>(r.value())), nullptr };
+} CL_FAIL_BUFRES
+
+// ── HMAC-DRBG handle (A3) ────────────────────────────────────────────────────
+CRYPTO_API CryptoDrbgHandle cipherbird_drbg_instantiate(
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* nonce, size_t nonce_len,
+    const uint8_t* perso, size_t perso_len, char** out_error) try
+{
+    auto r = crypto::entropy::HmacDrbg::instantiate(
+        sp(entropy, entropy_len),
+        nonce ? sp(nonce, nonce_len) : std::span<const uint8_t>{},
+        perso ? sp(perso, perso_len) : std::span<const uint8_t>{});
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoDrbgHandle>(new DrbgImpl{ std::move(r.value()) });
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cipherbird_drbg_generate(
+    CryptoDrbgHandle h, size_t num_bytes, const uint8_t* additional, size_t additional_len) try
+{
+    if (!h) return err_buf("DRBG: null handle");
+    auto r = static_cast<DrbgImpl*>(h)->d.generate(
+        num_bytes, additional ? sp(additional, additional_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoResult cipherbird_drbg_reseed(
+    CryptoDrbgHandle h, const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* additional, size_t additional_len) try
+{
+    if (!h) return { 0, dup_str("DRBG: null handle") };
+    static_cast<DrbgImpl*>(h)->d.reseed(
+        sp(entropy, entropy_len),
+        additional ? sp(additional, additional_len) : std::span<const uint8_t>{});
+    return { 1, nullptr };
+} CL_FAIL_RESULT
+
+CRYPTO_API void cipherbird_drbg_free(CryptoDrbgHandle h) {
+    delete static_cast<DrbgImpl*>(h);
+}
+
+// ── Fortuna pool handle (A5) ─────────────────────────────────────────────────
+CRYPTO_API CryptoFortunaHandle cipherbird_fortuna_new(void) try {
+    return static_cast<CryptoFortunaHandle>(new FortunaImpl{});
+} CL_FAIL_PTR
+
+CRYPTO_API void cipherbird_fortuna_add_entropy(
+    CryptoFortunaHandle h, uint8_t source_id, const uint8_t* data, size_t len) {
+    if (!h) return;
+    static_cast<FortunaImpl*>(h)->p.add_entropy(source_id, sp(data, len));
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_fortuna_generate(
+    CryptoFortunaHandle h, size_t num_bytes) try
+{
+    if (!h) return err_buf("Fortuna: null handle");
+    auto r = static_cast<FortunaImpl*>(h)->p.generate(num_bytes);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_fortuna_reseed(CryptoFortunaHandle h) {
+    if (h) static_cast<FortunaImpl*>(h)->p.reseed_now();
+}
+
+CRYPTO_API uint64_t cipherbird_fortuna_reseed_count(CryptoFortunaHandle h) {
+    return h ? static_cast<FortunaImpl*>(h)->p.reseed_count() : 0;
+}
+
+CRYPTO_API void cipherbird_fortuna_free(CryptoFortunaHandle h) {
+    delete static_cast<FortunaImpl*>(h);
+}
+
+#endif // CIPHERBIRD_HAS_STEGO
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Keyring — envelope encryption with key-slots
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API CryptoKeyringHandle cipherbird_keyring_create(void) try {
+    return static_cast<CryptoKeyringHandle>(new KeyringImpl{crypto::Keyring::create()});
+} CL_FAIL_PTR
+
+CRYPTO_API int cipherbird_keyring_add_device_slot(
+    CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len) try {
+    if (!kr) return 0;
+    return static_cast<KeyringImpl*>(kr)->kr.add_device_slot(sp(factor_key, len)).is_ok() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API int cipherbird_keyring_add_passphrase_slot(
+    CryptoKeyringHandle kr, const char* passphrase, int kdf_preset) try {
+    if (!kr || !passphrase) return 0;
+    auto params = kdf_preset == 1 ? crypto::KdfParams::sensitive()
+                                  : crypto::KdfParams::interactive();
+    return static_cast<KeyringImpl*>(kr)->kr.add_passphrase_slot(passphrase, params).is_ok() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API size_t cipherbird_keyring_slot_count(CryptoKeyringHandle kr) try {
+    if (!kr) return 0;
+    return static_cast<KeyringImpl*>(kr)->kr.slot_count();
+} CL_FAIL_SIZE
+
+CRYPTO_API int cipherbird_keyring_remove_slot(CryptoKeyringHandle kr, size_t index) try {
+    if (!kr) return 0;
+    return static_cast<KeyringImpl*>(kr)->kr.remove_slot(index).is_ok() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_keyring_serialise(CryptoKeyringHandle kr) try {
+    if (!kr) return err_buf("null keyring");
+    return ok_buf(static_cast<KeyringImpl*>(kr)->kr.serialise());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyringHandle cipherbird_keyring_deserialise(
+    const uint8_t* blob, size_t len, char** out_error) try {
+    auto r = crypto::Keyring::deserialise(sp(blob, len));
+    if (r.is_err()) {
+        if (out_error) *out_error = dup_str(r.error().message);
+        return nullptr;
+    }
+    if (out_error) *out_error = nullptr;
+    return static_cast<CryptoKeyringHandle>(new KeyringImpl{std::move(r.value())});
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_device(
+    CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len) try {
+    if (!kr) return err_buf("null keyring");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.unlock_with_device(sp(factor_key, len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_keyring_add_hardware_slot(
+    CryptoKeyringHandle kr, const uint8_t* key_id, size_t key_id_len) try {
+    if (!kr) return err_buf("null keyring");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.add_hardware_slot(sp(key_id, key_id_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_keyring_set_hardware_blob(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* blob, size_t blob_len) try {
+    if (!kr) return 0;
+    return static_cast<KeyringImpl*>(kr)->kr.set_hardware_blob(index, sp(blob, blob_len)).is_ok() ? 1 : 0;
+} CL_FAIL_INT
+
+CRYPTO_API int cipherbird_keyring_slot_type(CryptoKeyringHandle kr, size_t index) try {
+    if (!kr) return -1;
+    auto r = static_cast<KeyringImpl*>(kr)->kr.slot_type(index);
+    return r.is_ok() ? static_cast<int>(r.value()) : -1;
+} catch (...) { return -1; }
+
+CRYPTO_API int cipherbird_keyring_hardware_slot(
+    CryptoKeyringHandle kr, size_t index, CryptoBuffer* out_key_id, CryptoBuffer* out_blob) try {
+    if (out_key_id) *out_key_id = CryptoBuffer{ nullptr, 0 };
+    if (out_blob) *out_blob = CryptoBuffer{ nullptr, 0 };
+    if (!kr) return 0;
+    auto r = static_cast<KeyringImpl*>(kr)->kr.hardware_slot(index);
+    if (r.is_err()) return 0;
+    if (out_key_id) *out_key_id = to_cbuf(r.value().first.span());
+    if (out_blob) *out_blob = to_cbuf(r.value().second.span());
+    return 1;
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_hardware(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* factor, size_t factor_len) try {
+    if (!kr) return err_buf("null keyring");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.unlock_with_hardware(index, sp(factor, factor_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_passphrase(
+    CryptoKeyringHandle kr, const char* passphrase) try {
+    if (!kr || !passphrase) return err_buf("null keyring/passphrase");
+    auto r = static_cast<KeyringImpl*>(kr)->kr.unlock_with_passphrase(passphrase);
+    if (r.is_err()) return err_buf(r.error().message);
+    return ok_buf(r.value());
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_keyring_free(CryptoKeyringHandle kr) {
+    delete static_cast<KeyringImpl*>(kr);
+}
+
+#endif // CIPHERBIRD_HAS_SODIUM_CRYPTO
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Tokens: one API for every format (docs/TOKEN_API.md), every profile
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API size_t cipherbird_token_formats(char* out, size_t out_cap) try {
+    const std::string j = tok::formats_json();
+    if (out && out_cap >= j.size()) std::memcpy(out, j.data(), j.size());
+    return j.size();
+} CL_FAIL_SIZE
+
+CRYPTO_API size_t cipherbird_token_issue_len(const char* format, size_t payload_len, size_t footer_len) try {
+    return format ? tok::issue_len(format, payload_len, footer_len) : 0;
+} CL_FAIL_SIZE
+
+CRYPTO_API size_t cipherbird_token_accept_cap(const char* format, size_t token_len) try {
+    return format ? tok::accept_cap(format, token_len) : 0;
+} CL_FAIL_SIZE
+
+CRYPTO_API int cipherbird_token_keygen(const char* format,
+                                      uint8_t* secret, size_t secret_cap, size_t* secret_len,
+                                      uint8_t* pub, size_t pub_cap, size_t* pub_len) try {
+    if (secret_len) *secret_len = 0;
+    if (pub_len) *pub_len = 0;
+    if (!format) return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CIPHERBIRD_TOKEN_ERR_FORMAT;
+    if (!f->available) return CIPHERBIRD_TOKEN_ERR_UNAVAILABLE;
+    if (!secret_len || tok_bad(secret, secret_cap) || tok_bad(pub, pub_cap)) return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    size_t a = 0, b = 0;
+    const auto s = tok::keygen(format, tok_out(secret, secret_cap), a, tok_out(pub, pub_cap), b);
+    if (s != tok::Status::ok) {
+        for (volatile uint8_t* w = secret, * const e = secret + secret_cap; secret && w != e; ++w) *w = 0;
+        return tok_rc(s);
+    }
+    *secret_len = a;
+    if (pub_len) *pub_len = b;
+    return CIPHERBIRD_TOKEN_OK;
+} catch (...) {
+    if (secret_len) *secret_len = 0;
+    if (pub_len) *pub_len = 0;
+    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API int cipherbird_token_issue(const char* format,
+                                     uint8_t* out, size_t out_cap, size_t* out_len,
+                                     const uint8_t* key, size_t key_len,
+                                     const uint8_t* payload, size_t payload_len,
+                                     const uint8_t* footer, size_t footer_len,
+                                     const uint8_t* implicit, size_t implicit_len) try {
+    if (out_len) *out_len = 0;
+    if (!format) return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CIPHERBIRD_TOKEN_ERR_FORMAT;
+    if (!f->available) return CIPHERBIRD_TOKEN_ERR_UNAVAILABLE;
+    if (!out_len || !out || !key || tok_bad(payload, payload_len) || tok_bad(footer, footer_len) ||
+        tok_bad(implicit, implicit_len))
+        return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::issue(format, tok_out(out, out_cap), n, tok_in(key, key_len), tok_in(payload, payload_len),
+                              tok_in(footer, footer_len), tok_in(implicit, implicit_len));
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API int cipherbird_token_accept(const char* format,
+                                      uint8_t* out, size_t out_cap, size_t* out_len,
+                                      const uint8_t* token, size_t token_len,
+                                      const uint8_t* key, size_t key_len,
+                                      const uint8_t* expected_footer, size_t expected_footer_len,
+                                      const uint8_t* implicit, size_t implicit_len) try {
+    if (out_len) *out_len = 0;
+    if (!format) return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    const tok::Format* f = tok::find(format);
+    if (!f) return CIPHERBIRD_TOKEN_ERR_FORMAT;
+    if (!f->available) return CIPHERBIRD_TOKEN_ERR_UNAVAILABLE;
+    if (!out_len || !key || tok_bad(out, out_cap) || tok_bad(token, token_len) ||
+        tok_bad(expected_footer, expected_footer_len) || tok_bad(implicit, implicit_len))
+        return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::accept(format, tok_out(out, out_cap), n, tok_in(token, token_len), tok_in(key, key_len),
+                               tok_in(expected_footer, expected_footer_len), tok_in(implicit, implicit_len));
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+}
+
+CRYPTO_API size_t cipherbird_token_peek_format(const uint8_t* token, size_t token_len,
+                                              char* out, size_t out_cap) try {
+    if (tok_bad(token, token_len) || tok_bad(out, out_cap)) return 0;
+    const std::string_view h = tok::peek_format(tok_in(token, token_len));
+    if (!h.empty() && out && out_cap >= h.size()) std::memcpy(out, h.data(), h.size());
+    return h.size();
+} CL_FAIL_SIZE
+
+CRYPTO_API int cipherbird_token_peek_footer(const uint8_t* token, size_t token_len,
+                                           uint8_t* out, size_t out_cap, size_t* out_len) try {
+    if (out_len) *out_len = 0;
+    if (!out_len || tok_bad(token, token_len) || tok_bad(out, out_cap)) return CIPHERBIRD_TOKEN_ERR_ARGUMENT;
+    size_t n = 0;
+    const auto s = tok::peek_footer(tok_in(token, token_len), tok_out(out, out_cap), n);
+    *out_len = n;
+    return tok_rc(s);
+} catch (...) {
+    if (out_len) *out_len = 0;
+    return CIPHERBIRD_TOKEN_ERR_INTERNAL;
+}
+
+/* The per-format functions of 1.4.0: the generic calls with the format
+ * fixed. They exist in every profile and report unavailable where the
+ * format is not in it. */
+CRYPTO_API size_t cipherbird_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return cipherbird_token_issue_len("v4.local", msg_len, footer_len);
+}
+CRYPTO_API size_t cipherbird_paseto_v4_local_decrypt_cap(size_t token_len) {
+    return cipherbird_token_accept_cap("v4.local", token_len);
+}
+CRYPTO_API int cipherbird_paseto_v4_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_issue("v4.local", out, out_cap, out_len, key, key_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cipherbird_paseto_v4_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_accept("v4.local", out, out_cap, out_len, token, token_len, key, key_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
+CRYPTO_API size_t cipherbird_cb1_local_encrypt_len(size_t msg_len, size_t footer_len) {
+    return cipherbird_token_issue_len("cb1.local", msg_len, footer_len);
+}
+CRYPTO_API size_t cipherbird_cb1_local_decrypt_cap(size_t token_len) {
+    return cipherbird_token_accept_cap("cb1.local", token_len);
+}
+CRYPTO_API int cipherbird_cb1_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_issue("cb1.local", out, out_cap, out_len, key, key_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cipherbird_cb1_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_accept("cb1.local", out, out_cap, out_len, token, token_len, key, key_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
+CRYPTO_API size_t cipherbird_cb1_public_sign_len(size_t msg_len, size_t footer_len) {
+    return cipherbird_token_issue_len("cb1.public", msg_len, footer_len);
+}
+CRYPTO_API size_t cipherbird_cb1_public_verify_cap(size_t token_len) {
+    return cipherbird_token_accept_cap("cb1.public", token_len);
+}
+CRYPTO_API int cipherbird_cb1_public_sign(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* secret_key, size_t sk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_issue("cb1.public", out, out_cap, out_len, secret_key, sk_len, msg, msg_len,
+                                 footer, footer_len, implicit, implicit_len);
+}
+CRYPTO_API int cipherbird_cb1_public_verify(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* public_key, size_t pk_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len) {
+    return cipherbird_token_accept("cb1.public", out, out_cap, out_len, token, token_len, public_key, pk_len,
+                                  expected_footer, expected_footer_len, implicit, implicit_len);
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Standards-track KEMs and the v2 envelopes (M4, M5, M6)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#if defined(CIPHERBIRD_HAS_SODIUM_CRYPTO) && defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
+#define CL_HAVE_V2 1
+#endif
+
+
+CRYPTO_API CryptoKeyPair cipherbird_xwing_keygen(void) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::keypair_from_seed(sp(seed, seed_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)seed; (void)seed_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKemEncapsResult cipherbird_xwing_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::encapsulate(sp(public_key, pk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return { null_buf(), null_buf() }; }
+    if (out_error) *out_error = nullptr;
+    return { to_cbuf(r.value().ciphertext), to_cbuf(r.value().shared_secret) };
+#else
+    (void)public_key; (void)pk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KEM
+
+CRYPTO_API CryptoBufferResult cipherbird_xwing_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len, const uint8_t* secret_key, size_t sk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::pq::XWing::decapsulate(sp(ciphertext, ct_len), sp(secret_key, sk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)ciphertext; (void)ct_len; (void)secret_key; (void)sk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+#ifdef CL_HAVE_V2
+static bool hpke_kem_of(int kem, crypto::Hpke::Kem& out) {
+    switch (kem) {
+        case 0x0020: out = crypto::Hpke::Kem::DhkemX25519; return true;
+        case 0x0041: out = crypto::Hpke::Kem::MlKem768; return true;
+        case 0x647A: out = crypto::Hpke::Kem::XWing; return true;
+        default: return false;
+    }
+}
+#endif
+
+CRYPTO_API int cipherbird_hpke_kem_available(int kem) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    return hpke_kem_of(kem, k) ? 1 : 0;
+#else
+    (void)kem;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoKeyPair cipherbird_hpke_keygen_kem(int kem) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) return { null_buf(), null_buf() };
+    auto r = crypto::Hpke::generate_keypair(k);
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)kem;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoKeyPair cipherbird_hpke_derive_keypair_kem(int kem, const uint8_t* ikm, size_t ikm_len) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) return { null_buf(), null_buf() };
+    auto r = crypto::Hpke::derive_keypair(k, sp(ikm, ikm_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().secret_key) };
+#else
+    (void)kem; (void)ikm; (void)ikm_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_s_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) { if (out_error) *out_error = dup_str("hpke: unknown KEM id"); return nullptr; }
+    auto r = k == crypto::Hpke::Kem::DhkemX25519
+        ? crypto::Hpke::setup_s(hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+              sp(pkR, pkR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len), sp(skS, skS_len))
+        : crypto::Hpke::setup_s(k, hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead),
+              sp(pkR, pkR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    if (out_error) *out_error = nullptr;
+    return new HpkeCtxImpl{ std::move(r.value().ctx) };
+#else
+    (void)kem; (void)kdf; (void)aead; (void)mode; (void)pkR; (void)pkR_len; (void)info; (void)info_len;
+    (void)psk; (void)psk_len; (void)psk_id; (void)psk_id_len; (void)skS; (void)skS_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_r_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error) try {
+#ifdef CL_HAVE_V2
+    crypto::Hpke::Kem k;
+    if (!hpke_kem_of(kem, k)) { if (out_error) *out_error = dup_str("hpke: unknown KEM id"); return nullptr; }
+    auto r = k == crypto::Hpke::Kem::DhkemX25519
+        ? crypto::Hpke::setup_r(hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead), sp(enc, enc_len),
+              sp(skR, skR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len), sp(pkS, pkS_len))
+        : crypto::Hpke::setup_r(k, hpke_mode(mode), hpke_kdf(kdf), hpke_aead(aead), sp(enc, enc_len),
+              sp(skR, skR_len), sp(info, info_len), sp(psk, psk_len), sp(psk_id, psk_id_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    if (out_error) *out_error = nullptr;
+    return new HpkeCtxImpl{ std::move(r.value()) };
+#else
+    (void)kem; (void)kdf; (void)aead; (void)mode; (void)enc; (void)enc_len; (void)skR; (void)skR_len;
+    (void)info; (void)info_len; (void)psk; (void)psk_len; (void)psk_id; (void)psk_id_len; (void)pkS; (void)pkS_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} catch (...) { if (out_error) *out_error = dup_err_cstr("internal error"); return nullptr; }
+
+CRYPTO_API CryptoBufferResult cipherbird_suite2_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_secret, size_t ssk_len,
+    const uint8_t* aad, size_t aad_len, int suite) try {
+#ifdef CL_HAVE_V2
+    if (suite < 0 || suite > 0xff) return err_buf("Suite2: bad suite id");
+    auto r = crypto::Suite2::seal(sp(plaintext, pt_len), sp(recipient_kem_public, rpk_len),
+        sp(signer_sig_secret, ssk_len), opt_aad(aad, aad_len), static_cast<uint8_t>(suite));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)plaintext; (void)pt_len; (void)recipient_kem_public; (void)rpk_len; (void)signer_sig_secret; (void)ssk_len;
+    (void)aad; (void)aad_len; (void)suite;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_suite2_open(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t rsk_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_public, size_t spk_len,
+    const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::Suite2::open(sp(envelope, env_len), sp(recipient_kem_secret, rsk_len),
+        sp(recipient_kem_public, rpk_len), sp(signer_sig_public, spk_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)envelope; (void)env_len; (void)recipient_kem_secret; (void)rsk_len; (void)recipient_kem_public; (void)rpk_len;
+    (void)signer_sig_public; (void)spk_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_suite2_suite_of(const uint8_t* envelope, size_t env_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::Suite2::suite_of(sp(envelope, env_len));
+    return r.is_err() ? 0 : r.value();
+#else
+    (void)envelope; (void)env_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+#ifdef CL_HAVE_V2
+namespace {
+struct Session2Impl { crypto::SessionV2::Channel channel; crypto::PublicBuffer handshake; };
+crypto::pq::HybridSig::KeyPair sig_pair(const uint8_t* pk, size_t pk_len, const uint8_t* sk, size_t sk_len) {
+    return { crypto::SecureBuffer(pk, pk_len), crypto::SecureBuffer(sk, sk_len) };
+}
+}
+#endif
+
+CRYPTO_API CryptoKeyPair cipherbird_session2_generate_prekey(
+    const uint8_t* responder_sig_secret, size_t ssk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::generate_prekey(sp(responder_sig_secret, ssk_len));
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().bundle), to_cbuf(r.value().pair.secret_key) };
+#else
+    (void)responder_sig_secret; (void)ssk_len;
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_session2_verify_prekey(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::verify_prekey(sp(bundle, bundle_len), sp(responder_sig_public, rpk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)bundle; (void)bundle_len; (void)responder_sig_public; (void)rpk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cipherbird_session2_initiate(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* initiator_sig_public, size_t ipk_len,
+    const uint8_t* initiator_sig_secret, size_t isk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CL_HAVE_V2
+    auto id = sig_pair(initiator_sig_public, ipk_len, initiator_sig_secret, isk_len);
+    auto r = crypto::SessionV2::initiate(sp(bundle, bundle_len), sp(responder_sig_public, rpk_len), id);
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new Session2Impl{ std::move(r.value().channel), std::move(r.value().handshake) });
+#else
+    (void)bundle; (void)bundle_len; (void)responder_sig_public; (void)rpk_len;
+    (void)initiator_sig_public; (void)ipk_len; (void)initiator_sig_secret; (void)isk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_session2_handshake(CryptoSession h) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    return ok_buf(impl->handshake);
+#else
+    (void)h;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_session2_claimed_initiator(
+    const uint8_t* handshake, size_t hs_len) try {
+#ifdef CL_HAVE_V2
+    auto r = crypto::SessionV2::claimed_initiator(sp(handshake, hs_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)handshake; (void)hs_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoSession cipherbird_session2_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* prekey_secret, size_t psk_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* responder_sig_secret, size_t rsk_len,
+    const uint8_t* expected_initiator_sig_public, size_t ipk_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CL_HAVE_V2
+    auto pair = crypto::pq::XWing::keypair_from_seed(sp(prekey_secret, psk_len));
+    if (pair.is_err()) { if (out_error) *out_error = dup_str(pair.error().message); return nullptr; }
+    crypto::SessionV2::Prekey prekey{ std::move(pair.value()), crypto::PublicBuffer(bundle, bundle_len) };
+    auto id = sig_pair(responder_sig_public, rpk_len, responder_sig_secret, rsk_len);
+    auto r = crypto::SessionV2::accept(sp(handshake, hs_len), prekey, id, sp(expected_initiator_sig_public, ipk_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoSession>(new Session2Impl{ std::move(r.value()), crypto::PublicBuffer() });
+#else
+    (void)handshake; (void)hs_len; (void)bundle; (void)bundle_len; (void)prekey_secret; (void)psk_len;
+    (void)responder_sig_public; (void)rpk_len; (void)responder_sig_secret; (void)rsk_len;
+    (void)expected_initiator_sig_public; (void)ipk_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoBufferResult cipherbird_session2_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    auto r = impl->channel.encrypt(sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)pt; (void)pt_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_session2_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CL_HAVE_V2
+    auto* impl = static_cast<Session2Impl*>(h);
+    if (!impl) return err_buf("session2: null handle");
+    auto r = impl->channel.decrypt(sp(msg, msg_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)msg; (void)msg_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_session2_free(CryptoSession h) {
+#ifdef CL_HAVE_V2
+    delete static_cast<Session2Impl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FIPS profile (C3)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+namespace {
+bool fips_hash_of(int h, crypto::fips::Hash& out) {
+    switch (h) {
+        case 0: out = crypto::fips::Hash::Sha256; return true;
+        case 1: out = crypto::fips::Hash::Sha384; return true;
+        case 2: out = crypto::fips::Hash::Sha512; return true;
+        case 3: out = crypto::fips::Hash::Sha3_256; return true;
+        default: return false;
+    }
+}
+struct FipsEnvelopeImpl { crypto::fips::Envelope env; };
+CryptoResult fips_result(const crypto::Result<void>& r) {
+    return r.is_err() ? CryptoResult{0, dup_str(r.error().message)} : CryptoResult{1, nullptr};
+}
+}
+#define CL_FIPS_UNAVAILABLE "fips: not built; use -DCIPHERBIRD_PROFILE=fips"
+#endif
+
+CRYPTO_API int cipherbird_fips_available(void) {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+CRYPTO_API CryptoResult cipherbird_fips_init(const char* module_dir, const char* config_file) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Provider::Location where;
+    if (module_dir) where.module_directory = module_dir;
+    if (config_file) where.config_file = config_file;
+    return fips_result(crypto::fips::Provider::init(where));
+#else
+    (void)module_dir; (void)config_file;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoFipsStatus cipherbird_fips_status(void) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto s = crypto::fips::Provider::status();
+    return CryptoFipsStatus{ s.loaded ? 1 : 0, s.self_tests_passed ? 1 : 0, s.approved_mode ? 1 : 0,
+        dup_str(s.provider_name), dup_str(s.provider_version), dup_str(s.module_directory), dup_str(s.config_file) };
+#else
+    return CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr };
+#endif
+} catch (...) { return CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr }; }
+
+CRYPTO_API void cipherbird_fips_status_free(CryptoFipsStatus* s) {
+    if (!s) return;
+    std::free(s->provider_name); std::free(s->provider_version);
+    std::free(s->module_directory); std::free(s->config_file);
+    *s = CryptoFipsStatus{ 0, 0, 0, nullptr, nullptr, nullptr, nullptr };
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_digest(int hash, const uint8_t* data, size_t len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Digest::compute(h, sp(data, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)data; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_hmac(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Hmac::compute(h, sp(key, key_len), sp(data, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)key; (void)key_len; (void)data; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_fips_hmac_verify(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len, const uint8_t* tag, size_t tag_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return 0;
+    return crypto::fips::Hmac::verify(h, sp(key, key_len), sp(data, len), sp(tag, tag_len)) ? 1 : 0;
+#else
+    (void)hash; (void)key; (void)key_len; (void)data; (void)len; (void)tag; (void)tag_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_hkdf(int hash,
+    const uint8_t* ikm, size_t ikm_len, const uint8_t* salt, size_t salt_len,
+    const uint8_t* info, size_t info_len, size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Hkdf::derive(h, sp(ikm, ikm_len), sp(salt, salt_len), sp(info, info_len), out_len);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)ikm; (void)ikm_len; (void)salt; (void)salt_len; (void)info; (void)info_len; (void)out_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_pbkdf2(int hash,
+    const uint8_t* password, size_t password_len, const uint8_t* salt, size_t salt_len,
+    unsigned iterations, size_t out_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    crypto::fips::Hash h;
+    if (!fips_hash_of(hash, h)) return err_buf("fips: unknown hash id");
+    auto r = crypto::fips::Pbkdf2::derive(h, sp(password, password_len), sp(salt, salt_len), iterations, out_len);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)hash; (void)password; (void)password_len; (void)salt; (void)salt_len; (void)iterations; (void)out_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_random(size_t n) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Random::bytes(n);
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)n;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_aes_gcm_encrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Aes256Gcm::encrypt(sp(key, key_len), sp(pt, pt_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)key; (void)key_len; (void)pt; (void)pt_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_aes_gcm_decrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* wire, size_t wire_len, const uint8_t* aad, size_t aad_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Aes256Gcm::decrypt(sp(key, key_len), sp(wire, wire_len), opt_aad(aad, aad_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)key; (void)key_len; (void)wire; (void)wire_len; (void)aad; (void)aad_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoKeyPair cipherbird_fips_p256_keygen(void) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::generate_keypair();
+    if (r.is_err()) return { null_buf(), null_buf() };
+    return { to_cbuf(r.value().public_key), to_cbuf(r.value().private_key) };
+#else
+    return { null_buf(), null_buf() };
+#endif
+} CL_FAIL_KP
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_ecdh(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* peer_public, size_t pk_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::ecdh(sp(private_key, sk_len), sp(peer_public, pk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len; (void)peer_public; (void)pk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_sign(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* message, size_t msg_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::sign(sp(private_key, sk_len), sp(message, msg_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len; (void)message; (void)msg_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API int cipherbird_fips_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    return crypto::fips::P256::verify(sp(public_key, pk_len), sp(message, msg_len), sp(signature, sig_len)) ? 1 : 0;
+#else
+    (void)public_key; (void)pk_len; (void)message; (void)msg_len; (void)signature; (void)sig_len;
+    return 0;
+#endif
+} CL_FAIL_INT
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_public_key(const uint8_t* private_key, size_t sk_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::P256::public_key_of(sp(private_key, sk_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)private_key; (void)sk_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoFipsEnvelope cipherbird_fips_envelope_create(char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Envelope::create();
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoFipsEnvelope>(new FipsEnvelopeImpl{ std::move(r.value()) });
+#else
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoFipsEnvelope cipherbird_fips_envelope_deserialise(
+    const uint8_t* blob, size_t blob_len, char** out_error) try {
+    if (out_error) *out_error = nullptr;
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::Envelope::deserialise(sp(blob, blob_len));
+    if (r.is_err()) { if (out_error) *out_error = dup_str(r.error().message); return nullptr; }
+    return static_cast<CryptoFipsEnvelope>(new FipsEnvelopeImpl{ std::move(r.value()) });
+#else
+    (void)blob; (void)blob_len;
+    if (out_error) *out_error = dup_str(kNotInProfile);
+    return nullptr;
+#endif
+} CL_FAIL_PTR
+
+CRYPTO_API CryptoResult cipherbird_fips_envelope_add_passphrase_slot(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len, unsigned iterations) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.add_passphrase_slot(sp(passphrase, len), iterations));
+#else
+    (void)h; (void)passphrase; (void)len; (void)iterations;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoResult cipherbird_fips_envelope_add_key_slot(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.add_key_slot(sp(factor, len)));
+#else
+    (void)h; (void)factor; (void)len;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_unlock_with_passphrase(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    auto r = impl->env.unlock_with_passphrase(sp(passphrase, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)passphrase; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_unlock_with_key(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    auto r = impl->env.unlock_with_key(sp(factor, len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)h; (void)factor; (void)len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoResult cipherbird_fips_envelope_remove_slot(CryptoFipsEnvelope h, size_t index) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return CryptoResult{0, dup_str("fips envelope: null handle")};
+    return fips_result(impl->env.remove_slot(index));
+#else
+    (void)h; (void)index;
+    return CryptoResult{0, dup_str(kNotInProfile)};
+#endif
+} CL_FAIL_RESULT
+
+CRYPTO_API size_t cipherbird_fips_envelope_slot_count(CryptoFipsEnvelope h) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    return impl ? impl->env.slot_count() : 0;
+#else
+    (void)h;
+    return 0;
+#endif
+} CL_FAIL_SIZE
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_serialise(CryptoFipsEnvelope h) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto* impl = static_cast<FipsEnvelopeImpl*>(h);
+    if (!impl) return err_buf("fips envelope: null handle");
+    return ok_buf(impl->env.serialise());
+#else
+    (void)h;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API void cipherbird_fips_envelope_free(CryptoFipsEnvelope h) {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    delete static_cast<FipsEnvelopeImpl*>(h);
+#else
+    (void)h;
+#endif
+}
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_hpke_p256_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len, CryptoBuffer* out_enc) try {
+    if (out_enc) *out_enc = CryptoBuffer{ nullptr, 0 };
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::HpkeP256::seal(sp(pkR, pkR_len), sp(info, info_len), opt_aad(aad, aad_len), sp(pt, pt_len));
+    if (r.is_err()) return err_buf(r.error().message);
+    if (out_enc) *out_enc = to_cbuf(r.value().enc);
+    return ok_buf(r.value().ct);
+#else
+    (void)pkR; (void)pkR_len; (void)info; (void)info_len; (void)aad; (void)aad_len; (void)pt; (void)pt_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+CRYPTO_API CryptoBufferResult cipherbird_fips_hpke_p256_open(
+    const uint8_t* enc, size_t enc_len, const uint8_t* skR, size_t skR_len,
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len) try {
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+    auto r = crypto::fips::HpkeP256::open(sp(enc, enc_len), sp(skR, skR_len), sp(pkR, pkR_len),
+        sp(info, info_len), opt_aad(aad, aad_len), sp(ct, ct_len));
+    return r.is_err() ? err_buf(r.error().message) : ok_buf(r.value());
+#else
+    (void)enc; (void)enc_len; (void)skR; (void)skR_len; (void)pkR; (void)pkR_len; (void)info; (void)info_len;
+    (void)aad; (void)aad_len; (void)ct; (void)ct_len;
+    return err_buf(kNotInProfile);
+#endif
+} CL_FAIL_BUFRES
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Version
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+CRYPTO_API const char* cipherbird_version(void) {
+    return "3.0.0";
+}
+
+} // extern "C"

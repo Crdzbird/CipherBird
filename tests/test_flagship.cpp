@@ -2,13 +2,13 @@
 // Both share one protocol core, so the same templated checks run against each.
 #include "test_framework.hpp"
 
-#include <cryptolib/flagship.hpp>
+#include <cipherbird/flagship.hpp>
 
 #include <cstring>
 #include <string_view>
 #include <vector>
 
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ)
 
 using namespace test;
 
@@ -244,10 +244,10 @@ TEST("fortress/stream-roundtrip")              { check_stream_roundtrip<crypto::
 TEST("fortress/stream-truncation-rejected")    { check_stream_truncation_rejected<crypto::Fortress>(); }
 TEST("suite/flagship-fortress-cross-tier-rejected") { check_cross_tier_rejected(); }
 
-#endif // CRYPTOLIB_HAS_OPENSSL && CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_OPENSSL && CIPHERBIRD_HAS_PQ
 
 void run_tests_flagship() {
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ)
     RUN("flagship/roundtrip");
     RUN("flagship/wrong-signer-rejected");
     RUN("flagship/wrong-recipient-key-rejected");

@@ -8,7 +8,7 @@ extension CipherBirdSession on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_session_generate_prekey',
+      'cipherbird_session_generate_prekey',
     )(),
   );
 
@@ -26,7 +26,7 @@ extension CipherBirdSession on CipherBird {
             ),
             Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)
           >(
-            'cryptolib_session_initiate',
+            'cipherbird_session_initiate',
           )(pp, responderPrekeyPublic.length, errPtr);
       if (errPtr.value != nullptr) {
         final m = errPtr.value.toDartString();

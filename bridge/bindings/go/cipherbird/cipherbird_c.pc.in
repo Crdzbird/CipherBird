@@ -1,0 +1,22 @@
+# pkg-config template for the CipherBird C ABI (libcipherbird_c).
+#
+# Fill in @PREFIX@ (or edit the paths directly) and copy the result to a
+# directory on your PKG_CONFIG_PATH, e.g.:
+#
+#   prefix=/usr/local
+#   sed "s|@PREFIX@|$prefix|g" cipherbird_c.pc.in > /usr/local/lib/pkgconfig/cipherbird_c.pc
+#
+# Then build the Go binding with:
+#
+#   go build -tags cipherbird_pkgconfig ./...
+
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: cipherbird_c
+Description: CipherBird C ABI (libsodium + liboqs + blst + libsecp256k1)
+Version: 3.0.0
+Libs: -L${libdir} -lcipherbird_c
+Cflags: -I${includedir}

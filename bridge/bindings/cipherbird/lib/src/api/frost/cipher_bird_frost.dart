@@ -9,7 +9,7 @@ extension CipherBirdFrost on CipherBird {
         .lookupFunction<
           CipherBirdFrostKeyGen Function(Uint16, Uint16),
           CipherBirdFrostKeyGen Function(int, int)
-        >('cryptolib_frost_keygen')(n, t);
+        >('cipherbird_frost_keygen')(n, t);
     if (kg.error != nullptr) {
       final m = kg.error.toDartString();
       _frostKeygenFree(kg);
@@ -42,7 +42,7 @@ extension CipherBirdFrost on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdFrostKeyGen>),
       void Function(Pointer<CipherBirdFrostKeyGen>)
-    >('cryptolib_frost_keygen_free')(p);
+    >('cipherbird_frost_keygen_free')(p);
     calloc.free(p);
   }
 
@@ -58,7 +58,7 @@ extension CipherBirdFrost on CipherBird {
           .lookupFunction<
             CipherBirdFrostCommit Function(Pointer<Uint8>, Size, Uint16),
             CipherBirdFrostCommit Function(Pointer<Uint8>, int, int)
-          >('cryptolib_frost_commit')(ps, shareSecret.length, identifier);
+          >('cipherbird_frost_commit')(ps, shareSecret.length, identifier);
       return _frostCommitOut(c, identifier);
     } finally {
       if (ps != nullptr) calloc.free(ps);

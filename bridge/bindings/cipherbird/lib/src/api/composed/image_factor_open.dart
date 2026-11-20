@@ -33,7 +33,7 @@ extension CipherBirdComposedImageFactorOpen on CipherBird {
             int,
             Pointer<Utf8>,
           )
-        >('cryptolib_image_factor_open')(
+        >('cipherbird_image_factor_open')(
           seed,
           oprfSecretSeed.length,
           ref,

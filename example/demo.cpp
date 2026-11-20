@@ -1,9 +1,9 @@
 /**
  * ╔════════════════════════════════════════════════════════════════════════════╗
- * ║  CryptoLibDemo — exhaustive feature showcase with dynamic arguments        ║
+ * ║  CipherBirdDemo — exhaustive feature showcase with dynamic arguments        ║
  * ║                                                                            ║
  * ║  Usage:                                                                    ║
- * ║    ./cryptolib_demo <command> [options]                                    ║
+ * ║    ./cipherbird_demo <command> [options]                                    ║
  * ║                                                                            ║
  * ║  Commands:                                                                 ║
  * ║    hash       [--algo blake2b|sha256|sha512|argon2id|hmac|blake3|hmac256|  ║
@@ -26,7 +26,7 @@
  * ╚════════════════════════════════════════════════════════════════════════════╝
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -50,12 +50,12 @@
 #define DIM   "\033[2m"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CryptoLibDemo
+// CipherBirdDemo
 // ─────────────────────────────────────────────────────────────────────────────
-class CryptoLibDemo {
+class CipherBirdDemo {
 public:
 
-    CryptoLibDemo(int argc, char** argv)
+    CipherBirdDemo(int argc, char** argv)
         : command_(argc > 1 ? argv[1] : "help")
     {
         for (int i = 2; i < argc; ++i) {
@@ -70,7 +70,7 @@ public:
         // Resolve output directory from --output-dir or default to temp path
         auto od = opt("output-dir", "");
         output_dir_ = od.empty()
-            ? std::filesystem::temp_directory_path() / "cryptolib_demo"
+            ? std::filesystem::temp_directory_path() / "cipherbird_demo"
             : std::filesystem::path(od);
         std::filesystem::create_directories(output_dir_);
     }
@@ -182,7 +182,7 @@ private:
             ok("HMAC-SHA512 verified");
         }
 
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
         if (algo == "blake3" || algo == "all") {
             sub("BLAKE3 — fast parallel hash (one-shot)");
             auto h = must(crypto::hash::Blake3::digest(sp), "blake3");
@@ -199,7 +199,7 @@ private:
             kv("Derived key (32 B)", hex32(dk));
             ok("BLAKE3 all modes verified");
         }
-#endif // CRYPTOLIB_HAS_BLAKE3
+#endif // CIPHERBIRD_HAS_BLAKE3
 
         if (algo == "hmac256" || algo == "all") {
             sub("HMAC-SHA256 — keyed MAC (compute + verify)");
@@ -826,7 +826,7 @@ private:
     //  pq — post-quantum cryptography
     // ══════════════════════════════════════════════════════════════════════════
     void cmd_pq() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
         section("Post-Quantum Cryptography (NIST FIPS 203/204/205)");
         const std::string algo = opt("algo", "all");
 
@@ -932,15 +932,15 @@ private:
         ok("Post-quantum cryptography fully verified");
 #else
         section("Post-Quantum Cryptography");
-        note("Skipped — CRYPTOLIB_HAS_PQ not defined (build with -DCRYPTOLIB_PQ=ON).");
-#endif // CRYPTOLIB_HAS_PQ
+        note("Skipped — CIPHERBIRD_HAS_PQ not defined (build with -DCIPHERBIRD_PQ=ON).");
+#endif // CIPHERBIRD_HAS_PQ
     }
 
     // ══════════════════════════════════════════════════════════════════════════
     //  bls — BLS12-381 signatures and aggregation
     // ══════════════════════════════════════════════════════════════════════════
     void cmd_bls() {
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
         section("BLS12-381 Signatures & Aggregation");
         note("Minimal-pubkey-size scheme: pk in G1 (48 B), sig in G2 (96 B).");
         note("DST: BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_ (Ethereum 2.0 compatible).");
@@ -1006,8 +1006,8 @@ private:
         ok("BLS12-381 fully verified");
 #else
         section("BLS12-381 Signatures");
-        note("Skipped — CRYPTOLIB_HAS_BLS not defined (build with -DCRYPTOLIB_BLS=ON).");
-#endif // CRYPTOLIB_HAS_BLS
+        note("Skipped — CIPHERBIRD_HAS_BLS not defined (build with -DCIPHERBIRD_BLS=ON).");
+#endif // CIPHERBIRD_HAS_BLS
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1040,7 +1040,7 @@ private:
     // ══════════════════════════════════════════════════════════════════════════
     void cmd_help() {
         std::printf(
-            "\n" BOLD "Usage:" RST " cryptolib_demo <command> [options]\n\n"
+            "\n" BOLD "Usage:" RST " cipherbird_demo <command> [options]\n\n"
             BOLD "Commands:\n" RST
             "  " CYN "hash" RST "       [--algo blake2b|sha256|sha512|argon2id|hmac|blake3|hmac256|hkdf]\n"
             "             [--input TEXT] [--stream]\n"
@@ -1063,19 +1063,19 @@ private:
             "  " CYN "help" RST "       print this message\n\n"
             BOLD "Global options:\n" RST
             "  --output-dir DIR   output directory for generated files\n"
-            "                     (default: system temp / cryptolib_demo)\n\n"
+            "                     (default: system temp / cipherbird_demo)\n\n"
             BOLD "Examples:\n" RST
-            "  cryptolib_demo hash --algo blake2b --input \"hello\" --stream\n"
-            "  cryptolib_demo sym  --algo secretstream --chunks 8\n"
-            "  cryptolib_demo asym --algo hybrid\n"
-            "  cryptolib_demo vault --kdf custom --ops 4 --mem 128 --boost\n"
-            "  cryptolib_demo asym-vault --boost\n"
-            "  cryptolib_demo entropy --mode boost --file /path/to/photo.ppm\n"
-            "  cryptolib_demo stego --format ppm --quant 8 --raw\n"
-            "  cryptolib_demo stego --output-dir ./my_output\n"
-            "  cryptolib_demo pq   --algo ml-kem\n"
-            "  cryptolib_demo bls\n"
-            "  cryptolib_demo all\n\n"
+            "  cipherbird_demo hash --algo blake2b --input \"hello\" --stream\n"
+            "  cipherbird_demo sym  --algo secretstream --chunks 8\n"
+            "  cipherbird_demo asym --algo hybrid\n"
+            "  cipherbird_demo vault --kdf custom --ops 4 --mem 128 --boost\n"
+            "  cipherbird_demo asym-vault --boost\n"
+            "  cipherbird_demo entropy --mode boost --file /path/to/photo.ppm\n"
+            "  cipherbird_demo stego --format ppm --quant 8 --raw\n"
+            "  cipherbird_demo stego --output-dir ./my_output\n"
+            "  cipherbird_demo pq   --algo ml-kem\n"
+            "  cipherbird_demo bls\n"
+            "  cipherbird_demo all\n\n"
         );
     }
 
@@ -1087,7 +1087,7 @@ private:
         std::printf(
             "\n" BOLD CYN
             "╔══════════════════════════════════════════════════════════════╗\n"
-            "║  CryptoLib Demo — exhaustive feature showcase                ║\n"
+            "║  CipherBird Demo — exhaustive feature showcase                ║\n"
             "╚══════════════════════════════════════════════════════════════╝\n"
             RST "\n");
     }
@@ -1164,5 +1164,5 @@ private:
 
 // ─────────────────────────────────────────────────────────────────────────────
 int main(int argc, char** argv) {
-    return CryptoLibDemo(argc, argv).run();
+    return CipherBirdDemo(argc, argv).run();
 }

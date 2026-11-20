@@ -23,7 +23,7 @@ extension CipherBirdHmacSha256 on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_hmac_sha256_verify')(
+          >('cipherbird_hmac_sha256_verify')(
             pm,
             msg.length,
             pmac,
@@ -63,7 +63,7 @@ extension CipherBirdHmacSha256 on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_hmac_sha256')(pm, msg.length, pk, key.length),
+        >('cipherbird_hmac_sha256')(pm, msg.length, pk, key.length),
       );
     } finally {
       if (pm != nullptr) {

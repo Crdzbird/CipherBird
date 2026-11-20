@@ -1,6 +1,6 @@
 /**
  * ╔════════════════════════════════════════════════════════════════════════════╗
- * ║  CryptoLib — Recipes: composition in practice                              ║
+ * ║  CipherBird — Recipes: composition in practice                              ║
  * ║                                                                            ║
  * ║  The primitives are LEGO bricks. These recipes snap them together into     ║
  * ║  real-world flows to show the library's flexibility. No new cryptography — ║
@@ -14,7 +14,7 @@
  * ║   6. Keyring-guarded vault  Keyring unlock → MolecularVault master key      ║
  * ╚════════════════════════════════════════════════════════════════════════════╝
  */
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstdio>
 #include <cstdlib>
@@ -58,7 +58,7 @@ bool eq(std::span<const uint8_t> a, std::span<const uint8_t> b) {
 
 int main() {
   crypto::init();
-  std::printf("CryptoLib — Recipes (composition in practice)\n");
+  std::printf("CipherBird — Recipes (composition in practice)\n");
 
   const auto aad = sp(std::string_view{"recipe/v1"});
 
@@ -67,7 +67,7 @@ int main() {
   // seal with MolecularVault. Anyone with the same file re-derives and opens it.
   section("1. File-as-key vault  (media entropy → MolecularVault)");
   {
-    auto tmp = std::filesystem::temp_directory_path() / "cryptolib_recipe_key.bin";
+    auto tmp = std::filesystem::temp_directory_path() / "cipherbird_recipe_key.bin";
     { std::ofstream f(tmp, std::ios::binary); for (int i = 0; i < 4096; ++i) f.put(char(i * 37 + 11)); }
 
     auto e1 = must(crypto::entropy::MediaEntropy::from_file_deterministic(tmp), "entropy");

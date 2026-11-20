@@ -13,7 +13,7 @@ extension CipherBirdNoise on CipherBird {
           .lookupFunction<
             Pointer<Void> Function(Pointer<Uint8>, Size),
             Pointer<Void> Function(Pointer<Uint8>, int)
-          >('cryptolib_blake3_hasher_create')(p, key?.length ?? 0);
+          >('cipherbird_blake3_hasher_create')(p, key?.length ?? 0);
       if (h == nullptr) {
         throw Exception(
           'cipherbird: blake3 hasher create failed (BLAKE3 not enabled?)',
@@ -66,7 +66,7 @@ extension CipherBirdNoise on CipherBird {
               int,
             )
           >(
-            'cryptolib_noise_create',
+            'cipherbird_noise_create',
           )(initiator ? 1 : 0, pp, 32, ps, 32, pr, prologue?.length ?? 0);
       if (h == nullptr) {
         throw Exception('cipherbird: noise create failed');

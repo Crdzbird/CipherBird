@@ -90,7 +90,7 @@ make_static_framework() {
 
     local modulemap
     modulemap="framework module ${FW_NAME} {
-    header \"cryptolib_c.h\"
+    header \"cipherbird_c.h\"
     export *
 }"
 
@@ -106,7 +106,7 @@ make_static_framework() {
             -o "$vdir/${FW_NAME}" \
             2>"$BUILD_ROOT/$slice/dylink.log" \
             || { cat "$BUILD_ROOT/$slice/dylink.log"; die "dynamic framework link failed for $slice"; }
-        cp "$REPO_ROOT/bridge/cryptolib_c.h" "$vdir/Headers/cryptolib_c.h"
+        cp "$REPO_ROOT/bridge/cipherbird_c.h" "$vdir/Headers/cipherbird_c.h"
         printf '%s\n' "$modulemap" > "$vdir/Modules/module.modulemap"
         _framework_info_plist "$slice" "$vdir/Resources/Info.plist"
         ( cd "$fwdir/Versions" && ln -sfn A Current )
@@ -125,7 +125,7 @@ make_static_framework() {
             -o "$fwdir/${FW_NAME}" \
             2>"$BUILD_ROOT/$slice/dylink.log" \
             || { cat "$BUILD_ROOT/$slice/dylink.log"; die "dynamic framework link failed for $slice"; }
-        cp "$REPO_ROOT/bridge/cryptolib_c.h" "$fwdir/Headers/cryptolib_c.h"
+        cp "$REPO_ROOT/bridge/cipherbird_c.h" "$fwdir/Headers/cipherbird_c.h"
         printf '%s\n' "$modulemap" > "$fwdir/Modules/module.modulemap"
         _framework_info_plist "$slice" "$fwdir/Info.plist"
     fi
@@ -136,7 +136,7 @@ make_static_framework() {
 XCFW_ARGS=()
 FOUND_ANY=0
 for slice in "${SLICES[@]}"; do
-    archive="$BUILD_ROOT/$slice/libcryptolib_c_merged.a"
+    archive="$BUILD_ROOT/$slice/libcipherbird_c_merged.a"
     if [[ -f "$archive" ]]; then
         fw="$(make_static_framework "$slice" "$archive")"
         XCFW_ARGS+=(-framework "$fw")

@@ -17,8 +17,8 @@ extension CipherBirdCb1Local on CipherBird {
     Uint8List? footer,
     Uint8List? implicit,
   }) => _tokenSeal(
-    'cryptolib_cb1_local_encrypt_len',
-    'cryptolib_cb1_local_encrypt',
+    'cipherbird_cb1_local_encrypt_len',
+    'cipherbird_cb1_local_encrypt',
     'cb1.local',
     key,
     message,
@@ -33,8 +33,8 @@ extension CipherBirdCb1Local on CipherBird {
     Uint8List? expectedFooter,
     Uint8List? implicit,
   }) => _tokenOpen(
-    'cryptolib_cb1_local_decrypt_cap',
-    'cryptolib_cb1_local_decrypt',
+    'cipherbird_cb1_local_decrypt_cap',
+    'cipherbird_cb1_local_decrypt',
     'cb1.local',
     token,
     key,

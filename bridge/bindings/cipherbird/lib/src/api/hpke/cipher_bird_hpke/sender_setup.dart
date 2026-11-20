@@ -56,7 +56,7 @@ extension CipherBirdHpkeSenderSetup on CipherBird {
               Pointer<CipherBirdBuffer>,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_hpke_setup_s')(
+          >('cipherbird_hpke_setup_s')(
             kdf.value,
             aead.value,
             mode.value,

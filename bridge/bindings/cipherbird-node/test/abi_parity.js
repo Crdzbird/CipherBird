@@ -20,11 +20,11 @@ const ok = (label, f) => { f(); pass++; console.log(`  ok  ${label}`); };
 const B = (s) => Buffer.from(s);
 
 ok('header parity: every CRYPTO_API symbol is declared', () => {
-  const header = path.join(__dirname, '..', '..', '..', 'cryptolib_c.h');
+  const header = path.join(__dirname, '..', '..', '..', 'cipherbird_c.h');
   if (!fs.existsSync(header)) { console.log('      (header not present, skipped)'); return; }
   const src = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
-  const declared = new Set(src.match(/cryptolib_[a-z0-9_]+\(/g).map((m) => m.slice(0, -1)));
-  const abi = [...fs.readFileSync(header, 'utf8').matchAll(/^CRYPTO_API[^(]*?\b(cryptolib_[a-z0-9_]+)\s*\(/gm)].map((m) => m[1]);
+  const declared = new Set(src.match(/cipherbird_[a-z0-9_]+\(/g).map((m) => m.slice(0, -1)));
+  const abi = [...fs.readFileSync(header, 'utf8').matchAll(/^CRYPTO_API[^(]*?\b(cipherbird_[a-z0-9_]+)\s*\(/gm)].map((m) => m[1]);
   const shipped = abi.filter((s) => !s.endsWith('_for_testing'));
   const missing = shipped.filter((s) => !declared.has(s));
   assert.deepStrictEqual(missing, [], `missing from index.js: ${missing.join(', ')}`);

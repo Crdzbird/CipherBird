@@ -27,7 +27,7 @@ extension CipherBirdSecp256k1Verify on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_secp256k1_verify')(
+          >('cipherbird_secp256k1_verify')(
             dp,
             sgp,
             sig.length,
@@ -65,7 +65,7 @@ extension CipherBirdSecp256k1Verify on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>),
           CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>)
-        >('cryptolib_secp256k1_recover')(dp, sp),
+        >('cipherbird_secp256k1_recover')(dp, sp),
       );
     } finally {
       if (dp != nullptr) calloc.free(dp);

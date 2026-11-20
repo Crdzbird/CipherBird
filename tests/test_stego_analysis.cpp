@@ -1,6 +1,6 @@
 // crypto::stego::StegoAnalyzer — carrier validity, reference-based tamper
 // detection, and the heuristic hidden-data probe. The honest-and-verifiable
-// parts (validity, digest tamper, cryptolib-signature scan) get hard asserts;
+// parts (validity, digest tamper, cipherbird-signature scan) get hard asserts;
 // the LSB heuristic is checked only for the direction it can honestly claim
 // (a smooth image LSB-embedded scores higher than the same image clean).
 #include "test_framework.hpp"
@@ -94,24 +94,24 @@ TEST("analysis/content-digest-tamper") {
     std::filesystem::remove(ppm);
 }
 
-TEST("analysis/detect-cryptolib-payload") {
+TEST("analysis/detect-cipherbird-payload") {
     const std::string cover = "/tmp/test_an_cover.ppm";
     const std::string stego = "/tmp/test_an_stego.ppm";
     const std::string clean = "/tmp/test_an_clean.ppm";
     write_gradient_ppm(cover, 128, 128);
     write_gradient_ppm(clean, 128, 128);
 
-    // Unkeyed cryptolib embed → detect_hidden flags it definitively.
+    // Unkeyed cipherbird embed → detect_hidden flags it definitively.
     std::vector<uint8_t> pt(60, 0x33);
     REQUIRE(SE::embed(cover, sp(pt), stego).is_ok());
     auto d = StegoAnalyzer::detect_hidden(stego);
     REQUIRE(d.is_ok());
-    CHECK(d.value().cryptolib_payload);
+    CHECK(d.value().cipherbird_payload);
 
-    // A clean carrier: no recoverable cryptolib payload.
+    // A clean carrier: no recoverable cipherbird payload.
     auto c = StegoAnalyzer::detect_hidden(clean);
     REQUIRE(c.is_ok());
-    CHECK(!c.value().cryptolib_payload);
+    CHECK(!c.value().cipherbird_payload);
 
     std::filesystem::remove(cover); std::filesystem::remove(stego); std::filesystem::remove(clean);
 }
@@ -140,6 +140,6 @@ TEST("analysis/lsb-heuristic-direction") {
 void run_tests_stego_analysis() {
     RUN("analysis/inspect-valid-and-mismatch");
     RUN("analysis/content-digest-tamper");
-    RUN("analysis/detect-cryptolib-payload");
+    RUN("analysis/detect-cipherbird-payload");
     RUN("analysis/lsb-heuristic-direction");
 }

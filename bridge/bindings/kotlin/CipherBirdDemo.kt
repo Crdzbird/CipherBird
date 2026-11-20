@@ -6,7 +6,7 @@
 //
 // Build/run (needs kotlinc 2.x + JDK 22+; see Makefile target `kotlin`):
 //   kotlinc CipherBirdDemo.kt -include-runtime -d demo.jar
-//   java --enable-native-access=ALL-UNNAMED -jar demo.jar <path-to-libcryptolib_c.dylib>
+//   java --enable-native-access=ALL-UNNAMED -jar demo.jar <path-to-libcipherbird_c.dylib>
 
 import java.lang.foreign.*
 import java.lang.foreign.ValueLayout.*
@@ -32,49 +32,49 @@ class CipherBird(libPath: String) {
     private fun h(name: String, fd: FunctionDescriptor): MethodHandle =
         linker.downcallHandle(lib.find(name).orElseThrow { RuntimeException("missing: $name") }, fd)
 
-    private val init        = h("cryptolib_init",         FunctionDescriptor.of(JAVA_INT))
-    private val version     = h("cryptolib_version",      FunctionDescriptor.of(ADDRESS))
-    private val randomBytes = h("cryptolib_random_bytes", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, JAVA_LONG))
-    private val sha256      = h("cryptolib_sha256",       FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG))
-    private val vaultCreate = h("cryptolib_vault_create", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT))
-    private val vaultSeal    = h("cryptolib_vault_seal",  FunctionDescriptor.of(CRYPTO_PACKET, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
-    private val vaultOpen    = h("cryptolib_vault_open",  FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, ADDRESS))
-    private val bufferFree  = h("cryptolib_buffer_free",  FunctionDescriptor.ofVoid(ADDRESS))
-    private val packetFree  = h("cryptolib_packet_free",  FunctionDescriptor.ofVoid(ADDRESS))
-    private val vaultFree   = h("cryptolib_vault_free",   FunctionDescriptor.ofVoid(ADDRESS))
-    private val krCreate    = h("cryptolib_keyring_create",   FunctionDescriptor.of(ADDRESS))
-    private val krAddDev    = h("cryptolib_keyring_add_device_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG))
-    private val krAddPw     = h("cryptolib_keyring_add_passphrase_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT))
-    private val krCount     = h("cryptolib_keyring_slot_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
-    private val krSer       = h("cryptolib_keyring_serialise", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS))
-    private val krDeser     = h("cryptolib_keyring_deserialise", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
-    private val krUnlockDev = h("cryptolib_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
-    private val krUnlockPw  = h("cryptolib_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS))
-    private val krFree      = h("cryptolib_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS))
-    private val keypairFree = h("cryptolib_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS))
-    private val strFree     = h("cryptolib_str_free",         FunctionDescriptor.ofVoid(ADDRESS))
+    private val init        = h("cipherbird_init",         FunctionDescriptor.of(JAVA_INT))
+    private val version     = h("cipherbird_version",      FunctionDescriptor.of(ADDRESS))
+    private val randomBytes = h("cipherbird_random_bytes", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, JAVA_LONG))
+    private val sha256      = h("cipherbird_sha256",       FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG))
+    private val vaultCreate = h("cipherbird_vault_create", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT))
+    private val vaultSeal    = h("cipherbird_vault_seal",  FunctionDescriptor.of(CRYPTO_PACKET, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    private val vaultOpen    = h("cipherbird_vault_open",  FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, ADDRESS))
+    private val bufferFree  = h("cipherbird_buffer_free",  FunctionDescriptor.ofVoid(ADDRESS))
+    private val packetFree  = h("cipherbird_packet_free",  FunctionDescriptor.ofVoid(ADDRESS))
+    private val vaultFree   = h("cipherbird_vault_free",   FunctionDescriptor.ofVoid(ADDRESS))
+    private val krCreate    = h("cipherbird_keyring_create",   FunctionDescriptor.of(ADDRESS))
+    private val krAddDev    = h("cipherbird_keyring_add_device_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG))
+    private val krAddPw     = h("cipherbird_keyring_add_passphrase_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT))
+    private val krCount     = h("cipherbird_keyring_slot_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
+    private val krSer       = h("cipherbird_keyring_serialise", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS))
+    private val krDeser     = h("cipherbird_keyring_deserialise", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
+    private val krUnlockDev = h("cipherbird_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
+    private val krUnlockPw  = h("cipherbird_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS))
+    private val krFree      = h("cipherbird_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS))
+    private val keypairFree = h("cipherbird_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS))
+    private val strFree     = h("cipherbird_str_free",         FunctionDescriptor.ofVoid(ADDRESS))
 
     // Newly exposed feature functions.
-    private val committingEnc = h("cryptolib_committing_encrypt",
+    private val committingEnc = h("cipherbird_committing_encrypt",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val committingDec = h("cryptolib_committing_decrypt",
+    private val committingDec = h("cipherbird_committing_decrypt",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val hmac256       = h("cryptolib_hmac_sha256",
+    private val hmac256       = h("cipherbird_hmac_sha256",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val hmac256Verify = h("cryptolib_hmac_sha256_verify",
+    private val hmac256Verify = h("cipherbird_hmac_sha256_verify",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val hkdfExtract   = h("cryptolib_hkdf_extract",
+    private val hkdfExtract   = h("cipherbird_hkdf_extract",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val hkdfExpand    = h("cryptolib_hkdf_expand",
+    private val hkdfExpand    = h("cipherbird_hkdf_expand",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG))
-    private val hkdfDerive    = h("cryptolib_hkdf_derive",
+    private val hkdfDerive    = h("cipherbird_hkdf_derive",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG))
-    private val hybridSigKeygen = h("cryptolib_hybrid_sig_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
-    private val hybridSigSign = h("cryptolib_hybrid_sig_sign",
+    private val hybridSigKeygen = h("cipherbird_hybrid_sig_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
+    private val hybridSigSign = h("cipherbird_hybrid_sig_sign",
         FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val hybridSigVerify = h("cryptolib_hybrid_sig_verify",
+    private val hybridSigVerify = h("cipherbird_hybrid_sig_verify",
         FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    private val blsKeygenFromIkm = h("cryptolib_bls_keygen_from_ikm",
+    private val blsKeygenFromIkm = h("cipherbird_bls_keygen_from_ikm",
         FunctionDescriptor.of(CRYPTO_KEYPAIR, ADDRESS, JAVA_LONG))
 
     private fun consume(result: MemorySegment): ByteArray {
@@ -190,6 +190,6 @@ class CipherBird(libPath: String) {
 }
 
 fun main(args: Array<String>) {
-    val path = if (args.isNotEmpty()) args[0] else "build/release/libcryptolib_c.dylib"
+    val path = if (args.isNotEmpty()) args[0] else "build/release/libcipherbird_c.dylib"
     CipherBird(path).run()
 }

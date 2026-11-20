@@ -6,9 +6,9 @@ import Foundation
 enum OpaqueError: Error { case failed(String) }
 
 private func opaqueConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw OpaqueError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw OpaqueError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -35,8 +35,8 @@ enum Opaque {
     struct Ke3 { let ke3: [UInt8]; let sessionKey: [UInt8]; let exportKey: [UInt8] }
 
     static func registrationRequest(_ password: [UInt8]) throws -> RegRequest {
-        var c = withPtrs([password]) { p in cryptolib_opaque_registration_request(p[0].0, p[0].1) }
-        defer { cryptolib_oprf_blind_free(&c) }
+        var c = withPtrs([password]) { p in cipherbird_opaque_registration_request(p[0].0, p[0].1) }
+        defer { cipherbird_oprf_blind_free(&c) }
         if let e = c.error { throw OpaqueError.failed(String(cString: e)) }
         return RegRequest(blind: bytes(c.blind), request: bytes(c.blinded_element))
     }
@@ -44,23 +44,23 @@ enum Opaque {
     static func registrationResponse(request: [UInt8], serverPublicKey: [UInt8],
                                      credentialIdentifier: [UInt8], oprfSeed: [UInt8]) throws -> [UInt8] {
         try withPtrs([request, serverPublicKey, credentialIdentifier, oprfSeed]) { p in
-            try opaqueConsume(cryptolib_opaque_registration_response(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1))
+            try opaqueConsume(cipherbird_opaque_registration_response(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1))
         }
     }
 
     static func finalizeRequest(password: [UInt8], blind: [UInt8], response: [UInt8],
                                 serverIdentity: [UInt8]? = nil, clientIdentity: [UInt8]? = nil) throws -> Record {
         var r = withPtrs([password, blind, response, serverIdentity, clientIdentity]) { p in
-            cryptolib_opaque_finalize_request(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1)
+            cipherbird_opaque_finalize_request(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1)
         }
-        defer { cryptolib_opaque_record_free(&r) }
+        defer { cipherbird_opaque_record_free(&r) }
         if let e = r.error { throw OpaqueError.failed(String(cString: e)) }
         return Record(record: bytes(r.record), exportKey: bytes(r.export_key))
     }
 
     static func clientInit(_ password: [UInt8]) throws -> Ke1 {
-        var r = withPtrs([password]) { p in cryptolib_opaque_client_init(p[0].0, p[0].1) }
-        defer { cryptolib_opaque_ke1_free(&r) }
+        var r = withPtrs([password]) { p in cipherbird_opaque_client_init(p[0].0, p[0].1) }
+        defer { cipherbird_opaque_ke1_free(&r) }
         if let e = r.error { throw OpaqueError.failed(String(cString: e)) }
         return Ke1(ke1: bytes(r.ke1), clientState: bytes(r.client_state))
     }
@@ -69,10 +69,10 @@ enum Opaque {
                               record: [UInt8], credentialIdentifier: [UInt8], oprfSeed: [UInt8], ke1: [UInt8],
                               serverIdentity: [UInt8]? = nil, clientIdentity: [UInt8]? = nil) throws -> Ke2 {
         var r = withPtrs([context, serverPrivateKey, serverPublicKey, record, credentialIdentifier, oprfSeed, ke1, serverIdentity, clientIdentity]) { p in
-            cryptolib_opaque_server_respond(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1,
+            cipherbird_opaque_server_respond(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1,
                 p[4].0, p[4].1, p[5].0, p[5].1, p[6].0, p[6].1, p[7].0, p[7].1, p[8].0, p[8].1)
         }
-        defer { cryptolib_opaque_ke2_free(&r) }
+        defer { cipherbird_opaque_ke2_free(&r) }
         if let e = r.error { throw OpaqueError.failed(String(cString: e)) }
         return Ke2(ke2: bytes(r.ke2), serverState: bytes(r.server_state))
     }
@@ -81,21 +81,21 @@ enum Opaque {
     static func clientFinish(clientState: [UInt8], ke2: [UInt8], context: [UInt8],
                              serverIdentity: [UInt8]? = nil, clientIdentity: [UInt8]? = nil) throws -> Ke3 {
         var r = withPtrs([clientState, ke2, context, serverIdentity, clientIdentity]) { p in
-            cryptolib_opaque_client_finish(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1)
+            cipherbird_opaque_client_finish(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1)
         }
-        defer { cryptolib_opaque_ke3_free(&r) }
+        defer { cipherbird_opaque_ke3_free(&r) }
         if let e = r.error { throw OpaqueError.failed(String(cString: e)) }
         return Ke3(ke3: bytes(r.ke3), sessionKey: bytes(r.session_key), exportKey: bytes(r.export_key))
     }
 
     static func serverFinish(serverState: [UInt8], ke3: [UInt8]) throws -> [UInt8] {
-        try withPtrs([serverState, ke3]) { p in try opaqueConsume(cryptolib_opaque_server_finish(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([serverState, ke3]) { p in try opaqueConsume(cipherbird_opaque_server_finish(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
 }
 
 // ── smoke (compiled/run by `make swift-opaque`) ──────────────────────────────
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — OPAQUE aPAKE (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — OPAQUE aPAKE (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 
@@ -105,9 +105,9 @@ do {
     let password = Array("hunter2".utf8)
     let oprfSeed = rand(64)
     // a valid ristretto255 DH keypair via OPRF DeriveKeyPair
-    var skp = withPtrs([rand(32)]) { p in cryptolib_oprf_derive_keypair(p[0].0, p[0].1, nil, 0) }
+    var skp = withPtrs([rand(32)]) { p in cipherbird_oprf_derive_keypair(p[0].0, p[0].1, nil, 0) }
     let serverPub = bytes(skp.public_key), serverPriv = bytes(skp.secret_key)
-    cryptolib_keypair_free(&skp)
+    cipherbird_keypair_free(&skp)
     let credID = Array("id".utf8), ctx = Array("app".utf8)
 
     let rr = try Opaque.registrationRequest(password)

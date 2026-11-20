@@ -38,7 +38,7 @@ extension CipherBirdBlake2bKeyed on CipherBird {
             int,
             int,
           )
-        >('cryptolib_blake2b_keyed')(
+        >('cipherbird_blake2b_keyed')(
           pm,
           msg.length,
           pk,
@@ -61,7 +61,7 @@ extension CipherBirdBlake2bKeyed on CipherBird {
     final pk = key == null ? nullptr : _toNative(key);
     try {
       final rc = _lib.lookupFunction<_Blake2bIntoNative, _Blake2bInto>(
-        'cryptolib_blake2b_keyed_into',
+        'cipherbird_blake2b_keyed_into',
       )(po, out.length, pm, msg.length, pk, key?.length ?? 0);
       if (rc != 0) {
         throw TokenException(TokenStatus.fromCode(rc), 'BLAKE2b');

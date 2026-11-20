@@ -4,12 +4,12 @@
 #
 # Proves that a value encrypted by one binding is decrypted by the other, in
 # BOTH directions, using authenticated public-key encryption (Box / X25519).
-# Both "parties" call the same native libcryptolib_c, so the ciphertext format
+# Both "parties" call the same native libcipherbird_c, so the ciphertext format
 # is identical: the Dart party uses package:cipherbird_dart, the twin of the
 # Flutter plugin generated from the same sources.
 #
 # Usage:  bridge/bindings/interop/run.sh
-# Requires: a built build/release/libcryptolib_c.{dylib,so}, Go toolchain, Dart SDK.
+# Requires: a built build/release/libcipherbird_c.{dylib,so}, Go toolchain, Dart SDK.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,10 +18,10 @@ GO_DIR="$ROOT/bridge/bindings/go"
 DART_DIR="$ROOT/bridge/bindings/cipherbird_dart"
 LIBDIR="$ROOT/build/release"
 
-DYLIB="$LIBDIR/libcryptolib_c.dylib"
-[ -f "$DYLIB" ] || DYLIB="$LIBDIR/libcryptolib_c.so"
+DYLIB="$LIBDIR/libcipherbird_c.dylib"
+[ -f "$DYLIB" ] || DYLIB="$LIBDIR/libcipherbird_c.so"
 [ -f "$DYLIB" ] || { echo "Native library not found in $LIBDIR. Build it first:"; \
-  echo "  cmake -B build/release -DCMAKE_BUILD_TYPE=Release && cmake --build build/release --target cryptolib_c"; exit 1; }
+  echo "  cmake -B build/release -DCMAKE_BUILD_TYPE=Release && cmake --build build/release --target cipherbird_c"; exit 1; }
 
 export DYLD_LIBRARY_PATH="$LIBDIR" LD_LIBRARY_PATH="$LIBDIR"
 

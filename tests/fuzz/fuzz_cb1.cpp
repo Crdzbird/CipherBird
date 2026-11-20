@@ -7,10 +7,10 @@
  * requires that replacing the byte the input selects with any other byte
  * value is rejected.
  *
- * Build with -DCRYPTOLIB_FUZZ=ON (clang); run: ./fuzz_cb1 -max_total_time=60
+ * Build with -DCIPHERBIRD_FUZZ=ON (clang); run: ./fuzz_cb1 -max_total_time=60
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <sodium.h>
 
 #include <cstddef>

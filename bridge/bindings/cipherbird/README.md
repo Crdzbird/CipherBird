@@ -411,7 +411,7 @@ composed. In the browser the same facade runs on WebCrypto, the
 platform's own crypto, with the same wire formats, and `module()` states
 that it is not a validated module as exposed to pages. Flutter only. The
 same operations are on the engine as the `fips*` family when the engine was
-built with `CRYPTOLIB_PROFILE=fips`; on the bundled engine `fipsAvailable`
+built with `CIPHERBIRD_PROFILE=fips`; on the bundled engine `fipsAvailable`
 is false.
 
 ## Web
@@ -816,8 +816,8 @@ a stale binary fails at load. Rebuild from the repository root:
 
 ```bash
 bash scripts/android/build_all.sh arm64-v8a x86_64
-cp build/android/arm64-v8a/libcryptolib_c.so android/src/main/jniLibs/arm64-v8a/libcipherbird.so
-cp build/android/x86_64/libcryptolib_c.so android/src/main/jniLibs/x86_64/libcipherbird.so
+cp build/android/arm64-v8a/libcipherbird_c.so android/src/main/jniLibs/arm64-v8a/libcipherbird.so
+cp build/android/x86_64/libcipherbird_c.so android/src/main/jniLibs/x86_64/libcipherbird.so
 make ios
 rm -rf ios/cipherbird/CipherBird.xcframework macos/cipherbird/CipherBird.xcframework
 cp -R CipherBird.xcframework ios/cipherbird/CipherBird.xcframework
@@ -829,8 +829,8 @@ which installs the exact archive as a hosted package in a fresh app and runs
 this package's tests on a device:
 
 ```bash
-grep -c '^CRYPTO_API' bridge/cryptolib_c.h
-nm -gU ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird | grep -c ' T _cryptolib_'
+grep -c '^CRYPTO_API' bridge/cipherbird_c.h
+nm -gU ios/cipherbird/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird | grep -c ' T _cipherbird_'
 make flutter-consumer DEVICE=macos
 ```
 

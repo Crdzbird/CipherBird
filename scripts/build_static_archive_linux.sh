@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Linux counterpart of build_static_archive.sh: produces the SAME merged,
-# self-contained archive build/static/libcryptolib_c.a on Linux that the macOS
+# self-contained archive build/static/libcipherbird_c.a on Linux that the macOS
 # script produces with Homebrew + libtool.
 #
 # macOS gets its deps from Homebrew; Debian/Ubuntu has static packages only for
@@ -103,17 +103,17 @@ fi
 
 # 6. Compile the C-ABI bridge to an object (no link), mirroring the macOS flags.
 clang++ -std=c++20 -O2 -fPIC -c \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 \
-    -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
+    -DCIPHERBIRD_HAS_BLAKE3=1 -DCIPHERBIRD_HAS_PQ=1 -DCIPHERBIRD_HAS_SODIUM_CRYPTO=1 -DCIPHERBIRD_HAS_STEGO=1 -DCIPHERBIRD_HAS_MEDIA_ENTROPY=1 -DCIPHERBIRD_HAS_NATIVE_COMBINERS=1 -DCIPHERBIRD_HAS_BLS=1 \
+    -DCIPHERBIRD_HAS_OPENSSL=1 -DCIPHERBIRD_HAS_SECP256K1=1 \
     -I include -I "$DEPS/include" \
-    bridge/cryptolib_c.cpp -o "$OUT/cryptolib_c.o"
+    bridge/cipherbird_c.cpp -o "$OUT/cipherbird_c.o"
 
 # 7. Merge the object + every dependency archive into one static library. GNU ar
 #    has no libtool, so use an MRI script (addmod object, addlib archives).
-rm -f "$OUT/libcryptolib_c.a"
+rm -f "$OUT/libcipherbird_c.a"
 ar -M <<EOF
-create $OUT/libcryptolib_c.a
-addmod $OUT/cryptolib_c.o
+create $OUT/libcipherbird_c.a
+addmod $OUT/cipherbird_c.o
 addlib $SODIUM_A
 addlib $BLAKE3_A
 addlib $OQS_A
@@ -123,5 +123,5 @@ addlib $SECP_A
 save
 end
 EOF
-rm -f "$OUT/cryptolib_c.o"
-echo "→ $OUT/libcryptolib_c.a ($(du -h "$OUT/libcryptolib_c.a" | cut -f1), self-contained)"
+rm -f "$OUT/cipherbird_c.o"
+echo "→ $OUT/libcipherbird_c.a ($(du -h "$OUT/libcipherbird_c.a" | cut -f1), self-contained)"

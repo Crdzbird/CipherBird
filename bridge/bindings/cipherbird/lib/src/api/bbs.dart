@@ -16,7 +16,7 @@ extension CipherBirdBbs on CipherBird {
             Size,
           ),
           CipherBirdKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
-        >('cryptolib_bbs_keygen')(
+        >('cipherbird_bbs_keygen')(
           km,
           keyMaterial.length,
           ki,
@@ -43,7 +43,7 @@ extension CipherBirdBbs on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_bbs_sk_to_pk')(p, secretKey.length),
+        >('cipherbird_bbs_sk_to_pk')(p, secretKey.length),
       );
     } finally {
       if (p != nullptr) calloc.free(p);

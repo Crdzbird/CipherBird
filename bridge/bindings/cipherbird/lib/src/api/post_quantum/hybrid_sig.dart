@@ -22,7 +22,7 @@ extension CipherBirdHybridSig on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_hybrid_sig_verify')(
+          >('cipherbird_hybrid_sig_verify')(
             mp,
             msg.length,
             sgp,
@@ -49,7 +49,7 @@ extension CipherBirdHybridSig on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_hybrid_sig_keygen',
+      'cipherbird_hybrid_sig_keygen',
     )(),
   );
 
@@ -70,7 +70,7 @@ extension CipherBirdHybridSig on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length),
+        >('cipherbird_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length),
       );
     } finally {
       if (mp != nullptr) calloc.free(mp);

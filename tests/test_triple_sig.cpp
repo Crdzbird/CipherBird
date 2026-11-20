@@ -3,7 +3,7 @@
 #include <vector>
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 using crypto::pq::TripleSig;
 
@@ -81,10 +81,10 @@ TEST("triplesig/bad-lengths-rejected") {
     CHECK_ERR(TripleSig::verify(m, short_sig, kp.value().public_key.span()));
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_triple_sig() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     RUN("triplesig/sizes");
     RUN("triplesig/sign-verify-round-trip");
     RUN("triplesig/tampered-message-rejected");

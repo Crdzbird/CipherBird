@@ -1,5 +1,5 @@
 #include "test_framework.hpp"
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
 #include <cstdint>
 #include <utility>
 #include <string>

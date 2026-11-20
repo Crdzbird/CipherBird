@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -42,7 +42,7 @@ func wrapSession(h C.CryptoSession) *Session {
 // GenerateSessionPrekey generates a responder prekey (a hybrid-KEM keypair).
 // Publish Public; keep the pair to AcceptSession an incoming handshake.
 func GenerateSessionPrekey() KeyPair {
-	kp := C.cryptolib_session_generate_prekey()
+	kp := C.cipherbird_session_generate_prekey()
 	return KeyPair{Public: goBytes(kp.public_key), Secret: goBytes(kp.secret_key)}
 }
 
@@ -50,10 +50,10 @@ func GenerateSessionPrekey() KeyPair {
 // Handshake() on the returned session for the message to send to the responder.
 func InitiateSession(responderPrekeyPublic []byte) (*Session, error) {
 	var cerr *C.char
-	h := C.cryptolib_session_initiate(u8(responderPrekeyPublic), C.size_t(len(responderPrekeyPublic)), &cerr)
+	h := C.cipherbird_session_initiate(u8(responderPrekeyPublic), C.size_t(len(responderPrekeyPublic)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	if h == nil {
@@ -66,17 +66,17 @@ func InitiateSession(responderPrekeyPublic []byte) (*Session, error) {
 // (AcceptSession). Empty on a responder session.
 func (s *Session) Handshake() ([]byte, error) {
 	defer runtime.KeepAlive(s)
-	return checkBufResult(C.cryptolib_session_handshake(s.handle))
+	return checkBufResult(C.cipherbird_session_handshake(s.handle))
 }
 
 // AcceptSession (responder) accepts an incoming handshake with your prekey pair.
 func AcceptSession(handshake, prekeyPublic, prekeySecret []byte) (*Session, error) {
 	var cerr *C.char
-	h := C.cryptolib_session_accept(u8(handshake), C.size_t(len(handshake)),
+	h := C.cipherbird_session_accept(u8(handshake), C.size_t(len(handshake)),
 		u8(prekeyPublic), C.size_t(len(prekeyPublic)), u8(prekeySecret), C.size_t(len(prekeySecret)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	if h == nil {
@@ -88,7 +88,7 @@ func AcceptSession(handshake, prekeyPublic, prekeySecret []byte) (*Session, erro
 // Encrypt the next outgoing message (advances the sending ratchet). aad may be nil.
 func (s *Session) Encrypt(plaintext, aad []byte) ([]byte, error) {
 	defer runtime.KeepAlive(s)
-	return checkBufResult(C.cryptolib_session_encrypt(s.handle,
+	return checkBufResult(C.cipherbird_session_encrypt(s.handle,
 		u8(plaintext), C.size_t(len(plaintext)), u8(aad), C.size_t(len(aad))))
 }
 
@@ -96,14 +96,14 @@ func (s *Session) Encrypt(plaintext, aad []byte) ([]byte, error) {
 // is transactional: a rejected message leaves the session usable.
 func (s *Session) Decrypt(message, aad []byte) ([]byte, error) {
 	defer runtime.KeepAlive(s)
-	return checkBufResult(C.cryptolib_session_decrypt(s.handle,
+	return checkBufResult(C.cipherbird_session_decrypt(s.handle,
 		u8(message), C.size_t(len(message)), u8(aad), C.size_t(len(aad))))
 }
 
 // Close frees the native session. Safe to call more than once.
 func (s *Session) Close() {
 	if s.handle != nil {
-		C.cryptolib_session_free(s.handle)
+		C.cipherbird_session_free(s.handle)
 		s.handle = nil
 	}
 }

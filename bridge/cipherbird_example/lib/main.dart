@@ -59,8 +59,8 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _platformLabel = () {
       if (Platform.isIOS)     return 'iOS (arm64, XCFramework embedded)';
-      if (Platform.isAndroid) return 'Android (arm64-v8a, libcryptolib_c.so in jniLibs)';
-      if (Platform.isMacOS)   return 'macOS (libcryptolib_c.dylib)';
+      if (Platform.isAndroid) return 'Android (arm64-v8a, libcipherbird_c.so in jniLibs)';
+      if (Platform.isMacOS)   return 'macOS (libcipherbird_c.dylib)';
       return Platform.operatingSystem;
     }();
 

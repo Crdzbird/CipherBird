@@ -15,14 +15,14 @@ import (
 )
 
 // p256ColdChildEnv marks the child process of TestP256ColdStartUnderSignals.
-const p256ColdChildEnv = "CRYPTOLIB_P256_COLD_CHILD"
+const p256ColdChildEnv = "CIPHERBIRD_P256_COLD_CHILD"
 
 // TestP256ColdStartUnderSignals reproduces the hang a Go server hit: the
 // first P-256 calls of a process, made by several goroutines together while
 // signals keep reaching the threads that run them. Here the signals are the
 // CPU profiler's SIGPROF and SIGURG, the runtime's own preemption signal,
 // sent to the process in a loop. Without the fix every goroutine stayed in
-// cryptolib_p256_sign, blocked in libcrypto on a pthread rwlock that no
+// cipherbird_p256_sign, blocked in libcrypto on a pthread rwlock that no
 // thread held. libcrypto must be cold, so the test runs this test binary
 // again as a child that does only that, and fails if the child does not
 // finish.

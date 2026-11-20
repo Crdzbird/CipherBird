@@ -3,50 +3,50 @@ part of '../cipher_bird.dart';
 final class _NativeVault {
   _NativeVault(DynamicLibrary lib)
     : vaultCreate = lib.lookupFunction<_VaultCreateC, _VaultCreateDart>(
-        'cryptolib_vault_create',
+        'cipherbird_vault_create',
       ),
       vaultFromEntropy = lib
           .lookupFunction<_VaultFromEntropyC, _VaultFromEntropyDart>(
-            'cryptolib_vault_from_entropy',
+            'cipherbird_vault_from_entropy',
           ),
       vaultSeal = lib.lookupFunction<_VaultSealC, _VaultSealDart>(
-        'cryptolib_vault_seal',
+        'cipherbird_vault_seal',
       ),
       vaultSealBoosted = lib
           .lookupFunction<_VaultSealBoostedC, _VaultSealBoostedDart>(
-            'cryptolib_vault_seal_boosted',
+            'cipherbird_vault_seal_boosted',
           ),
       vaultOpen = lib.lookupFunction<_VaultOpenC, _VaultOpenDart>(
-        'cryptolib_vault_open',
+        'cipherbird_vault_open',
       ),
       vaultOpenBoosted = lib
           .lookupFunction<_VaultOpenBoostedC, _VaultOpenBoostedDart>(
-            'cryptolib_vault_open_boosted',
+            'cipherbird_vault_open_boosted',
           ),
       vaultPublicKey = lib
           .lookupFunction<_VaultPublicKeyC, _VaultPublicKeyDart>(
-            'cryptolib_vault_public_key',
+            'cipherbird_vault_public_key',
           ),
       packetSerialise = lib
           .lookupFunction<_PacketSerialiseC, _PacketSerialiseDart>(
-            'cryptolib_packet_serialise',
+            'cipherbird_packet_serialise',
           ),
       packetDeserialise = lib
           .lookupFunction<_PacketDeserialiseC, _PacketDeserialiseDart>(
-            'cryptolib_packet_deserialise',
+            'cipherbird_packet_deserialise',
           ),
       vaultFree = lib.lookupFunction<_VaultFreeC, _VaultFreeDart>(
-        'cryptolib_vault_free',
+        'cipherbird_vault_free',
       ),
       asymBundleGenerate = lib
           .lookupFunction<_AsymBundleGenerateC, _AsymBundleGenerateDart>(
-            'cryptolib_asym_bundle_generate',
+            'cipherbird_asym_bundle_generate',
           ),
       asymVaultSeal = lib.lookupFunction<_AsymVaultSealC, _AsymVaultSealDart>(
-        'cryptolib_asym_vault_seal',
+        'cipherbird_asym_vault_seal',
       ),
       asymVaultOpen = lib.lookupFunction<_AsymVaultOpenC, _AsymVaultOpenDart>(
-        'cryptolib_asym_vault_open',
+        'cipherbird_asym_vault_open',
       );
 
   final _VaultCreateDart vaultCreate;

@@ -12,11 +12,11 @@ final class Session {
 
   /// Encrypt the next outgoing message (advances the sending ratchet).
   Uint8List encrypt(Uint8List plaintext, {Uint8List? aad}) =>
-      _cl._sessionMsg('cryptolib_session_encrypt', _h, plaintext, aad);
+      _cl._sessionMsg('cipherbird_session_encrypt', _h, plaintext, aad);
 
   /// Decrypt an incoming message (handles ratchet turns + out-of-order; transactional).
   Uint8List decrypt(Uint8List message, {Uint8List? aad}) =>
-      _cl._sessionMsg('cryptolib_session_decrypt', _h, message, aad);
+      _cl._sessionMsg('cipherbird_session_decrypt', _h, message, aad);
 
   void close() {
     if (_h != nullptr) {

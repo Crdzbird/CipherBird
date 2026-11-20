@@ -2,7 +2,7 @@
 //
 // Two assurance tiers of one construction: encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first.
-//   CRYPTOLIB_DYLIB=../../build/release/libcipherbird.dylib dart run bin/sealed.dart
+//   CIPHERBIRD_LIBRARY=../../build/release/libcipherbird.dylib dart run bin/sealed.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cipherbird_dart/cipherbird_dart.dart';
@@ -95,7 +95,7 @@ void demo(CipherBird lib, SealedTier tier, String name, String blurb) {
 }
 
 void main() {
-  final lib = CipherBird.load(Platform.environment['CRYPTOLIB_DYLIB']);
+  final lib = CipherBird.load(Platform.environment['CIPHERBIRD_LIBRARY']);
   lib.init();
   print('CipherBird ${lib.version()} — Flagship / Fortress (Dart)');
   demo(

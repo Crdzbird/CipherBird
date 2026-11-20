@@ -42,7 +42,7 @@ extension CipherBirdOpaqueClientSteps on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_opaque_finalize_request')(
+          >('cipherbird_opaque_finalize_request')(
             a,
             password.length,
             b,
@@ -77,7 +77,7 @@ extension CipherBirdOpaqueClientSteps on CipherBird {
           .lookupFunction<
             CipherBirdOpaqueKe1 Function(Pointer<Uint8>, Size),
             CipherBirdOpaqueKe1 Function(Pointer<Uint8>, int)
-          >('cryptolib_opaque_client_init')(p, password.length);
+          >('cipherbird_opaque_client_init')(p, password.length);
       if (r.error != nullptr) {
         final m = r.error.toDartString();
         _opaqueKe1Free(r);

@@ -34,8 +34,8 @@ flutter run -d macos
 ```
 
 Desktop loads the library from a path. The app takes it from the
-`CRYPTOLIB_PATH` environment variable when that is set; otherwise type the
-absolute path of `build/release/libcryptolib_c.dylib` into the field the app
+`CIPHERBIRD_PATH` environment variable when that is set; otherwise type the
+absolute path of `build/release/libcipherbird_c.dylib` into the field the app
 shows and press Load Library. `setup_macos.sh` regenerates the macOS platform
 folder if it is missing.
 

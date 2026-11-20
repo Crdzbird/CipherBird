@@ -10,8 +10,8 @@ on:
     branches: [main]
     paths:
       - "include/**"
-      - "bridge/cryptolib_c.cpp"
-      - "bridge/cryptolib_c.h"
+      - "bridge/cipherbird_c.cpp"
+      - "bridge/cipherbird_c.h"
       - "scripts/ios/**"
       - "scripts/android/**"
       - "scripts/web/**"
@@ -40,13 +40,13 @@ jobs:
         run: |
           mkdir -p out/apple out/desktop
           cp -R CipherBird.xcframework out/apple/CipherBird.xcframework
-          cp build/desktop/libcryptolib_c.dylib out/desktop/
+          cp build/desktop/libcipherbird_c.dylib out/desktop/
           ditto -c -k --keepParent out/apple/CipherBird.xcframework out/apple/CipherBird.xcframework.zip
           for f in out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird \
                    out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird \
                    out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird \
-                   out/desktop/libcryptolib_c.dylib; do
-            test "$(nm -gU "$f" | grep -c ' T _cryptolib_')" = "$(grep '^CRYPTO_API' bridge/cryptolib_c.h | grep -vc _for_testing)"
+                   out/desktop/libcipherbird_c.dylib; do
+            test "$(nm -gU "$f" | grep -c ' T _cipherbird_')" = "$(grep '^CRYPTO_API' bridge/cipherbird_c.h | grep -vc _for_testing)"
           done
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
@@ -55,7 +55,7 @@ jobs:
             out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird
             out/apple/CipherBird.xcframework/ios-arm64-simulator/CipherBird.framework/CipherBird
             out/apple/CipherBird.xcframework/macos-arm64/CipherBird.framework/Versions/A/CipherBird
-            out/desktop/libcryptolib_c.dylib
+            out/desktop/libcipherbird_c.dylib
       # The framework's symlinks only survive the artifact store inside a zip.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -88,8 +88,8 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out/arm64-v8a out/x86_64
-          cp build/android/arm64-v8a/libcryptolib_c.so out/arm64-v8a/libcipherbird.so
-          cp build/android/x86_64/libcryptolib_c.so out/x86_64/libcipherbird.so
+          cp build/android/arm64-v8a/libcipherbird_c.so out/arm64-v8a/libcipherbird.so
+          cp build/android/x86_64/libcipherbird_c.so out/x86_64/libcipherbird.so
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
@@ -117,7 +117,7 @@ jobs:
         run: |
           mkdir -p out
           cp build/web/dist/cipherbird.js build/web/dist/cipherbird.wasm out/
-          test "$(grep -o '_cbw_cryptolib_[a-z0-9_]*' out/cipherbird.js | sort -u | wc -l)" = "$(grep '^CRYPTO_API' bridge/cryptolib_c.h | grep -vc _for_testing)"
+          test "$(grep -o '_cbw_cipherbird_[a-z0-9_]*' out/cipherbird.js | sort -u | wc -l)" = "$(grep '^CRYPTO_API' bridge/cipherbird_c.h | grep -vc _for_testing)"
       - name: Attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:

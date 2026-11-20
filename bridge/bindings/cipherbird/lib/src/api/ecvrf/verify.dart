@@ -26,7 +26,7 @@ extension CipherBirdEcvrfVerify on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_ecvrf_verify')(
+        >('cipherbird_ecvrf_verify')(
           pk,
           publicKey.length,
           pa,

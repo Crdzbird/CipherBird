@@ -12,7 +12,7 @@ cd "$ROOT"
 
 SHA="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 KR='device==passphrase'   # demos print "device==passphrase[ master]: true"
-DY="$ROOT/build/release/libcryptolib_c.dylib"
+DY="$ROOT/build/release/libcipherbird_c.dylib"
 PASS=0; FAIL=0; SKIP=0
 ok(){ echo "  ✅ $1"; PASS=$((PASS+1)); }
 no(){ echo "  ❌ $1"; FAIL=$((FAIL+1)); echo "${2:-}" | tail -6; }
@@ -21,16 +21,16 @@ sk(){ echo "  ⏭  $1 (toolchain missing)"; SKIP=$((SKIP+1)); }
 chk(){ echo "$2" | grep -qF "$SHA" && echo "$2" | grep -qE "$KR.*true"; }
 
 echo "═══ Building C library (Release) ═══"
-cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
-cmake --build build/release --target cryptolib_c cryptolib_poc >/dev/null
+cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_BUILD_TESTS=OFF >/dev/null
+cmake --build build/release --target cipherbird_c cipherbird_poc >/dev/null
 [ -f "$DY" ] || { echo "FATAL: $DY not built"; exit 2; }
 
 echo "═══ C ABI (incl. keyring) ═══"
-cc bridge/bindings/c/demo.c -Ibridge -L build/release -lcryptolib_c -Wl,-rpath,"$ROOT/build/release" -o build/c_demo 2>/dev/null \
+cc bridge/bindings/c/demo.c -Ibridge -L build/release -lcipherbird_c -Wl,-rpath,"$ROOT/build/release" -o build/c_demo 2>/dev/null \
   && o="$(build/c_demo 2>&1)" && echo "$o" | grep -qF "$SHA" && echo "$o" | grep -qF "device==passphrase master: yes" && ok "c-abi" || no "c-abi" "$o"
 
 echo "═══ C++ examples ═══"
-o="$(./build/release/cryptolib_poc 2>&1)"; echo "$o" | grep -qiF "All tests passed" && ok "cpp/poc" || no "cpp/poc" "$o"
+o="$(./build/release/cipherbird_poc 2>&1)"; echo "$o" | grep -qiF "All tests passed" && ok "cpp/poc" || no "cpp/poc" "$o"
 
 echo "═══ Go ═══"
 if command -v go >/dev/null 2>&1; then
@@ -41,7 +41,7 @@ else sk go; fi
 
 echo "═══ Swift ═══"
 if command -v swiftc >/dev/null 2>&1; then
-  swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/main.swift -L build/release -lcryptolib_c -Xlinker -rpath -Xlinker "$ROOT/build/release" -o build/swift_demo 2>/dev/null \
+  swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/main.swift -L build/release -lcipherbird_c -Xlinker -rpath -Xlinker "$ROOT/build/release" -o build/swift_demo 2>/dev/null \
     && o="$(build/swift_demo 2>&1)" && chk swift "$o" && ok "swift" || no "swift" "$o"
 else sk swift; fi
 
@@ -73,7 +73,7 @@ echo "═══ React (Node+koffi server) ═══"
 if command -v node >/dev/null 2>&1; then
   (cd bridge/bindings/react && [ -d node_modules ] || npm install >/dev/null 2>&1)
   lsof -ti tcp:8787 2>/dev/null | xargs kill -9 2>/dev/null; sleep 0.3
-  CRYPTOLIB_DYLIB="$DY" node bridge/bindings/react/server.mjs >/tmp/cl_srv.log 2>&1 &
+  CIPHERBIRD_LIBRARY="$DY" node bridge/bindings/react/server.mjs >/tmp/cl_srv.log 2>&1 &
   sleep 1.5
   s="$(curl -s -XPOST -H 'Content-Type: application/json' -d '{"text":"abc"}' localhost:8787/api/sha256 2>/dev/null)"
   k="$(curl -s -XPOST localhost:8787/api/keyring 2>/dev/null)"

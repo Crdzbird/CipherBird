@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry15 = {
-  'cryptolib_aes256gcm_encrypt':
+  'cipherbird_aes256gcm_encrypt':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry15 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_aes256gcm_encrypt',
+        '_cbw_cipherbird_aes256gcm_encrypt',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -22,7 +22,7 @@ final Map<String, Function> _registry15 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_aes256gcm_decrypt':
+  'cipherbird_aes256gcm_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -31,7 +31,7 @@ final Map<String, Function> _registry15 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_aes256gcm_decrypt',
+        '_cbw_cipherbird_aes256gcm_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -43,37 +43,37 @@ final Map<String, Function> _registry15 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_aes256gcm_available': () =>
-      WebEngine.current.callInt('_cbw_cryptolib_aes256gcm_available', []),
-  'cryptolib_stream_enc_create': (Pointer<NativeType> key) => Pointer<Void>._(
-    WebEngine.current.callInt('_cbw_cryptolib_stream_enc_create', [
+  'cipherbird_aes256gcm_available': () =>
+      WebEngine.current.callInt('_cbw_cipherbird_aes256gcm_available', []),
+  'cipherbird_stream_enc_create': (Pointer<NativeType> key) => Pointer<Void>._(
+    WebEngine.current.callInt('_cbw_cipherbird_stream_enc_create', [
       key.address.toJS,
     ]),
   ),
-  'cryptolib_stream_enc_header': (Pointer<NativeType> h) =>
+  'cipherbird_stream_enc_header': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_stream_enc_header',
+        '_cbw_cipherbird_stream_enc_header',
         [h.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_stream_enc_push':
+  'cipherbird_stream_enc_push':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> plaintext,
         int ptLen,
         int tag,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_stream_enc_push',
+        '_cbw_cipherbird_stream_enc_push',
         [h.address.toJS, plaintext.address.toJS, ptLen.toJS, tag.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_stream_enc_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_stream_enc_free', [h.address.toJS]),
-  'cryptolib_stream_dec_create':
+  'cipherbird_stream_enc_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_stream_enc_free', [h.address.toJS]),
+  'cipherbird_stream_dec_create':
       (Pointer<NativeType> key, Pointer<NativeType> header) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_stream_dec_create', [
+        WebEngine.current.callInt('_cbw_cipherbird_stream_dec_create', [
           key.address.toJS,
           header.address.toJS,
         ]),

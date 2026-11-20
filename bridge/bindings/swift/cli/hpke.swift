@@ -7,9 +7,9 @@ import Foundation
 enum HpkeError: Error { case failed(String) }
 
 private func hpkeConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw HpkeError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw HpkeError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -27,7 +27,7 @@ private func withPtrs<R>(_ datas: [[UInt8]?], _ body: ([(UnsafePointer<UInt8>?, 
 private func kpBytes(_ kp: inout CryptoKeyPair) -> (publicKey: [UInt8], secretKey: [UInt8]) {
     let pub = kp.public_key.data != nil ? Array(UnsafeBufferPointer(start: kp.public_key.data, count: kp.public_key.len)) : []
     let sec = kp.secret_key.data != nil ? Array(UnsafeBufferPointer(start: kp.secret_key.data, count: kp.secret_key.len)) : []
-    cryptolib_keypair_free(&kp)
+    cipherbird_keypair_free(&kp)
     return (pub, sec)
 }
 
@@ -38,15 +38,15 @@ final class HpkeContext {
     deinit { close() }
 
     func seal(_ plaintext: [UInt8], aad: [UInt8]? = nil) throws -> [UInt8] {
-        try withPtrs([aad, plaintext]) { p in try hpkeConsume(cryptolib_hpke_seal(handle, p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([aad, plaintext]) { p in try hpkeConsume(cipherbird_hpke_seal(handle, p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func open(_ ciphertext: [UInt8], aad: [UInt8]? = nil) throws -> [UInt8] {
-        try withPtrs([aad, ciphertext]) { p in try hpkeConsume(cryptolib_hpke_open(handle, p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([aad, ciphertext]) { p in try hpkeConsume(cipherbird_hpke_open(handle, p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func export(_ exporterContext: [UInt8], _ length: Int) throws -> [UInt8] {
-        try withPtrs([exporterContext]) { p in try hpkeConsume(cryptolib_hpke_export(handle, p[0].0, p[0].1, length)) }
+        try withPtrs([exporterContext]) { p in try hpkeConsume(cipherbird_hpke_export(handle, p[0].0, p[0].1, length)) }
     }
-    func close() { if let h = handle { cryptolib_hpke_context_free(h); handle = nil } }
+    func close() { if let h = handle { cipherbird_hpke_context_free(h); handle = nil } }
 }
 
 /// HPKE(RFC 9180). Suite is chosen with the Kdf/Aead/Mode selector constants.
@@ -63,10 +63,10 @@ enum Hpke {
     struct Sender { let enc: [UInt8]; let context: HpkeContext }
 
     static func keygen() -> (publicKey: [UInt8], secretKey: [UInt8]) {
-        var kp = cryptolib_hpke_keygen(); return kpBytes(&kp)
+        var kp = cipherbird_hpke_keygen(); return kpBytes(&kp)
     }
     static func deriveKeyPair(_ ikm: [UInt8]) -> (publicKey: [UInt8], secretKey: [UInt8]) {
-        var kp = withPtrs([ikm]) { p in cryptolib_hpke_derive_keypair(p[0].0, p[0].1) }
+        var kp = withPtrs([ikm]) { p in cipherbird_hpke_derive_keypair(p[0].0, p[0].1) }
         return kpBytes(&kp)
     }
 
@@ -75,13 +75,13 @@ enum Hpke {
         var enc = CryptoBuffer()
         var err: UnsafeMutablePointer<CChar>? = nil
         let h = withPtrs([recipientPublic, info, psk, pskId, senderSecret]) { p in
-            cryptolib_hpke_setup_s(kdf, aead, mode, p[0].0, p[0].1, p[1].0, p[1].1,
+            cipherbird_hpke_setup_s(kdf, aead, mode, p[0].0, p[0].1, p[1].0, p[1].1,
                 p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1, &enc, &err)
         }
-        if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw HpkeError.failed(m) }
+        if let e = err { let m = String(cString: e); cipherbird_str_free(e); throw HpkeError.failed(m) }
         guard h != nil else { throw HpkeError.failed("hpke setup_s failed") }
         let encBytes = enc.data != nil ? Array(UnsafeBufferPointer(start: enc.data, count: enc.len)) : []
-        cryptolib_buffer_free(&enc)
+        cipherbird_buffer_free(&enc)
         return Sender(enc: encBytes, context: HpkeContext(h))
     }
 
@@ -89,10 +89,10 @@ enum Hpke {
                        psk: [UInt8]? = nil, pskId: [UInt8]? = nil, senderPublic: [UInt8]? = nil) throws -> HpkeContext {
         var err: UnsafeMutablePointer<CChar>? = nil
         let h = withPtrs([enc, recipientSecret, info, psk, pskId, senderPublic]) { p in
-            cryptolib_hpke_setup_r(kdf, aead, mode, p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+            cipherbird_hpke_setup_r(kdf, aead, mode, p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                 p[3].0, p[3].1, p[4].0, p[4].1, p[5].0, p[5].1, &err)
         }
-        if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw HpkeError.failed(m) }
+        if let e = err { let m = String(cString: e); cipherbird_str_free(e); throw HpkeError.failed(m) }
         guard h != nil else { throw HpkeError.failed("hpke setup_r failed") }
         return HpkeContext(h)
     }
@@ -118,8 +118,8 @@ func hexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — HPKE (RFC 9180) (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — HPKE (RFC 9180) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

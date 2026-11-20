@@ -23,7 +23,7 @@
 
 ROOT      := $(CURDIR)
 LIBDIR    := $(ROOT)/build/release
-DYLIB     := $(LIBDIR)/libcryptolib_c.dylib
+DYLIB     := $(LIBDIR)/libcipherbird_c.dylib
 CMAKE     ?= cmake
 GENERATOR ?= Ninja
 
@@ -46,8 +46,8 @@ help:
 lib:
 	$(call hdr,Building C library (Release))
 	@$(CMAKE) -S . -B build/release -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
-		-DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
-	@$(CMAKE) --build build/release --target cryptolib_c
+		-DCIPHERBIRD_BUILD_TESTS=OFF >/dev/null
+	@$(CMAKE) --build build/release --target cipherbird_c
 	@echo "→ $(DYLIB)"
 
 # ── C++ examples ─────────────────────────────────────────────────────────────
@@ -55,11 +55,11 @@ lib:
 cpp:
 	$(call hdr,C++ examples)
 	@$(CMAKE) -S . -B build/release -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
-		-DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
-	@$(CMAKE) --build build/release --target cryptolib_poc cryptolib_usage cryptolib_demo cryptolib_showcase
-	@echo "--- cryptolib_poc ---";   ./build/release/cryptolib_poc   | tail -1
-	@echo "--- cryptolib_usage ---"; ./build/release/cryptolib_usage | tail -1
-	@echo "--- cryptolib_demo all ---"; ./build/release/cryptolib_demo all | tail -1
+		-DCIPHERBIRD_BUILD_TESTS=OFF >/dev/null
+	@$(CMAKE) --build build/release --target cipherbird_poc cipherbird_usage cipherbird_demo cipherbird_showcase
+	@echo "--- cipherbird_poc ---";   ./build/release/cipherbird_poc   | tail -1
+	@echo "--- cipherbird_usage ---"; ./build/release/cipherbird_usage | tail -1
+	@echo "--- cipherbird_demo all ---"; ./build/release/cipherbird_demo all | tail -1
 
 # Composition recipes — real-world flows that combine multiple primitives.
 # `recipes` = the C++ reference (6, incl. Shamir); the per-binding targets mirror
@@ -68,9 +68,9 @@ cpp:
 recipes:
 	$(call hdr,Recipes (composition in practice))
 	@$(CMAKE) -S . -B build/release -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
-		-DCRYPTOLIB_BUILD_TESTS=OFF >/dev/null
-	@$(CMAKE) --build build/release --target cryptolib_recipes
-	@DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) ./build/release/cryptolib_recipes
+		-DCIPHERBIRD_BUILD_TESTS=OFF >/dev/null
+	@$(CMAKE) --build build/release --target cipherbird_recipes
+	@DYLD_LIBRARY_PATH=$(LIBDIR) LD_LIBRARY_PATH=$(LIBDIR) ./build/release/cipherbird_recipes
 
 .PHONY: go-recipes
 go-recipes: lib
@@ -83,18 +83,18 @@ go-recipes: lib
 node-recipes: lib
 	$(call hdr,Node recipes)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node recipes.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) node recipes.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: node-suite
 node-suite: lib
 	$(call hdr,Node Suite (advanced combinations))
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) node suite.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 # Refresh every binding's BUNDLED native library from one self-contained build,
-# so each package ships a current, self-contained libcryptolib_c (no C++ source
+# so each package ships a current, self-contained libcipherbird_c (no C++ source
 # tree needed to install). Run before publishing to any registry. Host platform
 # only; CI / `make ios` / `make android` fill the cross-platform matrix.
 .PHONY: bundle
@@ -110,7 +110,7 @@ sealed: node-sealed go-sealed dart-sealed swift-sealed
 node-sealed: lib
 	$(call hdr,Node Flagship/Fortress sealed messaging)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node sealed.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) node sealed.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: go-sealed
@@ -125,15 +125,15 @@ dart-sealed: lib
 	$(call hdr,Dart Flagship/Fortress sealed messaging)
 	@if command -v dart >/dev/null 2>&1; then \
 		cd bridge/bindings/cipherbird_dart && dart pub get >/dev/null 2>&1 && \
-		CRYPTOLIB_DYLIB=$(DYLIB) dart run bin/sealed.dart | tail -2; \
+		CIPHERBIRD_LIBRARY=$(DYLIB) dart run bin/sealed.dart | tail -2; \
 	else echo "dart not found — skipping"; fi
 
 .PHONY: swift-recipes
 swift-recipes: lib
 	$(call hdr,Swift recipes)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/recipes.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_recipes && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/recipes.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_recipes && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_recipes | tail -2; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -141,8 +141,8 @@ swift-recipes: lib
 swift-suite: lib
 	$(call hdr,Swift Suite (advanced combinations))
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/suite.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_suite && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/suite.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_suite && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_suite | tail -2; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -150,8 +150,8 @@ swift-suite: lib
 swift-sealed: lib
 	$(call hdr,Swift Flagship/Fortress sealed messaging)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/sealed.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_sealed && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/sealed.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_sealed && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_sealed | tail -14; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -159,8 +159,8 @@ swift-sealed: lib
 swift-session: lib
 	$(call hdr,Swift Session ratchet)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/session.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_session && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/session.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_session && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_session | tail -8; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -168,8 +168,8 @@ swift-session: lib
 swift-frost: lib
 	$(call hdr,Swift FROST threshold signatures)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/frost.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_frost && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/frost.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_frost && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_frost | tail -20; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -177,8 +177,8 @@ swift-frost: lib
 swift-hpke: lib
 	$(call hdr,Swift HPKE (RFC 9180))
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/hpke.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_hpke && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/hpke.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_hpke && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_hpke | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -186,8 +186,8 @@ swift-hpke: lib
 swift-bbs: lib
 	$(call hdr,Swift BBS signatures)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/bbs.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_bbs && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/bbs.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_bbs && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_bbs | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -195,8 +195,8 @@ swift-bbs: lib
 swift-bbs-pseudonym: lib
 	$(call hdr,Swift BBS pseudonyms + blind issuance)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/bbs_pseudonym.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_bbs_pseudonym && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/bbs_pseudonym.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_bbs_pseudonym && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_bbs_pseudonym | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -204,8 +204,8 @@ swift-bbs-pseudonym: lib
 node-security: lib
 	$(call hdr,Node security profiles + recipes)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3 && \
-		CRYPTOLIB_DYLIB=$(DYLIB) node test/extensibility.js | tail -1; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) node test/security.js | tail -3 && \
+		CIPHERBIRD_LIBRARY=$(DYLIB) node test/extensibility.js | tail -1; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: node-test
@@ -219,7 +219,7 @@ node-test: lib
 node-noise: lib
 	$(call hdr,Node incremental BLAKE3 + Noise XX)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/noise.js | tail -3; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) node test/noise.js | tail -3; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: dart-security
@@ -261,14 +261,14 @@ kotlin-security: java-security
 python-security: lib
 	$(call hdr,Python security profiles + recipes)
 	@if command -v python3 >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-python && CRYPTOLIB_DYLIB=$(DYLIB) python3 tests/test_recipe.py | tail -3; \
+		cd bridge/bindings/cipherbird-python && CIPHERBIRD_LIBRARY=$(DYLIB) python3 tests/test_recipe.py | tail -3; \
 	else echo "python3 not found — skipping"; fi
 
 .PHONY: ruby-security
 ruby-security: lib
 	$(call hdr,Ruby security profiles + recipes)
 	@if command -v ruby >/dev/null 2>&1; then \
-		cd bridge/bindings/cipherbird-ruby && CRYPTOLIB_DYLIB=$(DYLIB) ruby -Ilib test/recipe.rb | tail -3; \
+		cd bridge/bindings/cipherbird-ruby && CIPHERBIRD_LIBRARY=$(DYLIB) ruby -Ilib test/recipe.rb | tail -3; \
 	else echo "ruby not found — skipping"; fi
 
 .PHONY: rust-security
@@ -303,8 +303,8 @@ stream-interop: lib
 swift-security: lib
 	$(call hdr,Swift security profiles + recipes)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/security.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_security && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/security.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_security && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_security | tail -20; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -312,8 +312,8 @@ swift-security: lib
 swift-opaque: lib
 	$(call hdr,Swift OPAQUE aPAKE)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/opaque.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_opaque && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/opaque.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_opaque && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_opaque | tail -10; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -321,8 +321,8 @@ swift-opaque: lib
 swift-oprf: lib
 	$(call hdr,Swift OPRF (RFC 9497))
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/oprf.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_oprf && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/oprf.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_oprf && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_oprf | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -330,8 +330,8 @@ swift-oprf: lib
 swift-ecvrf: lib
 	$(call hdr,Swift ECVRF (RFC 9381))
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/ecvrf.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_ecvrf && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/ecvrf.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_ecvrf && \
 		DYLD_LIBRARY_PATH=$(LIBDIR) ./build/swift_ecvrf | tail -12; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -348,7 +348,7 @@ flutter-recipes: lib
 	$(call hdr,Flutter recipes (host test))
 	@if command -v flutter >/dev/null 2>&1; then \
 		cd bridge/bindings/cipherbird && \
-		CRYPTOLIB_DYLIB=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart test/easy_test.dart | tail -2; \
+		CIPHERBIRD_LIBRARY=$(DYLIB) flutter test test/recipes_test.dart test/extensibility_test.dart test/easy_test.dart | tail -2; \
 	else echo "flutter not found — skipping"; fi
 
 # WebAssembly engine (Emscripten): every dependency plus the C ABI compiled to
@@ -398,8 +398,8 @@ go-static: static-archive
 swift: lib
 	$(call hdr,Swift demo)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/main.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_demo && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/main.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_demo && \
 		./build/swift_demo; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -417,8 +417,8 @@ java: lib
 swift-keyring: lib
 	$(call hdr,Swift device-factor (Keychain) demo)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/keyring_device.swift \
-			-framework Security -L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/kd && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/keyring_device.swift \
+			-framework Security -L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/kd && \
 		./build/kd; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -469,7 +469,7 @@ react-webauthn-test: lib
 	@if command -v npm >/dev/null 2>&1; then \
 		cd bridge/bindings/react && { [ -d node_modules ] || npm install >/dev/null 2>&1; } && \
 		npx playwright install chromium >/dev/null 2>&1 && npm run build >/dev/null && \
-		CRYPTOLIB_DYLIB=$(DYLIB) node test/webauthn_e2e.mjs; \
+		CIPHERBIRD_LIBRARY=$(DYLIB) node test/webauthn_e2e.mjs; \
 	else echo "npm not found — skipping"; fi
 
 # ── React (Vite frontend + Node/koffi backend) ──────────────────────────────
@@ -490,8 +490,8 @@ react: lib
 .PHONY: cpp-showcase
 cpp-showcase: lib
 	$(call hdr,C++ full showcase)
-	@$(CMAKE) --build build/release --target cryptolib_showcase >/dev/null && \
-		./build/release/cryptolib_showcase | tail -4
+	@$(CMAKE) --build build/release --target cipherbird_showcase >/dev/null && \
+		./build/release/cipherbird_showcase | tail -4
 
 .PHONY: go-showcase
 go-showcase: lib
@@ -504,8 +504,8 @@ go-showcase: lib
 swift-showcase: lib
 	$(call hdr,Swift full showcase)
 	@if command -v swiftc >/dev/null 2>&1; then \
-		swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/showcase.swift \
-			-L $(LIBDIR) -lcryptolib_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_showcase && \
+		swiftc -import-objc-header bridge/cipherbird_c.h bridge/bindings/swift/cli/showcase.swift \
+			-L $(LIBDIR) -lcipherbird_c -Xlinker -rpath -Xlinker $(LIBDIR) -o build/swift_showcase && \
 		./build/swift_showcase $(DYLIB) | tail -3; \
 	else echo "swiftc not found — skipping"; fi
 
@@ -565,9 +565,9 @@ android:
 			$(CMAKE) -S . -B build/android-$$abi -G $(GENERATOR) \
 				-DCMAKE_TOOLCHAIN_FILE=$(ANDROID_NDK_HOME)/build/cmake/android.toolchain.cmake \
 				-DANDROID_ABI=$$abi -DANDROID_PLATFORM=android-24 \
-				-DCRYPTOLIB_DEPS_ROOT=$(ROOT)/third_party/android/$$abi >/dev/null && \
-			$(CMAKE) --build build/android-$$abi --target cryptolib_c >/dev/null && \
-			ls -la build/android-$$abi/libcryptolib_c.so; \
+				-DCIPHERBIRD_DEPS_ROOT=$(ROOT)/third_party/android/$$abi >/dev/null && \
+			$(CMAKE) --build build/android-$$abi --target cipherbird_c >/dev/null && \
+			ls -la build/android-$$abi/libcipherbird_c.so; \
 		done; \
 	else echo "Android NDK not found (set ANDROID_NDK_HOME) — skipping"; fi
 
@@ -576,7 +576,7 @@ android:
 ios:
 	$(call hdr,iOS XCFramework)
 	@if command -v xcodebuild >/dev/null 2>&1; then \
-		for s in iphoneos iphonesimulator macosx; do bash scripts/ios/build_cryptolib_slice.sh $$s; done && \
+		for s in iphoneos iphonesimulator macosx; do bash scripts/ios/build_cipherbird_slice.sh $$s; done && \
 		bash scripts/ios/assemble_xcframework.sh iphoneos iphonesimulator macosx; \
 	else echo "Xcode not found — skipping"; fi
 
@@ -592,9 +592,9 @@ audit: lib
 test:
 	$(call hdr,C++ test suite)
 	@$(CMAKE) -S . -B build/test -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
-		-DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF >/dev/null
-	@$(CMAKE) --build build/test --target cryptolib_tests
-	@./build/test/cryptolib_tests | tail -3
+		-DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF >/dev/null
+	@$(CMAKE) --build build/test --target cipherbird_tests
+	@./build/test/cipherbird_tests | tail -3
 
 # Same test suite, but with the standardized PQC algorithms backed by OpenSSL EVP
 # (FIPS-track) instead of liboqs. The ACVP known-answer tests are the equivalence
@@ -603,18 +603,18 @@ test:
 test-openssl-pq:
 	$(call hdr,C++ test suite — OpenSSL PQC backend)
 	@$(CMAKE) -S . -B build/ossl-pq -G $(GENERATOR) -DCMAKE_BUILD_TYPE=Release \
-		-DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
-		-DCRYPTOLIB_PQ_BACKEND_OPENSSL=ON >/dev/null
-	@$(CMAKE) --build build/ossl-pq --target cryptolib_tests
-	@./build/ossl-pq/cryptolib_tests | tail -3
+		-DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF \
+		-DCIPHERBIRD_PQ_BACKEND_OPENSSL=ON >/dev/null
+	@$(CMAKE) --build build/ossl-pq --target cipherbird_tests
+	@./build/ossl-pq/cipherbird_tests | tail -3
 
 .PHONY: asan
 asan:
 	$(call hdr,Tests under AddressSanitizer + UBSan)
-	@$(CMAKE) -S . -B build/asan -G $(GENERATOR) -DCRYPTOLIB_SANITIZE=ON \
-		-DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF >/dev/null
-	@$(CMAKE) --build build/asan --target cryptolib_tests
-	@ASAN_OPTIONS=detect_leaks=0 ./build/asan/cryptolib_tests | tail -3
+	@$(CMAKE) -S . -B build/asan -G $(GENERATOR) -DCIPHERBIRD_SANITIZE=ON \
+		-DCIPHERBIRD_BUILD_BRIDGE=OFF -DCIPHERBIRD_BUILD_EXAMPLE=OFF >/dev/null
+	@$(CMAKE) --build build/asan --target cipherbird_tests
+	@ASAN_OPTIONS=detect_leaks=0 ./build/asan/cipherbird_tests | tail -3
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 .PHONY: clean

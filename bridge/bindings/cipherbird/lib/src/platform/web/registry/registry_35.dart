@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry35 = {
-  'cryptolib_bbs_commit_with_nym':
+  'cipherbird_bbs_commit_with_nym':
       (
         Pointer<NativeType> committedMsgs,
         Pointer<NativeType> committedLens,
@@ -11,7 +11,7 @@ final Map<String, Function> _registry35 = {
         int nymCount,
         Pointer<NativeType> secretProverBlind,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_commit_with_nym',
+        '_cbw_cipherbird_bbs_commit_with_nym',
         [
           committedMsgs.address.toJS,
           committedLens.address.toJS,
@@ -24,7 +24,7 @@ final Map<String, Function> _registry35 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_blind_sign_with_nym':
+  'cipherbird_bbs_blind_sign_with_nym':
       (
         Pointer<NativeType> sk,
         int skLen,
@@ -41,7 +41,7 @@ final Map<String, Function> _registry35 = {
         int entropyLen,
         int lengthNymVector,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_blind_sign_with_nym',
+        '_cbw_cipherbird_bbs_blind_sign_with_nym',
         [
           sk.address.toJS,
           skLen.toJS,
@@ -62,7 +62,7 @@ final Map<String, Function> _registry35 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_finalize_nym_secrets':
+  'cipherbird_bbs_finalize_nym_secrets':
       (
         Pointer<NativeType> proverNyms,
         Pointer<NativeType> nymLens,
@@ -70,7 +70,7 @@ final Map<String, Function> _registry35 = {
         Pointer<NativeType> signerNymEntropy,
         int entropyLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_finalize_nym_secrets',
+        '_cbw_cipherbird_bbs_finalize_nym_secrets',
         [
           proverNyms.address.toJS,
           nymLens.address.toJS,

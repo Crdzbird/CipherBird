@@ -55,7 +55,7 @@ and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads i
 
 `make bundle` is host-arch only; CI / `make ios` / `make android` fill the
 cross-platform matrix (section 2). `scripts/build_static_archive.sh` builds the
-full profile by default and the bank profile with `CRYPTOLIB_PROFILE=bank`
+full profile by default and the bank profile with `CIPHERBIRD_PROFILE=bank`
 (into `build/static-bank`); the Go binding links the bank library with
 `-tags cipherbird_bank`.
 
@@ -157,16 +157,16 @@ module must carry what the build needs. Two options:
    ```go
    /*
    #cgo CFLAGS: -I${SRCDIR}/include
-   #cgo darwin,arm64 LDFLAGS: ${SRCDIR}/lib/darwin_arm64/libcryptolib_c_merged.a -lc++ -framework Security
-   #cgo linux,amd64  LDFLAGS: ${SRCDIR}/lib/linux_amd64/libcryptolib_c.a
-   #include "cryptolib_c.h"
+   #cgo darwin,arm64 LDFLAGS: ${SRCDIR}/lib/darwin_arm64/libcipherbird_c_merged.a -lc++ -framework Security
+   #cgo linux,amd64  LDFLAGS: ${SRCDIR}/lib/linux_amd64/libcipherbird_c.a
+   #include "cipherbird_c.h"
    */
    import "C"
    ```
    The merged static archives already produced for iOS/macOS
-   (`CipherBird.xcframework/macos-arm64/libcryptolib_c_merged.a`) are exactly the
+   (`CipherBird.xcframework/macos-arm64/libcipherbird_c_merged.a`) are exactly the
    self-contained inputs this needs; the same must be produced per Go target on CI.
-2. **Require a system install** of `libcryptolib_c` + headers (Homebrew/apt) and
+2. **Require a system install** of `libcipherbird_c` + headers (Homebrew/apt) and
    link via `pkg-config`. Simpler module, heavier consumer setup.
 
 The current `bridge/bindings/go` binding uses a local build path (option for

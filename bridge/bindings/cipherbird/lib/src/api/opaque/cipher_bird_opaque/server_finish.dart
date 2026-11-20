@@ -20,7 +20,7 @@ extension CipherBirdOpaqueServerFinish on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_opaque_server_finish')(
+        >('cipherbird_opaque_server_finish')(
           a,
           serverState.length,
           b,
@@ -43,7 +43,7 @@ extension CipherBirdOpaqueServerFinish on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdOpaqueRecord>),
       void Function(Pointer<CipherBirdOpaqueRecord>)
-    >('cryptolib_opaque_record_free')(p);
+    >('cipherbird_opaque_record_free')(p);
     calloc.free(p);
   }
 
@@ -57,7 +57,7 @@ extension CipherBirdOpaqueServerFinish on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdOpaqueKe1>),
       void Function(Pointer<CipherBirdOpaqueKe1>)
-    >('cryptolib_opaque_ke1_free')(p);
+    >('cipherbird_opaque_ke1_free')(p);
     calloc.free(p);
   }
 
@@ -71,7 +71,7 @@ extension CipherBirdOpaqueServerFinish on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdOpaqueKe2>),
       void Function(Pointer<CipherBirdOpaqueKe2>)
-    >('cryptolib_opaque_ke2_free')(p);
+    >('cipherbird_opaque_ke2_free')(p);
     calloc.free(p);
   }
 
@@ -87,7 +87,7 @@ extension CipherBirdOpaqueServerFinish on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdOpaqueKe3>),
       void Function(Pointer<CipherBirdOpaqueKe3>)
-    >('cryptolib_opaque_ke3_free')(p);
+    >('cipherbird_opaque_ke3_free')(p);
     calloc.free(p);
   }
 }

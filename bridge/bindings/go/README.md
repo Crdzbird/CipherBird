@@ -1,7 +1,7 @@
 # CipherBird for Go
 
 Idiomatic Go bindings for **CipherBird**, a header-only C++20 cryptography
-library exposed through a stable C ABI (`libcryptolib_c`). One import gives you
+library exposed through a stable C ABI (`libcipherbird_c`). One import gives you
 authenticated encryption, signatures, key exchange, **post-quantum** KEMs and
 signatures, sealed messaging, a forward-secret session ratchet, HPKE, Noise,
 tokens, P-256, threshold and zero-knowledge signatures, **BLS** aggregation,
@@ -14,7 +14,7 @@ import "github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 ```
 
 > Uses **cgo**. You need `CGO_ENABLED=1` (the default) and a built copy of the
-> native library `libcryptolib_c` at link and run time.
+> native library `libcipherbird_c` at link and run time.
 
 ---
 
@@ -26,15 +26,15 @@ go get github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird
 
 ## Prerequisites: build the native library
 
-The Go package links against `libcryptolib_c`, which bundles libsodium, liboqs,
+The Go package links against `libcipherbird_c`, which bundles libsodium, liboqs,
 blst, OpenSSL libcrypto and libsecp256k1. Build it once from the CipherBird repo:
 
 ```sh
 cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --target cryptolib_c
+cmake --build build/release --target cipherbird_c
 ```
 
-This produces `build/release/libcryptolib_c.{dylib,so}`.
+This produces `build/release/libcipherbird_c.{dylib,so}`.
 
 ## Linking
 
@@ -43,7 +43,7 @@ The package links in one of five ways, chosen by build tag.
 ### 1. Default: in-repo paths (no tags)
 
 Inside the CipherBird repository it works out of the box: the header is found at
-`bridge/cryptolib_c.h` and the library at `build/release/`. The build also
+`bridge/cipherbird_c.h` and the library at `build/release/`. The build also
 records an rpath to `build/release`, so a binary built here runs with no loader
 path set:
 
@@ -59,7 +59,7 @@ project links and runs against it.
 ### 2. External module: point cgo at your build
 
 When you `go get` this package into another project, the prebuilt library is not
-part of the Go module. Tell the toolchain where your `libcryptolib_c` lives:
+part of the Go module. Tell the toolchain where your `libcipherbird_c` lives:
 
 ```sh
 export CGO_LDFLAGS="-L/opt/cipherbird/lib"
@@ -71,9 +71,9 @@ go build ./...
 
 ### 3. pkg-config (system install)
 
-If the library is installed system-wide with a `cryptolib_c.pc` on your
+If the library is installed system-wide with a `cipherbird_c.pc` on your
 `PKG_CONFIG_PATH` (a template ships as
-[`cipherbird/cryptolib_c.pc.in`](cipherbird/cryptolib_c.pc.in)), build with the tag:
+[`cipherbird/cipherbird_c.pc.in`](cipherbird/cipherbird_c.pc.in)), build with the tag:
 
 ```sh
 go build -tags cipherbird_pkgconfig ./...
@@ -83,11 +83,11 @@ go build -tags cipherbird_pkgconfig ./...
 
 The most convenient option: link everything (the C ABI **and** libsodium,
 liboqs, blst, libcrypto, libsecp256k1) into the binary. The result has **no
-`libcryptolib_c` dependency at all**: nothing to ship alongside it, no rpath, no
+`libcipherbird_c` dependency at all**: nothing to ship alongside it, no rpath, no
 `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH`. It just runs, anywhere.
 
 ```sh
-scripts/build_static_archive.sh           # builds build/static/libcryptolib_c.a
+scripts/build_static_archive.sh           # builds build/static/libcipherbird_c.a
 go build -tags cipherbird_static ./...
 # or, in one step:  make go-static
 ```
@@ -96,7 +96,7 @@ Verify it carries nothing extra:
 
 ```sh
 otool -L your-binary   # macOS: only /usr/lib/* system libs
-ldd    your-binary     # Linux: no libcryptolib_c
+ldd    your-binary     # Linux: no libcipherbird_c
 ```
 
 Only the C++ runtime (`libc++`/`libstdc++`) stays dynamic; it is present on
@@ -119,7 +119,7 @@ it.
 
 ### The bank profile
 
-When the linked library was built with `CRYPTOLIB_PROFILE=bank`, add
+When the linked library was built with `CIPHERBIRD_PROFILE=bank`, add
 `-tags cipherbird_bank` to any of the configurations above. The tag leaves out
 the calls that profile does not export (media entropy, steganography, the DRBGs
 and sntrup761).

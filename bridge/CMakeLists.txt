@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.1)
-project(cryptolib_bridge VERSION 3.0.0 LANGUAGES CXX)
+project(cipherbird_bridge VERSION 3.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,19 +11,19 @@ find_package(PkgConfig REQUIRED)
 link_directories(/opt/homebrew/Cellar/libsodium/1.0.21/lib)
 pkg_check_modules(SODIUM REQUIRED libsodium)
 
-# ─── Shared library: libcryptolib_c ───────────────────────────────────────────
-add_library(cryptolib_c SHARED cryptolib_c.cpp)
-target_include_directories(cryptolib_c PRIVATE
+# ─── Shared library: libcipherbird_c ───────────────────────────────────────────
+add_library(cipherbird_c SHARED cipherbird_c.cpp)
+target_include_directories(cipherbird_c PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
     ${SODIUM_INCLUDE_DIRS}
 )
-target_link_libraries(cryptolib_c PRIVATE ${SODIUM_LIBRARIES})
-target_compile_definitions(cryptolib_c PRIVATE CRYPTOLIB_BUILD_SHARED)
-target_compile_options(cryptolib_c PRIVATE -Wall -Wextra -O2)
+target_link_libraries(cipherbird_c PRIVATE ${SODIUM_LIBRARIES})
+target_compile_definitions(cipherbird_c PRIVATE CIPHERBIRD_BUILD_SHARED)
+target_compile_options(cipherbird_c PRIVATE -Wall -Wextra -O2)
 
 # Set output name and SONAME
-set_target_properties(cryptolib_c PROPERTIES
-    OUTPUT_NAME cryptolib_c
+set_target_properties(cipherbird_c PROPERTIES
+    OUTPUT_NAME cipherbird_c
     VERSION ${PROJECT_VERSION}
     SOVERSION 3
     # macOS framework-friendly
@@ -36,9 +36,9 @@ set_target_properties(cryptolib_c PROPERTIES
 
 # ─── Install ──────────────────────────────────────────────────────────────────
 include(GNUInstallDirs)
-install(TARGETS cryptolib_c
+install(TARGETS cipherbird_c
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(FILES cryptolib_c.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES cipherbird_c.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

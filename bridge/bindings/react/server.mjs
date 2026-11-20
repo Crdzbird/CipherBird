@@ -4,8 +4,8 @@
 // crypto with the real CipherBird native library and exposes it over HTTP. It
 // uses the `cipherbird-node` package (full 127-function parity) rather than
 // re-declaring FFI signatures, so the UI can reach the entire library. Run:
-//   node server.mjs                 # uses ../../../build/release/libcryptolib_c.dylib
-//   CRYPTOLIB_DYLIB=/abs/path node server.mjs
+//   node server.mjs                 # uses ../../../build/release/libcipherbird_c.dylib
+//   CIPHERBIRD_LIBRARY=/abs/path node server.mjs
 // then `npm run dev` for the React frontend (Vite proxies /api here).
 
 import http from 'node:http';
@@ -16,11 +16,11 @@ import { execFileSync } from 'node:child_process';
 import crypto from '../cipherbird-node/index.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const libPath = process.env.CRYPTOLIB_DYLIB
-  || resolve(HERE, '../../../build/release/libcryptolib_c.dylib');
+const libPath = process.env.CIPHERBIRD_LIBRARY
+  || resolve(HERE, '../../../build/release/libcipherbird_c.dylib');
 // The package loads the native library lazily on first call; point it at our
 // local build so no prebuilt binary is required for the example.
-process.env.CRYPTOLIB_DYLIB = libPath;
+process.env.CIPHERBIRD_LIBRARY = libPath;
 crypto.init();
 
 const routes = {

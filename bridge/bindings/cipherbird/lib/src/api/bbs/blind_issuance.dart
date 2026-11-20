@@ -22,7 +22,7 @@ extension CipherBirdBbsBlindIssuance on CipherBird {
             int,
             Pointer<CipherBirdBuffer>,
           )
-        >('cryptolib_bbs_blind_commit')(cm, cl, committedMessages.length, spb),
+        >('cipherbird_bbs_blind_commit')(cm, cl, committedMessages.length, spb),
       );
       return (cwp, _copyBuf(spb.ref));
     } finally {
@@ -73,7 +73,7 @@ extension CipherBirdBbsBlindIssuance on CipherBird {
             Pointer<Size>,
             int,
           )
-        >('cryptolib_bbs_blind_sign')(
+        >('cipherbird_bbs_blind_sign')(
           sk,
           secretKey.length,
           pk,

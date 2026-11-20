@@ -6,7 +6,7 @@
  * ratchet. Every step reports through the caller's check callback so the
  * two programs count results the same way.
  */
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
 namespace bank_demo {
 
 using Check = std::function<void(bool, const std::string&)>;

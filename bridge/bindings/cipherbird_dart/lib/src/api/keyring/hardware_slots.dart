@@ -13,7 +13,7 @@ extension CipherBirdKeyringHardwareSlots on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_keyring_add_hardware_slot')(kr, pid, keyId.length),
+        >('cipherbird_keyring_add_hardware_slot')(kr, pid, keyId.length),
       );
     } finally {
       if (pid != nullptr) {
@@ -29,7 +29,7 @@ extension CipherBirdKeyringHardwareSlots on CipherBird {
       return _lib.lookupFunction<
             Int32 Function(Pointer<Void>, Size, Pointer<Uint8>, Size),
             int Function(Pointer<Void>, int, Pointer<Uint8>, int)
-          >('cryptolib_keyring_set_hardware_blob')(
+          >('cipherbird_keyring_set_hardware_blob')(
             kr,
             index,
             pb,
@@ -48,5 +48,5 @@ extension CipherBirdKeyringHardwareSlots on CipherBird {
       _lib.lookupFunction<
         Int32 Function(Pointer<Void>, Size),
         int Function(Pointer<Void>, int)
-      >('cryptolib_keyring_slot_type')(kr, index);
+      >('cipherbird_keyring_slot_type')(kr, index);
 }

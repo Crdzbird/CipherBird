@@ -8,9 +8,9 @@ import Foundation
 enum FrostError: Error { case failed(String) }
 
 private func frostConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw FrostError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw FrostError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -40,8 +40,8 @@ enum Frost {
     /// Trusted-dealer split: any `t` of `n` shares can sign. Share i (0-based)
     /// has FROST identifier i+1.
     static func keygen(n: UInt16, t: UInt16) throws -> KeyGen {
-        var kg = cryptolib_frost_keygen(n, t)
-        defer { cryptolib_frost_keygen_free(&kg) }
+        var kg = cipherbird_frost_keygen(n, t)
+        defer { cipherbird_frost_keygen_free(&kg) }
         if let e = kg.error { throw FrostError.failed(String(cString: e)) }
         let count = Int(kg.count)
         let secs = bytes(kg.secret_shares), pubs = bytes(kg.public_shares)
@@ -56,21 +56,21 @@ enum Frost {
     /// Round 1: fresh random nonce pair + public commitment for a share. Keep
     /// the returned nonces secret; publish the commitment.
     static func commit(shareSecret: [UInt8], identifier: UInt16) throws -> (Nonces, Commitment) {
-        let c = withPtrs([shareSecret]) { p in cryptolib_frost_commit(p[0].0, p[0].1, identifier) }
+        let c = withPtrs([shareSecret]) { p in cipherbird_frost_commit(p[0].0, p[0].1, identifier) }
         return try commitOut(c, identifier)
     }
 
     /// Deterministic round-1 commit from caller-supplied nonces (test vectors).
     static func commitWithNonces(identifier: UInt16, hiding: [UInt8], binding: [UInt8]) throws -> (Nonces, Commitment) {
         let c = withPtrs([hiding, binding]) { p in
-            cryptolib_frost_commit_with_nonces(identifier, p[0].0, p[0].1, p[1].0, p[1].1)
+            cipherbird_frost_commit_with_nonces(identifier, p[0].0, p[0].1, p[1].0, p[1].1)
         }
         return try commitOut(c, identifier)
     }
 
     private static func commitOut(_ c0: CryptoFrostCommit, _ identifier: UInt16) throws -> (Nonces, Commitment) {
         var c = c0
-        defer { cryptolib_frost_commit_free(&c) }
+        defer { cipherbird_frost_commit_free(&c) }
         if let e = c.error { throw FrostError.failed(String(cString: e)) }
         return (Nonces(hiding: bytes(c.hiding_nonce), binding: bytes(c.binding_nonce)),
                 Commitment(identifier: identifier, hiding: bytes(c.hiding_commit), binding: bytes(c.binding_commit)))
@@ -98,7 +98,7 @@ enum Frost {
                      nonces: Nonces, msg: [UInt8], commitments: [Commitment]) throws -> [UInt8] {
         try withCommitments(commitments) { ids, hid, bnd, n in
             try withPtrs([shareSecret, groupPublicKey, nonces.hiding, nonces.binding, msg]) { p in
-                try frostConsume(cryptolib_frost_sign(
+                try frostConsume(cipherbird_frost_sign(
                     identifier, p[0].0, p[0].1, p[1].0, p[1].1,
                     p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1, ids, hid, bnd, n))
             }
@@ -111,7 +111,7 @@ enum Frost {
         var flat = [UInt8](); for s in sigShares { flat.append(contentsOf: s) }
         return try withCommitments(commitments) { ids, hid, bnd, n in
             try withPtrs([groupPublicKey, msg, flat]) { p in
-                try frostConsume(cryptolib_frost_aggregate(
+                try frostConsume(cipherbird_frost_aggregate(
                     p[0].0, p[0].1, p[1].0, p[1].1, ids, hid, bnd, n, p[2].0))
             }
         }
@@ -120,7 +120,7 @@ enum Frost {
     /// Verify an aggregate signature with standard Ed25519.
     static func verify(msg: [UInt8], sig: [UInt8], groupPublicKey: [UInt8]) -> Bool {
         withPtrs([msg, sig, groupPublicKey]) { p in
-            cryptolib_frost_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
+            cipherbird_frost_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
         }
     }
 
@@ -130,7 +130,7 @@ enum Frost {
                             commitments: [Commitment]) -> Bool {
         withCommitments(commitments) { ids, hid, bnd, n in
             withPtrs([publicShare, sigShare, commitment.hiding, commitment.binding, groupPublicKey, msg]) { p in
-                cryptolib_frost_verify_share(
+                cipherbird_frost_verify_share(
                     identifier, p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                     p[3].0, p[3].1, p[4].0, p[4].1, p[5].0, p[5].1, ids, hid, bnd, n) == 1
             }
@@ -149,8 +149,8 @@ func hexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — FROST threshold sigs (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — FROST threshold sigs (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

@@ -52,7 +52,7 @@ extension CipherBirdTokenIssue on CipherBird {
   }) {
     final name = format.toNativeUtf8();
     final len = _lib.lookupFunction<_TokenIssueLenNative, _TokenIssueLen>(
-      'cryptolib_token_issue_len',
+      'cipherbird_token_issue_len',
     )(name, payload.length, footer?.length ?? 0);
     final out = calloc<Uint8>(len == 0 ? 1 : len);
     final outLen = calloc<Size>();
@@ -63,7 +63,7 @@ extension CipherBirdTokenIssue on CipherBird {
     try {
       final rc =
           _lib.lookupFunction<_TokenNamedCallNative, _TokenNamedCall>(
-            'cryptolib_token_issue',
+            'cipherbird_token_issue',
           )(
             name,
             out,

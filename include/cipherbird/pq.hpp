@@ -1,0 +1,645 @@
+#pragma once
+
+/**
+ * crypto::pq — Post-quantum cryptographic primitives (NIST FIPS 203/204/205)
+ *
+ * Provides:
+ *
+ *   MlKem    — ML-KEM key encapsulation (FIPS 203) — 512/768/1024 security levels
+ *   MlDsa    — ML-DSA digital signatures (FIPS 204) — 44/65/87 security levels
+ *   SlhDsa   — SLH-DSA hash-based signatures (FIPS 205) — 128s/128f/192s/192f/256s/256f
+ *
+ * Backend (selectable at build time, byte-identical FIPS encodings either way —
+ * verified against the NIST ACVP vectors in tests/test_kat_pqc.cpp):
+ *   - default            liboqs (Open Quantum Safe)
+ *   - -DCIPHERBIRD_PQ_BACKEND_OPENSSL=ON   OpenSSL EVP (FIPS-validation track)
+ * liboqs is required either way (for size metadata and non-standardized algs).
+ *
+ * Requires: liboqs (brew install liboqs); OpenSSL 3.5+ for the OpenSSL backend
+ * Enable:   -DCIPHERBIRD_PQ=ON (default)
+ *
+ * All three use the same pattern:
+ *   - Static methods returning Result<T>
+ *   - SecureBuffer for all key material (auto-zeroed on destruction)
+ *   - RAII wrapper around OQS_KEM / OQS_SIG objects
+ */
+
+#ifdef CIPHERBIRD_HAS_PQ
+
+#include "types.hpp"
+#include "detail/ct.hpp"
+#include "detail/openssl_threads.hpp"
+#include <oqs/oqs.h>
+#include <memory>
+#include <string_view>
+
+// Optional: back the standardized algorithms (ML-KEM/ML-DSA/SLH-DSA) with
+// OpenSSL's native (FIPS-track) EVP implementations instead of liboqs. The raw
+// encodings are byte-identical, so envelopes/ABI/bindings are unaffected. liboqs
+// stays for algorithms OpenSSL lacks and for size metadata.
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+#include "detail/pq_openssl_backend.hpp"
+#endif
+
+namespace crypto::pq {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ML-KEM — Module-Lattice Key Encapsulation Mechanism (FIPS 203)
+//
+// Post-quantum IND-CCA2 key encapsulation. Alice generates a keypair; Bob
+// encapsulates a shared secret to Alice's public key; Alice decapsulates.
+//
+// Security levels:
+//   ML-KEM-512  — NIST Level 1 (~AES-128)
+//   ML-KEM-768  — NIST Level 3 (~AES-192)  ← recommended default
+//   ML-KEM-1024 — NIST Level 5 (~AES-256)
+// ─────────────────────────────────────────────────────────────────────────────
+class MlKem {
+public:
+    enum class Level { KEM_512, KEM_768, KEM_1024 };
+
+    struct KeyPair {
+        SecureBuffer public_key;
+        SecureBuffer secret_key;
+    };
+
+    struct EncapsResult {
+        SecureBuffer ciphertext;
+        SecureBuffer shared_secret;
+    };
+
+    /// Generate a fresh keypair
+    [[nodiscard]] static Result<KeyPair>
+    generate_keypair(Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("ML-KEM: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
+        auto kem = make_kem(level);
+        if (!kem) return Result<KeyPair>::err("ML-KEM: algorithm not available in liboqs build");
+
+        SecureBuffer pk(kem->length_public_key);
+        SecureBuffer sk(kem->length_secret_key);
+
+        if (OQS_KEM_keypair(kem.get(), pk.data(), sk.data()) != OQS_SUCCESS)
+            return Result<KeyPair>::err("ML-KEM: keypair generation failed");
+
+        return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
+    }
+
+    /// Encapsulate: produce ciphertext + shared secret from a public key
+    [[nodiscard]] static Result<EncapsResult>
+    encapsulate(std::span<const uint8_t> public_key, Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<EncapsResult>::err("ML-KEM: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::kem_encapsulate(evp_alg(level), public_key);
+        if (r.is_err()) return Result<EncapsResult>::err(r.error().message);
+        return Result<EncapsResult>::ok(EncapsResult{ std::move(r.value().first), std::move(r.value().second) });
+#else
+        auto kem = make_kem(level);
+        if (!kem) return Result<EncapsResult>::err("ML-KEM: algorithm not available");
+        if (public_key.size() != kem->length_public_key)
+            return Result<EncapsResult>::err("ML-KEM: invalid public key length");
+
+        SecureBuffer ct(kem->length_ciphertext);
+        SecureBuffer ss(kem->length_shared_secret);
+
+        if (OQS_KEM_encaps(kem.get(), ct.data(), ss.data(), public_key.data()) != OQS_SUCCESS)
+            return Result<EncapsResult>::err("ML-KEM: encapsulation failed");
+
+        return Result<EncapsResult>::ok(EncapsResult{ std::move(ct), std::move(ss) });
+#endif
+    }
+
+    /// Decapsulate: recover shared secret from ciphertext + secret key
+    [[nodiscard]] static Result<SecureBuffer>
+    decapsulate(std::span<const uint8_t> ciphertext,
+                std::span<const uint8_t> secret_key,
+                Level level = Level::KEM_768) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<SecureBuffer>::err("ML-KEM: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::kem_decapsulate(evp_alg(level), ciphertext, secret_key);
+#else
+        auto kem = make_kem(level);
+        if (!kem) return Result<SecureBuffer>::err("ML-KEM: algorithm not available");
+        if (ciphertext.size() != kem->length_ciphertext)
+            return Result<SecureBuffer>::err("ML-KEM: invalid ciphertext length");
+        if (secret_key.size() != kem->length_secret_key)
+            return Result<SecureBuffer>::err("ML-KEM: invalid secret key length");
+
+        SecureBuffer ss(kem->length_shared_secret);
+
+        const int rc = OQS_KEM_decaps(kem.get(), ss.data(), ciphertext.data(), secret_key.data());
+        detail::ct_declassify(&rc, sizeof rc);
+        if (rc != OQS_SUCCESS)
+            return Result<SecureBuffer>::err("ML-KEM: decapsulation failed");
+
+        return Result<SecureBuffer>::ok(std::move(ss));
+#endif
+    }
+
+    /// Query key/ciphertext/secret sizes for a given level
+    struct Sizes {
+        std::size_t public_key;
+        std::size_t secret_key;
+        std::size_t ciphertext;
+        std::size_t shared_secret;
+    };
+
+    [[nodiscard]] static Result<Sizes> sizes(Level level = Level::KEM_768) {
+        auto kem = make_kem(level);
+        if (!kem) return Result<Sizes>::err("ML-KEM: algorithm not available");
+        return Result<Sizes>::ok(Sizes{
+            kem->length_public_key, kem->length_secret_key,
+            kem->length_ciphertext, kem->length_shared_secret
+        });
+    }
+
+private:
+    struct KemDeleter { void operator()(OQS_KEM* k) { if (k) OQS_KEM_free(k); } };
+    using KemPtr = std::unique_ptr<OQS_KEM, KemDeleter>;
+
+    [[nodiscard]] static KemPtr make_kem(Level level) {
+        const char* name = nullptr;
+        switch (level) {
+            case Level::KEM_512:  name = OQS_KEM_alg_ml_kem_512;  break;
+            case Level::KEM_768:  name = OQS_KEM_alg_ml_kem_768;  break;
+            case Level::KEM_1024: name = OQS_KEM_alg_ml_kem_1024; break;
+        }
+        return KemPtr(OQS_KEM_new(name));
+    }
+
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level) {
+        switch (level) {
+            case Level::KEM_512:  return "ML-KEM-512";
+            case Level::KEM_768:  return "ML-KEM-768";
+            case Level::KEM_1024: return "ML-KEM-1024";
+        }
+        return "ML-KEM-768";
+    }
+#endif
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ML-DSA — Module-Lattice Digital Signature Algorithm (FIPS 204)
+//
+// Post-quantum EUF-CMA digital signatures (lattice-based, formerly Dilithium).
+//
+// Security levels:
+//   ML-DSA-44 — NIST Level 2 (~SHA-256/AES-128)
+//   ML-DSA-65 — NIST Level 3 (~AES-192)  ← recommended default
+//   ML-DSA-87 — NIST Level 5 (~AES-256)
+// ─────────────────────────────────────────────────────────────────────────────
+class MlDsa {
+public:
+    enum class Level { DSA_44, DSA_65, DSA_87 };
+
+    struct KeyPair {
+        SecureBuffer public_key;
+        SecureBuffer secret_key;
+    };
+
+    /// Generate a fresh signing keypair
+    [[nodiscard]] static Result<KeyPair>
+    generate_keypair(Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("ML-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
+        auto sig = make_sig(level);
+        if (!sig) return Result<KeyPair>::err("ML-DSA: algorithm not available in liboqs build");
+
+        SecureBuffer pk(sig->length_public_key);
+        SecureBuffer sk(sig->length_secret_key);
+
+        if (OQS_SIG_keypair(sig.get(), pk.data(), sk.data()) != OQS_SUCCESS)
+            return Result<KeyPair>::err("ML-DSA: keypair generation failed");
+
+        return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
+    }
+
+    /// Sign a message
+    [[nodiscard]] static Result<PublicBuffer>
+    sign(std::span<const uint8_t> message,
+         std::span<const uint8_t> secret_key,
+         Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("ML-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level), message, {}, secret_key);
+#else
+        auto sig = make_sig(level);
+        if (!sig) return Result<PublicBuffer>::err("ML-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<PublicBuffer>::err("ML-DSA: invalid secret key length");
+
+        PublicBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+
+        if (OQS_SIG_sign(sig.get(), signature.data(), &sig_len,
+                          message.data(), message.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<PublicBuffer>::err("ML-DSA: signing failed");
+
+        signature.resize(sig_len);
+        return Result<PublicBuffer>::ok(std::move(signature));
+#endif
+    }
+
+    [[nodiscard]] static Result<PublicBuffer>
+    sign(std::string_view message, std::span<const uint8_t> secret_key,
+         Level level = Level::DSA_65) {
+        return sign({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
+                    secret_key, level);
+    }
+
+    /// Verify a signature against a message and public key
+    [[nodiscard]] static Result<void>
+    verify(std::span<const uint8_t> message,
+           std::span<const uint8_t> signature,
+           std::span<const uint8_t> public_key,
+           Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("ML-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level), message, signature, {}, public_key);
+#else
+        auto sig = make_sig(level);
+        if (!sig) return Result<void>::err("ML-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("ML-DSA: invalid public key length");
+
+        if (OQS_SIG_verify(sig.get(), message.data(), message.size(),
+                            signature.data(), signature.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("ML-DSA: signature verification failed");
+
+        return Result<void>::ok();
+#endif
+    }
+
+    [[nodiscard]] static Result<void>
+    verify(std::string_view message, std::span<const uint8_t> signature,
+           std::span<const uint8_t> public_key, Level level = Level::DSA_65) {
+        return verify({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
+                      signature, public_key, level);
+    }
+
+    /// Sign with a domain-separation context string (FIPS 204 §5.2, external
+    /// pure interface: the message actually signed is 0x00 ‖ len(ctx) ‖ ctx ‖ M).
+    /// An empty context reproduces sign(); a non-empty context binds the
+    /// signature to that domain so it will not verify under a different context.
+    /// The context is limited to 255 bytes by the standard.
+    [[nodiscard]] static Result<PublicBuffer>
+    sign_with_context(std::span<const uint8_t> message,
+                      std::span<const uint8_t> context,
+                      std::span<const uint8_t> secret_key,
+                      Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("ML-DSA: libcrypto initialisation failed");
+        if (context.size() > 255)
+            return Result<PublicBuffer>::err("ML-DSA: context string exceeds 255 bytes");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level), message, context, secret_key);
+#else
+        auto sig = make_sig(level);
+        if (!sig) return Result<PublicBuffer>::err("ML-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<PublicBuffer>::err("ML-DSA: invalid secret key length");
+
+        PublicBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
+                                      message.data(), message.size(),
+                                      ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<PublicBuffer>::err("ML-DSA: signing failed");
+        signature.resize(sig_len);
+        return Result<PublicBuffer>::ok(std::move(signature));
+#endif
+    }
+
+    /// Verify a signature made over `message` under domain-separation `context`.
+    /// Fails closed if the context does not match the one used at signing.
+    [[nodiscard]] static Result<void>
+    verify_with_context(std::span<const uint8_t> message,
+                        std::span<const uint8_t> signature,
+                        std::span<const uint8_t> context,
+                        std::span<const uint8_t> public_key,
+                        Level level = Level::DSA_65) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("ML-DSA: libcrypto initialisation failed");
+        if (context.size() > 255)
+            return Result<void>::err("ML-DSA: context string exceeds 255 bytes");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level), message, signature, context, public_key);
+#else
+        auto sig = make_sig(level);
+        if (!sig) return Result<void>::err("ML-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("ML-DSA: invalid public key length");
+
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
+                                        signature.data(), signature.size(),
+                                        ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("ML-DSA: signature verification failed");
+        return Result<void>::ok();
+#endif
+    }
+
+    /// Query key/signature sizes for a given level
+    struct Sizes {
+        std::size_t public_key;
+        std::size_t secret_key;
+        std::size_t signature;
+    };
+
+    [[nodiscard]] static Result<Sizes> sizes(Level level = Level::DSA_65) {
+        auto sig = make_sig(level);
+        if (!sig) return Result<Sizes>::err("ML-DSA: algorithm not available");
+        return Result<Sizes>::ok(Sizes{
+            sig->length_public_key, sig->length_secret_key, sig->length_signature
+        });
+    }
+
+private:
+    struct SigDeleter { void operator()(OQS_SIG* s) { if (s) OQS_SIG_free(s); } };
+    using SigPtr = std::unique_ptr<OQS_SIG, SigDeleter>;
+
+    [[nodiscard]] static SigPtr make_sig(Level level) {
+        const char* name = nullptr;
+        switch (level) {
+            case Level::DSA_44: name = OQS_SIG_alg_ml_dsa_44; break;
+            case Level::DSA_65: name = OQS_SIG_alg_ml_dsa_65; break;
+            case Level::DSA_87: name = OQS_SIG_alg_ml_dsa_87; break;
+        }
+        return SigPtr(OQS_SIG_new(name));
+    }
+
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level) {
+        switch (level) {
+            case Level::DSA_44: return "ML-DSA-44";
+            case Level::DSA_65: return "ML-DSA-65";
+            case Level::DSA_87: return "ML-DSA-87";
+        }
+        return "ML-DSA-65";
+    }
+#endif
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SLH-DSA — Stateless Hash-Based Digital Signature Algorithm (FIPS 205)
+//
+// Post-quantum signatures based purely on hash functions (formerly SPHINCS+).
+// Conservative choice: security relies only on hash function properties,
+// not on lattice hardness assumptions.
+//
+// Variants:
+//   128s/128f — NIST Level 1 (~AES-128), s=small sig / f=fast signing
+//   192s/192f — NIST Level 3 (~AES-192)
+//   256s/256f — NIST Level 5 (~AES-256)
+//
+// Hash families: SHA2 (default) or SHAKE
+// ─────────────────────────────────────────────────────────────────────────────
+class SlhDsa {
+public:
+    enum class Level { L128s, L128f, L192s, L192f, L256s, L256f };
+    enum class HashFamily { SHA2, SHAKE };
+
+    struct KeyPair {
+        SecureBuffer public_key;
+        SecureBuffer secret_key;
+    };
+
+    /// Generate a fresh signing keypair
+    [[nodiscard]] static Result<KeyPair>
+    generate_keypair(Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<KeyPair>::err("SLH-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        auto r = ossl_backend::keygen(evp_alg(level, hash));
+        if (r.is_err()) return Result<KeyPair>::err(r.error().message);
+        return Result<KeyPair>::ok(KeyPair{ std::move(r.value().first), std::move(r.value().second) });
+#else
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<KeyPair>::err("SLH-DSA: algorithm not available in liboqs build");
+
+        SecureBuffer pk(sig->length_public_key);
+        SecureBuffer sk(sig->length_secret_key);
+
+        if (OQS_SIG_keypair(sig.get(), pk.data(), sk.data()) != OQS_SUCCESS)
+            return Result<KeyPair>::err("SLH-DSA: keypair generation failed");
+
+        return Result<KeyPair>::ok(KeyPair{ std::move(pk), std::move(sk) });
+#endif
+    }
+
+    /// Sign a message
+    [[nodiscard]] static Result<PublicBuffer>
+    sign(std::span<const uint8_t> message,
+         std::span<const uint8_t> secret_key,
+         Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("SLH-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level, hash), message, {}, secret_key);
+#else
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<PublicBuffer>::err("SLH-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<PublicBuffer>::err("SLH-DSA: invalid secret key length");
+
+        PublicBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+
+        if (OQS_SIG_sign(sig.get(), signature.data(), &sig_len,
+                          message.data(), message.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<PublicBuffer>::err("SLH-DSA: signing failed");
+
+        signature.resize(sig_len);
+        return Result<PublicBuffer>::ok(std::move(signature));
+#endif
+    }
+
+    [[nodiscard]] static Result<PublicBuffer>
+    sign(std::string_view message, std::span<const uint8_t> secret_key,
+         Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        return sign({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
+                    secret_key, level, hash);
+    }
+
+    /// Verify a signature against a message and public key
+    [[nodiscard]] static Result<void>
+    verify(std::span<const uint8_t> message,
+           std::span<const uint8_t> signature,
+           std::span<const uint8_t> public_key,
+           Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("SLH-DSA: libcrypto initialisation failed");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level, hash), message, signature, {}, public_key);
+#else
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<void>::err("SLH-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("SLH-DSA: invalid public key length");
+
+        if (OQS_SIG_verify(sig.get(), message.data(), message.size(),
+                            signature.data(), signature.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("SLH-DSA: signature verification failed");
+
+        return Result<void>::ok();
+#endif
+    }
+
+    [[nodiscard]] static Result<void>
+    verify(std::string_view message, std::span<const uint8_t> signature,
+           std::span<const uint8_t> public_key,
+           Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        return verify({ reinterpret_cast<const uint8_t*>(message.data()), message.size() },
+                      signature, public_key, level, hash);
+    }
+
+    /// Sign with a domain-separation context string (FIPS 205, pure external
+    /// interface). Empty context reproduces sign(); limited to 255 bytes.
+    [[nodiscard]] static Result<PublicBuffer>
+    sign_with_context(std::span<const uint8_t> message,
+                      std::span<const uint8_t> context,
+                      std::span<const uint8_t> secret_key,
+                      Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<PublicBuffer>::err("SLH-DSA: libcrypto initialisation failed");
+        if (context.size() > 255)
+            return Result<PublicBuffer>::err("SLH-DSA: context string exceeds 255 bytes");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_sign(evp_alg(level, hash), message, context, secret_key);
+#else
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<PublicBuffer>::err("SLH-DSA: algorithm not available");
+        if (secret_key.size() != sig->length_secret_key)
+            return Result<PublicBuffer>::err("SLH-DSA: invalid secret key length");
+
+        PublicBuffer signature(sig->length_signature);
+        std::size_t sig_len = 0;
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_sign_with_ctx_str(sig.get(), signature.data(), &sig_len,
+                                      message.data(), message.size(),
+                                      ctx_ptr, context.size(), secret_key.data()) != OQS_SUCCESS)
+            return Result<PublicBuffer>::err("SLH-DSA: signing failed");
+        signature.resize(sig_len);
+        return Result<PublicBuffer>::ok(std::move(signature));
+#endif
+    }
+
+    /// Verify a signature made over `message` under domain-separation `context`.
+    [[nodiscard]] static Result<void>
+    verify_with_context(std::span<const uint8_t> message,
+                        std::span<const uint8_t> signature,
+                        std::span<const uint8_t> context,
+                        std::span<const uint8_t> public_key,
+                        Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        const detail::OpensslCall call;
+        if (!call.ready()) return Result<void>::err("SLH-DSA: libcrypto initialisation failed");
+        if (context.size() > 255)
+            return Result<void>::err("SLH-DSA: context string exceeds 255 bytes");
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+        return ossl_backend::sig_verify(evp_alg(level, hash), message, signature, context, public_key);
+#else
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<void>::err("SLH-DSA: algorithm not available");
+        if (public_key.size() != sig->length_public_key)
+            return Result<void>::err("SLH-DSA: invalid public key length");
+
+        const uint8_t* ctx_ptr = context.empty() ? nullptr : context.data();
+        if (OQS_SIG_verify_with_ctx_str(sig.get(), message.data(), message.size(),
+                                        signature.data(), signature.size(),
+                                        ctx_ptr, context.size(), public_key.data()) != OQS_SUCCESS)
+            return Result<void>::err("SLH-DSA: signature verification failed");
+        return Result<void>::ok();
+#endif
+    }
+
+    /// Query key/signature sizes for a given variant
+    struct Sizes {
+        std::size_t public_key;
+        std::size_t secret_key;
+        std::size_t signature;
+    };
+
+    [[nodiscard]] static Result<Sizes>
+    sizes(Level level = Level::L128f, HashFamily hash = HashFamily::SHA2) {
+        auto sig = make_sig(level, hash);
+        if (!sig) return Result<Sizes>::err("SLH-DSA: algorithm not available");
+        return Result<Sizes>::ok(Sizes{
+            sig->length_public_key, sig->length_secret_key, sig->length_signature
+        });
+    }
+
+private:
+    struct SigDeleter { void operator()(OQS_SIG* s) { if (s) OQS_SIG_free(s); } };
+    using SigPtr = std::unique_ptr<OQS_SIG, SigDeleter>;
+
+    [[nodiscard]] static SigPtr make_sig(Level level, HashFamily hash) {
+        const char* name = nullptr;
+        if (hash == HashFamily::SHA2) {
+            switch (level) {
+                case Level::L128s: name = OQS_SIG_alg_slh_dsa_pure_sha2_128s; break;
+                case Level::L128f: name = OQS_SIG_alg_slh_dsa_pure_sha2_128f; break;
+                case Level::L192s: name = OQS_SIG_alg_slh_dsa_pure_sha2_192s; break;
+                case Level::L192f: name = OQS_SIG_alg_slh_dsa_pure_sha2_192f; break;
+                case Level::L256s: name = OQS_SIG_alg_slh_dsa_pure_sha2_256s; break;
+                case Level::L256f: name = OQS_SIG_alg_slh_dsa_pure_sha2_256f; break;
+            }
+        } else {
+            switch (level) {
+                case Level::L128s: name = OQS_SIG_alg_slh_dsa_pure_shake_128s; break;
+                case Level::L128f: name = OQS_SIG_alg_slh_dsa_pure_shake_128f; break;
+                case Level::L192s: name = OQS_SIG_alg_slh_dsa_pure_shake_192s; break;
+                case Level::L192f: name = OQS_SIG_alg_slh_dsa_pure_shake_192f; break;
+                case Level::L256s: name = OQS_SIG_alg_slh_dsa_pure_shake_256s; break;
+                case Level::L256f: name = OQS_SIG_alg_slh_dsa_pure_shake_256f; break;
+            }
+        }
+        return SigPtr(OQS_SIG_new(name));
+    }
+
+#if defined(CIPHERBIRD_PQ_BACKEND_OPENSSL)
+    static const char* evp_alg(Level level, HashFamily hash) {
+        if (hash == HashFamily::SHA2) {
+            switch (level) {
+                case Level::L128s: return "SLH-DSA-SHA2-128s";
+                case Level::L128f: return "SLH-DSA-SHA2-128f";
+                case Level::L192s: return "SLH-DSA-SHA2-192s";
+                case Level::L192f: return "SLH-DSA-SHA2-192f";
+                case Level::L256s: return "SLH-DSA-SHA2-256s";
+                case Level::L256f: return "SLH-DSA-SHA2-256f";
+            }
+        } else {
+            switch (level) {
+                case Level::L128s: return "SLH-DSA-SHAKE-128s";
+                case Level::L128f: return "SLH-DSA-SHAKE-128f";
+                case Level::L192s: return "SLH-DSA-SHAKE-192s";
+                case Level::L192f: return "SLH-DSA-SHAKE-192f";
+                case Level::L256s: return "SLH-DSA-SHAKE-256s";
+                case Level::L256f: return "SLH-DSA-SHAKE-256f";
+            }
+        }
+        return "SLH-DSA-SHA2-128f";
+    }
+#endif
+};
+
+} // namespace crypto::pq
+
+#endif // CIPHERBIRD_HAS_PQ

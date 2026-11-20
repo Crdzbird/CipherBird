@@ -52,7 +52,7 @@ extension CipherBirdSealedOpen on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_sealed_open')(
+        >('cipherbird_sealed_open')(
           tier.value,
           pe,
           envelope.length,

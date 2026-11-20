@@ -1,22 +1,22 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry14 = {
-  'cryptolib_sealed_sealer_push':
+  'cipherbird_sealed_sealer_push':
       (Pointer<NativeType> h, Pointer<NativeType> chunk, int chunkLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_sealed_sealer_push',
+            '_cbw_cipherbird_sealed_sealer_push',
             [h.address.toJS, chunk.address.toJS, chunkLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_sealed_sealer_finalize':
+  'cipherbird_sealed_sealer_finalize':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> lastChunk,
         int lastLen,
         Pointer<NativeType> outTrailer,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_sealer_finalize',
+        '_cbw_cipherbird_sealed_sealer_finalize',
         [
           h.address.toJS,
           lastChunk.address.toJS,
@@ -26,9 +26,9 @@ final Map<String, Function> _registry14 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealed_sealer_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_sealed_sealer_free', [h.address.toJS]),
-  'cryptolib_sealed_opener_begin':
+  'cipherbird_sealed_sealer_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_sealed_sealer_free', [h.address.toJS]),
+  'cipherbird_sealed_opener_begin':
       (
         int tier,
         Pointer<NativeType> preamble,
@@ -43,7 +43,7 @@ final Map<String, Function> _registry14 = {
         int purposeLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_sealed_opener_begin', [
+        WebEngine.current.callInt('_cbw_cipherbird_sealed_opener_begin', [
           tier.toJS,
           preamble.address.toJS,
           preLen.toJS,
@@ -58,26 +58,26 @@ final Map<String, Function> _registry14 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_sealed_opener_pull':
+  'cipherbird_sealed_opener_pull':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> ct,
         int ctLen,
         Pointer<NativeType> outFinal,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_opener_pull',
+        '_cbw_cipherbird_sealed_opener_pull',
         [h.address.toJS, ct.address.toJS, ctLen.toJS, outFinal.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealed_opener_finalize':
+  'cipherbird_sealed_opener_finalize':
       (Pointer<NativeType> h, Pointer<NativeType> trailer, int trailerLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_sealed_opener_finalize',
+            '_cbw_cipherbird_sealed_opener_finalize',
             [h.address.toJS, trailer.address.toJS, trailerLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_sealed_opener_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_sealed_opener_free', [h.address.toJS]),
+  'cipherbird_sealed_opener_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_sealed_opener_free', [h.address.toJS]),
 };

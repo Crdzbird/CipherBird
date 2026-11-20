@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 using crypto::pq::Sntrup761;
 using crypto::pq::SntrupX25519;
@@ -141,10 +141,10 @@ TEST("sntrup/bad-ciphertext-and-secret-length") {
     CHECK(SntrupX25519::decapsulate(enc.value().ciphertext.span(), short_sk).is_err());
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_sntrup_x25519() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     RUN("sntrup/keypair-sizes");
     RUN("sntrup/encaps-decaps-round-trip");
     RUN("sntrup/decapsulate-is-deterministic");

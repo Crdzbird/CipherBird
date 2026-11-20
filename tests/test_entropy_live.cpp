@@ -1,7 +1,7 @@
 // LiveEntropy: a continuous, policy-gated source for a stream; and the
 // floor-calibrated health cutoffs that make a real photo pass.
 #include "test_framework.hpp"
-#include "../bridge/cryptolib_c.h"
+#include "../bridge/cipherbird_c.h"
 using namespace test;
 #include <algorithm>
 #include <filesystem>
@@ -142,44 +142,44 @@ TEST("live/two-sources-never-agree") {
 
 TEST("c-abi/live-entropy-and-health-v2") {
     char* err = nullptr;
-    auto* h = cryptolib_live_entropy_new(1.0, 1, 0.0, &err);
+    auto* h = cipherbird_live_entropy_new(1.0, 1, 0.0, &err);
     CHECK(h != nullptr && err == nullptr);
-    auto early = cryptolib_live_entropy_generate(h, 32);
+    auto early = cipherbird_live_entropy_generate(h, 32);
     CHECK(early.error != nullptr);
-    cryptolib_str_free(early.error);
+    cipherbird_str_free(early.error);
     auto zeros = flat(4096);
-    auto r1 = cryptolib_live_entropy_feed(h, zeros.data(), zeros.size(), 0);
+    auto r1 = cipherbird_live_entropy_feed(h, zeros.data(), zeros.size(), 0);
     CHECK(r1.accepted == 0 && r1.reason != nullptr && r1.error == nullptr);
     CHECK(r1.rct_cutoff == 31 && r1.longest_run == 4096);
-    cryptolib_str_free(r1.reason);
+    cipherbird_str_free(r1.reason);
     auto rnd = noise(8192);
     rnd[0] = 0xA5;
-    auto r2 = cryptolib_live_entropy_feed(h, rnd.data(), rnd.size(), 1);
+    auto r2 = cipherbird_live_entropy_feed(h, rnd.data(), rnd.size(), 1);
     CHECK(r2.accepted == 1 && r2.reason == nullptr && r2.ready == 1);
     CHECK(r2.credited_bits > 256.0);
-    auto out = cryptolib_live_entropy_generate(h, 32);
+    auto out = cipherbird_live_entropy_generate(h, 32);
     CHECK(out.error == nullptr && out.buf.len == 32);
-    cryptolib_buffer_free(&out.buf);
-    auto st = cryptolib_live_entropy_status(h);
+    cipherbird_buffer_free(&out.buf);
+    auto st = cipherbird_live_entropy_status(h);
     CHECK(st.error == nullptr && st.chunks_fed == 2 && st.chunks_accepted == 1 && st.reseeds == 1);
     CHECK(st.ready == 1 && st.last_reason == nullptr);
-    cryptolib_live_entropy_free(h);
-    auto bad = cryptolib_live_entropy_feed(nullptr, rnd.data(), rnd.size(), 0);
+    cipherbird_live_entropy_free(h);
+    auto bad = cipherbird_live_entropy_feed(nullptr, rnd.data(), rnd.size(), 0);
     CHECK(bad.error != nullptr);
-    cryptolib_str_free(bad.error);
+    cipherbird_str_free(bad.error);
 
     const auto dir = std::filesystem::temp_directory_path() / "cl_live_health";
     std::filesystem::create_directories(dir);
     const auto path = dir / "noise.bin";
     { std::ofstream f(path, std::ios::binary); f.write(reinterpret_cast<const char*>(rnd.data()), 8192); }
-    auto hr = cryptolib_entropy_assess_file_health_v2(path.string().c_str(), 0, 1.0);
+    auto hr = cipherbird_entropy_assess_file_health_v2(path.string().c_str(), 0, 1.0);
     CHECK(hr.error == nullptr && hr.summary != nullptr);
     CHECK(hr.rct_cutoff == 31 && hr.sample_bytes == 8192 && hr.rct_passed == 1);
     CHECK(std::string(hr.summary).find("cutoff 31") != std::string::npos);
-    cryptolib_str_free(hr.summary);
-    auto missing = cryptolib_entropy_assess_file_health_v2("/nonexistent/file", 0, 1.0);
+    cipherbird_str_free(hr.summary);
+    auto missing = cipherbird_entropy_assess_file_health_v2("/nonexistent/file", 0, 1.0);
     CHECK(missing.error != nullptr && missing.summary == nullptr);
-    cryptolib_str_free(missing.error);
+    cipherbird_str_free(missing.error);
     std::filesystem::remove_all(dir);
 }
 

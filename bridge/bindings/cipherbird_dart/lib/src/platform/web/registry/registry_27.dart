@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry27 = {
-  'cryptolib_ml_dsa_verify':
+  'cipherbird_ml_dsa_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry27 = {
         Pointer<NativeType> publicKey,
         int pkLen,
         int level,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_ml_dsa_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_ml_dsa_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
@@ -19,25 +19,25 @@ final Map<String, Function> _registry27 = {
         pkLen.toJS,
         level.toJS,
       ]),
-  'cryptolib_hybrid_sig_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_hybrid_sig_keygen',
+  'cipherbird_hybrid_sig_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cipherbird_hybrid_sig_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
-  'cryptolib_hybrid_sig_sign':
+  'cipherbird_hybrid_sig_sign':
       (
         Pointer<NativeType> msg,
         int msgLen,
         Pointer<NativeType> secretKey,
         int skLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hybrid_sig_sign',
+        '_cbw_cipherbird_hybrid_sig_sign',
         [msg.address.toJS, msgLen.toJS, secretKey.address.toJS, skLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hybrid_sig_verify':
+  'cipherbird_hybrid_sig_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -45,7 +45,7 @@ final Map<String, Function> _registry27 = {
         int sigLen,
         Pointer<NativeType> publicKey,
         int pkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_hybrid_sig_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_hybrid_sig_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
@@ -53,14 +53,14 @@ final Map<String, Function> _registry27 = {
         publicKey.address.toJS,
         pkLen.toJS,
       ]),
-  'cryptolib_slh_dsa_keygen': (int level, int hashFamily) =>
+  'cipherbird_slh_dsa_keygen': (int level, int hashFamily) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_slh_dsa_keygen',
+        '_cbw_cipherbird_slh_dsa_keygen',
         [level.toJS, hashFamily.toJS],
         CipherBirdKeyPair.size,
         CipherBirdKeyPair._new,
       ),
-  'cryptolib_slh_dsa_sign':
+  'cipherbird_slh_dsa_sign':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -69,7 +69,7 @@ final Map<String, Function> _registry27 = {
         int level,
         int hashFamily,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_slh_dsa_sign',
+        '_cbw_cipherbird_slh_dsa_sign',
         [
           msg.address.toJS,
           msgLen.toJS,

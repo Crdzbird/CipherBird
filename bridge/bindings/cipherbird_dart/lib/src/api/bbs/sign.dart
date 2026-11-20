@@ -38,7 +38,7 @@ extension CipherBirdBbsSign on CipherBird {
             Pointer<Size>,
             int,
           )
-        >('cryptolib_bbs_sign')(
+        >('cipherbird_bbs_sign')(
           sk,
           secretKey.length,
           pk,

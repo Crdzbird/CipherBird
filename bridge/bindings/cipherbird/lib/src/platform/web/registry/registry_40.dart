@@ -1,15 +1,15 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry40 = {
-  'cryptolib_opaque_registration_request':
+  'cipherbird_opaque_registration_request':
       (Pointer<NativeType> password, int passwordLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_opaque_registration_request',
+            '_cbw_cipherbird_opaque_registration_request',
             [password.address.toJS, passwordLen.toJS],
             CipherBirdOprfBlind.size,
             CipherBirdOprfBlind._new,
           ),
-  'cryptolib_opaque_registration_response':
+  'cipherbird_opaque_registration_response':
       (
         Pointer<NativeType> request,
         int requestLen,
@@ -20,7 +20,7 @@ final Map<String, Function> _registry40 = {
         Pointer<NativeType> oprfSeed,
         int seedLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_opaque_registration_response',
+        '_cbw_cipherbird_opaque_registration_response',
         [
           request.address.toJS,
           requestLen.toJS,
@@ -34,7 +34,7 @@ final Map<String, Function> _registry40 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_opaque_finalize_request':
+  'cipherbird_opaque_finalize_request':
       (
         Pointer<NativeType> password,
         int passwordLen,
@@ -47,7 +47,7 @@ final Map<String, Function> _registry40 = {
         Pointer<NativeType> clientIdentity,
         int cidLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_opaque_finalize_request',
+        '_cbw_cipherbird_opaque_finalize_request',
         [
           password.address.toJS,
           passwordLen.toJS,
@@ -63,10 +63,10 @@ final Map<String, Function> _registry40 = {
         CipherBirdOpaqueRecord.size,
         CipherBirdOpaqueRecord._new,
       ),
-  'cryptolib_opaque_client_init':
+  'cipherbird_opaque_client_init':
       (Pointer<NativeType> password, int passwordLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_opaque_client_init',
+            '_cbw_cipherbird_opaque_client_init',
             [password.address.toJS, passwordLen.toJS],
             CipherBirdOpaqueKe1.size,
             CipherBirdOpaqueKe1._new,

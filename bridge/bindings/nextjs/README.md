@@ -11,7 +11,7 @@ Browser (app/page.jsx, 'use client')
 Route handler (app/api/crypto/route.js, runtime = 'nodejs')
    |  the Node binding in ../cipherbird-node (loaded at request time, never bundled)
    v
-native libcryptolib_c
+native libcipherbird_c
 ```
 
 ## Run
@@ -19,7 +19,7 @@ native libcryptolib_c
 ```sh
 # 1. Build the native library (once), from the repo root:
 cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --target cryptolib_c
+cmake --build build/release --target cipherbird_c
 
 # 2. Install the sibling Node binding's deps (provides koffi), from the repo root:
 (cd bridge/bindings/cipherbird-node && npm install)
@@ -30,8 +30,8 @@ npm install
 npm run dev            # http://localhost:3005
 ```
 
-`lib/cipherbird.js` points the binding at `build/release/libcryptolib_c.<ext>` by
-default; override with `CRYPTOLIB_DYLIB=/abs/path` (the binding also reads
+`lib/cipherbird.js` points the binding at `build/release/libcipherbird_c.<ext>` by
+default; override with `CIPHERBIRD_LIBRARY=/abs/path` (the binding also reads
 `CIPHERBIRD_LIBRARY`, which wins when both are set).
 
 ## Endpoints (`POST /api/crypto`)

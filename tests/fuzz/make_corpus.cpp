@@ -3,7 +3,7 @@
  * library reads into a directory, as the seed corpus for fuzz_stego.
  * Usage: fuzz_corpus_gen <directory>
  */
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>

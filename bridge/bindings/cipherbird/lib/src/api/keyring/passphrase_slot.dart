@@ -13,7 +13,7 @@ extension CipherBirdKeyringPassphraseSlot on CipherBird {
       return _lib.lookupFunction<
             Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32),
             int Function(Pointer<Void>, Pointer<Utf8>, int)
-          >('cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf.value) ==
+          >('cipherbird_keyring_add_passphrase_slot')(kr, cpw, kdf.value) ==
           1;
     } finally {
       malloc.free(cpw);

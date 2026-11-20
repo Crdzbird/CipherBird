@@ -41,7 +41,7 @@ extension CipherBirdComposedHpkeStegoOpen on CipherBird {
             int,
             Pointer<Utf8>,
           )
-        >('cryptolib_hpke_stego_open')(
+        >('cipherbird_hpke_stego_open')(
           sk,
           recipientSecret.length,
           e,

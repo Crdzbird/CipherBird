@@ -1,17 +1,17 @@
 /**
- * CryptoLib — Progressive Tutorial
+ * CipherBird — Progressive Tutorial
  *
  * A step-by-step walkthrough of every library feature, from basic hashing
  * to full vault+stego+entropy integration.
  *
  * Usage:
- *   ./cryptolib_poc [output_dir]
+ *   ./cipherbird_poc [output_dir]
  *
  * All generated files (carriers, stego outputs) go into output_dir.
- * Default: system temp directory / cryptolib_tutorial
+ * Default: system temp directory / cipherbird_tutorial
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstdio>
 #include <cmath>
@@ -71,7 +71,7 @@ static void demo_standalone() {
     section("A — Standalone Primitives");
 
     // ── Hashing ──────────────────────────────────────────────────────────────
-    // CryptoLib provides 5 hash primitives. All return Result<T> — never throw
+    // CipherBird provides 5 hash primitives. All return Result<T> — never throw
     // on crypto failures. Use .is_ok() to check, .value() to unwrap.
 
     subsect("Unidirectional hashing");
@@ -271,7 +271,7 @@ static void demo_vault() {
 // C — MEDIA ENTROPY (LavaRand-inspired)
 //
 // Cloudflare's LavaRand uses a camera pointed at lava lamps to generate
-// unpredictable entropy from physical processes. CryptoLib's MediaEntropy
+// unpredictable entropy from physical processes. CipherBird's MediaEntropy
 // applies the same principle: any media file (photo, audio, video) becomes
 // a source of physical randomness. The pixel noise in a photograph, the
 // thermal noise floor in an audio recording, or the sensor jitter across
@@ -1062,9 +1062,9 @@ static void demo_steganography() {
 // ML-KEM (FIPS 203 key encapsulation), ML-DSA (FIPS 204 lattice signatures),
 // SLH-DSA (FIPS 205 hash-based signatures), BLS12-381 (aggregate signatures).
 //
-// Post-quantum algorithms are guarded by CRYPTOLIB_HAS_PQ (requires liboqs).
-// BLS is guarded by CRYPTOLIB_HAS_BLS (requires blst).
-// BLAKE3 is guarded by CRYPTOLIB_HAS_BLAKE3 (requires libblake3).
+// Post-quantum algorithms are guarded by CIPHERBIRD_HAS_PQ (requires liboqs).
+// BLS is guarded by CIPHERBIRD_HAS_BLS (requires blst).
+// BLAKE3 is guarded by CIPHERBIRD_HAS_BLAKE3 (requires libblake3).
 // HKDF-SHA256 is always available (built on libsodium HMAC-SHA256).
 // =============================================================================
 static void demo_modern() {
@@ -1075,7 +1075,7 @@ static void demo_modern() {
     // dramatically faster (parallelizable Merkle tree). It supports three
     // modes from a single primitive: unkeyed hashing, keyed MAC, and
     // domain-separated key derivation.
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
 
     subsect("F.1 — BLAKE3 (hash + keyed MAC + KDF + streaming)");
     {
@@ -1157,8 +1157,8 @@ static void demo_modern() {
     }
 
 #else
-    subsect("F.1 — BLAKE3 (skipped: CRYPTOLIB_HAS_BLAKE3 not defined)");
-    note("Build with -DCRYPTOLIB_BLAKE3=ON to enable BLAKE3 support.");
+    subsect("F.1 — BLAKE3 (skipped: CIPHERBIRD_HAS_BLAKE3 not defined)");
+    note("Build with -DCIPHERBIRD_BLAKE3=ON to enable BLAKE3 support.");
 #endif
 
     // ── F.2 HKDF-SHA256 (RFC 5869) ──────────────────────────────────────────
@@ -1241,7 +1241,7 @@ static void demo_modern() {
     // ML-KEM has "implicit rejection": decapsulating with the wrong key
     // produces a valid-looking but different shared secret (no error signal).
     // This prevents chosen-ciphertext attacks.
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
     subsect("F.3 — ML-KEM (FIPS 203): post-quantum key encapsulation");
     {
@@ -1458,8 +1458,8 @@ static void demo_modern() {
     }
 
 #else
-    subsect("F.3-F.5 — Post-Quantum (skipped: CRYPTOLIB_HAS_PQ not defined)");
-    note("Build with -DCRYPTOLIB_PQ=ON and install liboqs to enable ML-KEM, ML-DSA, SLH-DSA.");
+    subsect("F.3-F.5 — Post-Quantum (skipped: CIPHERBIRD_HAS_PQ not defined)");
+    note("Build with -DCIPHERBIRD_PQ=ON and install liboqs to enable ML-KEM, ML-DSA, SLH-DSA.");
 #endif
 
     // ── F.6 BLS12-381 ───────────────────────────────────────────────────────
@@ -1471,7 +1471,7 @@ static void demo_modern() {
     // This is critical for blockchain consensus (Ethereum 2.0), where
     // thousands of validators each sign an attestation — without aggregation,
     // the signature data alone would overwhelm the network.
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
 
     subsect("F.6 — BLS12-381: signatures + aggregation");
     {
@@ -1567,8 +1567,8 @@ static void demo_modern() {
     }
 
 #else
-    subsect("F.6 — BLS12-381 (skipped: CRYPTOLIB_HAS_BLS not defined)");
-    note("Build with -DCRYPTOLIB_BLS=ON and install blst to enable BLS signatures.");
+    subsect("F.6 — BLS12-381 (skipped: CIPHERBIRD_HAS_BLS not defined)");
+    note("Build with -DCIPHERBIRD_BLS=ON and install blst to enable BLS signatures.");
 #endif
 }
 
@@ -1580,11 +1580,11 @@ int main(int argc, char** argv) {
     if (argc > 1) {
         g_dir = argv[1];
     } else {
-        g_dir = fs::temp_directory_path() / "cryptolib_tutorial";
+        g_dir = fs::temp_directory_path() / "cipherbird_tutorial";
     }
     fs::create_directories(g_dir);
 
-    std::printf(BOLD "\nCryptoLib v3.0.0 — Progressive Tutorial" RST "\n");
+    std::printf(BOLD "\nCipherBird v3.0.0 — Progressive Tutorial" RST "\n");
     std::printf("Output directory: %s\n", g_dir.string().c_str());
 
     crypto::init();

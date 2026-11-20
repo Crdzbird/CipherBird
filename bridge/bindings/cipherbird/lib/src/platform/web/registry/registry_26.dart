@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry26 = {
-  'cryptolib_session_accept':
+  'cipherbird_session_accept':
       (
         Pointer<NativeType> handshake,
         int hsLen,
@@ -11,7 +11,7 @@ final Map<String, Function> _registry26 = {
         int skLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_session_accept', [
+        WebEngine.current.callInt('_cbw_cipherbird_session_accept', [
           handshake.address.toJS,
           hsLen.toJS,
           prekeyPublic.address.toJS,
@@ -21,7 +21,7 @@ final Map<String, Function> _registry26 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_session_encrypt':
+  'cipherbird_session_encrypt':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> pt,
@@ -29,7 +29,7 @@ final Map<String, Function> _registry26 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_session_encrypt',
+        '_cbw_cipherbird_session_encrypt',
         [
           h.address.toJS,
           pt.address.toJS,
@@ -40,7 +40,7 @@ final Map<String, Function> _registry26 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_session_decrypt':
+  'cipherbird_session_decrypt':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> msg,
@@ -48,7 +48,7 @@ final Map<String, Function> _registry26 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_session_decrypt',
+        '_cbw_cipherbird_session_decrypt',
         [
           h.address.toJS,
           msg.address.toJS,
@@ -59,15 +59,15 @@ final Map<String, Function> _registry26 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_session_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_session_free', [h.address.toJS]),
-  'cryptolib_ml_dsa_keygen': (int level) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_ml_dsa_keygen',
+  'cipherbird_session_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_session_free', [h.address.toJS]),
+  'cipherbird_ml_dsa_keygen': (int level) => WebEngine.current.callStruct(
+    '_cbw_cipherbird_ml_dsa_keygen',
     [level.toJS],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
-  'cryptolib_ml_dsa_sign':
+  'cipherbird_ml_dsa_sign':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -75,7 +75,7 @@ final Map<String, Function> _registry26 = {
         int skLen,
         int level,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ml_dsa_sign',
+        '_cbw_cipherbird_ml_dsa_sign',
         [
           msg.address.toJS,
           msgLen.toJS,

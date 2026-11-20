@@ -14,7 +14,7 @@ typedef _P256Buf = CipherBirdBufferResult Function(Pointer<Uint8>, int);
 /// through `DeviceFips`.
 extension CipherBirdP256 on CipherBird {
   int _p256Mode() => _lib.lookupFunction<Int32 Function(), int Function()>(
-    'cryptolib_p256_available',
+    'cipherbird_p256_available',
   )();
 
   /// Whether the loaded engine carries P-256.
@@ -30,7 +30,7 @@ extension CipherBirdP256 on CipherBird {
       _lib.lookupFunction<
         CipherBirdKeyPair Function(),
         CipherBirdKeyPair Function()
-      >('cryptolib_p256_keygen')(),
+      >('cipherbird_p256_keygen')(),
     );
     if (pair.secretKey.length != 32) {
       throw Exception('p256 not enabled in this build');
@@ -41,7 +41,7 @@ extension CipherBirdP256 on CipherBird {
   /// The 65-byte public key of a 32-byte [secretKey]. Throws for another
   /// length or a scalar outside 1..n-1.
   Uint8List p256PublicKey(Uint8List secretKey) =>
-      _p256Bytes('cryptolib_p256_public_key', secretKey);
+      _p256Bytes('cipherbird_p256_public_key', secretKey);
 
   Uint8List _p256Bytes(String symbol, Uint8List input) {
     final p = _toNative(input);

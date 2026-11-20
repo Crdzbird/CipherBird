@@ -11,7 +11,7 @@ extension CipherBirdEvmBtc on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_keccak256')(pm, msg.length),
+        >('cipherbird_keccak256')(pm, msg.length),
       );
     } finally {
       if (pm != nullptr) calloc.free(pm);
@@ -26,7 +26,7 @@ extension CipherBirdEvmBtc on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_ripemd160')(pm, msg.length),
+        >('cipherbird_ripemd160')(pm, msg.length),
       );
     } finally {
       if (pm != nullptr) calloc.free(pm);
@@ -39,7 +39,7 @@ extension CipherBirdEvmBtc on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_secp256k1_keygen',
+      'cipherbird_secp256k1_keygen',
     )(),
   );
 
@@ -52,7 +52,7 @@ extension CipherBirdEvmBtc on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32),
           CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
-        >('cryptolib_secp256k1_pubkey')(
+        >('cipherbird_secp256k1_pubkey')(
           sp,
           secretKey.length,
           compressed ? 1 : 0,
@@ -78,7 +78,7 @@ extension CipherBirdEvmBtc on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, int)
-        >('cryptolib_secp256k1_sign')(dp, sp, secretKey.length),
+        >('cipherbird_secp256k1_sign')(dp, sp, secretKey.length),
       );
     } finally {
       if (dp != nullptr) calloc.free(dp);

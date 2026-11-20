@@ -1,5 +1,5 @@
 #include "test_framework.hpp"
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
 #include <cstdint>
 #include <utility>
 #include <string>
@@ -63,7 +63,7 @@ TEST("suite_v2/wrong-signer-and-tamper-rejected") {
     CHECK(Suite2::open(std::vector<uint8_t>(5, 0), bob.secret_key.span(), bob.public_key.span(), alice.public_key.span()).is_err());
 }
 
-#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
 TEST("suite_v2/native-hybrid-suite-round-trip") {
     auto bob = std::move(crypto::pq::HybridKem::generate_keypair().value());
     auto alice = std::move(HybridSig::generate_keypair().value());
@@ -85,7 +85,7 @@ void run_tests_suite_v2() {
     RUN("suite_v2/xwing-round-trip-with-aad");
     RUN("suite_v2/signature-binds-recipient");
     RUN("suite_v2/wrong-signer-and-tamper-rejected");
-#ifdef CRYPTOLIB_HAS_NATIVE_COMBINERS
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
     RUN("suite_v2/native-hybrid-suite-round-trip");
 #else
     RUN("suite_v2/native-hybrid-suite-unavailable");

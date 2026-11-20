@@ -1,15 +1,15 @@
 /**
  * fuzz_diff_aead.cpp — differential fuzz target.
  *
- * Asserts CryptoLib's XChaCha20-Poly1305 *wrapper* and the raw libsodium
+ * Asserts CipherBird's XChaCha20-Poly1305 *wrapper* and the raw libsodium
  * primitive interoperate byte-for-byte. The wrapper adds framing (nonce prefix,
  * length handling) — exactly where an AI-assisted attacker hunts for a deviation
  * the underlying primitive doesn't have. Any mismatch aborts the run.
  *
- * Build with -DCRYPTOLIB_FUZZ=ON (clang); run: ./fuzz_diff_aead -max_total_time=60
+ * Build with -DCIPHERBIRD_FUZZ=ON (clang); run: ./fuzz_diff_aead -max_total_time=60
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <sodium.h>
 
 #include <cassert>
@@ -33,7 +33,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::span<const uint8_t> msg{data + KEY + 1 + aad_len,
                                  size - (KEY + 1 + aad_len)};
 
-    // (A) CryptoLib encrypt → raw libsodium must decrypt to the same plaintext.
+    // (A) CipherBird encrypt → raw libsodium must decrypt to the same plaintext.
     auto wrapped = XChaCha20Poly1305::encrypt(msg, key, aad);
     assert(wrapped.is_ok());
     auto w = wrapped.value().span();               // [nonce | ct | mac]
@@ -51,7 +51,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     assert(std::equal(ref.begin(), ref.end(), msg.begin()) &&
            "wrapper/primitive plaintext mismatch");
 
-    // (B) Raw libsodium encrypt (fixed nonce) → CryptoLib wrapper must decrypt it.
+    // (B) Raw libsodium encrypt (fixed nonce) → CipherBird wrapper must decrypt it.
     std::vector<uint8_t> framed(NONCE + msg.size() + MAC, 0);
     // deterministic nonce derived from input so the run is reproducible
     for (std::size_t i = 0; i < NONCE; ++i) framed[i] = data[i % KEY];

@@ -3,7 +3,7 @@
 // an end-to-end mutual-auth login and a wrong-password rejection.
 #include "test_framework.hpp"
 
-#include <cryptolib/opaque.hpp>
+#include <cipherbird/opaque.hpp>
 
 #include <cstdint>
 #include <string>

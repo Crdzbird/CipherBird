@@ -10,7 +10,7 @@ extension CipherBirdAsyncMedia on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_stego_embed',
+      symbol: 'cipherbird_stego_embed',
       args: [
         JobArg.file(format.extension, cover),
         JobArg.bytes(payload),
@@ -30,7 +30,7 @@ extension CipherBirdAsyncMedia on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_stego_extract',
+      symbol: 'cipherbird_stego_extract',
       args: [JobArg.file(format.extension, stego)],
       returns: JobReturn.buffer,
       cost: stego.length,

@@ -2,7 +2,7 @@
 // envelope framing, and cross-flow confusion (wrong magic) checks.
 #include "test_framework.hpp"
 
-#include <cryptolib/suite.hpp>
+#include <cipherbird/suite.hpp>
 
 #include <array>
 #include <cstdio>
@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ)
 
 using crypto::SecureBuffer;
 using crypto::Suite;
@@ -183,7 +183,7 @@ TEST("suite/rejects-unknown-suite-id") {
 
 // ── File-as-key ─────────────────────────────────────────────────────────
 TEST("suite/file/roundtrip-and-wrong-file-fails") {
-    ScratchFile a("cryptolib_suite_key_a.bin");
+    ScratchFile a("cipherbird_suite_key_a.bin");
     auto pt = bytes("launch codes");
     auto env = Suite::seal_with_file(pt, a.p, aad);
     CHECK_OK(env);
@@ -192,7 +192,7 @@ TEST("suite/file/roundtrip-and-wrong-file-fails") {
     CHECK(vec(out.value()) == pt);
 
     // A different file derives a different master → fails closed.
-    auto b = std::filesystem::temp_directory_path() / "cryptolib_suite_key_b.bin";
+    auto b = std::filesystem::temp_directory_path() / "cipherbird_suite_key_b.bin";
     { std::ofstream f(b, std::ios::binary); for (int i = 0; i < 4096; ++i) f.put(char(i)); }
     CHECK_ERR(Suite::open_with_file(env.value().span(), b, aad));
     std::error_code ec; std::filesystem::remove(b, ec);

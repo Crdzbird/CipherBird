@@ -27,7 +27,7 @@ extension CipherBirdComposedPhysicalOpen on CipherBird {
             int,
             Pointer<Utf8>,
           )
-        >('cryptolib_physical_open')(km, a, aad?.length ?? 0, sp),
+        >('cipherbird_physical_open')(km, a, aad?.length ?? 0, sp),
       );
     } finally {
       calloc.free(km);

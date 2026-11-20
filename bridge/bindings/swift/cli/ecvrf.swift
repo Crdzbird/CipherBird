@@ -7,9 +7,9 @@ import Foundation
 enum EcvrfError: Error { case failed(String) }
 
 private func ecvrfConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw EcvrfError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw EcvrfError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -26,25 +26,25 @@ private func withPtrs<R>(_ datas: [[UInt8]?], _ body: ([(UnsafePointer<UInt8>?, 
 /// ECVRF (RFC 9381). All operations are stateless.
 enum Ecvrf {
     static func keygen() -> (publicKey: [UInt8], secretKey: [UInt8]) {
-        var kp = cryptolib_ecvrf_keygen()
+        var kp = cipherbird_ecvrf_keygen()
         let pub = kp.public_key.data != nil ? Array(UnsafeBufferPointer(start: kp.public_key.data, count: kp.public_key.len)) : []
         let sec = kp.secret_key.data != nil ? Array(UnsafeBufferPointer(start: kp.secret_key.data, count: kp.secret_key.len)) : []
-        cryptolib_keypair_free(&kp)
+        cipherbird_keypair_free(&kp)
         return (pub, sec)
     }
     static func publicKey(_ sk: [UInt8]) throws -> [UInt8] {
-        try withPtrs([sk]) { p in try ecvrfConsume(cryptolib_ecvrf_public_key(p[0].0, p[0].1)) }
+        try withPtrs([sk]) { p in try ecvrfConsume(cipherbird_ecvrf_public_key(p[0].0, p[0].1)) }
     }
     static func prove(_ sk: [UInt8], _ alpha: [UInt8]) throws -> [UInt8] {
-        try withPtrs([sk, alpha]) { p in try ecvrfConsume(cryptolib_ecvrf_prove(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([sk, alpha]) { p in try ecvrfConsume(cipherbird_ecvrf_prove(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     static func proofToHash(_ pi: [UInt8]) throws -> [UInt8] {
-        try withPtrs([pi]) { p in try ecvrfConsume(cryptolib_ecvrf_proof_to_hash(p[0].0, p[0].1)) }
+        try withPtrs([pi]) { p in try ecvrfConsume(cipherbird_ecvrf_proof_to_hash(p[0].0, p[0].1)) }
     }
     /// Returns the 64-byte beta on success; throws if the proof is invalid.
     static func verify(_ pk: [UInt8], _ alpha: [UInt8], _ pi: [UInt8]) throws -> [UInt8] {
         try withPtrs([pk, alpha, pi]) { p in
-            try ecvrfConsume(cryptolib_ecvrf_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
+            try ecvrfConsume(cipherbird_ecvrf_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
         }
     }
 }
@@ -56,8 +56,8 @@ func hexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — ECVRF (RFC 9381) (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — ECVRF (RFC 9381) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

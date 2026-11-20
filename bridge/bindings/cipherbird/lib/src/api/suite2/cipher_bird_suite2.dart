@@ -39,7 +39,7 @@ extension CipherBirdSuite2 on CipherBird {
             int,
             int,
           )
-        >('cryptolib_suite2_seal')(
+        >('cipherbird_suite2_seal')(
           plaintextPtr,
           plaintext.length,
           recipientKemPublicPtr,
@@ -66,7 +66,7 @@ extension CipherBirdSuite2 on CipherBird {
       return _lib.lookupFunction<
         Int32 Function(Pointer<Uint8>, Size),
         int Function(Pointer<Uint8>, int)
-      >('cryptolib_suite2_suite_of')(envelopePtr, envelope.length);
+      >('cipherbird_suite2_suite_of')(envelopePtr, envelope.length);
     } finally {
       if (envelopePtr != nullptr) calloc.free(envelopePtr);
     }

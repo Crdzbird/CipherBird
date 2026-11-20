@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [ ] `cryptolib_tests` passes in the full, bank and fips profiles
+- [ ] `cipherbird_tests` passes in the full, bank and fips profiles
 - [ ] ASan and UBSan run is clean
 - [ ] Flutter and Dart suites pass natively and in Chrome
 - [ ] `scripts/verify_bindings.sh` passes

@@ -64,8 +64,8 @@ and set **Embed & Sign**. Then add `-ObjC -all_load` under **Build Settings**,
 
 ## 3. Update the Dart FFI lookup
 
-Flutter macOS loads `libcryptolib_c.dylib` via
-`DynamicLibrary.open('libcryptolib_c.dylib')`. On iOS, the static
+Flutter macOS loads `libcipherbird_c.dylib` via
+`DynamicLibrary.open('libcipherbird_c.dylib')`. On iOS, the static
 archive from the XCFramework is linked directly into the app binary,
 so use `DynamicLibrary.process()` instead:
 
@@ -78,13 +78,13 @@ final DynamicLibrary _lib = Platform.isIOS
     : DynamicLibrary.open(_defaultDylibName());
 
 String _defaultDylibName() {
-  if (Platform.isMacOS) return 'libcryptolib_c.dylib';
-  if (Platform.isWindows) return 'cryptolib_c.dll';
-  return 'libcryptolib_c.so';  // Linux / Android
+  if (Platform.isMacOS) return 'libcipherbird_c.dylib';
+  if (Platform.isWindows) return 'cipherbird_c.dll';
+  return 'libcipherbird_c.so';  // Linux / Android
 }
 ```
 
-Only the library-loading line changes: every `.lookup<NativeFunction<...>>('cryptolib_*')`
+Only the library-loading line changes: every `.lookup<NativeFunction<...>>('cipherbird_*')`
 call in the existing bindings works unchanged because the symbols are now
 part of the app's own image.
 

@@ -5,11 +5,11 @@
 /// Build the shared library first:
 ///   cd /path/to/cipherbird
 ///   cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-///   cmake --build build/release --target cryptolib_c
+///   cmake --build build/release --target cipherbird_c
 ///
 /// Run:
 ///   cd bridge/flutter
-///   dart run example/main.dart /path/to/libcryptolib_c.dylib [path/to/photo.jpg]
+///   dart run example/main.dart /path/to/libcipherbird_c.dylib [path/to/photo.jpg]
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -17,7 +17,7 @@ import '../lib/cipherbird_ffi.dart';
 
 void main(List<String> args) {
   if (args.isEmpty) {
-    print('Usage: dart run example/main.dart <path/to/libcryptolib_c.dylib> [photo.jpg]');
+    print('Usage: dart run example/main.dart <path/to/libcipherbird_c.dylib> [photo.jpg]');
     print('');
     print('  First argument:  path to the compiled shared library');
     print('  Second argument: (optional) path to a media file for entropy demos');
@@ -57,7 +57,7 @@ void main(List<String> args) {
 
   if (photoPath == null) {
     print('  No media file provided. Pass a photo/audio path as second argument.');
-    print('  Example: dart run example/main.dart libcryptolib_c.dylib ~/Photos/vacation.jpg');
+    print('  Example: dart run example/main.dart libcipherbird_c.dylib ~/Photos/vacation.jpg');
     print('\nDone.');
     return;
   }

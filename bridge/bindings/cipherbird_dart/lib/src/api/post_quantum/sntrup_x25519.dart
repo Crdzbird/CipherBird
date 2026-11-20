@@ -19,7 +19,7 @@ extension CipherBirdSntrupX25519 on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_sntrup_x25519_decapsulate')(
+        >('cipherbird_sntrup_x25519_decapsulate')(
           cp,
           ciphertext.length,
           sp,
@@ -37,7 +37,7 @@ extension CipherBirdSntrupX25519 on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_sntrup_x25519_keygen',
+      'cipherbird_sntrup_x25519_keygen',
     )(),
   );
 
@@ -59,7 +59,7 @@ extension CipherBirdSntrupX25519 on CipherBird {
               Pointer<Pointer<Utf8>>,
             )
           >(
-            'cryptolib_sntrup_x25519_encapsulate',
+            'cipherbird_sntrup_x25519_encapsulate',
           )(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) {
         final m = errPtr.value.toDartString();

@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry10 = {
-  'cryptolib_suite_open_signed_pq':
+  'cipherbird_suite_open_signed_pq':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -12,7 +12,7 @@ final Map<String, Function> _registry10 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_signed_pq',
+        '_cbw_cipherbird_suite_open_signed_pq',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -26,7 +26,7 @@ final Map<String, Function> _registry10 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_with_file':
+  'cipherbird_suite_seal_with_file':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -34,7 +34,7 @@ final Map<String, Function> _registry10 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_file',
+        '_cbw_cipherbird_suite_seal_with_file',
         [
           pt.address.toJS,
           ptLen.toJS,
@@ -45,7 +45,7 @@ final Map<String, Function> _registry10 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_open_with_file':
+  'cipherbird_suite_open_with_file':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -53,7 +53,7 @@ final Map<String, Function> _registry10 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_file',
+        '_cbw_cipherbird_suite_open_with_file',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -64,7 +64,7 @@ final Map<String, Function> _registry10 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_with_keyring_device':
+  'cipherbird_suite_seal_with_keyring_device':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -74,7 +74,7 @@ final Map<String, Function> _registry10 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_keyring_device',
+        '_cbw_cipherbird_suite_seal_with_keyring_device',
         [
           pt.address.toJS,
           ptLen.toJS,

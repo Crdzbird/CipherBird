@@ -1,14 +1,14 @@
 // crypto::Session — post-quantum forward-secret ratchet (hybrid KEM Double Ratchet).
 #include "test_framework.hpp"
 
-#include <cryptolib/session.hpp>
+#include <cipherbird/session.hpp>
 
 #include <cstring>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#if defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_PQ)
 
 using crypto::Session;
 
@@ -174,10 +174,10 @@ TEST("session/forward-secrecy-keys-differ") {
     CHECK(!crypto::secure_equal(m0.value().span(), m1.value().span()));
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_session() {
-#if defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_PQ)
     RUN("session/handshake-first-message");
     RUN("session/ping-pong-many-turns");
     RUN("session/multiple-in-a-row-same-chain");

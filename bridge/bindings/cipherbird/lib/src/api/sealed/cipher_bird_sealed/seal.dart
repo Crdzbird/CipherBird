@@ -46,7 +46,7 @@ extension CipherBirdSealedSeal on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_sealed_seal')(
+        >('cipherbird_sealed_seal')(
           tier.value,
           pp,
           pt.length,

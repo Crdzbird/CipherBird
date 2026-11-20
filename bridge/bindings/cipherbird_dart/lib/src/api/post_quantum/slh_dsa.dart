@@ -7,7 +7,7 @@ extension CipherBirdSlhDsa on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Int32, Int32),
           CipherBirdKeyPair Function(int, int)
-        >('cryptolib_slh_dsa_keygen')(level.value, hash.value),
+        >('cipherbird_slh_dsa_keygen')(level.value, hash.value),
       );
 
   Uint8List slhDsaSign(
@@ -36,7 +36,7 @@ extension CipherBirdSlhDsa on CipherBird {
             int,
             int,
           )
-        >('cryptolib_slh_dsa_sign')(
+        >('cipherbird_slh_dsa_sign')(
           mp,
           msg.length,
           sp,

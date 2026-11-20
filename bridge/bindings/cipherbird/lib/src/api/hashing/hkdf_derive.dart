@@ -33,7 +33,7 @@ extension CipherBirdHkdfDerive on CipherBird {
             int,
             int,
           )
-        >('cryptolib_hkdf_derive')(
+        >('cipherbird_hkdf_derive')(
           pk,
           ikm.length,
           ps,

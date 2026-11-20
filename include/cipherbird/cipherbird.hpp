@@ -1,0 +1,218 @@
+#pragma once
+
+/**
+ * ╔════════════════════════════════════════════════════════════════════════════╗
+ * ║  CipherBird — C++20 high-grade cryptography                               ║
+ * ║                                                                            ║
+ * ║  Single-header include. All capabilities available after:                ║
+ * ║    #include <cipherbird/cipherbird.hpp>                                    ║
+ * ║                                                                            ║
+ * ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
+ * ║  │  LAYERED VAULT PIPELINE                                             │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  crypto::SecureVault   — 4-layer symmetric pipeline                 │  ║
+ * ║  │    vault.seal(plaintext, aad)      → EncryptedPacket                │  ║
+ * ║  │    vault.open(packet,   aad)       → SecureBuffer                   │  ║
+ * ║  │    vault.seal_into(cover, pt, out, aad)  ← NATIVE STEGO            │  ║
+ * ║  │    vault.open_from(stego, aad)           ← NATIVE STEGO            │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  crypto::AsymmetricVault — 4-layer public-key pipeline              │  ║
+ * ║  │    AsymmetricVault::seal(pt, sender, recip_pub, aad)               │  ║
+ * ║  │    AsymmetricVault::open(pkt, recip, sender_pub, aad)              │  ║
+ * ║  │    AsymmetricVault::seal_into(sender, recip_pub, pt, cover, out)   │  ║
+ * ║  │    AsymmetricVault::open_from(recip, sender_pub, stego, aad)       │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  Both chain 4 layers (fail-fast at each):                          │  ║
+ * ║  │    L1 Argon2id/BLAKE2b KDF   → brute force resistance              │  ║
+ * ║  │    L2 BLAKE2b integrity tag  → corruption detection                │  ║
+ * ║  │    L3 XChaCha20-Poly1305     → confidentiality + AEAD auth         │  ║
+ * ║  │    L4 Ed25519 signature      → forgery / impersonation             │  ║
+ * ║  └─────────────────────────────────────────────────────────────────────┘  ║
+ * ║                                                                            ║
+ * ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
+ * ║  │  MEDIA ENTROPY  (LavaRand-inspired physical entropy harvester)      │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  crypto::entropy::MediaEntropy::from_file(path)                    │  ║
+ * ║  │    me.make_vault()             → SecureVault seeded by pixel noise  │  ║
+ * ║  │    me.seal_into(cover, pt, out, aad)   ← NATIVE STEGO             │  ║
+ * ║  │    me.open_from(stego, aad)            ← NATIVE STEGO (same me)   │  ║
+ * ║  │  crypto::entropy::vault_from_file(path)                            │  ║
+ * ║  │  crypto::entropy::key_from_file(path)                              │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  Pipeline: file bytes → BLAKE2b stream → XOR system entropy        │  ║
+ * ║  │            → BLAKE2b re-hash → HKDF domain-separated keys          │  ║
+ * ║  └─────────────────────────────────────────────────────────────────────┘  ║
+ * ║                                                                            ║
+ * ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
+ * ║  │  STEGANOGRAPHY  (hide payloads inside media — used by vault/entropy)│  ║
+ * ║  │                                                                     │  ║
+ * ║  │  Low-level / bypass-vault access:                                   │  ║
+ * ║  │    crypto::stego::StegoEngine::embed(cover, bytes, out)            │  ║
+ * ║  │    crypto::stego::StegoEngine::extract(stego) → bytes              │  ║
+ * ║  │    crypto::stego::StegoEngine::embed_packet(cover, pkt, out)       │  ║
+ * ║  │    crypto::stego::StegoEngine::extract_packet(stego) → pkt        │  ║
+ * ║  │    crypto::stego::StegoEngine::capacity(cover) → StegoCapacity     │  ║
+ * ║  │    crypto::stego::StegoEngine::quality(cover, stego) → dB          │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  Algorithms (auto-dispatched by extension):                        │  ║
+ * ║  │    .ppm  → ImageSteganographer  DCT/QIM blue-channel  ~4.7 KB/img  │  ║
+ * ║  │    .wav  → AudioSteganographer  phase coding mid-freq ~830 B/10s   │  ║
+ * ║  │    .crvf → VideoSteganographer  DCT/QIM per-frame     ~1.2 KB/frame│  ║
+ * ║  │                                                                     │  ║
+ * ║  │  Carrier generation:                                                │  ║
+ * ║  │    crypto::stego::MediaGenerator::generate_ppm(path, w, h)         │  ║
+ * ║  │    crypto::stego::MediaGenerator::generate_wav(path, sr, ch, dur)  │  ║
+ * ║  │    crypto::stego::MediaGenerator::generate_crvf(path,w,h,fps,n)   │  ║
+ * ║  └─────────────────────────────────────────────────────────────────────┘  ║
+ * ║                                                                            ║
+ * ║  ┌─────────────────────────────────────────────────────────────────────┐  ║
+ * ║  │  STANDALONE PRIMITIVES                                              │  ║
+ * ║  │                                                                     │  ║
+ * ║  │  crypto::hash::Blake2b / Blake3† / Sha256 / Sha512 / Argon2id      │  ║
+ * ║  │  crypto::hash::HmacSha256 / HmacSha512 / HkdfSha256              │  ║
+ * ║  │  crypto::symmetric::XChaCha20Poly1305 / Aes256Gcm / SecretStream   │  ║
+ * ║  │  crypto::asymmetric::Box / SealedBox / Ed25519 / X25519 / HybridBox│  ║
+ * ║  │  crypto::pq::MlKem (FIPS 203) / MlDsa (FIPS 204) / SlhDsa (205)†  │  ║
+ * ║  │  crypto::bls::Bls12381 — aggregate signatures (sign/verify/agg)†  │  ║
+ * ║  │    † optional deps: BLAKE3 / liboqs / blst (ON by default)        │  ║
+ * ║  └─────────────────────────────────────────────────────────────────────┘  ║
+ * ╚════════════════════════════════════════════════════════════════════════════╝
+ *
+ * Quick-start:
+ *
+ *   crypto::init();   // once at startup
+ *
+ *   // ── Vault seal + stego in one call ────────────────────────────────────────
+ *   auto kp    = crypto::SecureVault::generate_keypair();
+ *   auto vault = crypto::SecureVault(master_key, std::move(kp));
+ *   vault.seal_into("cover.ppm", "classified", "stego.ppm", "my-context");
+ *   auto plain = vault.open_from("stego.ppm", "my-context");
+ *
+ *   // ── Entropy from a photo → vault → stego ──────────────────────────────────
+ *   auto me    = crypto::entropy::MediaEntropy::from_file("photo.ppm").value();
+ *   auto vault = me.make_vault().value();
+ *   vault.seal_into("cover.wav", "secret", "stego.wav", "ctx");
+ *   auto plain = vault.open_from("stego.wav", "ctx");
+ *
+ *   // ── Alice sends to Bob via stego (asymmetric) ──────────────────────────────
+ *   auto alice = crypto::AsymmetricVault::generate_bundle();
+ *   auto bob   = crypto::AsymmetricVault::generate_bundle();
+ *   crypto::AsymmetricVault::seal_into(alice, bob.box_public.span(),
+ *                                      "Bob, meet at midnight", "cover.ppm", "stego.ppm");
+ *   auto plain = crypto::AsymmetricVault::open_from(bob, alice.sign_public.span(),
+ *                                                   "stego.ppm");
+ */
+
+// Include order matters for the circular-dep resolution:
+//   vault.hpp   → packet.hpp          (EncryptedPacket, KdfParams)
+//              → steganography.hpp    (StegoEngine + sub-headers)
+//              → packet.hpp           (already included, idempotent)
+//   media_entropy.hpp → steganography.hpp  (idempotent)
+// All stego headers are therefore reachable from this single include.
+#include "types.hpp"
+#include "shamir.hpp"             // → Shamir secret sharing (GF(256), M-of-N): arithmetic only, every profile
+
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+#include "fips/fips.hpp"          // → approved operations through the OpenSSL FIPS Provider
+#endif
+
+#include "token.hpp"             // -> tokens: one API for every format, every profile (docs/TOKEN_API.md)
+
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
+#include "hash.hpp"
+#include "keccak.hpp"            // → Keccak-256 (original padding, Ethereum)
+#include "ripemd160.hpp"         // → RIPEMD-160 (Bitcoin HASH160)
+#include "secp256k1.hpp"         // → secp256k1 ECDSA (EVM/BTC; guarded by CIPHERBIRD_HAS_SECP256K1)
+#include "p256.hpp"              // -> P-256 ECDSA with SHA-256 over libcrypto (guarded by CIPHERBIRD_HAS_P256)
+#include "symmetric.hpp"
+#include "paseto.hpp"
+#include "cb1_token.hpp"
+#include "committing.hpp"        // → key/context-committing AEAD (UtC)
+#include "aead_siv.hpp"          // → AES-256-GCM-SIV nonce-misuse-resistant AEAD (OpenSSL)
+#include "asymmetric.hpp"
+#include "vault.hpp"              // → packet.hpp (+ steganography.hpp in the full profile)
+#include "pq.hpp"                 // → post-quantum (liboqs, guarded by CIPHERBIRD_HAS_PQ)
+#include "xwing.hpp"              // → X-Wing (draft-connolly-cfrg-xwing-kem-11), guarded by CIPHERBIRD_HAS_PQ
+#include "hybrid_sig.hpp"         // → Ed25519 + ML-DSA-65 hybrid signatures (guarded by CIPHERBIRD_HAS_PQ)
+#include "bls.hpp"                // → BLS12-381 (blst, guarded by CIPHERBIRD_HAS_BLS)
+#include "keyring.hpp"            // → envelope encryption with key-slots (device / passphrase / hardware)
+#include "frost.hpp"          // → FROST(Ed25519,SHA-512) threshold signatures
+#include "ecvrf.hpp"          // → ECVRF (RFC 9381) verifiable random function
+#include "bbs.hpp"            // → BBS signatures + selective disclosure (BLS12-381)
+#include "oprf.hpp"           // → OPRF (RFC 9497) oblivious pseudorandom function
+#include "opaque.hpp"         // → OPAQUE aPAKE (draft-irtf-cfrg-opaque, needs OPRF)
+#include "hpke.hpp"           // → HPKE (RFC 9180, plus ML-KEM and X-Wing KEMs from draft-ietf-hpke-pq)
+#include "suite_v2.hpp"       // → Suite v2: recipient-bound signed envelopes over X-Wing or the hybrid KEM
+#include "session_v2.hpp"     // → Session v2: signed prekeys, identity-bound handshake, X-Wing ratchet
+#include "noise.hpp"              // → Noise_XX secure channel (mutual auth + forward secrecy)
+#include "entropy_drbg.hpp"       // → HMAC-DRBG (opt-in beacon)
+#include "entropy_fortuna.hpp"    // → Fortuna pool (opt-in)
+#include "entropy_live.hpp"       // → continuous source for a live stream
+
+#ifdef CIPHERBIRD_HAS_MEDIA_ENTROPY
+#include "media_entropy.hpp"      // → steganography.hpp (idempotent via #pragma once)
+#endif
+#ifdef CIPHERBIRD_HAS_STEGO
+#include "stego_media_generator.hpp"
+#include "stego_analysis.hpp"     // → StegoAnalyzer: carrier validity, tamper digest, hidden-data probe
+#include "physical_seal.hpp"      // → PhysicalSeal: two-factor media-entropy seal + keyed stego
+#include "oprf_image_seal.hpp"    // → ImageFactorSeal: OPRF-gated image second-factor + keyed stego
+#include "hpke_stego_seal.hpp"    // → HpkeStegoSeal: keyed stego bound to an HPKE session (exporter)
+#endif
+#ifdef CIPHERBIRD_HAS_NATIVE_COMBINERS
+#include "hybrid_kem.hpp"         // → X25519 + ML-KEM-768 library-native combiner (full profile only)
+#include "sntrup_x25519.hpp"      // → X25519 + sntrup761 hybrid KEM
+#include "triple_hybrid_kem.hpp"  // → X25519 + ML-KEM-768 + sntrup761 triple hybrid KEM
+#include "triple_sig.hpp"        // → Ed25519 + ML-DSA-65 + SLH-DSA triple signature
+#include "molecular_vault.hpp"    // → max-assurance layered vault (cascade + Argon2id + committing)
+#include "session.hpp"        // → PQ forward-secret ratchet over the native combiner (v1)
+#include "flagship.hpp"        // → Flagship / Fortress sealed-messaging tiers (needs OpenSSL + PQ)
+#include "suite.hpp"             // → Suite v1: one-call combinations (needs OpenSSL, PQ, media entropy)
+#endif
+#endif
+
+#include <sodium.h>
+
+#ifdef CIPHERBIRD_HAS_OPENSSL
+#include "detail/openssl_threads.hpp"
+#endif
+
+namespace crypto {
+
+static_assert(SODIUM_LIBRARY_VERSION_MAJOR > 26 ||
+              (SODIUM_LIBRARY_VERSION_MAJOR == 26 && SODIUM_LIBRARY_VERSION_MINOR >= 3),
+              "cipherbird requires libsodium 1.0.21 or newer (CVE-2025-69277 affects earlier releases)");
+
+/// Must be called at program startup before any crypto operation; later
+/// calls, from any thread, are harmless. Where the build links OpenSSL it
+/// also does libcrypto's first-use work exactly once (detail::openssl_ready),
+/// so the first OpenSSL-backed calls may then run on many threads at once.
+/// The fips profile leaves that to fips::Provider::init, which must load its
+/// module first.
+inline void init() {
+    if (sodium_init() < 0)
+        throw std::runtime_error("libsodium initialisation failed");
+#if defined(CIPHERBIRD_HAS_OPENSSL) && !defined(CIPHERBIRD_PROFILE_FIPS)
+    if (!detail::openssl_ready())
+        throw std::runtime_error("libcrypto initialisation failed");
+#ifdef CIPHERBIRD_HAS_P256
+    (void)ec::P256::available();
+#endif
+#endif
+}
+
+/// Cryptographically secure random bytes.
+[[nodiscard]] inline SecureBuffer random_bytes(std::size_t n) {
+    SecureBuffer buf(n);
+    randombytes_buf(buf.data(), n);
+    return buf;
+}
+
+/// Constant-time equality comparison (safe against timing attacks).
+[[nodiscard]] inline bool secure_equal(std::span<const uint8_t> a,
+                                       std::span<const uint8_t> b) noexcept {
+    if (a.size() != b.size()) return false;
+    return sodium_memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
+} // namespace crypto

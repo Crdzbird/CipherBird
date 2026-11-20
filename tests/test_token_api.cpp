@@ -4,8 +4,8 @@
 /// under tests/vectors/tokens/ accepted through the generic calls.
 #include "test_framework.hpp"
 #include "json_lite.hpp"
-#include "cryptolib_c.h"
-#include <cryptolib/cryptolib.hpp>
+#include "cipherbird_c.h"
+#include <cipherbird/cipherbird.hpp>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -33,7 +33,7 @@ Bytes unhex(std::string_view h) {
 
 const char* const kFormats[] = {"v4.local", "cb1.local", "cb1.public"};
 
-bool available(const char* format) { return cryptolib_token_issue_len(format, 1, 0) != 0; }
+bool available(const char* format) { return cipherbird_token_issue_len(format, 1, 0) != 0; }
 
 bool is_public(const char* format) {
     const std::string_view f(format);
@@ -47,9 +47,9 @@ Keys keygen(const char* format) {
     k.secret.resize(4096);
     k.pub.resize(1984);
     size_t a = 0, b = 0;
-    const int rc = cryptolib_token_keygen(format, k.secret.data(), k.secret.size(), &a, k.pub.data(), k.pub.size(), &b);
-    CHECK(rc == CRYPTOLIB_TOKEN_OK);
-    if (rc != CRYPTOLIB_TOKEN_OK) {
+    const int rc = cipherbird_token_keygen(format, k.secret.data(), k.secret.size(), &a, k.pub.data(), k.pub.size(), &b);
+    CHECK(rc == CIPHERBIRD_TOKEN_OK);
+    if (rc != CIPHERBIRD_TOKEN_OK) {
         a = 0;
         b = 0;
     }
@@ -61,9 +61,9 @@ Keys keygen(const char* format) {
 struct Issued { int rc; std::string token; };
 
 Issued issue(const char* format, const Bytes& key, const Bytes& m, const Bytes& f, const Bytes& i) {
-    std::string t(cryptolib_token_issue_len(format, m.size(), f.size()), '\0');
+    std::string t(cipherbird_token_issue_len(format, m.size(), f.size()), '\0');
     size_t n = 0;
-    const int rc = cryptolib_token_issue(format, reinterpret_cast<uint8_t*>(t.data()), t.size(), &n, key.data(),
+    const int rc = cipherbird_token_issue(format, reinterpret_cast<uint8_t*>(t.data()), t.size(), &n, key.data(),
                                          key.size(), m.data(), m.size(), f.data(), f.size(), i.data(), i.size());
     t.resize(n);
     return {rc, t};
@@ -72,9 +72,9 @@ Issued issue(const char* format, const Bytes& key, const Bytes& m, const Bytes& 
 struct Accepted { int rc; Bytes m; };
 
 Accepted accept(const char* format, const std::string& token, const Bytes& key, const Bytes& f, const Bytes& i) {
-    Bytes out(cryptolib_token_accept_cap(format, token.size()));
+    Bytes out(cipherbird_token_accept_cap(format, token.size()));
     size_t n = 0;
-    const int rc = cryptolib_token_accept(format, out.data(), out.size(), &n,
+    const int rc = cipherbird_token_accept(format, out.data(), out.size(), &n,
                                           reinterpret_cast<const uint8_t*>(token.data()), token.size(), key.data(),
                                           key.size(), f.data(), f.size(), i.data(), i.size());
     out.resize(n);
@@ -82,9 +82,9 @@ Accepted accept(const char* format, const std::string& token, const Bytes& key, 
 }
 
 std::string formats_json() {
-    const size_t n = cryptolib_token_formats(nullptr, 0);
+    const size_t n = cipherbird_token_formats(nullptr, 0);
     std::string j(n, '\0');
-    const size_t again = cryptolib_token_formats(j.data(), j.size());
+    const size_t again = cipherbird_token_formats(j.data(), j.size());
     if (again != n) return "";
     return j;
 }
@@ -99,9 +99,9 @@ std::string entry(const char* format, const char* purpose, const char* standard,
 
 std::string peek_format(const std::string& token) {
     const auto* p = reinterpret_cast<const uint8_t*>(token.data());
-    const size_t n = cryptolib_token_peek_format(p, token.size(), nullptr, 0);
+    const size_t n = cipherbird_token_peek_format(p, token.size(), nullptr, 0);
     std::string s(n, '\0');
-    if (n) cryptolib_token_peek_format(p, token.size(), s.data(), s.size());
+    if (n) cipherbird_token_peek_format(p, token.size(), s.data(), s.size());
     return s;
 }
 
@@ -110,7 +110,7 @@ struct Footer { int rc; Bytes f; };
 Footer peek_footer(const std::string& token) {
     Bytes out(token.size());
     size_t n = 0;
-    const int rc = cryptolib_token_peek_footer(reinterpret_cast<const uint8_t*>(token.data()), token.size(),
+    const int rc = cipherbird_token_peek_footer(reinterpret_cast<const uint8_t*>(token.data()), token.size(),
                                                out.data(), out.size(), &n);
     out.resize(n);
     return {rc, out};
@@ -119,7 +119,7 @@ Footer peek_footer(const std::string& token) {
 }
 
 TEST("token_api/table-lists-every-format-with-its-sizes") {
-    REQUIRE(cryptolib_init() == 0);
+    REQUIRE(cipherbird_init() == 0);
     const std::string j = formats_json();
     REQUIRE(!j.empty());
     CHECK(j.front() == '[' && j.back() == ']');
@@ -129,7 +129,7 @@ TEST("token_api/table-lists-every-format-with-its-sizes") {
           std::string::npos);
     CHECK(available("v4.local"));
     char small[8];
-    CHECK(cryptolib_token_formats(small, sizeof small) == j.size());
+    CHECK(cipherbird_token_formats(small, sizeof small) == j.size());
     JsonParser p{j};
     const Json root = p.value();
     CHECK(p.ok && root.kind == Json::Arr && root.arr.size() == 3);
@@ -138,22 +138,22 @@ TEST("token_api/table-lists-every-format-with-its-sizes") {
 TEST("token_api/unknown-format-and-unavailable-format-are-told-apart") {
     uint8_t out[64];
     size_t n = 7;
-    CHECK(cryptolib_token_issue_len("v9.local", 1, 0) == 0);
-    CHECK(cryptolib_token_accept_cap("v9.local", 100) == 0);
-    CHECK(cryptolib_token_issue("v9.local", out, sizeof out, &n, out, 32, nullptr, 0, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_FORMAT);
+    CHECK(cipherbird_token_issue_len("v9.local", 1, 0) == 0);
+    CHECK(cipherbird_token_accept_cap("v9.local", 100) == 0);
+    CHECK(cipherbird_token_issue("v9.local", out, sizeof out, &n, out, 32, nullptr, 0, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_FORMAT);
     CHECK(n == 0);
-    CHECK(cryptolib_token_accept("v4.secret", out, sizeof out, &n, out, 10, out, 32, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_FORMAT);
-    CHECK(cryptolib_token_keygen("", out, sizeof out, &n, nullptr, 0, nullptr) == CRYPTOLIB_TOKEN_ERR_FORMAT);
-    CHECK(cryptolib_token_keygen(nullptr, out, sizeof out, &n, nullptr, 0, nullptr) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_accept("v4.secret", out, sizeof out, &n, out, 10, out, 32, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_FORMAT);
+    CHECK(cipherbird_token_keygen("", out, sizeof out, &n, nullptr, 0, nullptr) == CIPHERBIRD_TOKEN_ERR_FORMAT);
+    CHECK(cipherbird_token_keygen(nullptr, out, sizeof out, &n, nullptr, 0, nullptr) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
     for (const char* f : kFormats) {
         if (available(f)) continue;
-        CHECK(cryptolib_token_issue(f, out, sizeof out, &n, out, 32, nullptr, 0, nullptr, 0, nullptr, 0) ==
-              CRYPTOLIB_TOKEN_ERR_UNAVAILABLE);
-        CHECK(cryptolib_token_accept(f, out, sizeof out, &n, out, 10, out, 32, nullptr, 0, nullptr, 0) ==
-              CRYPTOLIB_TOKEN_ERR_UNAVAILABLE);
-        CHECK(cryptolib_token_keygen(f, out, sizeof out, &n, nullptr, 0, nullptr) == CRYPTOLIB_TOKEN_ERR_UNAVAILABLE);
+        CHECK(cipherbird_token_issue(f, out, sizeof out, &n, out, 32, nullptr, 0, nullptr, 0, nullptr, 0) ==
+              CIPHERBIRD_TOKEN_ERR_UNAVAILABLE);
+        CHECK(cipherbird_token_accept(f, out, sizeof out, &n, out, 10, out, 32, nullptr, 0, nullptr, 0) ==
+              CIPHERBIRD_TOKEN_ERR_UNAVAILABLE);
+        CHECK(cipherbird_token_keygen(f, out, sizeof out, &n, nullptr, 0, nullptr) == CIPHERBIRD_TOKEN_ERR_UNAVAILABLE);
         std::printf("      %s is not in this profile: reports unavailable\n", f);
     }
 }
@@ -173,26 +173,26 @@ TEST("token_api/keygen-issue-accept-round-trip-per-format") {
         const Bytes m = bytes_of("{\"sub\":\"alice\",\"exp\":\"2030-01-01T00:00:00Z\"}");
         const Bytes foot = bytes_of("{\"kid\":\"k1\"}"), imp = bytes_of("audience");
         const auto t = issue(f, k.secret, m, foot, imp);
-        REQUIRE(t.rc == CRYPTOLIB_TOKEN_OK);
+        REQUIRE(t.rc == CIPHERBIRD_TOKEN_OK);
         CHECK(t.token.rfind(std::string(f) + ".", 0) == 0);
-        CHECK(t.token.size() == cryptolib_token_issue_len(f, m.size(), foot.size()));
+        CHECK(t.token.size() == cipherbird_token_issue_len(f, m.size(), foot.size()));
         const auto a = accept(f, t.token, accept_key, foot, imp);
-        CHECK(a.rc == CRYPTOLIB_TOKEN_OK);
+        CHECK(a.rc == CIPHERBIRD_TOKEN_OK);
         CHECK(a.m == m);
-        CHECK(accept(f, t.token, accept_key, bytes_of("{\"kid\":\"k2\"}"), imp).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-        CHECK(accept(f, t.token, accept_key, foot, bytes_of("other")).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+        CHECK(accept(f, t.token, accept_key, bytes_of("{\"kid\":\"k2\"}"), imp).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+        CHECK(accept(f, t.token, accept_key, foot, bytes_of("other")).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
         std::string bad = t.token;
         bad[bad.size() - 1] = bad[bad.size() - 1] == 'A' ? 'B' : 'A';
-        CHECK(accept(f, bad, accept_key, foot, imp).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+        CHECK(accept(f, bad, accept_key, foot, imp).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
         const Keys other = keygen(f);
-        CHECK(accept(f, t.token, is_public(f) ? other.pub : other.secret, foot, imp).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+        CHECK(accept(f, t.token, is_public(f) ? other.pub : other.secret, foot, imp).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
         const auto again = issue(f, k.secret, m, foot, imp);
-        CHECK(again.rc == CRYPTOLIB_TOKEN_OK);
+        CHECK(again.rc == CIPHERBIRD_TOKEN_OK);
         CHECK(again.token != t.token || is_public(f));
         const auto empty = issue(f, k.secret, {}, {}, {});
-        CHECK(empty.rc == CRYPTOLIB_TOKEN_OK);
+        CHECK(empty.rc == CIPHERBIRD_TOKEN_OK);
         CHECK(std::count(empty.token.begin(), empty.token.end(), '.') == 2);
-        CHECK(accept(f, empty.token, accept_key, {}, {}).rc == CRYPTOLIB_TOKEN_OK);
+        CHECK(accept(f, empty.token, accept_key, {}, {}).rc == CIPHERBIRD_TOKEN_OK);
     }
 }
 
@@ -201,22 +201,22 @@ TEST("token_api/the-caller-names-the-format-and-the-header-never-chooses") {
     const Keys k = keygen("v4.local");
     const Bytes m = bytes_of("m");
     const auto v4 = issue("v4.local", k.secret, m, {}, {});
-    REQUIRE(v4.rc == CRYPTOLIB_TOKEN_OK);
+    REQUIRE(v4.rc == CIPHERBIRD_TOKEN_OK);
     if (available("cb1.local")) {
         const auto cb1 = issue("cb1.local", k.secret, m, {}, {});
-        REQUIRE(cb1.rc == CRYPTOLIB_TOKEN_OK);
-        CHECK(accept("v4.local", cb1.token, k.secret, {}, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-        CHECK(accept("cb1.local", v4.token, k.secret, {}, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-        CHECK(accept("cb1.local", cb1.token, k.secret, {}, {}).rc == CRYPTOLIB_TOKEN_OK);
+        REQUIRE(cb1.rc == CIPHERBIRD_TOKEN_OK);
+        CHECK(accept("v4.local", cb1.token, k.secret, {}, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+        CHECK(accept("cb1.local", v4.token, k.secret, {}, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+        CHECK(accept("cb1.local", cb1.token, k.secret, {}, {}).rc == CIPHERBIRD_TOKEN_OK);
     }
     std::string relabelled = "cb1.local." + v4.token.substr(9);
-    CHECK(accept("v4.local", relabelled, k.secret, {}, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+    CHECK(accept("v4.local", relabelled, k.secret, {}, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
     if (available("cb1.public")) {
         const Keys s = keygen("cb1.public");
         const auto pub = issue("cb1.public", s.secret, m, {}, {});
-        REQUIRE(pub.rc == CRYPTOLIB_TOKEN_OK);
-        CHECK(accept("cb1.local", pub.token, k.secret, {}, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-        CHECK(accept("cb1.public", v4.token, s.pub, {}, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+        REQUIRE(pub.rc == CIPHERBIRD_TOKEN_OK);
+        CHECK(accept("cb1.local", pub.token, k.secret, {}, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+        CHECK(accept("cb1.public", v4.token, s.pub, {}, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
     }
 }
 
@@ -226,33 +226,33 @@ TEST("token_api/argument-errors-are-the-callers-own") {
     uint8_t out[128];
     size_t n = 1;
     const uint8_t m[] = "m";
-    CHECK(cryptolib_token_issue("v4.local", nullptr, 0, &n, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_issue("v4.local", out, sizeof out, nullptr, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_issue("v4.local", out, sizeof out, &n, k.secret.data(), 31, m, 1, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_issue("v4.local", nullptr, 0, &n, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_issue("v4.local", out, sizeof out, nullptr, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_issue("v4.local", out, sizeof out, &n, k.secret.data(), 31, m, 1, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_ARGUMENT);
     CHECK(n == 0);
-    CHECK(cryptolib_token_issue("v4.local", out, 4, &n, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_issue("v4.local", out, sizeof out, &n, k.secret.data(), 32, nullptr, 1, nullptr, 0, nullptr, 0) ==
-          CRYPTOLIB_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_issue("v4.local", out, 4, &n, k.secret.data(), 32, m, 1, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_issue("v4.local", out, sizeof out, &n, k.secret.data(), 32, nullptr, 1, nullptr, 0, nullptr, 0) ==
+          CIPHERBIRD_TOKEN_ERR_ARGUMENT);
     const auto t = issue("v4.local", k.secret, bytes_of("m"), {}, {});
-    REQUIRE(t.rc == CRYPTOLIB_TOKEN_OK);
+    REQUIRE(t.rc == CIPHERBIRD_TOKEN_OK);
     const auto* tp = reinterpret_cast<const uint8_t*>(t.token.data());
-    CHECK(cryptolib_token_accept("v4.local", out, sizeof out, &n, tp, t.token.size(), k.secret.data(), 16, nullptr, 0,
-                                 nullptr, 0) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_accept("v4.local", out, 1, &n, tp, t.token.size(), k.secret.data(), 32, nullptr, 0, nullptr,
-                                 0) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_accept("v4.local", out, sizeof out, &n, tp, t.token.size(), k.secret.data(), 32, nullptr, 0,
-                                 nullptr, 0) == CRYPTOLIB_TOKEN_OK);
+    CHECK(cipherbird_token_accept("v4.local", out, sizeof out, &n, tp, t.token.size(), k.secret.data(), 16, nullptr, 0,
+                                 nullptr, 0) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_accept("v4.local", out, 1, &n, tp, t.token.size(), k.secret.data(), 32, nullptr, 0, nullptr,
+                                 0) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_accept("v4.local", out, sizeof out, &n, tp, t.token.size(), k.secret.data(), 32, nullptr, 0,
+                                 nullptr, 0) == CIPHERBIRD_TOKEN_OK);
     CHECK(n == 1 && out[0] == 'm');
     size_t a = 0, b = 0;
     uint8_t key[16];
-    CHECK(cryptolib_token_keygen("v4.local", key, sizeof key, &a, nullptr, 0, &b) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_keygen("v4.local", nullptr, 32, &a, nullptr, 0, &b) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_keygen("v4.local", out, 32, nullptr, nullptr, 0, &b) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_keygen("v4.local", out, 32, &a, nullptr, 0, nullptr) == CRYPTOLIB_TOKEN_OK);
+    CHECK(cipherbird_token_keygen("v4.local", key, sizeof key, &a, nullptr, 0, &b) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_keygen("v4.local", nullptr, 32, &a, nullptr, 0, &b) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_keygen("v4.local", out, 32, nullptr, nullptr, 0, &b) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_keygen("v4.local", out, 32, &a, nullptr, 0, nullptr) == CIPHERBIRD_TOKEN_OK);
     CHECK(a == 32);
 }
 
@@ -261,20 +261,20 @@ TEST("token_api/peek-reads-header-and-footer-without-verifying") {
     const Keys k = keygen("v4.local");
     const Bytes foot = bytes_of("{\"kid\":\"prod-2026\"}");
     const auto t = issue("v4.local", k.secret, bytes_of("m"), foot, {});
-    REQUIRE(t.rc == CRYPTOLIB_TOKEN_OK);
+    REQUIRE(t.rc == CIPHERBIRD_TOKEN_OK);
     CHECK(peek_format(t.token) == "v4.local");
     const auto pf = peek_footer(t.token);
-    CHECK(pf.rc == CRYPTOLIB_TOKEN_OK);
+    CHECK(pf.rc == CIPHERBIRD_TOKEN_OK);
     CHECK(pf.f == foot);
     const auto bare = issue("v4.local", k.secret, bytes_of("m"), {}, {});
-    REQUIRE(bare.rc == CRYPTOLIB_TOKEN_OK);
+    REQUIRE(bare.rc == CIPHERBIRD_TOKEN_OK);
     const auto none = peek_footer(bare.token);
-    CHECK(none.rc == CRYPTOLIB_TOKEN_OK && none.f.empty());
+    CHECK(none.rc == CIPHERBIRD_TOKEN_OK && none.f.empty());
     std::string forged = t.token;
     forged[forged.size() - 1] = forged[forged.size() - 1] == 'A' ? 'B' : 'A';
     CHECK(peek_format(forged) == "v4.local");
-    CHECK(peek_footer(forged).rc == CRYPTOLIB_TOKEN_OK);
-    CHECK(accept("v4.local", forged, k.secret, foot, {}).rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+    CHECK(peek_footer(forged).rc == CIPHERBIRD_TOKEN_OK);
+    CHECK(accept("v4.local", forged, k.secret, foot, {}).rc == CIPHERBIRD_TOKEN_ERR_INVALID);
     CHECK(peek_format("v9.public.abc") == "v9.public");
     CHECK(peek_format("cb2.local.x.y") == "cb2.local");
     CHECK(peek_format("v4.secret.abc").empty());
@@ -282,74 +282,74 @@ TEST("token_api/peek-reads-header-and-footer-without-verifying") {
     CHECK(peek_format("V4.local.abc").empty());
     CHECK(peek_format("abcdefghi.local.x").empty());
     CHECK(peek_format("").empty());
-    CHECK(peek_footer("v4.local.abc.a").rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-    CHECK(peek_footer("v4.local.abc.a=b").rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-    CHECK(peek_footer("v4.local.abc.a.b").rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-    CHECK(peek_footer("v4.local.abc.").rc == CRYPTOLIB_TOKEN_ERR_INVALID);
-    CHECK(peek_footer("nonsense").rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+    CHECK(peek_footer("v4.local.abc.a").rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+    CHECK(peek_footer("v4.local.abc.a=b").rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+    CHECK(peek_footer("v4.local.abc.a.b").rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+    CHECK(peek_footer("v4.local.abc.").rc == CIPHERBIRD_TOKEN_ERR_INVALID);
+    CHECK(peek_footer("nonsense").rc == CIPHERBIRD_TOKEN_ERR_INVALID);
     const auto kid = peek_footer("v4.local.abc.a2lk");
-    CHECK(kid.rc == CRYPTOLIB_TOKEN_OK && kid.f == bytes_of("kid"));
+    CHECK(kid.rc == CIPHERBIRD_TOKEN_OK && kid.f == bytes_of("kid"));
     uint8_t tiny[2];
     size_t n = 0;
     const std::string with = "v4.local.abc.a2lk";
-    CHECK(cryptolib_token_peek_footer(reinterpret_cast<const uint8_t*>(with.data()), with.size(), tiny, sizeof tiny,
-                                      &n) == CRYPTOLIB_TOKEN_ERR_ARGUMENT);
-    CHECK(cryptolib_token_peek_format(reinterpret_cast<const uint8_t*>(with.data()), with.size(), nullptr, 0) == 8);
+    CHECK(cipherbird_token_peek_footer(reinterpret_cast<const uint8_t*>(with.data()), with.size(), tiny, sizeof tiny,
+                                      &n) == CIPHERBIRD_TOKEN_ERR_ARGUMENT);
+    CHECK(cipherbird_token_peek_format(reinterpret_cast<const uint8_t*>(with.data()), with.size(), nullptr, 0) == 8);
 }
 
 TEST("token_api/per-format-functions-are-the-generic-calls") {
     REQUIRE(available("v4.local"));
     const Keys k = keygen("v4.local");
     const Bytes m = bytes_of("{\"data\":\"x\"}"), foot = bytes_of("f"), imp = bytes_of("i");
-    CHECK(cryptolib_paseto_v4_local_encrypt_len(m.size(), foot.size()) ==
-          cryptolib_token_issue_len("v4.local", m.size(), foot.size()));
-    std::string t(cryptolib_paseto_v4_local_encrypt_len(m.size(), foot.size()), '\0');
+    CHECK(cipherbird_paseto_v4_local_encrypt_len(m.size(), foot.size()) ==
+          cipherbird_token_issue_len("v4.local", m.size(), foot.size()));
+    std::string t(cipherbird_paseto_v4_local_encrypt_len(m.size(), foot.size()), '\0');
     size_t n = 0;
-    REQUIRE(cryptolib_paseto_v4_local_encrypt(reinterpret_cast<uint8_t*>(t.data()), t.size(), &n, k.secret.data(), 32,
+    REQUIRE(cipherbird_paseto_v4_local_encrypt(reinterpret_cast<uint8_t*>(t.data()), t.size(), &n, k.secret.data(), 32,
                                               m.data(), m.size(), foot.data(), foot.size(), imp.data(),
-                                              imp.size()) == CRYPTOLIB_PASETO_OK);
+                                              imp.size()) == CIPHERBIRD_PASETO_OK);
     t.resize(n);
     const auto a = accept("v4.local", t, k.secret, foot, imp);
-    CHECK(a.rc == CRYPTOLIB_TOKEN_OK && a.m == m);
+    CHECK(a.rc == CIPHERBIRD_TOKEN_OK && a.m == m);
     const auto g = issue("v4.local", k.secret, m, foot, imp);
-    REQUIRE(g.rc == CRYPTOLIB_TOKEN_OK);
-    Bytes out(cryptolib_paseto_v4_local_decrypt_cap(g.token.size()));
-    CHECK(out.size() == cryptolib_token_accept_cap("v4.local", g.token.size()));
-    CHECK(cryptolib_paseto_v4_local_decrypt(out.data(), out.size(), &n, reinterpret_cast<const uint8_t*>(g.token.data()),
+    REQUIRE(g.rc == CIPHERBIRD_TOKEN_OK);
+    Bytes out(cipherbird_paseto_v4_local_decrypt_cap(g.token.size()));
+    CHECK(out.size() == cipherbird_token_accept_cap("v4.local", g.token.size()));
+    CHECK(cipherbird_paseto_v4_local_decrypt(out.data(), out.size(), &n, reinterpret_cast<const uint8_t*>(g.token.data()),
                                             g.token.size(), k.secret.data(), 32, foot.data(), foot.size(), imp.data(),
-                                            imp.size()) == CRYPTOLIB_PASETO_OK);
+                                            imp.size()) == CIPHERBIRD_PASETO_OK);
     CHECK(Bytes(out.begin(), out.begin() + static_cast<long>(n)) == m);
     if (available("cb1.local")) {
         const auto c = issue("cb1.local", k.secret, m, foot, imp);
-        REQUIRE(c.rc == CRYPTOLIB_TOKEN_OK);
-        Bytes o2(cryptolib_cb1_local_decrypt_cap(c.token.size()));
-        CHECK(cryptolib_cb1_local_decrypt(o2.data(), o2.size(), &n, reinterpret_cast<const uint8_t*>(c.token.data()),
+        REQUIRE(c.rc == CIPHERBIRD_TOKEN_OK);
+        Bytes o2(cipherbird_cb1_local_decrypt_cap(c.token.size()));
+        CHECK(cipherbird_cb1_local_decrypt(o2.data(), o2.size(), &n, reinterpret_cast<const uint8_t*>(c.token.data()),
                                           c.token.size(), k.secret.data(), 32, foot.data(), foot.size(), imp.data(),
-                                          imp.size()) == CRYPTOLIB_PASETO_OK);
+                                          imp.size()) == CIPHERBIRD_PASETO_OK);
         CHECK(Bytes(o2.begin(), o2.begin() + static_cast<long>(n)) == m);
     } else {
-        CHECK(cryptolib_cb1_local_encrypt_len(1, 0) == 0);
-        CHECK(cryptolib_cb1_local_encrypt(out.data(), out.size(), &n, k.secret.data(), 32, m.data(), m.size(), nullptr, 0,
-                                          nullptr, 0) == CRYPTOLIB_PASETO_ERR_UNAVAILABLE);
+        CHECK(cipherbird_cb1_local_encrypt_len(1, 0) == 0);
+        CHECK(cipherbird_cb1_local_encrypt(out.data(), out.size(), &n, k.secret.data(), 32, m.data(), m.size(), nullptr, 0,
+                                          nullptr, 0) == CIPHERBIRD_PASETO_ERR_UNAVAILABLE);
     }
     if (available("cb1.public")) {
         const Keys s = keygen("cb1.public");
         const auto c = issue("cb1.public", s.secret, m, foot, imp);
-        REQUIRE(c.rc == CRYPTOLIB_TOKEN_OK);
-        Bytes o3(cryptolib_cb1_public_verify_cap(c.token.size()));
-        CHECK(cryptolib_cb1_public_verify(o3.data(), o3.size(), &n, reinterpret_cast<const uint8_t*>(c.token.data()),
+        REQUIRE(c.rc == CIPHERBIRD_TOKEN_OK);
+        Bytes o3(cipherbird_cb1_public_verify_cap(c.token.size()));
+        CHECK(cipherbird_cb1_public_verify(o3.data(), o3.size(), &n, reinterpret_cast<const uint8_t*>(c.token.data()),
                                           c.token.size(), s.pub.data(), s.pub.size(), foot.data(), foot.size(),
-                                          imp.data(), imp.size()) == CRYPTOLIB_PASETO_OK);
+                                          imp.data(), imp.size()) == CIPHERBIRD_PASETO_OK);
         CHECK(Bytes(o3.begin(), o3.begin() + static_cast<long>(n)) == m);
     } else {
-        CHECK(cryptolib_cb1_public_sign_len(1, 0) == 0);
-        CHECK(cryptolib_cb1_public_sign(out.data(), out.size(), &n, k.secret.data(), 4096, m.data(), m.size(), nullptr,
-                                        0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_UNAVAILABLE);
+        CHECK(cipherbird_cb1_public_sign_len(1, 0) == 0);
+        CHECK(cipherbird_cb1_public_sign(out.data(), out.size(), &n, k.secret.data(), 4096, m.data(), m.size(), nullptr,
+                                        0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_UNAVAILABLE);
     }
 }
 
 TEST("token_api/common-schema-vectors-accept-through-the-generic-calls") {
-    const std::filesystem::path dir = std::filesystem::path(CRYPTOLIB_SOURCE_DIR) / "tests" / "vectors" / "tokens";
+    const std::filesystem::path dir = std::filesystem::path(CIPHERBIRD_SOURCE_DIR) / "tests" / "vectors" / "tokens";
     REQUIRE(std::filesystem::is_directory(dir));
     int files = 0;
     for (const auto& e : std::filesystem::directory_iterator(dir)) {
@@ -387,41 +387,41 @@ TEST("token_api/common-schema-vectors-accept-through-the-generic-calls") {
             }
             const auto a = accept(format.c_str(), token, key, f, i);
             if (expect_fail) {
-                CHECK(a.rc == CRYPTOLIB_TOKEN_ERR_INVALID);
+                CHECK(a.rc == CIPHERBIRD_TOKEN_ERR_INVALID);
                 CHECK(a.m.empty());
                 ++fail;
                 continue;
             }
-            if (a.rc != CRYPTOLIB_TOKEN_OK) std::printf("      %s %s gave %d\n", format.c_str(), name.c_str(), a.rc);
-            CHECK(a.rc == CRYPTOLIB_TOKEN_OK);
+            if (a.rc != CIPHERBIRD_TOKEN_OK) std::printf("      %s %s gave %d\n", format.c_str(), name.c_str(), a.rc);
+            CHECK(a.rc == CIPHERBIRD_TOKEN_OK);
             CHECK(a.m == payload);
             CHECK(peek_format(token) == format);
             const auto pf = peek_footer(token);
-            CHECK(pf.rc == CRYPTOLIB_TOKEN_OK && pf.f == f);
+            CHECK(pf.rc == CIPHERBIRD_TOKEN_OK && pf.f == f);
             ++pass;
             if (pub) {
                 const Bytes sk = unhex(jstr(c, "secret-key"));
                 const auto again = issue(format.c_str(), sk, payload, f, i);
-                CHECK(again.rc == CRYPTOLIB_TOKEN_OK);
-                CHECK(accept(format.c_str(), again.token, key, f, i).rc == CRYPTOLIB_TOKEN_OK);
+                CHECK(again.rc == CIPHERBIRD_TOKEN_OK);
+                CHECK(accept(format.c_str(), again.token, key, f, i).rc == CIPHERBIRD_TOKEN_OK);
                 ++reissued;
             }
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
             if (!pub) {
                 const Bytes nonce = unhex(jstr(c, "nonce"));
                 REQUIRE(nonce.size() == 32);
-                std::string again(cryptolib_token_issue_len(format.c_str(), payload.size(), f.size()), '\0');
+                std::string again(cipherbird_token_issue_len(format.c_str(), payload.size(), f.size()), '\0');
                 size_t n = 0;
                 int rc = -99;
                 if (format == "v4.local")
-                    rc = cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+                    rc = cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
                         reinterpret_cast<uint8_t*>(again.data()), again.size(), &n, key.data(), 32, payload.data(),
                         payload.size(), f.data(), f.size(), i.data(), i.size(), nonce.data(), 32);
                 if (format == "cb1.local")
-                    rc = cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+                    rc = cipherbird_cb1_local_encrypt_with_nonce_for_testing(
                         reinterpret_cast<uint8_t*>(again.data()), again.size(), &n, key.data(), 32, payload.data(),
                         payload.size(), f.data(), f.size(), i.data(), i.size(), nonce.data(), 32);
-                CHECK(rc == CRYPTOLIB_TOKEN_OK);
+                CHECK(rc == CIPHERBIRD_TOKEN_OK);
                 again.resize(n);
                 CHECK(again == token);
                 ++reissued;

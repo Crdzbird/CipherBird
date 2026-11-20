@@ -10,7 +10,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-DY="$ROOT/build/release/libcryptolib_c.dylib"
+DY="$ROOT/build/release/libcipherbird_c.dylib"
 CHUNKS="${1:-256}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

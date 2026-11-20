@@ -1,6 +1,6 @@
 #include "test_framework.hpp"
 #include "json_lite.hpp"
-#include "../bridge/cryptolib_c.h"
+#include "../bridge/cipherbird_c.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -69,9 +69,9 @@ struct Msg { int rc; Bytes m; };
 const uint8_t* u8(std::string_view s) { return reinterpret_cast<const uint8_t*>(s.data()); }
 
 Tok lenc(Span key, Span msg, Span footer, Span implicit) {
-    std::string out(cryptolib_cb1_local_encrypt_len(msg.size(), footer.size()), '\0');
+    std::string out(cipherbird_cb1_local_encrypt_len(msg.size(), footer.size()), '\0');
     size_t n = 12345;
-    const int rc = cryptolib_cb1_local_encrypt(
+    const int rc = cipherbird_cb1_local_encrypt(
         reinterpret_cast<uint8_t*>(out.data()), out.size(), &n, key.data(), key.size(),
         msg.data(), msg.size(), footer.data(), footer.size(), implicit.data(), implicit.size());
     out.resize(n);
@@ -79,9 +79,9 @@ Tok lenc(Span key, Span msg, Span footer, Span implicit) {
 }
 
 Msg ldec(std::string_view token, Span key, Span footer, Span implicit) {
-    Bytes out(cryptolib_cb1_local_decrypt_cap(token.size()));
+    Bytes out(cipherbird_cb1_local_decrypt_cap(token.size()));
     size_t n = 12345;
-    const int rc = cryptolib_cb1_local_decrypt(
+    const int rc = cipherbird_cb1_local_decrypt(
         out.empty() ? nullptr : out.data(), out.size(), &n, u8(token), token.size(), key.data(), key.size(),
         footer.data(), footer.size(), implicit.data(), implicit.size());
     out.resize(n);
@@ -89,9 +89,9 @@ Msg ldec(std::string_view token, Span key, Span footer, Span implicit) {
 }
 
 Tok psign(Span sk, Span msg, Span footer, Span implicit) {
-    std::string out(cryptolib_cb1_public_sign_len(msg.size(), footer.size()), '\0');
+    std::string out(cipherbird_cb1_public_sign_len(msg.size(), footer.size()), '\0');
     size_t n = 12345;
-    const int rc = cryptolib_cb1_public_sign(
+    const int rc = cipherbird_cb1_public_sign(
         reinterpret_cast<uint8_t*>(out.data()), out.size(), &n, sk.data(), sk.size(),
         msg.data(), msg.size(), footer.data(), footer.size(), implicit.data(), implicit.size());
     out.resize(n);
@@ -99,9 +99,9 @@ Tok psign(Span sk, Span msg, Span footer, Span implicit) {
 }
 
 Msg pverify(std::string_view token, Span pk, Span footer, Span implicit) {
-    Bytes out(cryptolib_cb1_public_verify_cap(token.size()));
+    Bytes out(cipherbird_cb1_public_verify_cap(token.size()));
     size_t n = 12345;
-    const int rc = cryptolib_cb1_public_verify(
+    const int rc = cipherbird_cb1_public_verify(
         out.empty() ? nullptr : out.data(), out.size(), &n, u8(token), token.size(), pk.data(), pk.size(),
         footer.data(), footer.size(), implicit.data(), implicit.size());
     out.resize(n);
@@ -181,11 +181,11 @@ Bytes pub_pae(Span m, Span f, Span i) {
 
 std::string ref_public_sign(Span sk, Span m, Span f, Span i) {
     const Bytes m2 = pub_pae(m, f, i);
-    auto r = cryptolib_hybrid_sig_sign(m2.data(), m2.size(), sk.data(), sk.size());
-    if (r.error) { cryptolib_str_free(r.error); return {}; }
+    auto r = cipherbird_hybrid_sig_sign(m2.data(), m2.size(), sk.data(), sk.size());
+    if (r.error) { cipherbird_str_free(r.error); return {}; }
     Bytes raw(m.begin(), m.end());
     raw.insert(raw.end(), r.buf.data, r.buf.data + r.buf.len);
-    cryptolib_buffer_free(&r.buf);
+    cipherbird_buffer_free(&r.buf);
     std::string t = "cb1.public." + b64e(raw);
     if (!f.empty()) t += "." + b64e(f);
     return t;
@@ -202,17 +202,17 @@ bool ref_public_verify(std::string_view token, Span pk, Span f, Span i, Bytes& m
     if (footer.size() != f.size() || !std::equal(footer.begin(), footer.end(), f.begin())) return false;
     m.assign(raw.begin(), raw.end() - 3373);
     const Bytes m2 = pub_pae(m, f, i);
-    return cryptolib_hybrid_sig_verify(m2.data(), m2.size(), raw.data() + m.size(), 3373, pk.data(), pk.size()) == 1;
+    return cipherbird_hybrid_sig_verify(m2.data(), m2.size(), raw.data() + m.size(), 3373, pk.data(), pk.size()) == 1;
 }
 
 struct KeyPair { Bytes pk, sk; };
 
 const KeyPair& signer() {
     static const KeyPair kp = [] {
-        auto r = cryptolib_hybrid_sig_keygen();
+        auto r = cipherbird_hybrid_sig_keygen();
         KeyPair k{Bytes(r.public_key.data, r.public_key.data + r.public_key.len),
                   Bytes(r.secret_key.data, r.secret_key.data + r.secret_key.len)};
-        cryptolib_keypair_free(&r);
+        cipherbird_keypair_free(&r);
         return k;
     }();
     return kp;
@@ -220,10 +220,10 @@ const KeyPair& signer() {
 
 const KeyPair& stranger() {
     static const KeyPair kp = [] {
-        auto r = cryptolib_hybrid_sig_keygen();
+        auto r = cipherbird_hybrid_sig_keygen();
         KeyPair k{Bytes(r.public_key.data, r.public_key.data + r.public_key.len),
                   Bytes(r.secret_key.data, r.secret_key.data + r.secret_key.len)};
-        cryptolib_keypair_free(&r);
+        cipherbird_keypair_free(&r);
         return k;
     }();
     return kp;
@@ -250,15 +250,15 @@ const char* const kVectorsRel = "/tests/vectors/cb1/vectors.json";
 }
 
 TEST("cb1/sizes-match-the-hybrid-signature") {
-    REQUIRE(cryptolib_init() == 0);
+    REQUIRE(cipherbird_init() == 0);
     auto sz = crypto::pq::HybridSig::sizes();
     REQUIRE(sz.is_ok());
     CHECK(sz.value().public_key == P::PUBLIC_KEY_BYTES);
     CHECK(sz.value().secret_key == P::SECRET_KEY_BYTES);
     CHECK(sz.value().signature == P::SIG_BYTES);
-    CHECK(signer().pk.size() == CRYPTOLIB_CB1_PUBLIC_KEY_BYTES);
-    CHECK(signer().sk.size() == CRYPTOLIB_CB1_SECRET_KEY_BYTES);
-    CHECK(P::SIG_BYTES == CRYPTOLIB_CB1_SIGNATURE_BYTES);
+    CHECK(signer().pk.size() == CIPHERBIRD_CB1_PUBLIC_KEY_BYTES);
+    CHECK(signer().sk.size() == CIPHERBIRD_CB1_SECRET_KEY_BYTES);
+    CHECK(P::SIG_BYTES == CIPHERBIRD_CB1_SIGNATURE_BYTES);
 }
 
 TEST("cb1/local/round-trip-shape-and-exact-length") {
@@ -273,22 +273,22 @@ TEST("cb1/local/round-trip-shape-and-exact-length") {
     };
     for (const auto& c : cases) {
         const auto t = lenc(kKey, c.m, c.f, c.i);
-        REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
-        CHECK(t.s.size() == cryptolib_cb1_local_encrypt_len(c.m.size(), c.f.size()));
+        REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
+        CHECK(t.s.size() == cipherbird_cb1_local_encrypt_len(c.m.size(), c.f.size()));
         CHECK(t.s.rfind("cb1.local.", 0) == 0);
         CHECK(std::count(t.s.begin(), t.s.end(), '.') == (c.f.empty() ? 2 : 3));
         CHECK(t.s.find('=') == std::string::npos);
         const auto d = ldec(t.s, kKey, c.f, c.i);
-        CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(d.rc == CIPHERBIRD_PASETO_OK);
         CHECK(d.m == c.m);
-        CHECK(cryptolib_cb1_local_decrypt_cap(t.s.size()) == L::open_capacity(t.s.size()));
-        CHECK(cryptolib_cb1_local_decrypt_cap(t.s.size()) >= c.m.size());
+        CHECK(cipherbird_cb1_local_decrypt_cap(t.s.size()) == L::open_capacity(t.s.size()));
+        CHECK(cipherbird_cb1_local_decrypt_cap(t.s.size()) >= c.m.size());
     }
-    CHECK(cryptolib_cb1_local_encrypt_len(CRYPTOLIB_CB1_MAX_INPUT_BYTES + 1, 0) == 0);
-    CHECK(cryptolib_cb1_local_encrypt_len(0, CRYPTOLIB_CB1_MAX_INPUT_BYTES + 1) == 0);
-    CHECK(cryptolib_cb1_local_decrypt_cap(10) == 0);
-    CHECK(cryptolib_cb1_local_decrypt_cap(11) == 0);
-    CHECK(cryptolib_cb1_local_decrypt_cap(14) == 3);
+    CHECK(cipherbird_cb1_local_encrypt_len(CIPHERBIRD_CB1_MAX_INPUT_BYTES + 1, 0) == 0);
+    CHECK(cipherbird_cb1_local_encrypt_len(0, CIPHERBIRD_CB1_MAX_INPUT_BYTES + 1) == 0);
+    CHECK(cipherbird_cb1_local_decrypt_cap(10) == 0);
+    CHECK(cipherbird_cb1_local_decrypt_cap(11) == 0);
+    CHECK(cipherbird_cb1_local_decrypt_cap(14) == 3);
 }
 
 TEST("cb1/local/independent-reference-interoperates-both-ways") {
@@ -298,27 +298,27 @@ TEST("cb1/local/independent-reference-interoperates-both-ways") {
     randombytes_buf(n.data(), n.size());
     const std::string ref = ref_local_seal(kKey, m, f, i, n);
     const auto d = ldec(ref, kKey, f, i);
-    CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+    CHECK(d.rc == CIPHERBIRD_PASETO_OK);
     CHECK(d.m == m);
     const auto t = lenc(kKey, m, f, i);
-    REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
+    REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
     Bytes back;
     CHECK(ref_local_open(t.s, kKey, f, i, back));
     CHECK(back == m);
     CHECK(!ref_local_open(t.s, kOther, f, i, back));
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
-    std::string a(cryptolib_cb1_local_encrypt_len(m.size(), f.size()), '\0');
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+    std::string a(cipherbird_cb1_local_encrypt_len(m.size(), f.size()), '\0');
     size_t na = 0;
-    REQUIRE(cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+    REQUIRE(cipherbird_cb1_local_encrypt_with_nonce_for_testing(
                 reinterpret_cast<uint8_t*>(a.data()), a.size(), &na, kKey.data(), 32, m.data(), m.size(),
-                f.data(), f.size(), i.data(), i.size(), n.data(), 32) == CRYPTOLIB_PASETO_OK);
+                f.data(), f.size(), i.data(), i.size(), n.data(), 32) == CIPHERBIRD_PASETO_OK);
     a.resize(na);
     CHECK(a == ref);
-    CHECK(cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+    CHECK(cipherbird_cb1_local_encrypt_with_nonce_for_testing(
               reinterpret_cast<uint8_t*>(a.data()), a.size(), &na, kKey.data(), 32, m.data(), m.size(),
-              f.data(), f.size(), i.data(), i.size(), n.data(), 31) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+              f.data(), f.size(), i.data(), i.size(), n.data(), 31) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
 #else
-    std::printf("      note: CRYPTOLIB_PASETO_TEST_NONCE is OFF, the fixed-nonce equality is not checked\n");
+    std::printf("      note: CIPHERBIRD_PASETO_TEST_NONCE is OFF, the fixed-nonce equality is not checked\n");
 #endif
 }
 
@@ -340,87 +340,87 @@ TEST("cb1/local/every-token-byte-tampered-fails") {
             if (sub == t.s[pos]) continue;
             std::string x = t.s;
             x[pos] = sub;
-            if (ldec(x, kKey, f, i).rc == CRYPTOLIB_PASETO_ERR_INVALID) ++rejected;
+            if (ldec(x, kKey, f, i).rc == CIPHERBIRD_PASETO_ERR_INVALID) ++rejected;
             else { std::printf("      position %zu accepted '%c'\n", pos, sub); CHECK(false); }
         }
     }
     CHECK(rejected > 0);
     for (size_t len = 0; len < t.s.size(); ++len)
-        CHECK(ldec(t.s.substr(0, len), kKey, f, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(t.s + "A", kKey, f, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(ldec(t.s.substr(0, len), kKey, f, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s + "A", kKey, f, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("cb1/local/wrong-key-footer-and-implicit-fail") {
     const Bytes m = bytes_of("m"), f = bytes_of("f"), i = bytes_of("i");
     const auto t = lenc(kKey, m, f, i);
     REQUIRE(t.rc == 0);
-    CHECK(ldec(t.s, kOther, f, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(t.s, kKey, bytes_of("g"), i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(t.s, kKey, {}, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(t.s, kKey, f, bytes_of("j")).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(t.s, kKey, f, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s, kOther, f, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s, kKey, bytes_of("g"), i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s, kKey, {}, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s, kKey, f, bytes_of("j")).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(t.s, kKey, f, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     const auto nf = lenc(kKey, m, {}, {});
     REQUIRE(nf.rc == 0);
-    CHECK(ldec(nf.s, kKey, f, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(nf.s + ".", kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec(nf.s, kKey, {}, {}).rc == CRYPTOLIB_PASETO_OK);
+    CHECK(ldec(nf.s, kKey, f, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(nf.s + ".", kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec(nf.s, kKey, {}, {}).rc == CIPHERBIRD_PASETO_OK);
 }
 
 TEST("cb1/local/rejects-paseto-and-non-canonical-encodings") {
     const Bytes m = bytes_of("m");
-    std::string v4(cryptolib_paseto_v4_local_encrypt_len(m.size(), 0), '\0');
+    std::string v4(cipherbird_paseto_v4_local_encrypt_len(m.size(), 0), '\0');
     size_t n = 0;
-    REQUIRE(cryptolib_paseto_v4_local_encrypt(reinterpret_cast<uint8_t*>(v4.data()), v4.size(), &n,
+    REQUIRE(cipherbird_paseto_v4_local_encrypt(reinterpret_cast<uint8_t*>(v4.data()), v4.size(), &n,
                                               kKey.data(), 32, m.data(), m.size(), nullptr, 0, nullptr, 0) == 0);
-    CHECK(ldec(v4, kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(ldec(v4, kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     const auto cb = lenc(kKey, m, {}, {});
     REQUIRE(cb.rc == 0);
-    Bytes o(cryptolib_paseto_v4_local_decrypt_cap(cb.s.size()));
-    CHECK(cryptolib_paseto_v4_local_decrypt(o.data(), o.size(), &n, u8(cb.s), cb.s.size(), kKey.data(), 32,
-                                            nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_INVALID);
+    Bytes o(cipherbird_paseto_v4_local_decrypt_cap(cb.s.size()));
+    CHECK(cipherbird_paseto_v4_local_decrypt(o.data(), o.size(), &n, u8(cb.s), cb.s.size(), kKey.data(), 32,
+                                            nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_INVALID);
     const auto pub = psign(signer().sk, m, {}, {});
     REQUIRE(pub.rc == 0);
-    CHECK(ldec(pub.s, kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(ldec(pub.s, kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     std::string body = cb.s.substr(10);
-    CHECK(ldec("cb1.local." + body + "=", kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec("cb1.local." + body + "==", kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(ldec("cb1.local." + body + "=", kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec("cb1.local." + body + "==", kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     std::string plus = body;
     plus[5] = '+';
-    CHECK(ldec("cb1.local." + plus, kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec("CB1.local." + body, kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec("cb1.local.", kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(ldec("", kKey, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(ldec("cb1.local." + plus, kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec("CB1.local." + body, kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec("cb1.local.", kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(ldec("", kKey, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("cb1/local/abi-rejects-bad-arguments-and-wipes") {
     const Bytes m = bytes_of("secret claims");
     const auto t = lenc(kKey, m, {}, {});
     REQUIRE(t.rc == 0);
-    const size_t cap = cryptolib_cb1_local_decrypt_cap(t.s.size());
+    const size_t cap = cipherbird_cb1_local_decrypt_cap(t.s.size());
     Bytes o(cap + 4, 0xAA);
     size_t n = 0;
     const uint8_t* tp = u8(t.s);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), cap - 1, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_decrypt(nullptr, cap, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), cap, nullptr, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), kKey.data(), 31, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), nullptr, 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 2, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), cap - 1, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(nullptr, cap, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), cap, nullptr, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), kKey.data(), 31, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), nullptr, 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), cap, &n, tp, t.s.size(), kKey.data(), 32, nullptr, 2, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     Bytes inplace(t.s.begin(), t.s.end());
-    CHECK(cryptolib_cb1_local_decrypt(inplace.data(), cap, &n, inplace.data(), inplace.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    REQUIRE(cryptolib_cb1_local_decrypt(o.data(), o.size(), &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == 0);
+    CHECK(cipherbird_cb1_local_decrypt(inplace.data(), cap, &n, inplace.data(), inplace.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    REQUIRE(cipherbird_cb1_local_decrypt(o.data(), o.size(), &n, tp, t.s.size(), kKey.data(), 32, nullptr, 0, nullptr, 0) == 0);
     CHECK(std::string(o.begin(), o.begin() + n) == "secret claims");
     CHECK(sodium_is_zero(o.data() + n, cap - n) == 1);
     CHECK(o[cap] == 0xAA);
     std::fill(o.begin(), o.end(), 0xAA);
-    CHECK(cryptolib_cb1_local_decrypt(o.data(), o.size(), &n, tp, t.s.size(), kOther.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(cipherbird_cb1_local_decrypt(o.data(), o.size(), &n, tp, t.s.size(), kOther.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_INVALID);
     CHECK(n == 0);
     CHECK(sodium_is_zero(o.data(), cap) == 1);
     std::string small(4, '\0');
-    CHECK(cryptolib_cb1_local_encrypt(reinterpret_cast<uint8_t*>(small.data()), small.size(), &n, kKey.data(), 32, m.data(), m.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_encrypt(reinterpret_cast<uint8_t*>(small.data()), small.size(), &n, kKey.data(), 32, m.data(), m.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     CHECK(n == 0);
-    CHECK(cryptolib_cb1_local_encrypt(nullptr, 0, &n, kKey.data(), 32, m.data(), m.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_local_encrypt(o.data(), o.size(), &n, kKey.data(), 32, nullptr, 1, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_encrypt(nullptr, 0, &n, kKey.data(), 32, m.data(), m.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_local_encrypt(o.data(), o.size(), &n, kKey.data(), 32, nullptr, 1, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
 }
 
 TEST("cb1/public/sign-verify-round-trip-and-exact-length") {
@@ -436,17 +436,17 @@ TEST("cb1/public/sign-verify-round-trip-and-exact-length") {
     };
     for (const auto& c : cases) {
         const auto t = psign(kp.sk, c.m, c.f, c.i);
-        REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
-        CHECK(t.s.size() == cryptolib_cb1_public_sign_len(c.m.size(), c.f.size()));
+        REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
+        CHECK(t.s.size() == cipherbird_cb1_public_sign_len(c.m.size(), c.f.size()));
         CHECK(t.s.rfind("cb1.public.", 0) == 0);
         CHECK(std::count(t.s.begin(), t.s.end(), '.') == (c.f.empty() ? 2 : 3));
         const auto v = pverify(t.s, kp.pk, c.f, c.i);
-        CHECK(v.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(v.rc == CIPHERBIRD_PASETO_OK);
         CHECK(v.m == c.m);
-        CHECK(cryptolib_cb1_public_verify_cap(t.s.size()) == P::open_capacity(t.s.size()));
+        CHECK(cipherbird_cb1_public_verify_cap(t.s.size()) == P::open_capacity(t.s.size()));
     }
-    CHECK(cryptolib_cb1_public_sign_len(CRYPTOLIB_CB1_MAX_INPUT_BYTES + 1, 0) == 0);
-    CHECK(cryptolib_cb1_public_verify_cap(11) == 0);
+    CHECK(cipherbird_cb1_public_sign_len(CIPHERBIRD_CB1_MAX_INPUT_BYTES + 1, 0) == 0);
+    CHECK(cipherbird_cb1_public_verify_cap(11) == 0);
 }
 
 TEST("cb1/public/independent-reference-interoperates-both-ways") {
@@ -455,7 +455,7 @@ TEST("cb1/public/independent-reference-interoperates-both-ways") {
     const std::string ref = ref_public_sign(kp.sk, m, f, i);
     REQUIRE(!ref.empty());
     const auto v = pverify(ref, kp.pk, f, i);
-    CHECK(v.rc == CRYPTOLIB_PASETO_OK);
+    CHECK(v.rc == CIPHERBIRD_PASETO_OK);
     CHECK(v.m == m);
     const auto t = psign(kp.sk, m, f, i);
     REQUIRE(t.rc == 0);
@@ -476,25 +476,25 @@ TEST("cb1/public/both-signature-halves-are-required") {
     for (size_t pos : {m.size(), m.size() + 63, m.size() + 64, raw.size() - 1}) {
         Bytes x = raw;
         x[pos] ^= 0x01;
-        CHECK(pverify("cb1.public." + b64e(x), kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(pverify("cb1.public." + b64e(x), kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     }
     for (size_t pos = 0; pos < m.size(); ++pos) {
         Bytes x = raw;
         x[pos] ^= 0x80;
-        CHECK(pverify("cb1.public." + b64e(x), kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(pverify("cb1.public." + b64e(x), kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     }
     int rejected = 0;
     for (size_t pos = 0; pos < t.s.size(); pos += 7) {
         std::string x = t.s;
         x[pos] = x[pos] == 'A' ? 'B' : 'A';
-        if (pverify(x, kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID) ++rejected;
+        if (pverify(x, kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID) ++rejected;
         else { std::printf("      position %zu accepted\n", pos); CHECK(false); }
     }
     CHECK(rejected > 0);
     Bytes shorter(raw.begin(), raw.end() - 1);
-    CHECK(pverify("cb1.public." + b64e(shorter), kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(pverify("cb1.public." + b64e(shorter), kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
     Bytes sig_only(raw.begin() + m.size(), raw.end());
-    CHECK(pverify("cb1.public." + b64e(sig_only), kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(pverify("cb1.public." + b64e(sig_only), kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("cb1/public/wrong-key-footer-and-implicit-fail") {
@@ -502,15 +502,15 @@ TEST("cb1/public/wrong-key-footer-and-implicit-fail") {
     const Bytes m = bytes_of("m"), f = bytes_of("f"), i = bytes_of("i");
     const auto t = psign(kp.sk, m, f, i);
     REQUIRE(t.rc == 0);
-    CHECK(pverify(t.s, stranger().pk, f, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(pverify(t.s, kp.pk, bytes_of("g"), i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(pverify(t.s, kp.pk, {}, i).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(pverify(t.s, kp.pk, f, bytes_of("j")).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(pverify(t.s, kp.pk, f, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(psign(stranger().sk, m, f, i).rc == CRYPTOLIB_PASETO_OK);
+    CHECK(pverify(t.s, stranger().pk, f, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(pverify(t.s, kp.pk, bytes_of("g"), i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(pverify(t.s, kp.pk, {}, i).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(pverify(t.s, kp.pk, f, bytes_of("j")).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(pverify(t.s, kp.pk, f, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(psign(stranger().sk, m, f, i).rc == CIPHERBIRD_PASETO_OK);
     const auto local = lenc(kKey, m, {}, {});
     REQUIRE(local.rc == 0);
-    CHECK(pverify(local.s, kp.pk, {}, {}).rc == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(pverify(local.s, kp.pk, {}, {}).rc == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("cb1/public/abi-rejects-bad-arguments-and-wipes") {
@@ -518,35 +518,35 @@ TEST("cb1/public/abi-rejects-bad-arguments-and-wipes") {
     const Bytes m = bytes_of("claims");
     const auto t = psign(kp.sk, m, {}, {});
     REQUIRE(t.rc == 0);
-    const size_t cap = cryptolib_cb1_public_verify_cap(t.s.size());
+    const size_t cap = cipherbird_cb1_public_verify_cap(t.s.size());
     Bytes o(cap + 4, 0xAA);
     size_t n = 0;
     const uint8_t* tp = u8(t.s);
-    CHECK(cryptolib_cb1_public_verify(o.data(), cap - 1, &n, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_public_verify(o.data(), cap, &n, tp, t.s.size(), kp.pk.data(), 31, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_public_verify(o.data(), cap, nullptr, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    REQUIRE(cryptolib_cb1_public_verify(o.data(), o.size(), &n, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == 0);
+    CHECK(cipherbird_cb1_public_verify(o.data(), cap - 1, &n, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_public_verify(o.data(), cap, &n, tp, t.s.size(), kp.pk.data(), 31, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_public_verify(o.data(), cap, nullptr, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    REQUIRE(cipherbird_cb1_public_verify(o.data(), o.size(), &n, tp, t.s.size(), kp.pk.data(), kp.pk.size(), nullptr, 0, nullptr, 0) == 0);
     CHECK(std::string(o.begin(), o.begin() + n) == "claims");
     CHECK(sodium_is_zero(o.data() + n, cap - n) == 1);
     CHECK(o[cap] == 0xAA);
     std::fill(o.begin(), o.end(), 0xAA);
-    CHECK(cryptolib_cb1_public_verify(o.data(), o.size(), &n, tp, t.s.size(), stranger().pk.data(), stranger().pk.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(cipherbird_cb1_public_verify(o.data(), o.size(), &n, tp, t.s.size(), stranger().pk.data(), stranger().pk.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_INVALID);
     CHECK(n == 0);
     CHECK(sodium_is_zero(o.data(), cap) == 1);
     std::string small(4, '\0');
-    CHECK(cryptolib_cb1_public_sign(reinterpret_cast<uint8_t*>(small.data()), small.size(), &n, kp.sk.data(), kp.sk.size(), m.data(), m.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_public_sign(o.data(), o.size(), &n, kp.sk.data(), 64, m.data(), m.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_cb1_public_sign(o.data(), o.size(), &n, nullptr, kp.sk.size(), m.data(), m.size(), nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_public_sign(reinterpret_cast<uint8_t*>(small.data()), small.size(), &n, kp.sk.data(), kp.sk.size(), m.data(), m.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_public_sign(o.data(), o.size(), &n, kp.sk.data(), 64, m.data(), m.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_cb1_public_sign(o.data(), o.size(), &n, nullptr, kp.sk.size(), m.data(), m.size(), nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
 }
 
 TEST("cb1/pinned-vectors") {
-    const std::string path = std::string(CRYPTOLIB_SOURCE_DIR) + kVectorsRel;
-    const char* write = std::getenv("CRYPTOLIB_CB1_WRITE_VECTORS");
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+    const std::string path = std::string(CIPHERBIRD_SOURCE_DIR) + kVectorsRel;
+    const char* write = std::getenv("CIPHERBIRD_CB1_WRITE_VECTORS");
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
     if (write && *write) {
         const auto& kp = signer();
         std::string out = "{\n  \"name\": \"CipherBird cb1 token vectors\",\n";
-        out += "  \"note\": \"Generated by cryptolib_tests (CRYPTOLIB_CB1_WRITE_VECTORS) from the cb1 format description; every binding decrypts and verifies these.\",\n";
+        out += "  \"note\": \"Generated by cipherbird_tests (CIPHERBIRD_CB1_WRITE_VECTORS) from the cb1 format description; every binding decrypts and verifies these.\",\n";
         out += "  \"local\": [\n";
         struct LC { const char* name; Bytes m, f, i; uint8_t nonce_start; bool fail; const char* how; };
         const LC lcs[] = {
@@ -564,9 +564,9 @@ TEST("cb1/pinned-vectors") {
         bool first = true;
         for (const auto& c : lcs) {
             const Bytes n = fixed(32, c.nonce_start);
-            std::string tok(cryptolib_cb1_local_encrypt_len(c.m.size(), c.f.size()), '\0');
+            std::string tok(cipherbird_cb1_local_encrypt_len(c.m.size(), c.f.size()), '\0');
             size_t tl = 0;
-            REQUIRE(cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+            REQUIRE(cipherbird_cb1_local_encrypt_with_nonce_for_testing(
                         reinterpret_cast<uint8_t*>(tok.data()), tok.size(), &tl, kKey.data(), 32, c.m.data(), c.m.size(),
                         c.f.data(), c.f.size(), c.i.data(), c.i.size(), n.data(), 32) == 0);
             tok.resize(tl);
@@ -576,8 +576,8 @@ TEST("cb1/pinned-vectors") {
             if (how == "footer") expect_f = bytes_of("{\"kid\":\"b\"}");
             if (how == "padding") tok += "=";
             if (how == "paseto") {
-                std::string v4(cryptolib_paseto_v4_local_encrypt_len(c.m.size(), 0), '\0');
-                REQUIRE(cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+                std::string v4(cipherbird_paseto_v4_local_encrypt_len(c.m.size(), 0), '\0');
+                REQUIRE(cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
                             reinterpret_cast<uint8_t*>(v4.data()), v4.size(), &tl, kKey.data(), 32, c.m.data(), c.m.size(),
                             nullptr, 0, nullptr, 0, n.data(), 32) == 0);
                 tok = v4;
@@ -628,7 +628,7 @@ TEST("cb1/pinned-vectors") {
     (void)write;
 #endif
     std::ifstream in(path, std::ios::binary);
-    if (!in) std::printf("      %s is missing; generate it with a CRYPTOLIB_PASETO_TEST_NONCE build and CRYPTOLIB_CB1_WRITE_VECTORS=1\n", path.c_str());
+    if (!in) std::printf("      %s is missing; generate it with a CIPHERBIRD_PASETO_TEST_NONCE build and CIPHERBIRD_CB1_WRITE_VECTORS=1\n", path.c_str());
     REQUIRE(static_cast<bool>(in));
     std::stringstream ss;
     ss << in.rdbuf();
@@ -648,15 +648,15 @@ TEST("cb1/pinned-vectors") {
         const bool fail = ef && ef->kind == Json::Bool && ef->b;
         REQUIRE(key.size() == 32 && nonce.size() == 32);
         const auto d = ldec(token, key, f, i);
-        if (fail) { CHECK(d.rc == CRYPTOLIB_PASETO_ERR_INVALID); CHECK(d.m.empty()); ++lfail; continue; }
+        if (fail) { CHECK(d.rc == CIPHERBIRD_PASETO_ERR_INVALID); CHECK(d.m.empty()); ++lfail; continue; }
         if (d.rc != 0) std::printf("      vector %s gave %d\n", name.c_str(), d.rc);
-        CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(d.rc == CIPHERBIRD_PASETO_OK);
         CHECK(d.m == payload);
         ++lpass;
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
-        std::string again(cryptolib_cb1_local_encrypt_len(payload.size(), f.size()), '\0');
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+        std::string again(cipherbird_cb1_local_encrypt_len(payload.size(), f.size()), '\0');
         size_t n = 0;
-        REQUIRE(cryptolib_cb1_local_encrypt_with_nonce_for_testing(
+        REQUIRE(cipherbird_cb1_local_encrypt_with_nonce_for_testing(
                     reinterpret_cast<uint8_t*>(again.data()), again.size(), &n, key.data(), 32, payload.data(), payload.size(),
                     f.data(), f.size(), i.data(), i.size(), nonce.data(), 32) == 0);
         again.resize(n);
@@ -672,9 +672,9 @@ TEST("cb1/pinned-vectors") {
         const bool fail = ef && ef->kind == Json::Bool && ef->b;
         REQUIRE(pk.size() == P::PUBLIC_KEY_BYTES && sk.size() == P::SECRET_KEY_BYTES);
         const auto v = pverify(token, pk, f, i);
-        if (fail) { CHECK(v.rc == CRYPTOLIB_PASETO_ERR_INVALID); CHECK(v.m.empty()); ++pfail; continue; }
+        if (fail) { CHECK(v.rc == CIPHERBIRD_PASETO_ERR_INVALID); CHECK(v.m.empty()); ++pfail; continue; }
         if (v.rc != 0) std::printf("      vector %s gave %d\n", name.c_str(), v.rc);
-        CHECK(v.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(v.rc == CIPHERBIRD_PASETO_OK);
         CHECK(v.m == payload);
         const auto again = psign(sk, payload, f, i);
         CHECK(again.rc == 0);

@@ -15,7 +15,7 @@ final class Blake3Hasher {
           .lookupFunction<
             Int32 Function(Pointer<Void>, Pointer<Uint8>, Size),
             int Function(Pointer<Void>, Pointer<Uint8>, int)
-          >('cryptolib_blake3_hasher_update')(_h, p, data.length);
+          >('cipherbird_blake3_hasher_update')(_h, p, data.length);
       if (ok != 1) {
         throw Exception(
           'cipherbird: blake3 update failed (closed or finalized?)',
@@ -34,7 +34,7 @@ final class Blake3Hasher {
     _lib._lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>, Size),
       CipherBirdBufferResult Function(Pointer<Void>, int)
-    >('cryptolib_blake3_hasher_finalize')(_h, outLen),
+    >('cipherbird_blake3_hasher_finalize')(_h, outLen),
   );
 
   /// Release the native handle. Idempotent.
@@ -43,7 +43,7 @@ final class Blake3Hasher {
       _lib._lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_blake3_hasher_free')(_h);
+      >('cipherbird_blake3_hasher_free')(_h);
       _h = nullptr;
     }
   }

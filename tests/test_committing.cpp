@@ -108,7 +108,7 @@ TEST("diff/xchacha-wrapper-interops-with-libsodium") {
     auto m = std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(msg.data()), msg.size()};
     auto a = std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(aad.data()), aad.size()};
 
-    // CryptoLib encrypt → raw libsodium must decrypt to the same plaintext.
+    // CipherBird encrypt → raw libsodium must decrypt to the same plaintext.
     auto w = XChaCha20Poly1305::encrypt(m, key.span(), a);
     REQUIRE(w.is_ok());
     auto wire = w.value().span();

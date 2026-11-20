@@ -59,44 +59,44 @@ module CipherBird
       layout :ok, :int, :error, :pointer
     end
 
-    attach_function :cryptolib_init,    [], :int
-    attach_function :cryptolib_version, [], :string
-    attach_function :cryptolib_random_bytes, [:size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_sha256,  [:pointer, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_hybrid_kem_keygen,      [], CryptoKeyPair.by_value
-    attach_function :cryptolib_hybrid_kem_encapsulate, [:pointer, :size_t, :pointer], CryptoKemEncapsResult.by_value
-    attach_function :cryptolib_hybrid_kem_decapsulate, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_buffer_free,     [:pointer], :void
-    attach_function :cryptolib_keypair_free,    [:pointer], :void
-    attach_function :cryptolib_kem_encaps_free, [:pointer], :void
-    attach_function :cryptolib_str_free,        [:pointer], :void
+    attach_function :cipherbird_init,    [], :int
+    attach_function :cipherbird_version, [], :string
+    attach_function :cipherbird_random_bytes, [:size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_sha256,  [:pointer, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_hybrid_kem_keygen,      [], CryptoKeyPair.by_value
+    attach_function :cipherbird_hybrid_kem_encapsulate, [:pointer, :size_t, :pointer], CryptoKemEncapsResult.by_value
+    attach_function :cipherbird_hybrid_kem_decapsulate, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_buffer_free,     [:pointer], :void
+    attach_function :cipherbird_keypair_free,    [:pointer], :void
+    attach_function :cipherbird_kem_encaps_free, [:pointer], :void
+    attach_function :cipherbird_str_free,        [:pointer], :void
 
     # Primitives the composable Recipe pipeline is built from.
     AEAD = [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t].freeze
-    attach_function :cryptolib_argon2id_derive, [:pointer, :pointer, :size_t, :size_t, :uint64, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_hkdf_derive, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_xchacha20_encrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_xchacha20_decrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_aes256gcm_encrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_aes256gcm_decrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_committing_encrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_committing_decrypt, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_molecular_seal_with_key, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_molecular_open_with_key, AEAD, CryptoBufferResult.by_value
-    attach_function :cryptolib_ed25519_keygen, [], CryptoKeyPair.by_value
-    attach_function :cryptolib_ed25519_keygen_from_seed, [:pointer, :size_t], CryptoKeyPair.by_value
-    attach_function :cryptolib_ed25519_sign, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_ed25519_verify, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t], :int
-    attach_function :cryptolib_hybrid_sig_keygen, [], CryptoKeyPair.by_value
-    attach_function :cryptolib_hybrid_sig_sign, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
-    attach_function :cryptolib_hybrid_sig_verify, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t], :int
-    attach_function :cryptolib_entropy_from_file_deterministic, [:string, :pointer], :pointer
-    attach_function :cryptolib_entropy_symmetric_key, [:pointer], CryptoBufferResult.by_value
-    attach_function :cryptolib_entropy_free, [:pointer], :void
-    attach_function :cryptolib_stego_embed, [:string, :pointer, :size_t, :string], CryptoResult.by_value
-    attach_function :cryptolib_stego_extract, [:string], CryptoBufferResult.by_value
-    attach_function :cryptolib_fec_encode, [:pointer, :size_t, :int], CryptoBufferResult.by_value
-    attach_function :cryptolib_fec_decode, [:pointer, :size_t, :int, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_argon2id_derive, [:pointer, :pointer, :size_t, :size_t, :uint64, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_hkdf_derive, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_xchacha20_encrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_xchacha20_decrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_aes256gcm_encrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_aes256gcm_decrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_committing_encrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_committing_decrypt, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_molecular_seal_with_key, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_molecular_open_with_key, AEAD, CryptoBufferResult.by_value
+    attach_function :cipherbird_ed25519_keygen, [], CryptoKeyPair.by_value
+    attach_function :cipherbird_ed25519_keygen_from_seed, [:pointer, :size_t], CryptoKeyPair.by_value
+    attach_function :cipherbird_ed25519_sign, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_ed25519_verify, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t], :int
+    attach_function :cipherbird_hybrid_sig_keygen, [], CryptoKeyPair.by_value
+    attach_function :cipherbird_hybrid_sig_sign, [:pointer, :size_t, :pointer, :size_t], CryptoBufferResult.by_value
+    attach_function :cipherbird_hybrid_sig_verify, [:pointer, :size_t, :pointer, :size_t, :pointer, :size_t], :int
+    attach_function :cipherbird_entropy_from_file_deterministic, [:string, :pointer], :pointer
+    attach_function :cipherbird_entropy_symmetric_key, [:pointer], CryptoBufferResult.by_value
+    attach_function :cipherbird_entropy_free, [:pointer], :void
+    attach_function :cipherbird_stego_embed, [:string, :pointer, :size_t, :string], CryptoResult.by_value
+    attach_function :cipherbird_stego_extract, [:string], CryptoBufferResult.by_value
+    attach_function :cipherbird_fec_encode, [:pointer, :size_t, :int], CryptoBufferResult.by_value
+    attach_function :cipherbird_fec_decode, [:pointer, :size_t, :int, :size_t], CryptoBufferResult.by_value
   end
 
   # ── Helpers ────────────────────────────────────────────────────────────────
@@ -108,13 +108,13 @@ module CipherBird
   def self._consume(r)
     if (r[:buf][:data].null? || r[:buf][:len].zero?) && !r[:error].null?
       msg = r[:error].read_string_to_null
-      Native.cryptolib_str_free(r[:error])
+      Native.cipherbird_str_free(r[:error])
       raise msg
     end
     out = _read_buf(r[:buf])
     buf_ptr = FFI::MemoryPointer.new(Native::CryptoBuffer, 1)
     buf_ptr.write_bytes(r[:buf].to_ptr.read_bytes(Native::CryptoBuffer.size))
-    Native.cryptolib_buffer_free(buf_ptr)
+    Native.cipherbird_buffer_free(buf_ptr)
     out
   end
 
@@ -168,51 +168,51 @@ module CipherBird
 
   # ── Public API ─────────────────────────────────────────────────────────────
   def self.init
-    raise 'cryptolib_init failed' unless Native.cryptolib_init.zero?
+    raise 'cipherbird_init failed' unless Native.cipherbird_init.zero?
   end
 
   def self.version
-    Native.cryptolib_version
+    Native.cipherbird_version
   end
 
   def self.random_bytes(n)
-    _consume(Native.cryptolib_random_bytes(n))
+    _consume(Native.cipherbird_random_bytes(n))
   end
 
   def self.sha256(msg)
     bytes = msg.b
-    _consume(Native.cryptolib_sha256(_u8p(bytes), bytes.bytesize))
+    _consume(Native.cipherbird_sha256(_u8p(bytes), bytes.bytesize))
   end
 
   def self.hybrid_kem_keygen
-    kp = Native.cryptolib_hybrid_kem_keygen
+    kp = Native.cipherbird_hybrid_kem_keygen
     pub = _read_buf(kp[:public_key]); sec = _read_buf(kp[:secret_key])
     kp_ptr = FFI::MemoryPointer.new(Native::CryptoKeyPair, 1)
     kp_ptr.write_bytes(kp.to_ptr.read_bytes(Native::CryptoKeyPair.size))
-    Native.cryptolib_keypair_free(kp_ptr)
+    Native.cipherbird_keypair_free(kp_ptr)
     [pub, sec]
   end
 
   def self.hybrid_kem_encapsulate(public_key)
     err = FFI::MemoryPointer.new(:pointer)
     p = _u8p(public_key)
-    r = Native.cryptolib_hybrid_kem_encapsulate(p, public_key.bytesize, err)
+    r = Native.cipherbird_hybrid_kem_encapsulate(p, public_key.bytesize, err)
     err_ptr = err.read_pointer
     unless err_ptr.null?
       msg = err_ptr.read_string_to_null
-      Native.cryptolib_str_free(err_ptr)
+      Native.cipherbird_str_free(err_ptr)
       raise msg
     end
     ct = _read_buf(r[:ciphertext]); ss = _read_buf(r[:shared_secret])
     r_ptr = FFI::MemoryPointer.new(Native::CryptoKemEncapsResult, 1)
     r_ptr.write_bytes(r.to_ptr.read_bytes(Native::CryptoKemEncapsResult.size))
-    Native.cryptolib_kem_encaps_free(r_ptr)
+    Native.cipherbird_kem_encaps_free(r_ptr)
     [ct, ss]
   end
 
   def self.hybrid_kem_decapsulate(ct, sec)
     _scratch(ct, sec) do |cp, sp|
-      _consume(Native.cryptolib_hybrid_kem_decapsulate(cp, ct.bytesize, sp, sec.bytesize))
+      _consume(Native.cipherbird_hybrid_kem_decapsulate(cp, ct.bytesize, sp, sec.bytesize))
     end
   end
 
@@ -222,7 +222,7 @@ module CipherBird
     pub = _read_buf(kp[:public_key]); sec = _read_buf(kp[:secret_key])
     ptr = FFI::MemoryPointer.new(Native::CryptoKeyPair, 1)
     ptr.write_bytes(kp.to_ptr.read_bytes(Native::CryptoKeyPair.size))
-    Native.cryptolib_keypair_free(ptr)
+    Native.cipherbird_keypair_free(ptr)
     [pub, sec]
   end
 
@@ -234,7 +234,7 @@ module CipherBird
     pw = _u8p(password.b, nul: true)
     sp = _u8p(s)
     begin
-      _consume(Native.cryptolib_argon2id_derive(pw, sp, s.bytesize, key_len, ops, memory_bytes))
+      _consume(Native.cipherbird_argon2id_derive(pw, sp, s.bytesize, key_len, ops, memory_bytes))
     ensure
       _wipe(pw)
       _wipe(sp)
@@ -245,7 +245,7 @@ module CipherBird
   def self.hkdf_derive(ikm, salt: ''.b, info: ''.b, out_len: 32)
     i = ikm.b; s = salt.b; f = info.b
     _scratch(i, s, f) do |ip, sp, fp|
-      _consume(Native.cryptolib_hkdf_derive(ip, i.bytesize, sp, s.bytesize, fp, f.bytesize, out_len))
+      _consume(Native.cipherbird_hkdf_derive(ip, i.bytesize, sp, s.bytesize, fp, f.bytesize, out_len))
     end
   end
 
@@ -256,46 +256,46 @@ module CipherBird
     end
   end
 
-  def self.xchacha20_encrypt(pt, key, aad = ''.b) = _aead(:cryptolib_xchacha20_encrypt, pt, key, aad)
-  def self.xchacha20_decrypt(ct, key, aad = ''.b) = _aead(:cryptolib_xchacha20_decrypt, ct, key, aad)
-  def self.aes256gcm_encrypt(pt, key, aad = ''.b) = _aead(:cryptolib_aes256gcm_encrypt, pt, key, aad)
-  def self.aes256gcm_decrypt(ct, key, aad = ''.b) = _aead(:cryptolib_aes256gcm_decrypt, ct, key, aad)
-  def self.committing_encrypt(pt, key, aad = ''.b) = _aead(:cryptolib_committing_encrypt, pt, key, aad)
-  def self.committing_decrypt(ct, key, aad = ''.b) = _aead(:cryptolib_committing_decrypt, ct, key, aad)
-  def self.molecular_seal_with_key(pt, key, aad = ''.b) = _aead(:cryptolib_molecular_seal_with_key, pt, key, aad)
-  def self.molecular_open_with_key(ct, key, aad = ''.b) = _aead(:cryptolib_molecular_open_with_key, ct, key, aad)
+  def self.xchacha20_encrypt(pt, key, aad = ''.b) = _aead(:cipherbird_xchacha20_encrypt, pt, key, aad)
+  def self.xchacha20_decrypt(ct, key, aad = ''.b) = _aead(:cipherbird_xchacha20_decrypt, ct, key, aad)
+  def self.aes256gcm_encrypt(pt, key, aad = ''.b) = _aead(:cipherbird_aes256gcm_encrypt, pt, key, aad)
+  def self.aes256gcm_decrypt(ct, key, aad = ''.b) = _aead(:cipherbird_aes256gcm_decrypt, ct, key, aad)
+  def self.committing_encrypt(pt, key, aad = ''.b) = _aead(:cipherbird_committing_encrypt, pt, key, aad)
+  def self.committing_decrypt(ct, key, aad = ''.b) = _aead(:cipherbird_committing_decrypt, ct, key, aad)
+  def self.molecular_seal_with_key(pt, key, aad = ''.b) = _aead(:cipherbird_molecular_seal_with_key, pt, key, aad)
+  def self.molecular_open_with_key(ct, key, aad = ''.b) = _aead(:cipherbird_molecular_open_with_key, ct, key, aad)
 
   # Ed25519 keypair from the OS CSPRNG => [public, secret].
-  def self.ed25519_keygen = _keypair(Native.cryptolib_ed25519_keygen)
+  def self.ed25519_keygen = _keypair(Native.cipherbird_ed25519_keygen)
 
   # Ed25519 keypair derived deterministically from a 32-byte seed.
   def self.ed25519_keygen_from_seed(seed)
     s = seed.b
-    _scratch(s) { |sp| _keypair(Native.cryptolib_ed25519_keygen_from_seed(sp, s.bytesize)) }
+    _scratch(s) { |sp| _keypair(Native.cipherbird_ed25519_keygen_from_seed(sp, s.bytesize)) }
   end
 
   # Ed25519 signature. +secret_key+ is the 64-byte secret, not the seed.
   def self.ed25519_sign(msg, secret_key)
     m = msg.b; s = secret_key.b
-    _scratch(m, s) { |mp, sp| _consume(Native.cryptolib_ed25519_sign(mp, m.bytesize, sp, s.bytesize)) }
+    _scratch(m, s) { |mp, sp| _consume(Native.cipherbird_ed25519_sign(mp, m.bytesize, sp, s.bytesize)) }
   end
 
   def self.ed25519_verify(msg, sig, public_key)
     m = msg.b; g = sig.b; p = public_key.b
-    Native.cryptolib_ed25519_verify(_u8p(m), m.bytesize, _u8p(g), g.bytesize, _u8p(p), p.bytesize) == 1
+    Native.cipherbird_ed25519_verify(_u8p(m), m.bytesize, _u8p(g), g.bytesize, _u8p(p), p.bytesize) == 1
   end
 
   # Ed25519 + ML-DSA-65 keypair: a forgery needs breaking both families.
-  def self.hybrid_sig_keygen = _keypair(Native.cryptolib_hybrid_sig_keygen)
+  def self.hybrid_sig_keygen = _keypair(Native.cipherbird_hybrid_sig_keygen)
 
   def self.hybrid_sig_sign(msg, secret_key)
     m = msg.b; s = secret_key.b
-    _scratch(m, s) { |mp, sp| _consume(Native.cryptolib_hybrid_sig_sign(mp, m.bytesize, sp, s.bytesize)) }
+    _scratch(m, s) { |mp, sp| _consume(Native.cipherbird_hybrid_sig_sign(mp, m.bytesize, sp, s.bytesize)) }
   end
 
   def self.hybrid_sig_verify(msg, sig, public_key)
     m = msg.b; g = sig.b; p = public_key.b
-    Native.cryptolib_hybrid_sig_verify(_u8p(m), m.bytesize, _u8p(g), g.bytesize, _u8p(p), p.bytesize) == 1
+    Native.cipherbird_hybrid_sig_verify(_u8p(m), m.bytesize, _u8p(g), g.bytesize, _u8p(p), p.bytesize) == 1
   end
 
   # Derive a 32-byte key deterministically from a media file — "the file is the
@@ -305,44 +305,44 @@ module CipherBird
   # fresh system entropy and so could never reopen its own envelope.
   def self.key_from_file_deterministic(path)
     err = FFI::MemoryPointer.new(:pointer)
-    h = Native.cryptolib_entropy_from_file_deterministic(path, err)
+    h = Native.cipherbird_entropy_from_file_deterministic(path, err)
     e = err.read_pointer
     unless e.null?
       msg = e.read_string_to_null
-      Native.cryptolib_str_free(e)
+      Native.cipherbird_str_free(e)
       raise msg
     end
     raise 'cipherbird: entropy handle allocation failed' if h.null?
     begin
-      _consume(Native.cryptolib_entropy_symmetric_key(h))
+      _consume(Native.cipherbird_entropy_symmetric_key(h))
     ensure
-      Native.cryptolib_entropy_free(h)
+      Native.cipherbird_entropy_free(h)
     end
   end
 
   # Hide +payload+ inside a media carrier.
   def self.stego_embed(cover_path, payload, output_path)
     p = payload.b
-    r = Native.cryptolib_stego_embed(cover_path, _u8p(p), p.bytesize, output_path)
+    r = Native.cipherbird_stego_embed(cover_path, _u8p(p), p.bytesize, output_path)
     return if r[:ok] == 1
     msg = r[:error].null? ? 'stego embed failed' : r[:error].read_string_to_null
-    Native.cryptolib_str_free(r[:error]) unless r[:error].null?
+    Native.cipherbird_str_free(r[:error]) unless r[:error].null?
     raise msg
   end
 
   # Recover a payload hidden by stego_embed.
-  def self.stego_extract(stego_path) = _consume(Native.cryptolib_stego_extract(stego_path))
+  def self.stego_extract(stego_path) = _consume(Native.cipherbird_stego_extract(stego_path))
 
   # Forward-error-correct +data+ under a FecScheme value.
   def self.fec_encode(data, scheme)
     d = data.b
-    _consume(Native.cryptolib_fec_encode(_u8p(d), d.bytesize, scheme))
+    _consume(Native.cipherbird_fec_encode(_u8p(d), d.bytesize, scheme))
   end
 
   # Reverse fec_encode, recovering +original_length+ bytes.
   def self.fec_decode(data, scheme, original_length)
     d = data.b
-    _consume(Native.cryptolib_fec_decode(_u8p(d), d.bytesize, scheme, original_length))
+    _consume(Native.cipherbird_fec_decode(_u8p(d), d.bytesize, scheme, original_length))
   end
 end
 

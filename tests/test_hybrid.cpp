@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 using crypto::pq::HybridKem;
 using crypto::pq::MlKem;
@@ -140,10 +140,10 @@ TEST("hybrid/bad-ciphertext-and-secret-length") {
     CHECK(HybridKem::decapsulate(enc.value().ciphertext.span(), short_sk).is_err());
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_hybrid() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     RUN("hybrid/keypair-sizes");
     RUN("hybrid/encaps-decaps-round-trip");
     RUN("hybrid/decapsulate-is-deterministic");

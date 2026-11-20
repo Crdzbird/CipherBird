@@ -2,7 +2,7 @@
 
 A value encrypted by the **Go** binding decrypts cleanly in the **Flutter/Dart**
 binding, and the other way round, because both are thin wrappers over the
-*same* native `libcryptolib_c`. The ciphertext format is the library's format,
+*same* native `libcipherbird_c`. The ciphertext format is the library's format,
 not a per-language one.
 
 This example demonstrates **all three directions** with authenticated
@@ -22,7 +22,7 @@ Plus a negative control: a tampered ciphertext is rejected (AEAD authentication)
 ```sh
 # 1. Build the native library once.
 cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --target cryptolib_c
+cmake --build build/release --target cipherbird_c
 
 # 2. Run the demo (needs the Go toolchain and the Dart SDK).
 bridge/bindings/interop/run.sh

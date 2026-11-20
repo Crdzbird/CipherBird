@@ -1,7 +1,7 @@
 part of '../native_platform.dart';
 
 /// SP 800-90B style health assessment of a file's entropy
-/// (`cryptolib_entropy_assess_file_health`).
+/// (`cipherbird_entropy_assess_file_health`).
 final class CipherBirdHealthReport extends Struct {
   @Double()
   external double minEntropyPerByte;

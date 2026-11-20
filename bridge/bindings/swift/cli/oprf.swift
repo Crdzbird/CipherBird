@@ -7,9 +7,9 @@ import Foundation
 enum OprfError: Error { case failed(String) }
 
 private func oprfConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw OprfError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw OprfError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -28,17 +28,17 @@ enum Oprf {
     struct BlindResult { let blind: [UInt8]; let blindedElement: [UInt8] }
 
     static func deriveKeyPair(seed: [UInt8], info: [UInt8]? = nil) throws -> (publicKey: [UInt8], secretKey: [UInt8]) {
-        var kp = withPtrs([seed, info]) { p in cryptolib_oprf_derive_keypair(p[0].0, p[0].1, p[1].0, p[1].1) }
+        var kp = withPtrs([seed, info]) { p in cipherbird_oprf_derive_keypair(p[0].0, p[0].1, p[1].0, p[1].1) }
         let pub = kp.public_key.data != nil ? Array(UnsafeBufferPointer(start: kp.public_key.data, count: kp.public_key.len)) : []
         let sec = kp.secret_key.data != nil ? Array(UnsafeBufferPointer(start: kp.secret_key.data, count: kp.secret_key.len)) : []
-        cryptolib_keypair_free(&kp)
+        cipherbird_keypair_free(&kp)
         if pub.isEmpty { throw OprfError.failed("oprf derive_keypair failed") }
         return (pub, sec)
     }
 
     private static func blindOut(_ c0: CryptoOprfBlind) throws -> BlindResult {
         var c = c0
-        defer { cryptolib_oprf_blind_free(&c) }
+        defer { cipherbird_oprf_blind_free(&c) }
         if let e = c.error { throw OprfError.failed(String(cString: e)) }
         let bl = c.blind.data != nil ? Array(UnsafeBufferPointer(start: c.blind.data, count: c.blind.len)) : []
         let be = c.blinded_element.data != nil ? Array(UnsafeBufferPointer(start: c.blinded_element.data, count: c.blinded_element.len)) : []
@@ -46,21 +46,21 @@ enum Oprf {
     }
 
     static func blind(_ input: [UInt8]) throws -> BlindResult {
-        try blindOut(withPtrs([input]) { p in cryptolib_oprf_blind(p[0].0, p[0].1) })
+        try blindOut(withPtrs([input]) { p in cipherbird_oprf_blind(p[0].0, p[0].1) })
     }
     static func blindWithScalar(_ input: [UInt8], _ blind: [UInt8]) throws -> BlindResult {
-        try blindOut(withPtrs([input, blind]) { p in cryptolib_oprf_blind_with_scalar(p[0].0, p[0].1, p[1].0, p[1].1) })
+        try blindOut(withPtrs([input, blind]) { p in cipherbird_oprf_blind_with_scalar(p[0].0, p[0].1, p[1].0, p[1].1) })
     }
     static func blindEvaluate(sk: [UInt8], blindedElement: [UInt8]) throws -> [UInt8] {
-        try withPtrs([sk, blindedElement]) { p in try oprfConsume(cryptolib_oprf_blind_evaluate(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([sk, blindedElement]) { p in try oprfConsume(cipherbird_oprf_blind_evaluate(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     static func finalize(input: [UInt8], blind: [UInt8], evaluatedElement: [UInt8]) throws -> [UInt8] {
         try withPtrs([input, blind, evaluatedElement]) { p in
-            try oprfConsume(cryptolib_oprf_finalize(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
+            try oprfConsume(cipherbird_oprf_finalize(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1))
         }
     }
     static func evaluate(sk: [UInt8], input: [UInt8]) throws -> [UInt8] {
-        try withPtrs([sk, input]) { p in try oprfConsume(cryptolib_oprf_evaluate(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        try withPtrs([sk, input]) { p in try oprfConsume(cipherbird_oprf_evaluate(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
 }
 
@@ -71,8 +71,8 @@ func hexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — OPRF (RFC 9497) (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — OPRF (RFC 9497) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

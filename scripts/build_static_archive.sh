@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# Build a single self-contained STATIC archive: build/static/libcryptolib_c.a
+# Build a single self-contained STATIC archive: build/static/libcipherbird_c.a
 #
 # It merges the C-ABI bridge object with every dependency's static archive
 # (libsodium, BLAKE3, liboqs, OpenSSL libcrypto, blst, libsecp256k1) into ONE
 # .a. A consumer linking it (e.g. the Go binding with `-tags cipherbird_static`)
-# gets a fully self-contained binary — no libcryptolib_c.dylib/.so to ship or
+# gets a fully self-contained binary — no libcipherbird_c.dylib/.so to ship or
 # locate at run time.
 #
 # Usage: scripts/build_static_archive.sh [out_dir]   (macOS host)
-#   CRYPTOLIB_PROFILE=full (default) or bank selects the profile; the bank
+#   CIPHERBIRD_PROFILE=full (default) or bank selects the profile; the bank
 #   archive compiles the bridge with the bank definitions, so it ships only
 #   the standards-track families, and defaults to build/static-bank.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-PROFILE="${CRYPTOLIB_PROFILE:-full}"
+PROFILE="${CIPHERBIRD_PROFILE:-full}"
 case "$PROFILE" in
-    full) PROFILE_DEFS="-DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1"; DEFAULT_OUT=build/static ;;
-    bank) PROFILE_DEFS="-DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_PROFILE_BANK=1"; DEFAULT_OUT=build/static-bank ;;
-    *) echo "CRYPTOLIB_PROFILE must be full or bank (fips links the validated module dynamically)"; exit 2 ;;
+    full) PROFILE_DEFS="-DCIPHERBIRD_HAS_SODIUM_CRYPTO=1 -DCIPHERBIRD_HAS_STEGO=1 -DCIPHERBIRD_HAS_MEDIA_ENTROPY=1 -DCIPHERBIRD_HAS_NATIVE_COMBINERS=1"; DEFAULT_OUT=build/static ;;
+    bank) PROFILE_DEFS="-DCIPHERBIRD_HAS_SODIUM_CRYPTO=1 -DCIPHERBIRD_PROFILE_BANK=1"; DEFAULT_OUT=build/static-bank ;;
+    *) echo "CIPHERBIRD_PROFILE must be full or bank (fips links the validated module dynamically)"; exit 2 ;;
 esac
 OUT="${1:-$DEFAULT_OUT}"
 mkdir -p "$OUT" build/host-deps
@@ -29,10 +29,10 @@ SECP=/opt/homebrew/opt/secp256k1
 
 # Prefer a SEALED (no-sock no-dso) libcrypto so the static binary carries no
 # latent socket/dlopen code. Built on demand from pinned OpenSSL source. Set
-# CRYPTOLIB_SEALED_OPENSSL=0 to skip it and use the system libcrypto (which
+# CIPHERBIRD_SEALED_OPENSSL=0 to skip it and use the system libcrypto (which
 # retains OpenSSL's BIO sockets — dormant but present).
 LIBCRYPTO_A="build/host-deps/openssl-nosock/lib/libcrypto.a"
-if [ ! -f "$LIBCRYPTO_A" ] && [ "${CRYPTOLIB_SEALED_OPENSSL:-1}" = "1" ]; then
+if [ ! -f "$LIBCRYPTO_A" ] && [ "${CIPHERBIRD_SEALED_OPENSSL:-1}" = "1" ]; then
     bash scripts/build_openssl_nosock.sh
 fi
 OSSL_INC="build/host-deps/openssl-nosock/include"
@@ -64,19 +64,19 @@ fi
 # 2. Compile the bridge to an object file (no link). Same exploit-mitigation
 #    flags as the CMake shared-lib build (portable subset for the host arch).
 clang++ -std=c++20 -O2 -fPIC -fstack-protector-strong -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -c \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 $PROFILE_DEFS -DCRYPTOLIB_HAS_BLS=1 \
-    -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 \
+    -DCIPHERBIRD_HAS_BLAKE3=1 -DCIPHERBIRD_HAS_PQ=1 $PROFILE_DEFS -DCIPHERBIRD_HAS_BLS=1 \
+    -DCIPHERBIRD_HAS_OPENSSL=1 -DCIPHERBIRD_HAS_SECP256K1=1 \
     -I include -I "$OSSL_INC" -I /opt/homebrew/include -I "$SECP/include" \
-    bridge/cryptolib_c.cpp -o "$OUT/cryptolib_c.o"
+    bridge/cipherbird_c.cpp -o "$OUT/cipherbird_c.o"
 
 # 3. Merge the object + every dependency archive into one static library.
 #    libtool -static dedups and merges archives + objects on macOS.
-libtool -static -o "$OUT/libcryptolib_c.a" \
-    "$OUT/cryptolib_c.o" \
+libtool -static -o "$OUT/libcipherbird_c.a" \
+    "$OUT/cipherbird_c.o" \
     "$BREW_LIB/libsodium.a" "$BLAKE3_A" "$BREW_LIB/liboqs.a" \
     "$LIBCRYPTO_A" "$BREW_LIB/libblst.a" "$SECP/lib/libsecp256k1.a" \
     2>/dev/null
 
-rm -f "$OUT/cryptolib_c.o"
-SIZE="$(du -h "$OUT/libcryptolib_c.a" | cut -f1)"
-echo "-> $OUT/libcryptolib_c.a ($SIZE, self-contained, $PROFILE profile)"
+rm -f "$OUT/cipherbird_c.o"
+SIZE="$(du -h "$OUT/libcipherbird_c.a" | cut -f1)"
+echo "-> $OUT/libcipherbird_c.a ($SIZE, self-contained, $PROFILE profile)"

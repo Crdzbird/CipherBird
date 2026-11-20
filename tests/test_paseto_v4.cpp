@@ -1,6 +1,6 @@
 #include "test_framework.hpp"
 #include "json_lite.hpp"
-#include "../bridge/cryptolib_c.h"
+#include "../bridge/cipherbird_c.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -64,9 +64,9 @@ struct Tok { int rc; std::string s; };
 struct Msg { int rc; Bytes m; };
 
 Tok enc(Span key, Span msg, Span footer, Span implicit) {
-    std::string out(cryptolib_paseto_v4_local_encrypt_len(msg.size(), footer.size()), '\0');
+    std::string out(cipherbird_paseto_v4_local_encrypt_len(msg.size(), footer.size()), '\0');
     size_t n = 12345;
-    const int rc = cryptolib_paseto_v4_local_encrypt(
+    const int rc = cipherbird_paseto_v4_local_encrypt(
         reinterpret_cast<uint8_t*>(out.data()), out.size(), &n, key.data(), key.size(),
         msg.data(), msg.size(), footer.data(), footer.size(), implicit.data(), implicit.size());
     out.resize(n);
@@ -74,9 +74,9 @@ Tok enc(Span key, Span msg, Span footer, Span implicit) {
 }
 
 Msg dec(std::string_view token, Span key, Span footer, Span implicit) {
-    Bytes out(cryptolib_paseto_v4_local_decrypt_cap(token.size()));
+    Bytes out(cipherbird_paseto_v4_local_decrypt_cap(token.size()));
     size_t n = 12345;
-    const int rc = cryptolib_paseto_v4_local_decrypt(
+    const int rc = cipherbird_paseto_v4_local_decrypt(
         out.empty() ? nullptr : out.data(), out.size(), &n,
         reinterpret_cast<const uint8_t*>(token.data()), token.size(), key.data(), key.size(),
         footer.data(), footer.size(), implicit.data(), implicit.size());
@@ -157,18 +157,18 @@ const Bytes kOther = fixed(32, 0x71);
 }
 
 TEST("paseto_v4/round-trip-shape-and-exact-length") {
-    REQUIRE(cryptolib_init() == 0);
+    REQUIRE(cipherbird_init() == 0);
     for (size_t ml : {size_t{0}, size_t{1}, size_t{2}, size_t{3}, size_t{31}, size_t{200}, size_t{1000}}) {
         for (size_t fl : {size_t{0}, size_t{1}, size_t{2}, size_t{3}, size_t{60}}) {
             for (size_t il : {size_t{0}, size_t{5}}) {
                 const Bytes m = fixed(ml, 1), f = fixed(fl, 2), i = fixed(il, 3);
                 const auto t = enc(kKey, m, f, i);
-                REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
-                CHECK(t.s.size() == cryptolib_paseto_v4_local_encrypt_len(ml, fl));
+                REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
+                CHECK(t.s.size() == cipherbird_paseto_v4_local_encrypt_len(ml, fl));
                 CHECK(t.s.rfind("v4.local.", 0) == 0);
                 CHECK(std::count(t.s.begin(), t.s.end(), '.') == (fl ? 3 : 2));
                 const auto d = dec(t.s, kKey, f, i);
-                CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+                CHECK(d.rc == CIPHERBIRD_PASETO_OK);
                 CHECK(d.m == m);
             }
         }
@@ -178,7 +178,7 @@ TEST("paseto_v4/round-trip-shape-and-exact-length") {
 TEST("paseto_v4/large-message-crosses-encoder-chunks") {
     const Bytes m = fixed(1 << 20, 9), f = fixed(5000, 4);
     const auto t = enc(kKey, m, f, sv2sp("ctx"));
-    REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
+    REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
     Bytes back;
     CHECK(ref_open(t.s, kKey, f, sv2sp("ctx"), back));
     CHECK(back == m);
@@ -189,7 +189,7 @@ TEST("paseto_v4/independent-reference-interoperates-both-ways") {
     for (size_t ml : {size_t{0}, size_t{1}, size_t{2}, size_t{200}}) {
         const Bytes m = fixed(ml, 5), f = bytes_of("{\"kid\":\"k4.lid.x\"}"), i = bytes_of("aud");
         const auto t = enc(kKey, m, f, i);
-        REQUIRE(t.rc == CRYPTOLIB_PASETO_OK);
+        REQUIRE(t.rc == CIPHERBIRD_PASETO_OK);
         Bytes back;
         CHECK(ref_open(t.s, kKey, f, i, back));
         CHECK(back == m);
@@ -197,7 +197,7 @@ TEST("paseto_v4/independent-reference-interoperates-both-ways") {
         randombytes_buf(n.data(), n.size());
         const std::string r = ref_seal(kKey, m, f, i, n);
         const auto d = dec(r, kKey, f, i);
-        CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(d.rc == CIPHERBIRD_PASETO_OK);
         CHECK(d.m == m);
     }
 }
@@ -268,16 +268,16 @@ TEST("paseto_v4/every-token-byte-tampered-fails") {
     const Bytes f = bytes_of("{\"kid\":\"k\"}"), i = bytes_of("bind");
     const auto t = enc(kKey, sv2sp("{\"exp\":\"2026-11-02T00:00:00Z\"}"), f, i);
     REQUIRE(t.rc == 0);
-    REQUIRE(dec_rc(t.s, kKey, f, i) == CRYPTOLIB_PASETO_OK);
+    REQUIRE(dec_rc(t.s, kKey, f, i) == CIPHERBIRD_PASETO_OK);
     for (size_t p = 0; p < t.s.size(); ++p) {
         for (char bit : {char(0x01), char(0x02), char(0x80)}) {
             std::string x = t.s;
             x[p] = static_cast<char>(x[p] ^ bit);
-            CHECK(dec_rc(x, kKey, f, i) == CRYPTOLIB_PASETO_ERR_INVALID);
+            CHECK(dec_rc(x, kKey, f, i) == CIPHERBIRD_PASETO_ERR_INVALID);
         }
     }
     for (size_t len = 0; len < t.s.size(); ++len)
-        CHECK(dec_rc(std::string_view(t.s).substr(0, len), kKey, f, i) == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(dec_rc(std::string_view(t.s).substr(0, len), kKey, f, i) == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("paseto_v4/every-decoded-byte-tampered-fails") {
@@ -292,15 +292,15 @@ TEST("paseto_v4/every-decoded-byte-tampered-fails") {
         for (uint8_t bit : {uint8_t{0x01}, uint8_t{0x80}}) {
             Bytes r = raw;
             r[p] ^= bit;
-            CHECK(dec_rc("v4.local." + b64e(r) + "." + ftxt, kKey, f, i) == CRYPTOLIB_PASETO_ERR_INVALID);
+            CHECK(dec_rc("v4.local." + b64e(r) + "." + ftxt, kKey, f, i) == CIPHERBIRD_PASETO_ERR_INVALID);
         }
     }
     for (size_t p = 0; p < f.size(); ++p) {
         Bytes ff = f;
         ff[p] ^= 0x01;
         const std::string forged = "v4.local." + body + "." + b64e(ff);
-        CHECK(dec_rc(forged, kKey, f, i) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(forged, kKey, ff, i) == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(dec_rc(forged, kKey, f, i) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(forged, kKey, ff, i) == CIPHERBIRD_PASETO_ERR_INVALID);
     }
 }
 
@@ -308,16 +308,16 @@ TEST("paseto_v4/wrong-key-footer-and-implicit-fail") {
     const Bytes f = bytes_of("f"), i = bytes_of("class=1");
     const auto t = enc(kKey, sv2sp("m"), f, i);
     REQUIRE(t.rc == 0);
-    CHECK(dec_rc(t.s, kOther, f, i) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s, kKey, sv2sp("g"), i) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s, kKey, sv2sp("ff"), i) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s, kKey, {}, i) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s, kKey, f, sv2sp("class=2")) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s, kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kOther, f, i) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kKey, sv2sp("g"), i) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kKey, sv2sp("ff"), i) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kKey, {}, i) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kKey, f, sv2sp("class=2")) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s, kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
     const auto bare = enc(kKey, sv2sp("m"), {}, {});
-    CHECK(dec_rc(bare.s, kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(bare.s, kKey, {}, i) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(bare.s, kKey, {}, {}) == CRYPTOLIB_PASETO_OK);
+    CHECK(dec_rc(bare.s, kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(bare.s, kKey, {}, i) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(bare.s, kKey, {}, {}) == CIPHERBIRD_PASETO_OK);
 }
 
 TEST("paseto_v4/non-canonical-and-malformed-encodings-fail") {
@@ -330,36 +330,36 @@ TEST("paseto_v4/non-canonical-and-malformed-encodings-fail") {
         REQUIRE(pos != nullptr);
         x.back() = kAlphabet[(pos - kAlphabet) | 1];
         CHECK(x != t.s);
-        CHECK(dec_rc(x, kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(t.s + "=", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(t.s + "==", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(t.s + "A", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(t.s + ".", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-        CHECK(dec_rc(t.s + "\n", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(dec_rc(x, kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(t.s + "=", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(t.s + "==", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(t.s + "A", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(t.s + ".", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+        CHECK(dec_rc(t.s + "\n", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
         std::string sp = t.s;
         sp.insert(20, " ");
-        CHECK(dec_rc(sp, kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(dec_rc(sp, kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
         for (char bad : {'+', '/', '=', '\0'}) {
             std::string y = t.s;
             y[30] = bad;
-            CHECK(dec_rc(y, kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+            CHECK(dec_rc(y, kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
         }
     }
     const Bytes f = bytes_of("f");
     const auto t = enc(kKey, sv2sp("m"), f, {});
     REQUIRE(t.rc == 0);
     CHECK(t.s.substr(t.s.size() - 3) == ".Zg");
-    CHECK(dec_rc(t.s.substr(0, t.s.size() - 1) + "h", kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(t.s + "==", kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s.substr(0, t.s.size() - 1) + "h", kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(t.s + "==", kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
     const std::string body = t.s.substr(0, t.s.size() - 3);
-    CHECK(dec_rc(body + "..Zg", kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(body + ".Zg.", kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc(body + ".Zg.Zg", kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(dec_rc(body + "..Zg", kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(body + ".Zg.", kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc(body + ".Zg.Zg", kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
     const std::string rest = t.s.substr(9);
     for (const char* h : {"v4.public.", "v3.local.", "V4.local.", "v4.locaL.", "v4.local", " v4.local.", "v2.local."})
-        CHECK(dec_rc(std::string(h) + rest, kKey, f, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc("v4.local." + b64e(fixed(63, 0)), kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc("v4.local." + b64e(fixed(64, 0)), kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+        CHECK(dec_rc(std::string(h) + rest, kKey, f, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc("v4.local." + b64e(fixed(63, 0)), kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc("v4.local." + b64e(fixed(64, 0)), kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("paseto_v4/codec-matches-libsodium-exactly") {
@@ -410,134 +410,134 @@ TEST("paseto_v4/codec-matches-libsodium-exactly") {
 }
 
 TEST("paseto_v4/empty-and-oversize-inputs") {
-    const size_t max = CRYPTOLIB_PASETO_V4_MAX_INPUT_BYTES;
-    CHECK(cryptolib_paseto_v4_local_encrypt_len(0, 0) == 9 + 86);
-    CHECK(cryptolib_paseto_v4_local_encrypt_len(max + 1, 0) == 0);
-    CHECK(cryptolib_paseto_v4_local_encrypt_len(0, max + 1) == 0);
-    CHECK(cryptolib_paseto_v4_local_encrypt_len(SIZE_MAX, SIZE_MAX) == 0);
-    for (size_t n = 0; n <= 10; ++n) CHECK(cryptolib_paseto_v4_local_decrypt_cap(n) == 0);
-    CHECK(cryptolib_paseto_v4_local_decrypt_cap(V4::max_token_len()) > 0);
-    CHECK(cryptolib_paseto_v4_local_decrypt_cap(V4::max_token_len() + 1) == 0);
-    CHECK(cryptolib_paseto_v4_local_decrypt_cap(SIZE_MAX) == 0);
-    CHECK(dec_rc("", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc("v4.local.", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
-    CHECK(dec_rc("v4.local.A", kKey, {}, {}) == CRYPTOLIB_PASETO_ERR_INVALID);
+    const size_t max = CIPHERBIRD_PASETO_V4_MAX_INPUT_BYTES;
+    CHECK(cipherbird_paseto_v4_local_encrypt_len(0, 0) == 9 + 86);
+    CHECK(cipherbird_paseto_v4_local_encrypt_len(max + 1, 0) == 0);
+    CHECK(cipherbird_paseto_v4_local_encrypt_len(0, max + 1) == 0);
+    CHECK(cipherbird_paseto_v4_local_encrypt_len(SIZE_MAX, SIZE_MAX) == 0);
+    for (size_t n = 0; n <= 10; ++n) CHECK(cipherbird_paseto_v4_local_decrypt_cap(n) == 0);
+    CHECK(cipherbird_paseto_v4_local_decrypt_cap(V4::max_token_len()) > 0);
+    CHECK(cipherbird_paseto_v4_local_decrypt_cap(V4::max_token_len() + 1) == 0);
+    CHECK(cipherbird_paseto_v4_local_decrypt_cap(SIZE_MAX) == 0);
+    CHECK(dec_rc("", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc("v4.local.", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
+    CHECK(dec_rc("v4.local.A", kKey, {}, {}) == CIPHERBIRD_PASETO_ERR_INVALID);
     uint8_t small[16] = {};
     uint8_t out[256];
     size_t n = 7;
-    CHECK(cryptolib_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, max + 1,
-                                            nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, max + 1,
+                                            nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     CHECK(n == 0);
-    CHECK(cryptolib_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, 1,
-                                            small, max + 1, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, 1,
-                                            nullptr, 0, small, max + 1) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_decrypt(nullptr, 0, &n, small, V4::max_token_len() + 1,
-                                            kKey.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(cipherbird_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, 1,
+                                            small, max + 1, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_encrypt(out, sizeof out, &n, kKey.data(), 32, small, 1,
+                                            nullptr, 0, small, max + 1) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_decrypt(nullptr, 0, &n, small, V4::max_token_len() + 1,
+                                            kKey.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_INVALID);
     const auto t = enc(kKey, {}, {}, {});
-    Bytes o(cryptolib_paseto_v4_local_decrypt_cap(t.s.size()));
-    CHECK(cryptolib_paseto_v4_local_decrypt(o.data(), o.size(), &n,
+    Bytes o(cipherbird_paseto_v4_local_decrypt_cap(t.s.size()));
+    CHECK(cipherbird_paseto_v4_local_decrypt(o.data(), o.size(), &n,
                                             reinterpret_cast<const uint8_t*>(t.s.data()), t.s.size(),
-                                            kKey.data(), 32, small, max + 1, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_decrypt(o.data(), o.size(), &n,
+                                            kKey.data(), 32, small, max + 1, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_decrypt(o.data(), o.size(), &n,
                                             reinterpret_cast<const uint8_t*>(t.s.data()), t.s.size(),
-                                            kKey.data(), 32, nullptr, 0, small, max + 1) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+                                            kKey.data(), 32, nullptr, 0, small, max + 1) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     const auto d = dec(t.s, kKey, {}, {});
-    CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+    CHECK(d.rc == CIPHERBIRD_PASETO_OK);
     CHECK(d.m.empty());
 }
 
 TEST("paseto_v4/abi-rejects-bad-arguments") {
     const Bytes m = bytes_of("message");
-    const size_t need = cryptolib_paseto_v4_local_encrypt_len(m.size(), 0);
+    const size_t need = cipherbird_paseto_v4_local_encrypt_len(m.size(), 0);
     Bytes out(need + 8);
     size_t n = 99;
     auto e = [&](uint8_t* o, size_t cap, size_t* nl, const uint8_t* k, size_t kl,
                  const uint8_t* mp, size_t mlen) {
-        return cryptolib_paseto_v4_local_encrypt(o, cap, nl, k, kl, mp, mlen, nullptr, 0, nullptr, 0);
+        return cipherbird_paseto_v4_local_encrypt(o, cap, nl, k, kl, mp, mlen, nullptr, 0, nullptr, 0);
     };
     const Bytes k33 = fixed(33, 1);
-    CHECK(e(out.data(), out.size(), &n, k33.data(), 31, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, k33.data(), 31, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     CHECK(n == 0);
-    CHECK(e(out.data(), out.size(), &n, k33.data(), 33, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), &n, k33.data(), 0, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), &n, nullptr, 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(nullptr, out.size(), &n, kKey.data(), 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), nullptr, kKey.data(), 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), &n, kKey.data(), 32, nullptr, 1) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), need - 1, &n, kKey.data(), 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), 0, &n, kKey.data(), 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), &n, out.data() + 40, 32, m.data(), m.size()) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), out.size(), &n, kKey.data(), 32, out.data() + 100, 7) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_encrypt(out.data(), out.size(), &n, kKey.data(), 32, m.data(), m.size(),
-                                            nullptr, 3, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_encrypt(out.data(), out.size(), &n, kKey.data(), 32, m.data(), m.size(),
-                                            nullptr, 0, nullptr, 3) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(e(out.data(), need, &n, kKey.data(), 32, m.data(), m.size()) == CRYPTOLIB_PASETO_OK);
+    CHECK(e(out.data(), out.size(), &n, k33.data(), 33, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, k33.data(), 0, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, nullptr, 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(nullptr, out.size(), &n, kKey.data(), 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), nullptr, kKey.data(), 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, kKey.data(), 32, nullptr, 1) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), need - 1, &n, kKey.data(), 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), 0, &n, kKey.data(), 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, out.data() + 40, 32, m.data(), m.size()) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), out.size(), &n, kKey.data(), 32, out.data() + 100, 7) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_encrypt(out.data(), out.size(), &n, kKey.data(), 32, m.data(), m.size(),
+                                            nullptr, 3, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_encrypt(out.data(), out.size(), &n, kKey.data(), 32, m.data(), m.size(),
+                                            nullptr, 0, nullptr, 3) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(e(out.data(), need, &n, kKey.data(), 32, m.data(), m.size()) == CIPHERBIRD_PASETO_OK);
     CHECK(n == need);
     std::string tok(reinterpret_cast<const char*>(out.data()), n);
     const auto* tp = reinterpret_cast<const uint8_t*>(tok.data());
-    const size_t cap = cryptolib_paseto_v4_local_decrypt_cap(tok.size());
+    const size_t cap = cipherbird_paseto_v4_local_decrypt_cap(tok.size());
     Bytes o(cap);
     auto d = [&](uint8_t* op, size_t ocap, size_t* nl, const uint8_t* t, size_t tl, const uint8_t* k, size_t kl) {
-        return cryptolib_paseto_v4_local_decrypt(op, ocap, nl, t, tl, k, kl, nullptr, 0, nullptr, 0);
+        return cipherbird_paseto_v4_local_decrypt(op, ocap, nl, t, tl, k, kl, nullptr, 0, nullptr, 0);
     };
-    CHECK(d(o.data(), cap - 1, &n, tp, tok.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(nullptr, cap, &n, tp, tok.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, nullptr, tp, tok.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, &n, nullptr, tok.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, &n, tp, tok.size(), nullptr, 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, &n, tp, tok.size(), kKey.data(), 31) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, &n, tp, tok.size(), k33.data(), 33) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_paseto_v4_local_decrypt(o.data(), cap, &n, tp, tok.size(), kKey.data(), 32,
-                                            nullptr, 2, nullptr, 0) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap - 1, &n, tp, tok.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(nullptr, cap, &n, tp, tok.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, nullptr, tp, tok.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, &n, nullptr, tok.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, &n, tp, tok.size(), nullptr, 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, &n, tp, tok.size(), kKey.data(), 31) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, &n, tp, tok.size(), k33.data(), 33) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_paseto_v4_local_decrypt(o.data(), cap, &n, tp, tok.size(), kKey.data(), 32,
+                                            nullptr, 2, nullptr, 0) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
     Bytes inplace(tok.begin(), tok.end());
-    CHECK(d(inplace.data(), cap, &n, inplace.data(), inplace.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(d(o.data(), cap, &n, tp, tok.size(), kKey.data(), 32) == CRYPTOLIB_PASETO_OK);
+    CHECK(d(inplace.data(), cap, &n, inplace.data(), inplace.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(d(o.data(), cap, &n, tp, tok.size(), kKey.data(), 32) == CIPHERBIRD_PASETO_OK);
     CHECK(n == m.size());
     CHECK(std::equal(m.begin(), m.end(), o.begin()));
-    CHECK(d(nullptr, 0, &n, nullptr, 0, kKey.data(), 32) == CRYPTOLIB_PASETO_ERR_INVALID);
+    CHECK(d(nullptr, 0, &n, nullptr, 0, kKey.data(), 32) == CIPHERBIRD_PASETO_ERR_INVALID);
 }
 
 TEST("paseto_v4/decrypt-output-region-is-wiped") {
     const auto t = enc(kKey, sv2sp("secret claims"), {}, {});
     REQUIRE(t.rc == 0);
-    const size_t cap = cryptolib_paseto_v4_local_decrypt_cap(t.s.size());
+    const size_t cap = cipherbird_paseto_v4_local_decrypt_cap(t.s.size());
     Bytes o(cap + 4, 0xAA);
     size_t n = 0;
-    REQUIRE(cryptolib_paseto_v4_local_decrypt(o.data(), o.size(), &n,
+    REQUIRE(cipherbird_paseto_v4_local_decrypt(o.data(), o.size(), &n,
                                               reinterpret_cast<const uint8_t*>(t.s.data()), t.s.size(),
                                               kKey.data(), 32, nullptr, 0, nullptr, 0) == 0);
     CHECK(std::string(o.begin(), o.begin() + n) == "secret claims");
     CHECK(sodium_is_zero(o.data() + n, cap - n) == 1);
     CHECK(o[cap] == 0xAA);
     std::fill(o.begin(), o.end(), 0xAA);
-    CHECK(cryptolib_paseto_v4_local_decrypt(o.data(), o.size(), &n,
+    CHECK(cipherbird_paseto_v4_local_decrypt(o.data(), o.size(), &n,
                                             reinterpret_cast<const uint8_t*>(t.s.data()), t.s.size(),
-                                            kOther.data(), 32, nullptr, 0, nullptr, 0) == CRYPTOLIB_PASETO_ERR_INVALID);
+                                            kOther.data(), 32, nullptr, 0, nullptr, 0) == CIPHERBIRD_PASETO_ERR_INVALID);
     CHECK(n == 0);
     CHECK(sodium_is_zero(o.data(), cap) == 1);
 }
 
 TEST("paseto_v4/deterministic-nonce-entry-point") {
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
     const Bytes n = fixed(32, 0x40), m = bytes_of("{\"data\":\"x\"}"), f = bytes_of("ft"), i = bytes_of("ia");
-    std::string a(cryptolib_paseto_v4_local_encrypt_len(m.size(), f.size()), '\0');
+    std::string a(cipherbird_paseto_v4_local_encrypt_len(m.size(), f.size()), '\0');
     std::string b = a;
     size_t na = 0, nb = 0;
-    REQUIRE(cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+    REQUIRE(cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
                 reinterpret_cast<uint8_t*>(a.data()), a.size(), &na, kKey.data(), 32, m.data(), m.size(),
                 f.data(), f.size(), i.data(), i.size(), n.data(), 32) == 0);
-    REQUIRE(cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+    REQUIRE(cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
                 reinterpret_cast<uint8_t*>(b.data()), b.size(), &nb, kKey.data(), 32, m.data(), m.size(),
                 f.data(), f.size(), i.data(), i.size(), n.data(), 32) == 0);
     CHECK(a == b);
     CHECK(a == ref_seal(kKey, m, f, i, n));
-    CHECK(cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+    CHECK(cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
               reinterpret_cast<uint8_t*>(a.data()), a.size(), &na, kKey.data(), 32, m.data(), m.size(),
-              f.data(), f.size(), i.data(), i.size(), n.data(), 31) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
+              f.data(), f.size(), i.data(), i.size(), n.data(), 31) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
 #else
-    std::printf("      note: CRYPTOLIB_PASETO_TEST_NONCE is OFF, deterministic entry point not compiled\n");
+    std::printf("      note: CIPHERBIRD_PASETO_TEST_NONCE is OFF, deterministic entry point not compiled\n");
 #endif
 }
 
@@ -545,7 +545,7 @@ TEST("paseto_v4/official-vectors") {
     static const char* const kNames[] = {"4-E-1", "4-E-2", "4-E-3", "4-E-4", "4-E-5", "4-E-6", "4-E-7",
                                          "4-E-8", "4-E-9", "4-F-1", "4-F-2", "4-F-3", "4-F-4", "4-F-5"};
     static constexpr const char* kSha256 = "0b72948b65d1f73f574c9ad2aa3481ec27bf8c632f5f6e1596cd41f5b9703387";
-    const std::string path = std::string(CRYPTOLIB_SOURCE_DIR) + "/tests/vectors/paseto/v4.json";
+    const std::string path = std::string(CIPHERBIRD_SOURCE_DIR) + "/tests/vectors/paseto/v4.json";
     std::ifstream in(path, std::ios::binary);
     if (!in) std::printf("      %s is vendored and must be present\n", path.c_str());
     REQUIRE(static_cast<bool>(in));
@@ -583,8 +583,8 @@ TEST("paseto_v4/official-vectors") {
         REQUIRE(key.size() == 32);
         const auto d = dec(token, key, sv2sp(footer), sv2sp(implicit));
         if (fail) {
-            if (d.rc != CRYPTOLIB_PASETO_ERR_INVALID) std::printf("      vector %s gave %d, want invalid\n", name.c_str(), d.rc);
-            CHECK(d.rc == CRYPTOLIB_PASETO_ERR_INVALID);
+            if (d.rc != CIPHERBIRD_PASETO_ERR_INVALID) std::printf("      vector %s gave %d, want invalid\n", name.c_str(), d.rc);
+            CHECK(d.rc == CIPHERBIRD_PASETO_ERR_INVALID);
             CHECK(d.m.empty());
             Bytes ignored;
             CHECK(!ref_open(token, key, sv2sp(footer), sv2sp(implicit), ignored));
@@ -595,17 +595,17 @@ TEST("paseto_v4/official-vectors") {
         REQUIRE(pl != nullptr && pl->kind == Json::Str);
         if (d.rc != 0 || std::string(d.m.begin(), d.m.end()) != pl->s)
             std::printf("      vector %s failed to decrypt\n", name.c_str());
-        CHECK(d.rc == CRYPTOLIB_PASETO_OK);
+        CHECK(d.rc == CIPHERBIRD_PASETO_OK);
         CHECK(std::string(d.m.begin(), d.m.end()) == pl->s);
         const Bytes nonce = unhex(jstr(t, "nonce"));
         CHECK(nonce.size() == 32);
         CHECK(ref_seal(key, sv2sp(pl->s), sv2sp(footer), sv2sp(implicit), nonce) == token);
         ++decrypted;
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
-        std::string out(cryptolib_paseto_v4_local_encrypt_len(pl->s.size(), footer.size()), '\0');
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+        std::string out(cipherbird_paseto_v4_local_encrypt_len(pl->s.size(), footer.size()), '\0');
         size_t n = 0;
         const auto* msg = reinterpret_cast<const uint8_t*>(pl->s.data());
-        CHECK(cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+        CHECK(cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
                   reinterpret_cast<uint8_t*>(out.data()), out.size(), &n, key.data(), 32, msg, pl->s.size(),
                   sv2sp(footer).data(), footer.size(), sv2sp(implicit).data(), implicit.size(),
                   nonce.data(), nonce.size()) == 0);
@@ -617,14 +617,14 @@ TEST("paseto_v4/official-vectors") {
     CHECK(seen == std::vector<std::string>(std::begin(kNames), std::end(kNames)));
     CHECK(decrypted == 9);
     CHECK(rejected == 4);
-#ifdef CRYPTOLIB_PASETO_TEST_NONCE
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
     CHECK(enc_checked == 9);
 #else
     CHECK(enc_checked == 0);
 #endif
     std::printf("      %zu vectors: %d decrypted, %d rejected as invalid, 1 key-typing (4-F-1), %d re-encrypted%s\n",
                 seen.size(), decrypted, rejected, enc_checked,
-                enc_checked ? " byte for byte with the test nonce" : " (CRYPTOLIB_PASETO_TEST_NONCE is OFF)");
+                enc_checked ? " byte for byte with the test nonce" : " (CIPHERBIRD_PASETO_TEST_NONCE is OFF)");
 }
 
 void run_tests_paseto_v4() {

@@ -1,7 +1,7 @@
 // Verifies the Phase 1-4 stego/FEC/analysis bindings via the Foreign Function &
 // Memory API. Pure Java, no JNI.
 //   javac Phase4Verify.java
-//   java --enable-native-access=ALL-UNNAMED Phase4Verify <path-to-libcryptolib_c.dylib>
+//   java --enable-native-access=ALL-UNNAMED Phase4Verify <path-to-libcipherbird_c.dylib>
 // Exits non-zero on any failure.
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
@@ -25,7 +25,7 @@ public final class Phase4Verify {
             JAVA_LONG.withName("width"), JAVA_LONG.withName("height"), JAVA_LONG.withName("file_size"),
             ADDRESS.withName("detail"), ADDRESS.withName("error"));
     static final GroupLayout CRYPTO_HIDDEN = MemoryLayout.structLayout(
-            JAVA_INT.withName("cryptolib_payload"), MemoryLayout.paddingLayout(4),
+            JAVA_INT.withName("cipherbird_payload"), MemoryLayout.paddingLayout(4),
             JAVA_DOUBLE.withName("lsb_chi_square"), JAVA_DOUBLE.withName("lsb_embedding_likelihood"),
             JAVA_LONG.withName("samples_analysed"), ADDRESS.withName("note"), ADDRESS.withName("error"));
 
@@ -54,37 +54,37 @@ public final class Phase4Verify {
     Phase4Verify(String libPath) {
         Linker l = Linker.nativeLinker();
         SymbolLookup lib = SymbolLookup.libraryLookup(Path.of(libPath), arena);
-        init        = h(l, lib, "cryptolib_init", FunctionDescriptor.of(JAVA_INT));
-        strFree     = h(l, lib, "cryptolib_str_free", FunctionDescriptor.ofVoid(ADDRESS));
-        bufferFree  = h(l, lib, "cryptolib_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
-        embed       = h(l, lib, "cryptolib_stego_embed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
-        embedKeyed  = h(l, lib, "cryptolib_stego_embed_keyed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG));
-        extractKeyed= h(l, lib, "cryptolib_stego_extract_keyed", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
-        embedEnc    = h(l, lib, "cryptolib_stego_embed_encrypted", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG));
-        extractDec  = h(l, lib, "cryptolib_stego_extract_decrypt", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
-        physSeal    = h(l, lib, "cryptolib_physical_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
-        physOpen    = h(l, lib, "cryptolib_physical_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
-        fecEncode   = h(l, lib, "cryptolib_fec_encode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT));
-        fecDecode   = h(l, lib, "cryptolib_fec_decode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG));
-        inspect     = h(l, lib, "cryptolib_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS));
-        digest      = h(l, lib, "cryptolib_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS));
-        detect      = h(l, lib, "cryptolib_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS));
-        ifSeal      = h(l, lib, "cryptolib_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
-        ifOpen      = h(l, lib, "cryptolib_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
-        hpkeKeygen  = h(l, lib, "cryptolib_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR));
-        keypairFree = h(l, lib, "cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
-        hsSeal      = h(l, lib, "cryptolib_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
-        hsOpen      = h(l, lib, "cryptolib_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
-        drbgNew     = h(l, lib, "cryptolib_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
-        drbgGen     = h(l, lib, "cryptolib_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        drbgFree    = h(l, lib, "cryptolib_drbg_free", FunctionDescriptor.ofVoid(ADDRESS));
-        fortNew     = h(l, lib, "cryptolib_fortuna_new", FunctionDescriptor.of(ADDRESS));
-        fortAdd     = h(l, lib, "cryptolib_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG));
-        fortGen     = h(l, lib, "cryptolib_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG));
-        fortReseed  = h(l, lib, "cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS));
-        fortCount   = h(l, lib, "cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
-        fortFree    = h(l, lib, "cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS));
-        assessHealth= h(l, lib, "cryptolib_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG));
+        init        = h(l, lib, "cipherbird_init", FunctionDescriptor.of(JAVA_INT));
+        strFree     = h(l, lib, "cipherbird_str_free", FunctionDescriptor.ofVoid(ADDRESS));
+        bufferFree  = h(l, lib, "cipherbird_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
+        embed       = h(l, lib, "cipherbird_stego_embed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        embedKeyed  = h(l, lib, "cipherbird_stego_embed_keyed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG));
+        extractKeyed= h(l, lib, "cipherbird_stego_extract_keyed", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
+        embedEnc    = h(l, lib, "cipherbird_stego_embed_encrypted", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG));
+        extractDec  = h(l, lib, "cipherbird_stego_extract_decrypt", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
+        physSeal    = h(l, lib, "cipherbird_physical_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        physOpen    = h(l, lib, "cipherbird_physical_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        fecEncode   = h(l, lib, "cipherbird_fec_encode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT));
+        fecDecode   = h(l, lib, "cipherbird_fec_decode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG));
+        inspect     = h(l, lib, "cipherbird_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS));
+        digest      = h(l, lib, "cipherbird_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS));
+        detect      = h(l, lib, "cipherbird_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS));
+        ifSeal      = h(l, lib, "cipherbird_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        ifOpen      = h(l, lib, "cipherbird_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        hpkeKeygen  = h(l, lib, "cipherbird_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR));
+        keypairFree = h(l, lib, "cipherbird_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
+        hsSeal      = h(l, lib, "cipherbird_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        hsOpen      = h(l, lib, "cipherbird_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
+        drbgNew     = h(l, lib, "cipherbird_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS));
+        drbgGen     = h(l, lib, "cipherbird_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        drbgFree    = h(l, lib, "cipherbird_drbg_free", FunctionDescriptor.ofVoid(ADDRESS));
+        fortNew     = h(l, lib, "cipherbird_fortuna_new", FunctionDescriptor.of(ADDRESS));
+        fortAdd     = h(l, lib, "cipherbird_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG));
+        fortGen     = h(l, lib, "cipherbird_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG));
+        fortReseed  = h(l, lib, "cipherbird_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS));
+        fortCount   = h(l, lib, "cipherbird_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
+        fortFree    = h(l, lib, "cipherbird_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS));
+        assessHealth= h(l, lib, "cipherbird_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG));
     }
 
     static MethodHandle h(Linker l, SymbolLookup lib, String name, FunctionDescriptor fd) {
@@ -290,7 +290,7 @@ public final class Phase4Verify {
     }
 
     public static void main(String[] args) throws Throwable {
-        String path = args.length > 0 ? args[0] : "build/release/libcryptolib_c.dylib";
+        String path = args.length > 0 ? args[0] : "build/release/libcipherbird_c.dylib";
         new Phase4Verify(path).run();
         System.out.println(failures == 0 ? "ALL PASS" : failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);

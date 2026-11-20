@@ -136,7 +136,7 @@ TEST("hash/hmac-sha512/key-dependent") {
 }
 
 // ─── BLAKE3 tests ────────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
 
 TEST("hash/blake3/one-shot") {
     auto r = crypto::hash::Blake3::digest("hello");
@@ -252,7 +252,7 @@ TEST("hash/blake3/streaming-keyed") {
     CHECK(one.value().to_hex() == two.to_hex());
 }
 
-#endif // CRYPTOLIB_HAS_BLAKE3
+#endif // CIPHERBIRD_HAS_BLAKE3
 
 // ─── HMAC-SHA256 tests ───────────────────────────────────────────────────────
 
@@ -419,7 +419,7 @@ void run_tests_hash() {
     RUN("hash/argon2id/different-passwords");
     RUN("hash/hmac-sha512/basic");
     RUN("hash/hmac-sha512/key-dependent");
-#ifdef CRYPTOLIB_HAS_BLAKE3
+#ifdef CIPHERBIRD_HAS_BLAKE3
     RUN("hash/blake3/one-shot");
     RUN("hash/blake3/deterministic");
     RUN("hash/blake3/different-inputs");

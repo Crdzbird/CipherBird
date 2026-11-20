@@ -35,7 +35,7 @@ extension CipherBirdRng on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_drbg_instantiate')(
+          >('cipherbird_drbg_instantiate')(
             e,
             entropy.length,
             n,
@@ -72,7 +72,7 @@ extension CipherBirdRng on CipherBird {
   Fortuna fortuna() {
     final h = _lib
         .lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
-          'cryptolib_fortuna_new',
+          'cipherbird_fortuna_new',
         )();
     if (h == nullptr) {
       throw Exception('cipherbird: fortuna alloc failed');

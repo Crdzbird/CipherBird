@@ -6,5 +6,5 @@ extension CipherBirdHpkeHandles on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_hpke_context_free')(h);
+      >('cipherbird_hpke_context_free')(h);
 }

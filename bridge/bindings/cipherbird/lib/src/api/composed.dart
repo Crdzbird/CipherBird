@@ -11,7 +11,7 @@ extension CipherBirdComposed on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32),
           CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
-        >('cryptolib_fec_encode')(d, data.length, scheme.value),
+        >('cipherbird_fec_encode')(d, data.length, scheme.value),
       );
     } finally {
       if (d != nullptr) {
@@ -29,7 +29,7 @@ extension CipherBirdComposed on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size, Int32, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int, int, int)
-        >('cryptolib_fec_decode')(d, data.length, scheme.value, originalLength),
+        >('cipherbird_fec_decode')(d, data.length, scheme.value, originalLength),
       );
     } finally {
       if (d != nullptr) {

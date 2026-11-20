@@ -19,7 +19,7 @@ extension CipherBirdOprfEvaluate on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_oprf_evaluate')(s, secretKey.length, p, input.length),
+        >('cipherbird_oprf_evaluate')(s, secretKey.length, p, input.length),
       );
     } finally {
       if (s != nullptr) calloc.free(s);

@@ -20,7 +20,7 @@ extension CipherBirdOprfEvaluation on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_oprf_blind_evaluate')(
+        >('cipherbird_oprf_blind_evaluate')(
           s,
           secretKey.length,
           b,
@@ -61,7 +61,7 @@ extension CipherBirdOprfEvaluation on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_oprf_finalize')(
+        >('cipherbird_oprf_finalize')(
           p,
           input.length,
           b,

@@ -1,11 +1,11 @@
 /**
  * fuzz_packet.cpp — libFuzzer target for EncryptedPacket::deserialise.
  *
- * Pure-buffer decode path on untrusted input. Build with -DCRYPTOLIB_FUZZ=ON
+ * Pure-buffer decode path on untrusted input. Build with -DCIPHERBIRD_FUZZ=ON
  * (clang), then: ./fuzz_packet -max_total_time=60
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstddef>
 #include <cstdint>

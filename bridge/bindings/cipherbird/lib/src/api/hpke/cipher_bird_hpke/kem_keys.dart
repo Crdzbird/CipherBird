@@ -5,7 +5,7 @@ extension CipherBirdHpkeKemKeys on CipherBird {
   /// Whether this build offers [kem].
   bool hpkeKemAvailable(HpkeKem kem) {
     return _lib.lookupFunction<Int32 Function(Int32), int Function(int)>(
-          'cryptolib_hpke_kem_available',
+          'cipherbird_hpke_kem_available',
         )(kem.value) ==
         1;
   }
@@ -16,7 +16,7 @@ extension CipherBirdHpkeKemKeys on CipherBird {
       _lib.lookupFunction<
         CipherBirdKeyPair Function(Int32),
         CipherBirdKeyPair Function(int)
-      >('cryptolib_hpke_keygen_kem')(kem.value),
+      >('cipherbird_hpke_keygen_kem')(kem.value),
     );
   }
 
@@ -28,7 +28,7 @@ extension CipherBirdHpkeKemKeys on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Int32, Pointer<Uint8>, Size),
           CipherBirdKeyPair Function(int, Pointer<Uint8>, int)
-        >('cryptolib_hpke_derive_keypair_kem')(kem.value, ikmPtr, ikm.length),
+        >('cipherbird_hpke_derive_keypair_kem')(kem.value, ikmPtr, ikm.length),
       );
     } finally {
       if (ikmPtr != nullptr) calloc.free(ikmPtr);

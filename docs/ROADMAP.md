@@ -75,7 +75,7 @@ prefer *constructions* composed from existing primitives over new primitives.
   SHA-256; only expand_message_xmd (RFC 9380) is assembled locally. keygen / sign /
   verify / proof_gen / proof_verify. Validated byte-for-byte against the official
   draft fixtures (signatures + a proof reproduced via the fixture-trace mocked
-  randomness). C++ core + 3 tests, C ABI (guarded by CRYPTOLIB_HAS_BLS), and all
+  randomness). C++ core + 3 tests, C ABI (guarded by CIPHERBIRD_HAS_BLS), and all
   five bindings landed.
 - **OPRF (RFC 9497) — ✅ DONE (`crypto::Oprf`).** Oblivious pseudorandom function
   (base-mode ristretto255-SHA-512): the client blinds its input, the server

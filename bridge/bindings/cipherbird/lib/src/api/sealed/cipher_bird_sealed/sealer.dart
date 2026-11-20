@@ -36,7 +36,7 @@ extension CipherBirdSealedSealer on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_sealed_sealer_begin')(
+          >('cipherbird_sealed_sealer_begin')(
             tier.value,
             pr,
             recipientPublic.length,
@@ -73,7 +73,7 @@ extension CipherBirdSealedSealer on CipherBird {
     _lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>),
       CipherBirdBufferResult Function(Pointer<Void>)
-    >('cryptolib_sealed_sealer_preamble')(h),
+    >('cipherbird_sealed_sealer_preamble')(h),
   );
 
   Uint8List _sealedSealerPush(Pointer<Void> h, Uint8List chunk) {
@@ -83,7 +83,7 @@ extension CipherBirdSealedSealer on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_sealed_sealer_push')(h, pc, chunk.length),
+        >('cipherbird_sealed_sealer_push')(h, pc, chunk.length),
       );
     } finally {
       if (pc != nullptr) calloc.free(pc);

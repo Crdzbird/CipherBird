@@ -48,7 +48,7 @@ extension CipherBirdFipsHpkeP256Open on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_hpke_p256_open')(
+        >('cipherbird_fips_hpke_p256_open')(
           encPtr,
           enc.length,
           recipientSecretPtr,

@@ -23,7 +23,7 @@ extension CipherBirdSealedSealerFinish on CipherBird {
             int,
             Pointer<CipherBirdBuffer>,
           )
-        >('cryptolib_sealed_sealer_finalize')(
+        >('cipherbird_sealed_sealer_finalize')(
           h,
           pl,
           last?.length ?? 0,
@@ -41,5 +41,5 @@ extension CipherBirdSealedSealerFinish on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_sealed_sealer_free')(h);
+      >('cipherbird_sealed_sealer_free')(h);
 }

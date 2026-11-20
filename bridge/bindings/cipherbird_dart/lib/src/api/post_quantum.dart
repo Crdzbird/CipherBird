@@ -6,7 +6,7 @@ extension CipherBirdPostQuantum on CipherBird {
     _lib.lookupFunction<
       CipherBirdKeyPair Function(Int32),
       CipherBirdKeyPair Function(int)
-    >('cryptolib_ml_kem_keygen')(level.value),
+    >('cipherbird_ml_kem_keygen')(level.value),
   );
 
   /// Returns (ciphertext, sharedSecret).
@@ -32,7 +32,7 @@ extension CipherBirdPostQuantum on CipherBird {
               Pointer<Pointer<Utf8>>,
             )
           >(
-            'cryptolib_ml_kem_encapsulate',
+            'cipherbird_ml_kem_encapsulate',
           )(pp, publicKey.length, level.value, errPtr);
       if (errPtr.value != nullptr) {
         final m = errPtr.value.toDartString();
@@ -69,7 +69,7 @@ extension CipherBirdPostQuantum on CipherBird {
             int,
             int,
           )
-        >('cryptolib_ml_kem_decapsulate')(
+        >('cipherbird_ml_kem_decapsulate')(
           cp,
           ciphertext.length,
           sp,
@@ -88,7 +88,7 @@ extension CipherBirdPostQuantum on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_hybrid_kem_keygen',
+      'cipherbird_hybrid_kem_keygen',
     )(),
   );
 }

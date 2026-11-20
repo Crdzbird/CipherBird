@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry13 = {
-  'cryptolib_sealed_open':
+  'cipherbird_sealed_open':
       (
         int tier,
         Pointer<NativeType> envelope,
@@ -17,7 +17,7 @@ final Map<String, Function> _registry13 = {
         Pointer<NativeType> purpose,
         int purposeLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_open',
+        '_cbw_cipherbird_sealed_open',
         [
           tier.toJS,
           envelope.address.toJS,
@@ -36,26 +36,26 @@ final Map<String, Function> _registry13 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealed_inspect': (Pointer<NativeType> envelope, int envLen) =>
+  'cipherbird_sealed_inspect': (Pointer<NativeType> envelope, int envLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_inspect',
+        '_cbw_cipherbird_sealed_inspect',
         [envelope.address.toJS, envLen.toJS],
         CipherBirdSealedInfo.size,
         CipherBirdSealedInfo._new,
       ),
-  'cryptolib_sealed_addressed_to':
+  'cipherbird_sealed_addressed_to':
       (
         Pointer<NativeType> envelope,
         int envLen,
         Pointer<NativeType> recipientPublic,
         int rpubLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_sealed_addressed_to', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_sealed_addressed_to', [
         envelope.address.toJS,
         envLen.toJS,
         recipientPublic.address.toJS,
         rpubLen.toJS,
       ]),
-  'cryptolib_sealed_sealer_begin':
+  'cipherbird_sealed_sealer_begin':
       (
         int tier,
         Pointer<NativeType> recipientPublic,
@@ -66,7 +66,7 @@ final Map<String, Function> _registry13 = {
         int purposeLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_sealed_sealer_begin', [
+        WebEngine.current.callInt('_cbw_cipherbird_sealed_sealer_begin', [
           tier.toJS,
           recipientPublic.address.toJS,
           rpubLen.toJS,
@@ -77,9 +77,9 @@ final Map<String, Function> _registry13 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_sealed_sealer_preamble': (Pointer<NativeType> h) =>
+  'cipherbird_sealed_sealer_preamble': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_sealer_preamble',
+        '_cbw_cipherbird_sealed_sealer_preamble',
         [h.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,

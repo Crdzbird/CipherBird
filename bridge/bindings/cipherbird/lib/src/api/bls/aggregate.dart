@@ -22,7 +22,7 @@ extension CipherBirdBlsAggregate on CipherBird {
             Pointer<Size>,
             int,
           )
-        >('cryptolib_bls_aggregate')(ptrs, lens, sigs.length),
+        >('cipherbird_bls_aggregate')(ptrs, lens, sigs.length),
       );
     } finally {
       _freeNativeList(ptrs, lens, sigs.length);
@@ -70,7 +70,7 @@ extension CipherBirdBlsAggregate on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_bls_aggregate_verify')(
+          >('cipherbird_bls_aggregate_verify')(
             mPtrs,
             mLens,
             pPtrs,

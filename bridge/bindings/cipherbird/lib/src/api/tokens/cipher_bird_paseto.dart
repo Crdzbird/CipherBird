@@ -15,8 +15,8 @@ extension CipherBirdPaseto on CipherBird {
     Uint8List? footer,
     Uint8List? implicit,
   }) => _tokenSeal(
-    'cryptolib_paseto_v4_local_encrypt_len',
-    'cryptolib_paseto_v4_local_encrypt',
+    'cipherbird_paseto_v4_local_encrypt_len',
+    'cipherbird_paseto_v4_local_encrypt',
     'PASETO v4.local',
     key,
     message,
@@ -35,8 +35,8 @@ extension CipherBirdPaseto on CipherBird {
     Uint8List? expectedFooter,
     Uint8List? implicit,
   }) => _tokenOpen(
-    'cryptolib_paseto_v4_local_decrypt_cap',
-    'cryptolib_paseto_v4_local_decrypt',
+    'cipherbird_paseto_v4_local_decrypt_cap',
+    'cipherbird_paseto_v4_local_decrypt',
     'PASETO v4.local',
     token,
     key,

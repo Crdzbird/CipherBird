@@ -3,7 +3,7 @@
 // CipherBird Swift Package
 // ━━━━━━━━━━━━━━━━━━━━━━━━
 // Consumes the prebuilt CipherBird.xcframework at the repo root (produced by
-// `./scripts/ios/build_all.sh`). The XCFramework bundles libcryptolib_c plus
+// `./scripts/ios/build_all.sh`). The XCFramework bundles libcipherbird_c plus
 // every dependency (libsodium, libblake3, libcrypto, liboqs, libblst) as a
 // single self-contained static archive per slice — no dylib loading, no
 // RPATH games.
@@ -19,7 +19,7 @@
 //
 // then
 //
-//     import CipherBirdC    // raw C FFI (cryptolib_blake2b, cryptolib_vault_*, …)
+//     import CipherBirdC    // raw C FFI (cipherbird_blake2b, cipherbird_vault_*, …)
 //
 // The executable demo target (`CipherBirdDemo`) is macOS-only by design:
 // the XCFramework makes the bridge reusable on iOS, but the SwiftUI demo

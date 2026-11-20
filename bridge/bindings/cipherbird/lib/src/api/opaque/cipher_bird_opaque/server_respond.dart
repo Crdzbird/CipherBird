@@ -28,7 +28,7 @@ extension CipherBirdOpaqueServerRespond on CipherBird {
     try {
       final r =
           _lib.lookupFunction<_OpaqueServerRespondC, _OpaqueServerRespondDart>(
-            'cryptolib_opaque_server_respond',
+            'cipherbird_opaque_server_respond',
           )(
             ptrs[0],
             context.length,

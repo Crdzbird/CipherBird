@@ -27,7 +27,7 @@ extension CipherBirdFrostCommitWithNonces on CipherBird {
               int,
             )
           >(
-            'cryptolib_frost_commit_with_nonces',
+            'cipherbird_frost_commit_with_nonces',
           )(identifier, ph, hiding.length, pb, binding.length);
       return _frostCommitOut(c, identifier);
     } finally {
@@ -72,7 +72,7 @@ extension CipherBirdFrostCommitWithNonces on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdFrostCommit>),
       void Function(Pointer<CipherBirdFrostCommit>)
-    >('cryptolib_frost_commit_free')(p);
+    >('cipherbird_frost_commit_free')(p);
     calloc.free(p);
   }
 

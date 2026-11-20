@@ -30,7 +30,7 @@ extension CipherBirdSymmetricCommittingDecrypt on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_committing_decrypt')(
+        >('cipherbird_committing_decrypt')(
           pc,
           ciphertext.length,
           pk,

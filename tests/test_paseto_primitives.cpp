@@ -1,5 +1,5 @@
 #include "test_framework.hpp"
-#include "../bridge/cryptolib_c.h"
+#include "../bridge/cipherbird_c.h"
 #include <string>
 #include <vector>
 using namespace test;
@@ -22,21 +22,21 @@ std::vector<uint8_t> counting(size_t n, uint8_t start = 0) {
 }
 
 std::string abi_hex(CryptoBufferResult r) {
-    if (r.error) { cryptolib_str_free(r.error); cryptolib_buffer_free(&r.buf); return "error"; }
+    if (r.error) { cipherbird_str_free(r.error); cipherbird_buffer_free(&r.buf); return "error"; }
     std::string s = hex_of(r.buf.data, r.buf.len);
-    cryptolib_buffer_free(&r.buf);
+    cipherbird_buffer_free(&r.buf);
     return s;
 }
 
 bool abi_fails(CryptoBufferResult r) {
     const bool failed = r.error != nullptr && r.buf.data == nullptr && r.buf.len == 0;
-    if (r.error) cryptolib_str_free(r.error);
-    cryptolib_buffer_free(&r.buf);
+    if (r.error) cipherbird_str_free(r.error);
+    cipherbird_buffer_free(&r.buf);
     return failed;
 }
 
 std::string b2(std::span<const uint8_t> msg, std::span<const uint8_t> key, size_t out_len) {
-    return abi_hex(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), key.size(), out_len));
+    return abi_hex(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), key.size(), out_len));
 }
 
 const char* const kGenerichashExp32 =
@@ -51,7 +51,7 @@ const char* const kGenerichashExp64 =
 }
 
 TEST("paseto/blake2b-keyed/libsodium-generichash-exp-32-56-64") {
-    REQUIRE(cryptolib_init() == 0);
+    REQUIRE(cipherbird_init() == 0);
     for (size_t n : {size_t{32}, size_t{56}, size_t{64}}) {
         const auto key = counting(n);
         const auto msg = counting(n - 1);
@@ -96,24 +96,24 @@ TEST("paseto/blake2b-keyed/unkeyed-length-is-a-parameter-not-a-truncation") {
     CHECK(b2(abc, {}, 32) ==
           "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319");
     CHECK(b2(abc, {}, 1) == "6b");
-    CHECK(abi_hex(cryptolib_blake2b(abc.data(), abc.size(), nullptr, 0)) == b2(abc, {}, 64));
+    CHECK(abi_hex(cipherbird_blake2b(abc.data(), abc.size(), nullptr, 0)) == b2(abc, {}, 64));
     const uint8_t ignored = 0;
-    CHECK(abi_hex(cryptolib_blake2b_keyed(abc.data(), abc.size(), &ignored, 0, 32)) == b2(abc, {}, 32));
+    CHECK(abi_hex(cipherbird_blake2b_keyed(abc.data(), abc.size(), &ignored, 0, 32)) == b2(abc, {}, 32));
 }
 
 TEST("paseto/blake2b-keyed/rejects-bad-lengths-and-null-pointers") {
     const auto key = counting(64);
     const auto msg = sv2sp("m");
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, 0)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, 65)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, SIZE_MAX)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 1, 32)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 15, 32)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), key.data(), 65, 32)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(nullptr, 1, key.data(), 32, 32)));
-    CHECK(abi_fails(cryptolib_blake2b_keyed(msg.data(), msg.size(), nullptr, 32, 32)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, 0)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, 65)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 32, SIZE_MAX)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 1, 32)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 15, 32)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), key.data(), 65, 32)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(nullptr, 1, key.data(), 32, 32)));
+    CHECK(abi_fails(cipherbird_blake2b_keyed(msg.data(), msg.size(), nullptr, 32, 32)));
     CHECK(b2(msg, std::span<const uint8_t>(key.data(), 16), 32) != "error");
-    CHECK(abi_hex(cryptolib_blake2b_keyed(nullptr, 0, key.data(), 32, 32)) == b2({}, std::span<const uint8_t>(key.data(), 32), 32));
+    CHECK(abi_hex(cipherbird_blake2b_keyed(nullptr, 0, key.data(), 32, 32)) == b2({}, std::span<const uint8_t>(key.data(), 32), 32));
     CHECK_ERR(B2::compute(msg, std::span<const uint8_t>(key.data(), 15), 32));
     CHECK_ERR(B2::compute(msg, key, 0));
 }
@@ -123,20 +123,20 @@ TEST("paseto/blake2b-keyed-into/writes-the-same-digest-without-allocating") {
     const auto msg = counting(77, 3);
     for (size_t n : {size_t{1}, size_t{32}, size_t{56}, size_t{64}}) {
         std::vector<uint8_t> out(n + 1, 0xEE);
-        CHECK(cryptolib_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), key.data(), key.size()) == CRYPTOLIB_PASETO_OK);
+        CHECK(cipherbird_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), key.data(), key.size()) == CIPHERBIRD_PASETO_OK);
         CHECK(hex_of(out.data(), n) == b2(msg, key, n));
         CHECK(out[n] == 0xEE);
-        CHECK(cryptolib_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), nullptr, 0) == CRYPTOLIB_PASETO_OK);
+        CHECK(cipherbird_blake2b_keyed_into(out.data(), n, msg.data(), msg.size(), nullptr, 0) == CIPHERBIRD_PASETO_OK);
         CHECK(hex_of(out.data(), n) == b2(msg, {}, n));
     }
     uint8_t one[64];
-    CHECK(cryptolib_blake2b_keyed_into(one, 0, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(one, 65, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(nullptr, 32, msg.data(), msg.size(), key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(one, 32, nullptr, 1, key.data(), 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(one, 32, msg.data(), msg.size(), key.data(), 15) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(one, 32, msg.data(), msg.size(), nullptr, 32) == CRYPTOLIB_PASETO_ERR_ARGUMENT);
-    CHECK(cryptolib_blake2b_keyed_into(one, 32, nullptr, 0, key.data(), 32) == CRYPTOLIB_PASETO_OK);
+    CHECK(cipherbird_blake2b_keyed_into(one, 0, msg.data(), msg.size(), key.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(one, 65, msg.data(), msg.size(), key.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(nullptr, 32, msg.data(), msg.size(), key.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(one, 32, nullptr, 1, key.data(), 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(one, 32, msg.data(), msg.size(), key.data(), 15) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(one, 32, msg.data(), msg.size(), nullptr, 32) == CIPHERBIRD_PASETO_ERR_ARGUMENT);
+    CHECK(cipherbird_blake2b_keyed_into(one, 32, nullptr, 0, key.data(), 32) == CIPHERBIRD_PASETO_OK);
     CHECK(hex_of(one, 32) == b2({}, std::span<const uint8_t>(key.data(), 32), 32));
 }
 

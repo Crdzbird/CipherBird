@@ -35,7 +35,7 @@ extension CipherBirdMolecularOpenWithKey on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_molecular_open_with_key')(
+        >('cipherbird_molecular_open_with_key')(
           pe,
           envelope.length,
           pk,

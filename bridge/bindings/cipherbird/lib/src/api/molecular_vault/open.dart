@@ -48,7 +48,7 @@ extension CipherBirdMolecularOpen on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_molecular_open')(
+        >('cipherbird_molecular_open')(
           pe,
           envelope.length,
           cpw,

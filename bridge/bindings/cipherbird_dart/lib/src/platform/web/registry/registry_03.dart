@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry03 = {
-  'cryptolib_xchacha20_decrypt':
+  'cipherbird_xchacha20_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry03 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_xchacha20_decrypt',
+        '_cbw_cipherbird_xchacha20_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -22,14 +22,14 @@ final Map<String, Function> _registry03 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_paseto_v4_local_encrypt_len': (int msgLen, int footerLen) =>
-      WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_encrypt_len', [
+  'cipherbird_paseto_v4_local_encrypt_len': (int msgLen, int footerLen) =>
+      WebEngine.current.callInt('_cbw_cipherbird_paseto_v4_local_encrypt_len', [
         msgLen.toJS,
         footerLen.toJS,
       ]),
-  'cryptolib_paseto_v4_local_decrypt_cap': (int tokenLen) => WebEngine.current
-      .callInt('_cbw_cryptolib_paseto_v4_local_decrypt_cap', [tokenLen.toJS]),
-  'cryptolib_paseto_v4_local_encrypt':
+  'cipherbird_paseto_v4_local_decrypt_cap': (int tokenLen) => WebEngine.current
+      .callInt('_cbw_cipherbird_paseto_v4_local_decrypt_cap', [tokenLen.toJS]),
+  'cipherbird_paseto_v4_local_encrypt':
       (
         Pointer<NativeType> out,
         int outCap,
@@ -42,7 +42,7 @@ final Map<String, Function> _registry03 = {
         int footerLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_encrypt', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_paseto_v4_local_encrypt', [
         out.address.toJS,
         outCap.toJS,
         outLen.address.toJS,
@@ -55,7 +55,7 @@ final Map<String, Function> _registry03 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_paseto_v4_local_decrypt':
+  'cipherbird_paseto_v4_local_decrypt':
       (
         Pointer<NativeType> out,
         int outCap,
@@ -68,7 +68,7 @@ final Map<String, Function> _registry03 = {
         int expectedFooterLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_paseto_v4_local_decrypt', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_paseto_v4_local_decrypt', [
         out.address.toJS,
         outCap.toJS,
         outLen.address.toJS,

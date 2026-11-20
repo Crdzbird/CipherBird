@@ -1,10 +1,10 @@
 /* The fips profile against a real OpenSSL FIPS Provider. The module location */
-/* comes from CRYPTOLIB_FIPS_MODULE_DIR and CRYPTOLIB_FIPS_CONFIG; without */
+/* comes from CIPHERBIRD_FIPS_MODULE_DIR and CIPHERBIRD_FIPS_CONFIG; without */
 /* them the suite reports the provider as unavailable and fails, because a */
 /* fips build that cannot reach its module is not a working build. */
 #include "test_framework.hpp"
-#ifdef CRYPTOLIB_HAS_FIPS_PROVIDER
-#include <cryptolib/fips/fips.hpp>
+#ifdef CIPHERBIRD_HAS_FIPS_PROVIDER
+#include <cipherbird/fips/fips.hpp>
 #include <cstdint>
 #include <string>
 #include <vector>

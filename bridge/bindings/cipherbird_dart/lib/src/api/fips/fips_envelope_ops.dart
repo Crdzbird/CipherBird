@@ -17,7 +17,7 @@ extension CipherBirdFipsEnvelopeOps on CipherBird {
             Uint32,
           ),
           CipherBirdResult Function(Pointer<Void>, Pointer<Uint8>, int, int)
-        >('cryptolib_fips_envelope_add_passphrase_slot')(
+        >('cipherbird_fips_envelope_add_passphrase_slot')(
           h,
           passphrasePtr,
           passphrase.length,
@@ -36,7 +36,7 @@ extension CipherBirdFipsEnvelopeOps on CipherBird {
         _lib.lookupFunction<
           CipherBirdResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_fips_envelope_add_key_slot')(h, factorPtr, factor.length),
+        >('cipherbird_fips_envelope_add_key_slot')(h, factorPtr, factor.length),
       );
     } finally {
       if (factorPtr != nullptr) calloc.free(factorPtr);
@@ -53,7 +53,7 @@ extension CipherBirdFipsEnvelopeOps on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_fips_envelope_unlock_with_passphrase')(
+        >('cipherbird_fips_envelope_unlock_with_passphrase')(
           h,
           passphrasePtr,
           passphrase.length,
@@ -71,7 +71,7 @@ extension CipherBirdFipsEnvelopeOps on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_fips_envelope_unlock_with_key')(
+        >('cipherbird_fips_envelope_unlock_with_key')(
           h,
           factorPtr,
           factor.length,

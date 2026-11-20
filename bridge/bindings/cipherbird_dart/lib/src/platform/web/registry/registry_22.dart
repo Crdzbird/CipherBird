@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry22 = {
-  'cryptolib_noise_create':
+  'cipherbird_noise_create':
       (
         int initiator,
         Pointer<NativeType> staticPublic,
@@ -11,7 +11,7 @@ final Map<String, Function> _registry22 = {
         Pointer<NativeType> prologue,
         int prologueLen,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_noise_create', [
+        WebEngine.current.callInt('_cbw_cipherbird_noise_create', [
           initiator.toJS,
           staticPublic.address.toJS,
           staticPublicLen.toJS,
@@ -21,42 +21,42 @@ final Map<String, Function> _registry22 = {
           prologueLen.toJS,
         ]),
       ),
-  'cryptolib_noise_write_message':
+  'cipherbird_noise_write_message':
       (Pointer<NativeType> h, Pointer<NativeType> payload, int payloadLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_noise_write_message',
+            '_cbw_cipherbird_noise_write_message',
             [h.address.toJS, payload.address.toJS, payloadLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_noise_read_message':
+  'cipherbird_noise_read_message':
       (Pointer<NativeType> h, Pointer<NativeType> message, int messageLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_noise_read_message',
+            '_cbw_cipherbird_noise_read_message',
             [h.address.toJS, message.address.toJS, messageLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_noise_handshake_finished': (Pointer<NativeType> h) => WebEngine
+  'cipherbird_noise_handshake_finished': (Pointer<NativeType> h) => WebEngine
       .current
-      .callInt('_cbw_cryptolib_noise_handshake_finished', [h.address.toJS]),
-  'cryptolib_noise_handshake_hash': (Pointer<NativeType> h) =>
+      .callInt('_cbw_cipherbird_noise_handshake_finished', [h.address.toJS]),
+  'cipherbird_noise_handshake_hash': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_handshake_hash',
+        '_cbw_cipherbird_noise_handshake_hash',
         [h.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_noise_remote_static': (Pointer<NativeType> h) =>
+  'cipherbird_noise_remote_static': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_remote_static',
+        '_cbw_cipherbird_noise_remote_static',
         [h.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_noise_split': (Pointer<NativeType> h) =>
-      WebEngine.current.callInt('_cbw_cryptolib_noise_split', [h.address.toJS]),
-  'cryptolib_noise_encrypt':
+  'cipherbird_noise_split': (Pointer<NativeType> h) =>
+      WebEngine.current.callInt('_cbw_cipherbird_noise_split', [h.address.toJS]),
+  'cipherbird_noise_encrypt':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> plaintext,
@@ -64,7 +64,7 @@ final Map<String, Function> _registry22 = {
         Pointer<NativeType> ad,
         int adLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_encrypt',
+        '_cbw_cipherbird_noise_encrypt',
         [
           h.address.toJS,
           plaintext.address.toJS,

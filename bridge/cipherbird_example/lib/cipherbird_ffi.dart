@@ -3,8 +3,8 @@
 // Loads the native library from:
 //   • iOS:     process-linked (symbols are part of the app binary via the
 //              vendored CipherBird.xcframework → Embed & Sign)
-//   • Android: libcryptolib_c.so (placed in android/app/src/main/jniLibs/<abi>/)
-//   • macOS:   libcryptolib_c.dylib (the existing Homebrew build)
+//   • Android: libcipherbird_c.so (placed in android/app/src/main/jniLibs/<abi>/)
+//   • macOS:   libcipherbird_c.dylib (the existing Homebrew build)
 //
 // Exposes only a handful of C FFI functions — enough to prove the bridge
 // works end-to-end on every platform. See bridge/flutter/lib/cipherbird_ffi.dart
@@ -15,7 +15,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
-/// libcryptolib_c loaded on whichever platform we're running on.
+/// libcipherbird_c loaded on whichever platform we're running on.
 DynamicLibrary _openLib() {
   if (Platform.isIOS) {
     // On iOS the static archive from CipherBird.xcframework is linked into
@@ -23,13 +23,13 @@ DynamicLibrary _openLib() {
     return DynamicLibrary.process();
   }
   if (Platform.isAndroid) {
-    return DynamicLibrary.open('libcryptolib_c.so');
+    return DynamicLibrary.open('libcipherbird_c.so');
   }
   if (Platform.isMacOS) {
-    return DynamicLibrary.open('libcryptolib_c.dylib');
+    return DynamicLibrary.open('libcipherbird_c.dylib');
   }
   if (Platform.isLinux) {
-    return DynamicLibrary.open('libcryptolib_c.so');
+    return DynamicLibrary.open('libcipherbird_c.so');
   }
   throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
 }
@@ -87,15 +87,15 @@ typedef _BoolSpanDart = int Function(
 
 // ─── Lookups (lazy, cached) ────────────────────────────────────────────────
 
-final _init        = _dylib.lookupFunction<_InitC, _InitDart>('cryptolib_init');
-final _version     = _dylib.lookupFunction<_VersionC, _VersionDart>('cryptolib_version');
-final _blake2b     = _dylib.lookupFunction<_Blake2bC, _Blake2bDart>('cryptolib_blake2b');
-final _symKeygen   = _dylib.lookupFunction<_SymKeygenC, _SymKeygenDart>('cryptolib_sym_keygen');
-final _xchaEncrypt = _dylib.lookupFunction<_EncryptC, _EncryptDart>('cryptolib_xchacha20_encrypt');
-final _xchaDecrypt = _dylib.lookupFunction<_EncryptC, _EncryptDart>('cryptolib_xchacha20_decrypt');
-final _bufFree     = _dylib.lookupFunction<_FreeBufC, _FreeBufDart>('cryptolib_buffer_free');
-final _strFree     = _dylib.lookupFunction<_FreeStrC, _FreeStrDart>('cryptolib_str_free');
-final _secEqual    = _dylib.lookupFunction<_BoolSpanC, _BoolSpanDart>('cryptolib_secure_equal');
+final _init        = _dylib.lookupFunction<_InitC, _InitDart>('cipherbird_init');
+final _version     = _dylib.lookupFunction<_VersionC, _VersionDart>('cipherbird_version');
+final _blake2b     = _dylib.lookupFunction<_Blake2bC, _Blake2bDart>('cipherbird_blake2b');
+final _symKeygen   = _dylib.lookupFunction<_SymKeygenC, _SymKeygenDart>('cipherbird_sym_keygen');
+final _xchaEncrypt = _dylib.lookupFunction<_EncryptC, _EncryptDart>('cipherbird_xchacha20_encrypt');
+final _xchaDecrypt = _dylib.lookupFunction<_EncryptC, _EncryptDart>('cipherbird_xchacha20_decrypt');
+final _bufFree     = _dylib.lookupFunction<_FreeBufC, _FreeBufDart>('cipherbird_buffer_free');
+final _strFree     = _dylib.lookupFunction<_FreeStrC, _FreeStrDart>('cipherbird_str_free');
+final _secEqual    = _dylib.lookupFunction<_BoolSpanC, _BoolSpanDart>('cipherbird_secure_equal');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ Pointer<Uint8> _toNative(Uint8List data) {
 class CipherBird {
   /// Initialise libsodium. Call once at startup.
   static void init() {
-    if (_init() != 0) throw CryptoException('cryptolib_init failed');
+    if (_init() != 0) throw CryptoException('cipherbird_init failed');
   }
 
   /// Version string baked into the native library.

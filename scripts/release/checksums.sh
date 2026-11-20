@@ -13,9 +13,9 @@ sha() { command -v sha256sum >/dev/null && sha256sum "$@" || shasum -a 256 "$@";
 
 # Candidate release artifacts (only those that exist are hashed).
 CANDIDATES=(
-  build/selfcontained/libcryptolib_c.dylib
-  build/android-arm64-v8a/libcryptolib_c.so
-  build/android-x86_64/libcryptolib_c.so
+  build/selfcontained/libcipherbird_c.dylib
+  build/android-arm64-v8a/libcipherbird_c.so
+  build/android-x86_64/libcipherbird_c.so
   bridge/bindings/cipherbird-node/prebuilds/darwin-arm64/libcipherbird.dylib
   bridge/bindings/cipherbird-jvm/native/darwin-arm64/libcipherbird.dylib
   bridge/bindings/cipherbird-dotnet/runtimes/osx-arm64/native/libcipherbird.dylib

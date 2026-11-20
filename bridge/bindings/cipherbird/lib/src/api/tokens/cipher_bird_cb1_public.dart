@@ -18,8 +18,8 @@ extension CipherBirdCb1Public on CipherBird {
     Uint8List? footer,
     Uint8List? implicit,
   }) => _tokenSeal(
-    'cryptolib_cb1_public_sign_len',
-    'cryptolib_cb1_public_sign',
+    'cipherbird_cb1_public_sign_len',
+    'cipherbird_cb1_public_sign',
     'cb1.public',
     secretKey,
     message,
@@ -36,8 +36,8 @@ extension CipherBirdCb1Public on CipherBird {
     Uint8List? expectedFooter,
     Uint8List? implicit,
   }) => _tokenOpen(
-    'cryptolib_cb1_public_verify_cap',
-    'cryptolib_cb1_public_verify',
+    'cipherbird_cb1_public_verify_cap',
+    'cipherbird_cb1_public_verify',
     'cb1.public',
     token,
     publicKey,

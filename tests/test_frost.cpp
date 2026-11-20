@@ -2,7 +2,7 @@
 // Validated against the RFC's official test vectors + end-to-end threshold props.
 #include "test_framework.hpp"
 
-#include <cryptolib/frost.hpp>
+#include <cipherbird/frost.hpp>
 
 #include <cstdint>
 #include <string>

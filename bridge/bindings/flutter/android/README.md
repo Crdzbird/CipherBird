@@ -10,10 +10,10 @@ flutter build apk --debug        # or: flutter run -d <device>
 
 ## How it's wired
 
-1. **Native library in `jniLibs`.** `libcryptolib_c.so` is expected per ABI at
-   `app/src/main/jniLibs/<abi>/libcryptolib_c.so`. The Android Gradle plugin
+1. **Native library in `jniLibs`.** `libcipherbird_c.so` is expected per ABI at
+   `app/src/main/jniLibs/<abi>/libcipherbird_c.so`. The Android Gradle plugin
    packages everything under `jniLibs/` into the APK (`lib/<abi>/...`), and the
-   Dart loader resolves it with `DynamicLibrary.open('libcryptolib_c.so')`
+   Dart loader resolves it with `DynamicLibrary.open('libcipherbird_c.so')`
    (see `lib/cipherbird_ffi.dart`).
 
    The two ABIs the build produces: `arm64-v8a` (most devices and
@@ -26,9 +26,9 @@ flutter build apk --debug        # or: flutter run -d <device>
    # from the repo root: build the Android slices
    make android                        # arm64-v8a + x86_64, into build/android-<abi>/
 
-   cp build/android-arm64-v8a/libcryptolib_c.so \
+   cp build/android-arm64-v8a/libcipherbird_c.so \
       bridge/bindings/flutter/android/app/src/main/jniLibs/arm64-v8a/
-   cp build/android-x86_64/libcryptolib_c.so \
+   cp build/android-x86_64/libcipherbird_c.so \
       bridge/bindings/flutter/android/app/src/main/jniLibs/x86_64/
    ```
 

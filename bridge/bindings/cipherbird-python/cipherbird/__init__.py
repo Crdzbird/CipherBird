@@ -70,47 +70,47 @@ def _bind(name, restype, argtypes):
     return fn
 
 
-_init        = _bind("cryptolib_init",          c_int, [])
-_version     = _bind("cryptolib_version",       c_char_p, [])
-_random      = _bind("cryptolib_random_bytes",  _CryptoBufferResult, [c_size_t])
-_sha256      = _bind("cryptolib_sha256",        _CryptoBufferResult, [POINTER(c_uint8), c_size_t])
-_hyKg        = _bind("cryptolib_hybrid_kem_keygen",       _CryptoKeyPair,         [])
-_hyEn        = _bind("cryptolib_hybrid_kem_encapsulate",  _CryptoKemEncapsResult, [POINTER(c_uint8), c_size_t, POINTER(c_void_p)])
-_hyDe        = _bind("cryptolib_hybrid_kem_decapsulate",  _CryptoBufferResult,    [POINTER(c_uint8), c_size_t, POINTER(c_uint8), c_size_t])
-_buffer_free = _bind("cryptolib_buffer_free",       None, [POINTER(_CryptoBuffer)])
-_kp_free     = _bind("cryptolib_keypair_free",      None, [POINTER(_CryptoKeyPair)])
-_kem_free    = _bind("cryptolib_kem_encaps_free",   None, [POINTER(_CryptoKemEncapsResult)])
-_str_free    = _bind("cryptolib_str_free",          None, [c_void_p])
+_init        = _bind("cipherbird_init",          c_int, [])
+_version     = _bind("cipherbird_version",       c_char_p, [])
+_random      = _bind("cipherbird_random_bytes",  _CryptoBufferResult, [c_size_t])
+_sha256      = _bind("cipherbird_sha256",        _CryptoBufferResult, [POINTER(c_uint8), c_size_t])
+_hyKg        = _bind("cipherbird_hybrid_kem_keygen",       _CryptoKeyPair,         [])
+_hyEn        = _bind("cipherbird_hybrid_kem_encapsulate",  _CryptoKemEncapsResult, [POINTER(c_uint8), c_size_t, POINTER(c_void_p)])
+_hyDe        = _bind("cipherbird_hybrid_kem_decapsulate",  _CryptoBufferResult,    [POINTER(c_uint8), c_size_t, POINTER(c_uint8), c_size_t])
+_buffer_free = _bind("cipherbird_buffer_free",       None, [POINTER(_CryptoBuffer)])
+_kp_free     = _bind("cipherbird_keypair_free",      None, [POINTER(_CryptoKeyPair)])
+_kem_free    = _bind("cipherbird_kem_encaps_free",   None, [POINTER(_CryptoKemEncapsResult)])
+_str_free    = _bind("cipherbird_str_free",          None, [c_void_p])
 
 # Primitives the composable Recipe pipeline is built from.
 _U8 = POINTER(c_uint8)
 _AEAD_ARGS = [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t]
-_argon2id   = _bind("cryptolib_argon2id_derive", _CryptoBufferResult,
+_argon2id   = _bind("cipherbird_argon2id_derive", _CryptoBufferResult,
                     [c_char_p, _U8, c_size_t, c_size_t, _C.c_uint64, c_size_t])
-_hkdf       = _bind("cryptolib_hkdf_derive", _CryptoBufferResult,
+_hkdf       = _bind("cipherbird_hkdf_derive", _CryptoBufferResult,
                     [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t, c_size_t])
-_xenc       = _bind("cryptolib_xchacha20_encrypt", _CryptoBufferResult, _AEAD_ARGS)
-_xdec       = _bind("cryptolib_xchacha20_decrypt", _CryptoBufferResult, _AEAD_ARGS)
-_aesenc     = _bind("cryptolib_aes256gcm_encrypt", _CryptoBufferResult, _AEAD_ARGS)
-_aesdec     = _bind("cryptolib_aes256gcm_decrypt", _CryptoBufferResult, _AEAD_ARGS)
-_cmtenc     = _bind("cryptolib_committing_encrypt", _CryptoBufferResult, _AEAD_ARGS)
-_cmtdec     = _bind("cryptolib_committing_decrypt", _CryptoBufferResult, _AEAD_ARGS)
-_molseal    = _bind("cryptolib_molecular_seal_with_key", _CryptoBufferResult, _AEAD_ARGS)
-_molopen    = _bind("cryptolib_molecular_open_with_key", _CryptoBufferResult, _AEAD_ARGS)
-_edkg       = _bind("cryptolib_ed25519_keygen", _CryptoKeyPair, [])
-_edkgseed   = _bind("cryptolib_ed25519_keygen_from_seed", _CryptoKeyPair, [_U8, c_size_t])
-_edsign     = _bind("cryptolib_ed25519_sign", _CryptoBufferResult, [_U8, c_size_t, _U8, c_size_t])
-_edverify   = _bind("cryptolib_ed25519_verify", c_int, [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t])
-_hysigkg    = _bind("cryptolib_hybrid_sig_keygen", _CryptoKeyPair, [])
-_hysign     = _bind("cryptolib_hybrid_sig_sign", _CryptoBufferResult, [_U8, c_size_t, _U8, c_size_t])
-_hyverify   = _bind("cryptolib_hybrid_sig_verify", c_int, [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t])
-_entdet     = _bind("cryptolib_entropy_from_file_deterministic", c_void_p, [c_char_p, POINTER(c_void_p)])
-_entsym     = _bind("cryptolib_entropy_symmetric_key", _CryptoBufferResult, [c_void_p])
-_entfree    = _bind("cryptolib_entropy_free", None, [c_void_p])
-_stegoemb   = _bind("cryptolib_stego_embed", _CryptoResult, [c_char_p, _U8, c_size_t, c_char_p])
-_stegoext   = _bind("cryptolib_stego_extract", _CryptoBufferResult, [c_char_p])
-_fecenc     = _bind("cryptolib_fec_encode", _CryptoBufferResult, [_U8, c_size_t, c_int])
-_fecdec     = _bind("cryptolib_fec_decode", _CryptoBufferResult, [_U8, c_size_t, c_int, c_size_t])
+_xenc       = _bind("cipherbird_xchacha20_encrypt", _CryptoBufferResult, _AEAD_ARGS)
+_xdec       = _bind("cipherbird_xchacha20_decrypt", _CryptoBufferResult, _AEAD_ARGS)
+_aesenc     = _bind("cipherbird_aes256gcm_encrypt", _CryptoBufferResult, _AEAD_ARGS)
+_aesdec     = _bind("cipherbird_aes256gcm_decrypt", _CryptoBufferResult, _AEAD_ARGS)
+_cmtenc     = _bind("cipherbird_committing_encrypt", _CryptoBufferResult, _AEAD_ARGS)
+_cmtdec     = _bind("cipherbird_committing_decrypt", _CryptoBufferResult, _AEAD_ARGS)
+_molseal    = _bind("cipherbird_molecular_seal_with_key", _CryptoBufferResult, _AEAD_ARGS)
+_molopen    = _bind("cipherbird_molecular_open_with_key", _CryptoBufferResult, _AEAD_ARGS)
+_edkg       = _bind("cipherbird_ed25519_keygen", _CryptoKeyPair, [])
+_edkgseed   = _bind("cipherbird_ed25519_keygen_from_seed", _CryptoKeyPair, [_U8, c_size_t])
+_edsign     = _bind("cipherbird_ed25519_sign", _CryptoBufferResult, [_U8, c_size_t, _U8, c_size_t])
+_edverify   = _bind("cipherbird_ed25519_verify", c_int, [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t])
+_hysigkg    = _bind("cipherbird_hybrid_sig_keygen", _CryptoKeyPair, [])
+_hysign     = _bind("cipherbird_hybrid_sig_sign", _CryptoBufferResult, [_U8, c_size_t, _U8, c_size_t])
+_hyverify   = _bind("cipherbird_hybrid_sig_verify", c_int, [_U8, c_size_t, _U8, c_size_t, _U8, c_size_t])
+_entdet     = _bind("cipherbird_entropy_from_file_deterministic", c_void_p, [c_char_p, POINTER(c_void_p)])
+_entsym     = _bind("cipherbird_entropy_symmetric_key", _CryptoBufferResult, [c_void_p])
+_entfree    = _bind("cipherbird_entropy_free", None, [c_void_p])
+_stegoemb   = _bind("cipherbird_stego_embed", _CryptoResult, [c_char_p, _U8, c_size_t, c_char_p])
+_stegoext   = _bind("cipherbird_stego_extract", _CryptoBufferResult, [c_char_p])
+_fecenc     = _bind("cipherbird_fec_encode", _CryptoBufferResult, [_U8, c_size_t, c_int])
+_fecdec     = _bind("cipherbird_fec_decode", _CryptoBufferResult, [_U8, c_size_t, c_int, c_size_t])
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ class SecretBytes:
 def init() -> None:
     """Initialise libsodium / liboqs runtime state. Idempotent."""
     if _init() != 0:
-        raise RuntimeError("cryptolib_init failed")
+        raise RuntimeError("cipherbird_init failed")
 
 
 def version() -> str:

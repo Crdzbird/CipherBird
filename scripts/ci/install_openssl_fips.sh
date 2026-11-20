@@ -7,8 +7,8 @@
 #
 # Usage: scripts/ci/install_openssl_fips.sh [prefix]   (default: $HOME/openssl-fips)
 # Afterwards:
-#   CRYPTOLIB_FIPS_MODULE_DIR=<prefix>/lib/ossl-modules
-#   CRYPTOLIB_FIPS_CONFIG=<prefix>/ssl/openssl-fips.cnf
+#   CIPHERBIRD_FIPS_MODULE_DIR=<prefix>/lib/ossl-modules
+#   CIPHERBIRD_FIPS_CONFIG=<prefix>/ssl/openssl-fips.cnf
 set -euo pipefail
 
 VERSION="3.1.2"

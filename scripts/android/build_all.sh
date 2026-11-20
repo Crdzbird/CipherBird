@@ -24,11 +24,11 @@ for abi in "${ABIS[@]}"; do
 done
 
 for abi in "${ABIS[@]}"; do
-    printf "\n%s═══ cryptolib_c.so for %s ═══%s\n" "$BOLD$CYN" "$abi" "$RST"
-    "$_SDIR/build_cryptolib_so.sh" "$abi"
+    printf "\n%s═══ cipherbird_c.so for %s ═══%s\n" "$BOLD$CYN" "$abi" "$RST"
+    "$_SDIR/build_cipherbird_so.sh" "$abi"
 done
 
 printf "\n%s✓ Android build done%s\n" "$BOLD$GRN" "$RST"
 for abi in "${ABIS[@]}"; do
-    echo "  $BUILD_ROOT/$abi/libcryptolib_c.so"
+    echo "  $BUILD_ROOT/$abi/libcipherbird_c.so"
 done

@@ -3,7 +3,7 @@
  *
  * Two assurance tiers of one construction: encapsulate -> sign-then-encrypt inside
  * a key-committing cascade, recipient-bound, auth-first. Run against the build:
- * CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node sealed.js
+ * CIPHERBIRD_LIBRARY=../../../build/release/libcipherbird_c.dylib node sealed.js
  */
 'use strict';
 const c = require('./index.js');

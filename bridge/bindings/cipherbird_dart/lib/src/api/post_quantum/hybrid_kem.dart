@@ -19,7 +19,7 @@ extension CipherBirdHybridKem on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_hybrid_kem_encapsulate')(pp, publicKey.length, errPtr);
+          >('cipherbird_hybrid_kem_encapsulate')(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) {
         final m = errPtr.value.toDartString();
         _core.strFree(errPtr.value);
@@ -49,7 +49,7 @@ extension CipherBirdHybridKem on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_hybrid_kem_decapsulate')(
+        >('cipherbird_hybrid_kem_decapsulate')(
           cp,
           ciphertext.length,
           sp,

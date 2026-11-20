@@ -10,7 +10,7 @@
 int main() {
     crypto::init();
     int pass = 0, fail = 0;
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
     std::cout << "CipherBird bank profile showcase\n\n";
     bank_demo::run([&](bool ok, const std::string& label) {
         std::cout << (ok ? "  [OK]   " : "  [FAIL] ") << label << "\n";

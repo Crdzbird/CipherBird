@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry37 = {
-  'cryptolib_bbs_proof_verify_with_pseudonym':
+  'cipherbird_bbs_proof_verify_with_pseudonym':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -23,7 +23,7 @@ final Map<String, Function> _registry37 = {
         Pointer<NativeType> disclosedIndexes,
         int indexesCount,
       ) => WebEngine.current.callInt(
-        '_cbw_cryptolib_bbs_proof_verify_with_pseudonym',
+        '_cbw_cipherbird_bbs_proof_verify_with_pseudonym',
         [
           pk.address.toJS,
           pkLen.toJS,
@@ -48,14 +48,14 @@ final Map<String, Function> _registry37 = {
           indexesCount.toJS,
         ],
       ),
-  'cryptolib_bbs_blind_commit':
+  'cipherbird_bbs_blind_commit':
       (
         Pointer<NativeType> committedMsgs,
         Pointer<NativeType> committedLens,
         int committedCount,
         Pointer<NativeType> secretProverBlind,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_blind_commit',
+        '_cbw_cipherbird_bbs_blind_commit',
         [
           committedMsgs.address.toJS,
           committedLens.address.toJS,

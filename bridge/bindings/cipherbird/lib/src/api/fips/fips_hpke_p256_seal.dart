@@ -38,7 +38,7 @@ extension CipherBirdFipsHpkeP256Seal on CipherBird {
             int,
             Pointer<CipherBirdBuffer>,
           )
-        >('cryptolib_fips_hpke_p256_seal')(
+        >('cipherbird_fips_hpke_p256_seal')(
           pk,
           recipientPublic.length,
           pi,

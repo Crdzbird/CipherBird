@@ -32,7 +32,7 @@ extension CipherBirdBbsCommitWithNym on CipherBird {
             int,
             Pointer<CipherBirdBuffer>,
           )
-        >('cryptolib_bbs_commit_with_nym')(
+        >('cipherbird_bbs_commit_with_nym')(
           cm,
           cl,
           committedMessages.length,

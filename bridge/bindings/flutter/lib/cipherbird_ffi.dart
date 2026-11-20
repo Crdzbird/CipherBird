@@ -1,11 +1,11 @@
 /// CipherBird FFI bindings for Dart/Flutter.
 ///
-/// Wraps the complete C FFI bridge (libcryptolib_c) via dart:ffi.
+/// Wraps the complete C FFI bridge (libcipherbird_c) via dart:ffi.
 /// All 81 C functions are bound.
 ///
 /// Usage:
 /// ```dart
-/// final lib = CipherBird.load('/path/to/libcryptolib_c.dylib');
+/// final lib = CipherBird.load('/path/to/libcipherbird_c.dylib');
 /// lib.init();
 /// ```
 library cipherbird_ffi;
@@ -131,7 +131,7 @@ final class CryptoEntropyInfo extends Struct {
   external double entropyBits;
 }
 
-/// Carrier structural-validity report (cryptolib_stego_inspect).
+/// Carrier structural-validity report (cipherbird_stego_inspect).
 final class CryptoFileInspection extends Struct {
   @Int32()
   external int parses;
@@ -149,7 +149,7 @@ final class CryptoFileInspection extends Struct {
   external Pointer<Utf8> error;
 }
 
-/// SP 800-90B source-health report (cryptolib_entropy_assess_file_health).
+/// SP 800-90B source-health report (cipherbird_entropy_assess_file_health).
 final class CryptoHealthReport extends Struct {
   @Double()
   external double minEntropyPerByte;
@@ -164,7 +164,7 @@ final class CryptoHealthReport extends Struct {
   external Pointer<Utf8> error;
 }
 
-/// Heuristic hidden-data report (cryptolib_stego_detect_hidden). Not proof.
+/// Heuristic hidden-data report (cipherbird_stego_detect_hidden). Not proof.
 final class CryptoHiddenDataReport extends Struct {
   @Int32()
   external int cipherbirdPayload;
@@ -1048,142 +1048,142 @@ class CipherBird {
 
   CipherBird._(this._lib) {
     // Init & version
-    _init = _lib.lookupFunction<_InitC, _InitDart>('cryptolib_init');
-    _version = _lib.lookupFunction<_VersionC, _VersionDart>('cryptolib_version');
-    _randomBytes = _lib.lookupFunction<_RandomBytesC, _RandomBytesDart>('cryptolib_random_bytes');
-    _secureEqual = _lib.lookupFunction<_SecureEqualC, _SecureEqualDart>('cryptolib_secure_equal');
+    _init = _lib.lookupFunction<_InitC, _InitDart>('cipherbird_init');
+    _version = _lib.lookupFunction<_VersionC, _VersionDart>('cipherbird_version');
+    _randomBytes = _lib.lookupFunction<_RandomBytesC, _RandomBytesDart>('cipherbird_random_bytes');
+    _secureEqual = _lib.lookupFunction<_SecureEqualC, _SecureEqualDart>('cipherbird_secure_equal');
 
     // Memory free
-    _bufferFree = _lib.lookupFunction<_BufferFreeC, _BufferFreeDart>('cryptolib_buffer_free');
-    _strFree = _lib.lookupFunction<_StrFreeC, _StrFreeDart>('cryptolib_str_free');
-    _keypairFree = _lib.lookupFunction<_KeyPairFreeC, _KeyPairFreeDart>('cryptolib_keypair_free');
-    _bundleFree = _lib.lookupFunction<_BundleFreeC, _BundleFreeDart>('cryptolib_bundle_free');
-    _packetFree = _lib.lookupFunction<_PacketFreeC, _PacketFreeDart>('cryptolib_packet_free');
-    _derivedKeysFree = _lib.lookupFunction<_DerivedKeysFreeC, _DerivedKeysFreeDart>('cryptolib_derived_keys_free');
-    _entropyInfoFree = _lib.lookupFunction<_EntropyInfoFreeC, _EntropyInfoFreeDart>('cryptolib_entropy_info_free');
+    _bufferFree = _lib.lookupFunction<_BufferFreeC, _BufferFreeDart>('cipherbird_buffer_free');
+    _strFree = _lib.lookupFunction<_StrFreeC, _StrFreeDart>('cipherbird_str_free');
+    _keypairFree = _lib.lookupFunction<_KeyPairFreeC, _KeyPairFreeDart>('cipherbird_keypair_free');
+    _bundleFree = _lib.lookupFunction<_BundleFreeC, _BundleFreeDart>('cipherbird_bundle_free');
+    _packetFree = _lib.lookupFunction<_PacketFreeC, _PacketFreeDart>('cipherbird_packet_free');
+    _derivedKeysFree = _lib.lookupFunction<_DerivedKeysFreeC, _DerivedKeysFreeDart>('cipherbird_derived_keys_free');
+    _entropyInfoFree = _lib.lookupFunction<_EntropyInfoFreeC, _EntropyInfoFreeDart>('cipherbird_entropy_info_free');
 
     // Hashing
-    _blake2b = _lib.lookupFunction<_Blake2bC, _Blake2bDart>('cryptolib_blake2b');
-    _sha256 = _lib.lookupFunction<_Sha256C, _Sha256Dart>('cryptolib_sha256');
-    _sha512 = _lib.lookupFunction<_Sha512C, _Sha512Dart>('cryptolib_sha512');
-    _blake3 = _lib.lookupFunction<_Blake3C, _Blake3Dart>('cryptolib_blake3');
-    _blake3Keyed = _lib.lookupFunction<_Blake3KeyedC, _Blake3KeyedDart>('cryptolib_blake3_keyed');
-    _blake3DeriveKey = _lib.lookupFunction<_Blake3DeriveKeyC, _Blake3DeriveKeyDart>('cryptolib_blake3_derive_key');
-    _hmacSha512 = _lib.lookupFunction<_HmacSha512C, _HmacSha512Dart>('cryptolib_hmac_sha512');
-    _hmacSha512Verify = _lib.lookupFunction<_HmacSha512VerifyC, _HmacSha512VerifyDart>('cryptolib_hmac_sha512_verify');
+    _blake2b = _lib.lookupFunction<_Blake2bC, _Blake2bDart>('cipherbird_blake2b');
+    _sha256 = _lib.lookupFunction<_Sha256C, _Sha256Dart>('cipherbird_sha256');
+    _sha512 = _lib.lookupFunction<_Sha512C, _Sha512Dart>('cipherbird_sha512');
+    _blake3 = _lib.lookupFunction<_Blake3C, _Blake3Dart>('cipherbird_blake3');
+    _blake3Keyed = _lib.lookupFunction<_Blake3KeyedC, _Blake3KeyedDart>('cipherbird_blake3_keyed');
+    _blake3DeriveKey = _lib.lookupFunction<_Blake3DeriveKeyC, _Blake3DeriveKeyDart>('cipherbird_blake3_derive_key');
+    _hmacSha512 = _lib.lookupFunction<_HmacSha512C, _HmacSha512Dart>('cipherbird_hmac_sha512');
+    _hmacSha512Verify = _lib.lookupFunction<_HmacSha512VerifyC, _HmacSha512VerifyDart>('cipherbird_hmac_sha512_verify');
 
     // Argon2id
-    _argon2idHashStr = _lib.lookupFunction<_Argon2idHashStrC, _Argon2idHashStrDart>('cryptolib_argon2id_hash_str');
-    _argon2idVerifyStr = _lib.lookupFunction<_Argon2idVerifyStrC, _Argon2idVerifyStrDart>('cryptolib_argon2id_verify_str');
-    _argon2idDerive = _lib.lookupFunction<_Argon2idDeriveC, _Argon2idDeriveDart>('cryptolib_argon2id_derive');
+    _argon2idHashStr = _lib.lookupFunction<_Argon2idHashStrC, _Argon2idHashStrDart>('cipherbird_argon2id_hash_str');
+    _argon2idVerifyStr = _lib.lookupFunction<_Argon2idVerifyStrC, _Argon2idVerifyStrDart>('cipherbird_argon2id_verify_str');
+    _argon2idDerive = _lib.lookupFunction<_Argon2idDeriveC, _Argon2idDeriveDart>('cipherbird_argon2id_derive');
 
     // Symmetric
-    _symKeygen = _lib.lookupFunction<_SymKeygenC, _SymKeygenDart>('cryptolib_sym_keygen');
-    _xchacha20Enc = _lib.lookupFunction<_XChaCha20EncC, _XChaCha20EncDart>('cryptolib_xchacha20_encrypt');
-    _xchacha20Dec = _lib.lookupFunction<_XChaCha20DecC, _XChaCha20DecDart>('cryptolib_xchacha20_decrypt');
-    _aes256gcmEnc = _lib.lookupFunction<_Aes256GcmEncC, _Aes256GcmEncDart>('cryptolib_aes256gcm_encrypt');
-    _aes256gcmDec = _lib.lookupFunction<_Aes256GcmDecC, _Aes256GcmDecDart>('cryptolib_aes256gcm_decrypt');
-    _aes256gcmAvailable = _lib.lookupFunction<_Aes256GcmAvailableC, _Aes256GcmAvailableDart>('cryptolib_aes256gcm_available');
+    _symKeygen = _lib.lookupFunction<_SymKeygenC, _SymKeygenDart>('cipherbird_sym_keygen');
+    _xchacha20Enc = _lib.lookupFunction<_XChaCha20EncC, _XChaCha20EncDart>('cipherbird_xchacha20_encrypt');
+    _xchacha20Dec = _lib.lookupFunction<_XChaCha20DecC, _XChaCha20DecDart>('cipherbird_xchacha20_decrypt');
+    _aes256gcmEnc = _lib.lookupFunction<_Aes256GcmEncC, _Aes256GcmEncDart>('cipherbird_aes256gcm_encrypt');
+    _aes256gcmDec = _lib.lookupFunction<_Aes256GcmDecC, _Aes256GcmDecDart>('cipherbird_aes256gcm_decrypt');
+    _aes256gcmAvailable = _lib.lookupFunction<_Aes256GcmAvailableC, _Aes256GcmAvailableDart>('cipherbird_aes256gcm_available');
 
     // SecretStream
-    _streamEncCreate = _lib.lookupFunction<_StreamEncCreateC, _StreamEncCreateDart>('cryptolib_stream_enc_create');
-    _streamEncHeader = _lib.lookupFunction<_StreamEncHeaderC, _StreamEncHeaderDart>('cryptolib_stream_enc_header');
-    _streamEncPush = _lib.lookupFunction<_StreamEncPushC, _StreamEncPushDart>('cryptolib_stream_enc_push');
-    _streamEncFree = _lib.lookupFunction<_StreamEncFreeC, _StreamEncFreeDart>('cryptolib_stream_enc_free');
-    _streamDecCreate = _lib.lookupFunction<_StreamDecCreateC, _StreamDecCreateDart>('cryptolib_stream_dec_create');
-    _streamDecPull = _lib.lookupFunction<_StreamDecPullC, _StreamDecPullDart>('cryptolib_stream_dec_pull');
-    _streamDecFree = _lib.lookupFunction<_StreamDecFreeC, _StreamDecFreeDart>('cryptolib_stream_dec_free');
+    _streamEncCreate = _lib.lookupFunction<_StreamEncCreateC, _StreamEncCreateDart>('cipherbird_stream_enc_create');
+    _streamEncHeader = _lib.lookupFunction<_StreamEncHeaderC, _StreamEncHeaderDart>('cipherbird_stream_enc_header');
+    _streamEncPush = _lib.lookupFunction<_StreamEncPushC, _StreamEncPushDart>('cipherbird_stream_enc_push');
+    _streamEncFree = _lib.lookupFunction<_StreamEncFreeC, _StreamEncFreeDart>('cipherbird_stream_enc_free');
+    _streamDecCreate = _lib.lookupFunction<_StreamDecCreateC, _StreamDecCreateDart>('cipherbird_stream_dec_create');
+    _streamDecPull = _lib.lookupFunction<_StreamDecPullC, _StreamDecPullDart>('cipherbird_stream_dec_pull');
+    _streamDecFree = _lib.lookupFunction<_StreamDecFreeC, _StreamDecFreeDart>('cipherbird_stream_dec_free');
 
     // Ed25519
-    _ed25519Keygen = _lib.lookupFunction<_Ed25519KeygenC, _Ed25519KeygenDart>('cryptolib_ed25519_keygen');
-    _ed25519KeygenFromSeed = _lib.lookupFunction<_Ed25519KeygenFromSeedC, _Ed25519KeygenFromSeedDart>('cryptolib_ed25519_keygen_from_seed');
-    _ed25519Sign = _lib.lookupFunction<_Ed25519SignC, _Ed25519SignDart>('cryptolib_ed25519_sign');
-    _ed25519Verify = _lib.lookupFunction<_Ed25519VerifyC, _Ed25519VerifyDart>('cryptolib_ed25519_verify');
+    _ed25519Keygen = _lib.lookupFunction<_Ed25519KeygenC, _Ed25519KeygenDart>('cipherbird_ed25519_keygen');
+    _ed25519KeygenFromSeed = _lib.lookupFunction<_Ed25519KeygenFromSeedC, _Ed25519KeygenFromSeedDart>('cipherbird_ed25519_keygen_from_seed');
+    _ed25519Sign = _lib.lookupFunction<_Ed25519SignC, _Ed25519SignDart>('cipherbird_ed25519_sign');
+    _ed25519Verify = _lib.lookupFunction<_Ed25519VerifyC, _Ed25519VerifyDart>('cipherbird_ed25519_verify');
 
     // X25519
-    _x25519Keygen = _lib.lookupFunction<_X25519KeygenC, _X25519KeygenDart>('cryptolib_x25519_keygen');
-    _x25519SharedSecret = _lib.lookupFunction<_X25519SharedSecretC, _X25519SharedSecretDart>('cryptolib_x25519_shared_secret');
+    _x25519Keygen = _lib.lookupFunction<_X25519KeygenC, _X25519KeygenDart>('cipherbird_x25519_keygen');
+    _x25519SharedSecret = _lib.lookupFunction<_X25519SharedSecretC, _X25519SharedSecretDart>('cipherbird_x25519_shared_secret');
 
     // Box
-    _boxKeygen = _lib.lookupFunction<_BoxKeygenC, _BoxKeygenDart>('cryptolib_box_keygen');
-    _boxEncrypt = _lib.lookupFunction<_BoxEncryptC, _BoxEncryptDart>('cryptolib_box_encrypt');
-    _boxDecrypt = _lib.lookupFunction<_BoxDecryptC, _BoxDecryptDart>('cryptolib_box_decrypt');
+    _boxKeygen = _lib.lookupFunction<_BoxKeygenC, _BoxKeygenDart>('cipherbird_box_keygen');
+    _boxEncrypt = _lib.lookupFunction<_BoxEncryptC, _BoxEncryptDart>('cipherbird_box_encrypt');
+    _boxDecrypt = _lib.lookupFunction<_BoxDecryptC, _BoxDecryptDart>('cipherbird_box_decrypt');
 
     // SealedBox
-    _sealedboxEncrypt = _lib.lookupFunction<_SealedBoxEncryptC, _SealedBoxEncryptDart>('cryptolib_sealedbox_encrypt');
-    _sealedboxDecrypt = _lib.lookupFunction<_SealedBoxDecryptC, _SealedBoxDecryptDart>('cryptolib_sealedbox_decrypt');
+    _sealedboxEncrypt = _lib.lookupFunction<_SealedBoxEncryptC, _SealedBoxEncryptDart>('cipherbird_sealedbox_encrypt');
+    _sealedboxDecrypt = _lib.lookupFunction<_SealedBoxDecryptC, _SealedBoxDecryptDart>('cipherbird_sealedbox_decrypt');
 
     // Vault
-    _vaultCreate = _lib.lookupFunction<_VaultCreateC, _VaultCreateDart>('cryptolib_vault_create');
-    _vaultFromEntropy = _lib.lookupFunction<_VaultFromEntropyC, _VaultFromEntropyDart>('cryptolib_vault_from_entropy');
-    _vaultSeal = _lib.lookupFunction<_VaultSealC, _VaultSealDart>('cryptolib_vault_seal');
-    _vaultSealBoosted = _lib.lookupFunction<_VaultSealBoostedC, _VaultSealBoostedDart>('cryptolib_vault_seal_boosted');
-    _vaultOpen = _lib.lookupFunction<_VaultOpenC, _VaultOpenDart>('cryptolib_vault_open');
-    _vaultOpenBoosted = _lib.lookupFunction<_VaultOpenBoostedC, _VaultOpenBoostedDart>('cryptolib_vault_open_boosted');
-    _vaultPublicKey = _lib.lookupFunction<_VaultPublicKeyC, _VaultPublicKeyDart>('cryptolib_vault_public_key');
-    _packetSerialise = _lib.lookupFunction<_PacketSerialiseC, _PacketSerialiseDart>('cryptolib_packet_serialise');
-    _packetDeserialise = _lib.lookupFunction<_PacketDeserialiseC, _PacketDeserialiseDart>('cryptolib_packet_deserialise');
-    _vaultFree = _lib.lookupFunction<_VaultFreeC, _VaultFreeDart>('cryptolib_vault_free');
+    _vaultCreate = _lib.lookupFunction<_VaultCreateC, _VaultCreateDart>('cipherbird_vault_create');
+    _vaultFromEntropy = _lib.lookupFunction<_VaultFromEntropyC, _VaultFromEntropyDart>('cipherbird_vault_from_entropy');
+    _vaultSeal = _lib.lookupFunction<_VaultSealC, _VaultSealDart>('cipherbird_vault_seal');
+    _vaultSealBoosted = _lib.lookupFunction<_VaultSealBoostedC, _VaultSealBoostedDart>('cipherbird_vault_seal_boosted');
+    _vaultOpen = _lib.lookupFunction<_VaultOpenC, _VaultOpenDart>('cipherbird_vault_open');
+    _vaultOpenBoosted = _lib.lookupFunction<_VaultOpenBoostedC, _VaultOpenBoostedDart>('cipherbird_vault_open_boosted');
+    _vaultPublicKey = _lib.lookupFunction<_VaultPublicKeyC, _VaultPublicKeyDart>('cipherbird_vault_public_key');
+    _packetSerialise = _lib.lookupFunction<_PacketSerialiseC, _PacketSerialiseDart>('cipherbird_packet_serialise');
+    _packetDeserialise = _lib.lookupFunction<_PacketDeserialiseC, _PacketDeserialiseDart>('cipherbird_packet_deserialise');
+    _vaultFree = _lib.lookupFunction<_VaultFreeC, _VaultFreeDart>('cipherbird_vault_free');
 
     // Asymmetric vault
-    _asymBundleGenerate = _lib.lookupFunction<_AsymBundleGenerateC, _AsymBundleGenerateDart>('cryptolib_asym_bundle_generate');
-    _asymVaultSeal = _lib.lookupFunction<_AsymVaultSealC, _AsymVaultSealDart>('cryptolib_asym_vault_seal');
-    _asymVaultOpen = _lib.lookupFunction<_AsymVaultOpenC, _AsymVaultOpenDart>('cryptolib_asym_vault_open');
+    _asymBundleGenerate = _lib.lookupFunction<_AsymBundleGenerateC, _AsymBundleGenerateDart>('cipherbird_asym_bundle_generate');
+    _asymVaultSeal = _lib.lookupFunction<_AsymVaultSealC, _AsymVaultSealDart>('cipherbird_asym_vault_seal');
+    _asymVaultOpen = _lib.lookupFunction<_AsymVaultOpenC, _AsymVaultOpenDart>('cipherbird_asym_vault_open');
 
     // Entropy
-    _entropyFromFile = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cryptolib_entropy_from_file');
-    _entropyFromFileDet = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cryptolib_entropy_from_file_deterministic');
-    _entropyFromFiles = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cryptolib_entropy_from_files');
-    _entropyFromFilesDet = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cryptolib_entropy_from_files_deterministic');
-    _entropyDeriveAll = _lib.lookupFunction<_EntropyDeriveAllC, _EntropyDeriveAllDart>('cryptolib_entropy_derive_all');
-    _entropySymKey = _lib.lookupFunction<_EntropySymKeyC, _EntropySymKeyDart>('cryptolib_entropy_symmetric_key');
-    _entropyRaw = _lib.lookupFunction<_EntropyRawC, _EntropyRawDart>('cryptolib_entropy_raw');
-    _entropyBoost = _lib.lookupFunction<_EntropyBoostC, _EntropyBoostDart>('cryptolib_entropy_boost');
-    _entropyInfo = _lib.lookupFunction<_EntropyInfoC, _EntropyInfoDart>('cryptolib_entropy_info');
-    _entropyAsymBundle = _lib.lookupFunction<_EntropyAsymBundleC, _EntropyAsymBundleDart>('cryptolib_entropy_asym_bundle');
-    _entropyRefresh = _lib.lookupFunction<_EntropyRefreshC, _EntropyRefreshDart>('cryptolib_entropy_refresh');
-    _entropyFree = _lib.lookupFunction<_EntropyFreeC, _EntropyFreeDart>('cryptolib_entropy_free');
+    _entropyFromFile = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cipherbird_entropy_from_file');
+    _entropyFromFileDet = _lib.lookupFunction<_EntropyFromFileC, _EntropyFromFileDart>('cipherbird_entropy_from_file_deterministic');
+    _entropyFromFiles = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cipherbird_entropy_from_files');
+    _entropyFromFilesDet = _lib.lookupFunction<_EntropyFromFilesC, _EntropyFromFilesDart>('cipherbird_entropy_from_files_deterministic');
+    _entropyDeriveAll = _lib.lookupFunction<_EntropyDeriveAllC, _EntropyDeriveAllDart>('cipherbird_entropy_derive_all');
+    _entropySymKey = _lib.lookupFunction<_EntropySymKeyC, _EntropySymKeyDart>('cipherbird_entropy_symmetric_key');
+    _entropyRaw = _lib.lookupFunction<_EntropyRawC, _EntropyRawDart>('cipherbird_entropy_raw');
+    _entropyBoost = _lib.lookupFunction<_EntropyBoostC, _EntropyBoostDart>('cipherbird_entropy_boost');
+    _entropyInfo = _lib.lookupFunction<_EntropyInfoC, _EntropyInfoDart>('cipherbird_entropy_info');
+    _entropyAsymBundle = _lib.lookupFunction<_EntropyAsymBundleC, _EntropyAsymBundleDart>('cipherbird_entropy_asym_bundle');
+    _entropyRefresh = _lib.lookupFunction<_EntropyRefreshC, _EntropyRefreshDart>('cipherbird_entropy_refresh');
+    _entropyFree = _lib.lookupFunction<_EntropyFreeC, _EntropyFreeDart>('cipherbird_entropy_free');
 
     // Entropy convenience
-    _keyFromFile = _lib.lookupFunction<_KeyFromFileC, _KeyFromFileDart>('cryptolib_key_from_file');
-    _sealFromFile = _lib.lookupFunction<_SealFromFileC, _SealFromFileDart>('cryptolib_seal_from_file');
-    _openFromFile = _lib.lookupFunction<_OpenFromFileC, _OpenFromFileDart>('cryptolib_open_from_file');
+    _keyFromFile = _lib.lookupFunction<_KeyFromFileC, _KeyFromFileDart>('cipherbird_key_from_file');
+    _sealFromFile = _lib.lookupFunction<_SealFromFileC, _SealFromFileDart>('cipherbird_seal_from_file');
+    _openFromFile = _lib.lookupFunction<_OpenFromFileC, _OpenFromFileDart>('cipherbird_open_from_file');
 
     // Steganography
-    _stegoEmbed = _lib.lookupFunction<_StegoEmbedC, _StegoEmbedDart>('cryptolib_stego_embed');
-    _stegoExtract = _lib.lookupFunction<_StegoExtractC, _StegoExtractDart>('cryptolib_stego_extract');
-    _stegoCapacity = _lib.lookupFunction<_StegoCapacityC, _StegoCapacityDart>('cryptolib_stego_capacity');
-    _stegoEmbedKeyed = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cryptolib_stego_embed_keyed');
-    _stegoExtractKeyed = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cryptolib_stego_extract_keyed');
-    _stegoEmbedEncrypted = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cryptolib_stego_embed_encrypted');
-    _stegoExtractDecrypt = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cryptolib_stego_extract_decrypt');
-    _physicalSeal = _lib.lookupFunction<_PhysicalSealC, _PhysicalSealDart>('cryptolib_physical_seal');
-    _physicalOpen = _lib.lookupFunction<_PhysicalOpenC, _PhysicalOpenDart>('cryptolib_physical_open');
-    _fecEncode = _lib.lookupFunction<_FecEncodeC, _FecEncodeDart>('cryptolib_fec_encode');
-    _fecDecode = _lib.lookupFunction<_FecDecodeC, _FecDecodeDart>('cryptolib_fec_decode');
-    _stegoInspect = _lib.lookupFunction<_StegoInspectC, _StegoInspectDart>('cryptolib_stego_inspect');
-    _stegoContentDigest = _lib.lookupFunction<_StegoContentDigestC, _StegoContentDigestDart>('cryptolib_stego_content_digest');
-    _stegoDetectHidden = _lib.lookupFunction<_StegoDetectHiddenC, _StegoDetectHiddenDart>('cryptolib_stego_detect_hidden');
-    _assessHealth = _lib.lookupFunction<_AssessHealthC, _AssessHealthDart>('cryptolib_entropy_assess_file_health');
-    _imageFactorSeal = _lib.lookupFunction<_ImageFactorSealC, _ImageFactorSealDart>('cryptolib_image_factor_seal');
-    _imageFactorOpen = _lib.lookupFunction<_ImageFactorOpenC, _ImageFactorOpenDart>('cryptolib_image_factor_open');
-    _hpkeStegoSeal = _lib.lookupFunction<_HpkeStegoSealC, _HpkeStegoSealDart>('cryptolib_hpke_stego_seal');
-    _hpkeStegoOpen = _lib.lookupFunction<_HpkeStegoOpenC, _HpkeStegoOpenDart>('cryptolib_hpke_stego_open');
-    _drbgInstantiate = _lib.lookupFunction<_DrbgInstantiateC, _DrbgInstantiateDart>('cryptolib_drbg_instantiate');
-    _drbgGenerate = _lib.lookupFunction<_DrbgGenerateC, _DrbgGenerateDart>('cryptolib_drbg_generate');
-    _drbgReseed = _lib.lookupFunction<_DrbgReseedC, _DrbgReseedDart>('cryptolib_drbg_reseed');
-    _drbgFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cryptolib_drbg_free');
-    _fortunaNew = _lib.lookupFunction<_FortunaNewC, _FortunaNewDart>('cryptolib_fortuna_new');
-    _fortunaAdd = _lib.lookupFunction<_FortunaAddC, _FortunaAddDart>('cryptolib_fortuna_add_entropy');
-    _fortunaGen = _lib.lookupFunction<_FortunaGenC, _FortunaGenDart>('cryptolib_fortuna_generate');
-    _fortunaReseed = _lib.lookupFunction<_FortunaReseedC, _FortunaReseedDart>('cryptolib_fortuna_reseed');
-    _fortunaCount = _lib.lookupFunction<_FortunaCountC, _FortunaCountDart>('cryptolib_fortuna_reseed_count');
-    _fortunaFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cryptolib_fortuna_free');
+    _stegoEmbed = _lib.lookupFunction<_StegoEmbedC, _StegoEmbedDart>('cipherbird_stego_embed');
+    _stegoExtract = _lib.lookupFunction<_StegoExtractC, _StegoExtractDart>('cipherbird_stego_extract');
+    _stegoCapacity = _lib.lookupFunction<_StegoCapacityC, _StegoCapacityDart>('cipherbird_stego_capacity');
+    _stegoEmbedKeyed = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cipherbird_stego_embed_keyed');
+    _stegoExtractKeyed = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cipherbird_stego_extract_keyed');
+    _stegoEmbedEncrypted = _lib.lookupFunction<_StegoEmbedKeyedC, _StegoEmbedKeyedDart>('cipherbird_stego_embed_encrypted');
+    _stegoExtractDecrypt = _lib.lookupFunction<_StegoExtractKeyedC, _StegoExtractKeyedDart>('cipherbird_stego_extract_decrypt');
+    _physicalSeal = _lib.lookupFunction<_PhysicalSealC, _PhysicalSealDart>('cipherbird_physical_seal');
+    _physicalOpen = _lib.lookupFunction<_PhysicalOpenC, _PhysicalOpenDart>('cipherbird_physical_open');
+    _fecEncode = _lib.lookupFunction<_FecEncodeC, _FecEncodeDart>('cipherbird_fec_encode');
+    _fecDecode = _lib.lookupFunction<_FecDecodeC, _FecDecodeDart>('cipherbird_fec_decode');
+    _stegoInspect = _lib.lookupFunction<_StegoInspectC, _StegoInspectDart>('cipherbird_stego_inspect');
+    _stegoContentDigest = _lib.lookupFunction<_StegoContentDigestC, _StegoContentDigestDart>('cipherbird_stego_content_digest');
+    _stegoDetectHidden = _lib.lookupFunction<_StegoDetectHiddenC, _StegoDetectHiddenDart>('cipherbird_stego_detect_hidden');
+    _assessHealth = _lib.lookupFunction<_AssessHealthC, _AssessHealthDart>('cipherbird_entropy_assess_file_health');
+    _imageFactorSeal = _lib.lookupFunction<_ImageFactorSealC, _ImageFactorSealDart>('cipherbird_image_factor_seal');
+    _imageFactorOpen = _lib.lookupFunction<_ImageFactorOpenC, _ImageFactorOpenDart>('cipherbird_image_factor_open');
+    _hpkeStegoSeal = _lib.lookupFunction<_HpkeStegoSealC, _HpkeStegoSealDart>('cipherbird_hpke_stego_seal');
+    _hpkeStegoOpen = _lib.lookupFunction<_HpkeStegoOpenC, _HpkeStegoOpenDart>('cipherbird_hpke_stego_open');
+    _drbgInstantiate = _lib.lookupFunction<_DrbgInstantiateC, _DrbgInstantiateDart>('cipherbird_drbg_instantiate');
+    _drbgGenerate = _lib.lookupFunction<_DrbgGenerateC, _DrbgGenerateDart>('cipherbird_drbg_generate');
+    _drbgReseed = _lib.lookupFunction<_DrbgReseedC, _DrbgReseedDart>('cipherbird_drbg_reseed');
+    _drbgFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cipherbird_drbg_free');
+    _fortunaNew = _lib.lookupFunction<_FortunaNewC, _FortunaNewDart>('cipherbird_fortuna_new');
+    _fortunaAdd = _lib.lookupFunction<_FortunaAddC, _FortunaAddDart>('cipherbird_fortuna_add_entropy');
+    _fortunaGen = _lib.lookupFunction<_FortunaGenC, _FortunaGenDart>('cipherbird_fortuna_generate');
+    _fortunaReseed = _lib.lookupFunction<_FortunaReseedC, _FortunaReseedDart>('cipherbird_fortuna_reseed');
+    _fortunaCount = _lib.lookupFunction<_FortunaCountC, _FortunaCountDart>('cipherbird_fortuna_reseed_count');
+    _fortunaFree = _lib.lookupFunction<_HandleFreeC, _HandleFreeDart>('cipherbird_fortuna_free');
   }
 
   /// Load the native library. Resolution order:
   ///   1. an explicit [path],
-  ///   2. the CRYPTOLIB_DYLIB environment variable (dev override),
+  ///   2. the CIPHERBIRD_LIBRARY environment variable (dev override),
   ///   3. the library BUNDLED with this package under native/<os>-<arch>/
   ///      (so the package is self-contained — no build tree required),
   ///   4. the current process (symbols already loaded, e.g. a Flutter plugin).
@@ -1196,9 +1196,9 @@ class CipherBird {
     } else if (Platform.isIOS) {
       lib = DynamicLibrary.process();
     } else if (Platform.isAndroid || Platform.isLinux) {
-      lib = DynamicLibrary.open('libcryptolib_c.so');
+      lib = DynamicLibrary.open('libcipherbird_c.so');
     } else if (Platform.isMacOS) {
-      lib = DynamicLibrary.open('libcryptolib_c.dylib');
+      lib = DynamicLibrary.open('libcipherbird_c.dylib');
     } else {
       lib = DynamicLibrary.process();
     }
@@ -1220,7 +1220,7 @@ class CipherBird {
   }
 
   /// Copy a CryptoBuffer's bytes out WITHOUT freeing it (caller frees the
-  /// owning native struct separately, e.g. via cryptolib_kem_encaps_free).
+  /// owning native struct separately, e.g. via cipherbird_kem_encaps_free).
   Uint8List _copyBufView(CryptoBuffer buf) {
     if (buf.data == nullptr || buf.len == 0) return Uint8List(0);
     final out = Uint8List(buf.len);
@@ -1229,7 +1229,7 @@ class CipherBird {
   }
 
   /// Copy both buffers out of a KEM encapsulation result, then release the
-  /// whole result with cryptolib_kem_encaps_free in a single call.
+  /// whole result with cipherbird_kem_encaps_free in a single call.
   (Uint8List, Uint8List) _drainKemEncaps(CryptoKemEncapsResult r) {
     final ct = _copyBufView(r.ciphertext);
     final ss = _copyBufView(r.sharedSecret);
@@ -1240,7 +1240,7 @@ class CipherBird {
     rp.ref.sharedSecret.len = r.sharedSecret.len;
     _lib.lookupFunction<Void Function(Pointer<CryptoKemEncapsResult>),
             void Function(Pointer<CryptoKemEncapsResult>)>(
-        'cryptolib_kem_encaps_free')(rp);
+        'cipherbird_kem_encaps_free')(rp);
     calloc.free(rp);
     return (ct, ss);
   }
@@ -1462,7 +1462,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hmac_sha256')(pm, msg.length, pk, key.length));
+          'cipherbird_hmac_sha256')(pm, msg.length, pk, key.length));
     } finally {
       if (pm != nullptr) calloc.free(pm);
       if (pk != nullptr) calloc.free(pk);
@@ -1476,7 +1476,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hmac_sha256_verify')(
+          'cipherbird_hmac_sha256_verify')(
               pm, msg.length, pmac, mac.length, pk, key.length) == 1;
     } finally {
       if (pm != nullptr) calloc.free(pm);
@@ -1494,7 +1494,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length));
+          'cipherbird_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length));
     } finally {
       if (ps != nullptr) calloc.free(ps);
       if (pk != nullptr) calloc.free(pk);
@@ -1510,7 +1510,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_hkdf_expand')(pp, prk.length, pi, info?.length ?? 0, outLen));
+          'cipherbird_hkdf_expand')(pp, prk.length, pi, info?.length ?? 0, outLen));
     } finally {
       if (pp != nullptr) calloc.free(pp);
       if (pi != nullptr) calloc.free(pi);
@@ -1530,7 +1530,7 @@ class CipherBird {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Size),
           CryptoBufferResult Function(
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_hkdf_derive')(
+          'cipherbird_hkdf_derive')(
               pk, ikm.length, ps, salt?.length ?? 0, pi, info?.length ?? 0, outLen));
     } finally {
       if (pk != nullptr) calloc.free(pk);
@@ -1700,7 +1700,7 @@ class CipherBird {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_committing_encrypt')(
+          'cipherbird_committing_encrypt')(
               pp, plaintext.length, pk, key.length, pa, aad?.length ?? 0));
     } finally {
       if (pp != nullptr) calloc.free(pp);
@@ -1720,7 +1720,7 @@ class CipherBird {
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_committing_decrypt')(
+          'cipherbird_committing_decrypt')(
               pc, ciphertext.length, pk, key.length, pa, aad?.length ?? 0));
     } finally {
       if (pc != nullptr) calloc.free(pc);
@@ -2019,7 +2019,7 @@ class CipherBird {
   /// New keyring with a fresh random master key.
   Pointer<Void> keyringCreate() =>
       _lib.lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
-          'cryptolib_keyring_create')();
+          'cipherbird_keyring_create')();
 
   /// Wrap the master key under a >=32-byte hardware factor key.
   bool keyringAddDeviceSlot(Pointer<Void> kr, Uint8List factor) {
@@ -2028,7 +2028,7 @@ class CipherBird {
     try {
       return _lib.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Uint8>, Size),
               int Function(Pointer<Void>, Pointer<Uint8>, int)>(
-          'cryptolib_keyring_add_device_slot')(kr, p, factor.length) == 1;
+          'cipherbird_keyring_add_device_slot')(kr, p, factor.length) == 1;
     } finally {
       malloc.free(p);
     }
@@ -2040,7 +2040,7 @@ class CipherBird {
     try {
       return _lib.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32),
               int Function(Pointer<Void>, Pointer<Utf8>, int)>(
-          'cryptolib_keyring_add_passphrase_slot')(kr, cpw, kdf) == 1;
+          'cipherbird_keyring_add_passphrase_slot')(kr, cpw, kdf) == 1;
     } finally {
       malloc.free(cpw);
     }
@@ -2049,20 +2049,20 @@ class CipherBird {
   /// Number of slots.
   int keyringSlotCount(Pointer<Void> kr) =>
       _lib.lookupFunction<Size Function(Pointer<Void>), int Function(Pointer<Void>)>(
-          'cryptolib_keyring_slot_count')(kr);
+          'cipherbird_keyring_slot_count')(kr);
 
   /// Remove (revoke) the slot at [index]. Returns true on success, false if the
   /// index is out of range.
   bool keyringRemoveSlot(Pointer<Void> kr, int index) =>
       _lib.lookupFunction<Int32 Function(Pointer<Void>, Size),
               int Function(Pointer<Void>, int)>(
-          'cryptolib_keyring_remove_slot')(kr, index) == 1;
+          'cipherbird_keyring_remove_slot')(kr, index) == 1;
 
   /// Serialise the envelope blob (no plaintext key).
   Uint8List keyringSerialise(Pointer<Void> kr) => _checkBufResult(
       _lib.lookupFunction<CryptoBufferResult Function(Pointer<Void>),
               CryptoBufferResult Function(Pointer<Void>)>(
-          'cryptolib_keyring_serialise')(kr));
+          'cipherbird_keyring_serialise')(kr));
 
   /// Parse an envelope blob into a (locked) keyring handle (nullptr on error).
   Pointer<Void> keyringDeserialise(Uint8List blob) {
@@ -2073,7 +2073,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Pointer<Void> Function(Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_keyring_deserialise')(p, blob.length, errPtr);
+          'cipherbird_keyring_deserialise')(p, blob.length, errPtr);
     } finally {
       malloc.free(p);
       malloc.free(errPtr);
@@ -2088,7 +2088,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)>(
-          'cryptolib_keyring_unlock_with_device')(kr, p, factor.length));
+          'cipherbird_keyring_unlock_with_device')(kr, p, factor.length));
     } finally {
       malloc.free(p);
     }
@@ -2101,7 +2101,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Utf8>),
           CryptoBufferResult Function(Pointer<Void>, Pointer<Utf8>)>(
-          'cryptolib_keyring_unlock_with_passphrase')(kr, cpw));
+          'cipherbird_keyring_unlock_with_passphrase')(kr, cpw));
     } finally {
       malloc.free(cpw);
     }
@@ -2110,13 +2110,13 @@ class CipherBird {
   /// Free a keyring handle.
   void keyringFree(Pointer<Void> kr) =>
       _lib.lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
-          'cryptolib_keyring_free')(kr);
+          'cipherbird_keyring_free')(kr);
 
   // ── Post-Quantum (ML-KEM / ML-DSA / SLH-DSA) ──────────────────────────────
 
   KeyPairResult mlKemKeygen(int level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_kem_keygen')(level));
+          'cipherbird_ml_kem_keygen')(level));
 
   /// Returns (ciphertext, sharedSecret).
   (Uint8List, Uint8List) mlKemEncapsulate(Uint8List publicKey, int level) {
@@ -2126,7 +2126,7 @@ class CipherBird {
       final r = _lib.lookupFunction<
           CryptoKemEncapsResult Function(Pointer<Uint8>, Size, Int32, Pointer<Pointer<Utf8>>),
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_ml_kem_encapsulate')(pp, publicKey.length, level, errPtr);
+          'cipherbird_ml_kem_encapsulate')(pp, publicKey.length, level, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
@@ -2138,7 +2138,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level));
+          'cipherbird_ml_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length, level));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2146,7 +2146,7 @@ class CipherBird {
 
   KeyPairResult hybridKemKeygen() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_hybrid_kem_keygen')());
+          'cipherbird_hybrid_kem_keygen')());
 
   /// Returns (ciphertext, sharedSecret).
   (Uint8List, Uint8List) hybridKemEncapsulate(Uint8List publicKey) {
@@ -2156,7 +2156,7 @@ class CipherBird {
       final r = _lib.lookupFunction<
           CryptoKemEncapsResult Function(Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_hybrid_kem_encapsulate')(pp, publicKey.length, errPtr);
+          'cipherbird_hybrid_kem_encapsulate')(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
@@ -2168,7 +2168,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hybrid_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length));
+          'cipherbird_hybrid_kem_decapsulate')(cp, ciphertext.length, sp, secretKey.length));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2177,7 +2177,7 @@ class CipherBird {
 
   KeyPairResult sntrupX25519Keygen() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_sntrup_x25519_keygen')());
+          'cipherbird_sntrup_x25519_keygen')());
 
   /// Returns (ciphertext, sharedSecret).
   (Uint8List, Uint8List) sntrupX25519Encapsulate(Uint8List publicKey) {
@@ -2187,7 +2187,7 @@ class CipherBird {
       final r = _lib.lookupFunction<
           CryptoKemEncapsResult Function(Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           CryptoKemEncapsResult Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>(
-          'cryptolib_sntrup_x25519_encapsulate')(pp, publicKey.length, errPtr);
+          'cipherbird_sntrup_x25519_encapsulate')(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       return _drainKemEncaps(r);
     } finally { if (pp != nullptr) calloc.free(pp); calloc.free(errPtr); }
@@ -2199,7 +2199,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_sntrup_x25519_decapsulate')(cp, ciphertext.length, sp, secretKey.length));
+          'cipherbird_sntrup_x25519_decapsulate')(cp, ciphertext.length, sp, secretKey.length));
     } finally { if (cp != nullptr) calloc.free(cp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2209,7 +2209,7 @@ class CipherBird {
 
   KeyPairResult hybridSigKeygen() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_hybrid_sig_keygen')());
+          'cipherbird_hybrid_sig_keygen')());
 
   Uint8List hybridSigSign(Uint8List msg, Uint8List secretKey) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
@@ -2217,7 +2217,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length));
+          'cipherbird_hybrid_sig_sign')(mp, msg.length, sp, secretKey.length));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2227,7 +2227,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_hybrid_sig_verify')(
+          'cipherbird_hybrid_sig_verify')(
               mp, msg.length, sgp, sig.length, pp, publicKey.length) == 1;
     } finally {
       if (mp != nullptr) calloc.free(mp);
@@ -2238,7 +2238,7 @@ class CipherBird {
 
   KeyPairResult mlDsaKeygen(int level) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32), CryptoKeyPair Function(int)>(
-          'cryptolib_ml_dsa_keygen')(level));
+          'cipherbird_ml_dsa_keygen')(level));
 
   Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, int level) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
@@ -2246,7 +2246,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level));
+          'cipherbird_ml_dsa_sign')(mp, msg.length, sp, secretKey.length, level));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2256,13 +2256,13 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int)>(
-          'cryptolib_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level) == 1;
+          'cipherbird_ml_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
   KeyPairResult slhDsaKeygen(int level, int hash) => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(Int32, Int32), CryptoKeyPair Function(int, int)>(
-          'cryptolib_slh_dsa_keygen')(level, hash));
+          'cipherbird_slh_dsa_keygen')(level, hash));
 
   Uint8List slhDsaSign(Uint8List msg, Uint8List secretKey, int level, int hash) {
     final mp = _toNative(msg), sp = _toNative(secretKey);
@@ -2270,7 +2270,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level, hash));
+          'cipherbird_slh_dsa_sign')(mp, msg.length, sp, secretKey.length, level, hash));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2280,7 +2280,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Int32, Int32),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, int, int)>(
-          'cryptolib_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level, hash) == 1;
+          'cipherbird_slh_dsa_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length, level, hash) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
@@ -2288,7 +2288,7 @@ class CipherBird {
 
   KeyPairResult blsKeygen() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_bls_keygen')());
+          'cipherbird_bls_keygen')());
 
   /// Deterministic BLS keygen from input key material. [ikm] must be >= 32
   /// bytes (per IRTF draft-irtf-cfrg-bls-signature KeyGen). Same IKM → same key.
@@ -2301,7 +2301,7 @@ class CipherBird {
       return _extractKeyPair(_lib.lookupFunction<
           CryptoKeyPair Function(Pointer<Uint8>, Size),
           CryptoKeyPair Function(Pointer<Uint8>, int)>(
-          'cryptolib_bls_keygen_from_ikm')(ip, ikm.length));
+          'cipherbird_bls_keygen_from_ikm')(ip, ikm.length));
     } finally { if (ip != nullptr) calloc.free(ip); }
   }
 
@@ -2311,7 +2311,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_bls_sign')(mp, msg.length, sp, secretKey.length));
+          'cipherbird_bls_sign')(mp, msg.length, sp, secretKey.length));
     } finally { if (mp != nullptr) calloc.free(mp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2321,7 +2321,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_bls_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length) == 1;
+          'cipherbird_bls_verify')(mp, msg.length, sgp, sig.length, pp, publicKey.length) == 1;
     } finally { if (mp != nullptr) calloc.free(mp); if (sgp != nullptr) calloc.free(sgp); if (pp != nullptr) calloc.free(pp); }
   }
 
@@ -2336,7 +2336,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
           CryptoBufferResult Function(Pointer<Pointer<Uint8>>, Pointer<Size>, int)>(
-          'cryptolib_bls_aggregate')(ptrs, lens, sigs.length));
+          'cipherbird_bls_aggregate')(ptrs, lens, sigs.length));
     } finally {
       _freeNativeList(ptrs, lens, sigs.length);
     }
@@ -2365,7 +2365,7 @@ class CipherBird {
               Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint8>, Size),
           int Function(Pointer<Pointer<Uint8>>, Pointer<Size>,
               Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint8>, int)>(
-          'cryptolib_bls_aggregate_verify')(
+          'cipherbird_bls_aggregate_verify')(
               mPtrs, mLens, pPtrs, pLens, count, ap, aggSig.length) == 1;
     } finally {
       _freeNativeList(mPtrs, mLens, count);
@@ -2384,7 +2384,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int)>(
-          'cryptolib_keccak256')(pm, msg.length));
+          'cipherbird_keccak256')(pm, msg.length));
     } finally { if (pm != nullptr) calloc.free(pm); }
   }
 
@@ -2395,14 +2395,14 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int)>(
-          'cryptolib_ripemd160')(pm, msg.length));
+          'cipherbird_ripemd160')(pm, msg.length));
     } finally { if (pm != nullptr) calloc.free(pm); }
   }
 
   /// secp256k1 keypair: secretKey(32) + publicKey(65 uncompressed, 0x04‖X‖Y).
   KeyPairResult secp256k1Keygen() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_secp256k1_keygen')());
+          'cipherbird_secp256k1_keygen')());
 
   /// Derive the public key from a 32-byte secret key.
   /// [compressed] true → 33 bytes (0x02/0x03‖X), false → 65 bytes (0x04‖X‖Y).
@@ -2412,7 +2412,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Int32),
           CryptoBufferResult Function(Pointer<Uint8>, int, int)>(
-          'cryptolib_secp256k1_pubkey')(sp, secretKey.length, compressed ? 1 : 0));
+          'cipherbird_secp256k1_pubkey')(sp, secretKey.length, compressed ? 1 : 0));
     } finally { if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2428,7 +2428,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>, int)>(
-          'cryptolib_secp256k1_sign')(dp, sp, secretKey.length));
+          'cipherbird_secp256k1_sign')(dp, sp, secretKey.length));
     } finally { if (dp != nullptr) calloc.free(dp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -2443,7 +2443,7 @@ class CipherBird {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
           int Function(Pointer<Uint8>, Pointer<Uint8>, int, Pointer<Uint8>, int)>(
-          'cryptolib_secp256k1_verify')(dp, sgp, sig.length, pp, publicKey.length) == 1;
+          'cipherbird_secp256k1_verify')(dp, sgp, sig.length, pp, publicKey.length) == 1;
     } finally {
       if (dp != nullptr) calloc.free(dp);
       if (sgp != nullptr) calloc.free(sgp);
@@ -2465,7 +2465,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>),
           CryptoBufferResult Function(Pointer<Uint8>, Pointer<Uint8>)>(
-          'cryptolib_secp256k1_recover')(dp, sp));
+          'cipherbird_secp256k1_recover')(dp, sp));
     } finally { if (dp != nullptr) calloc.free(dp); if (sp != nullptr) calloc.free(sp); }
   }
 
@@ -3099,7 +3099,7 @@ class CipherBird {
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Utf8>,
               Pointer<Uint8>, Size, Uint64, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Utf8>,
-              Pointer<Uint8>, int, int, int)>('cryptolib_molecular_seal')(
+              Pointer<Uint8>, int, int, int)>('cipherbird_molecular_seal')(
           pp, plaintext.length, cpw, pa, aad?.length ?? 0, ops, mem));
     } finally {
       if (pp != nullptr) calloc.free(pp);
@@ -3118,7 +3118,7 @@ class CipherBird {
           CryptoBufferResult Function(
               Pointer<Uint8>, Size, Pointer<Utf8>, Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Utf8>,
-              Pointer<Uint8>, int)>('cryptolib_molecular_open')(
+              Pointer<Uint8>, int)>('cipherbird_molecular_open')(
           pe, envelope.length, cpw, pa, aad?.length ?? 0));
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -3137,7 +3137,7 @@ class CipherBird {
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int)>('cryptolib_molecular_seal_with_key')(
+              Pointer<Uint8>, int)>('cipherbird_molecular_seal_with_key')(
           pp, plaintext.length, pk, masterKey.length, pa, aad?.length ?? 0));
     } finally {
       if (pp != nullptr) calloc.free(pp);
@@ -3156,7 +3156,7 @@ class CipherBird {
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int)>('cryptolib_molecular_open_with_key')(
+              Pointer<Uint8>, int)>('cipherbird_molecular_open_with_key')(
           pe, envelope.length, pk, masterKey.length, pa, aad?.length ?? 0));
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -3170,68 +3170,68 @@ class CipherBird {
   /// the shared secret. Secure while EITHER X25519 or ML-KEM-768 holds.
   Uint8List suiteSealPq(Uint8List plaintext, Uint8List recipientKemPublic,
           {Uint8List? aad}) =>
-      _suiteBuf('cryptolib_suite_seal_pq', plaintext, recipientKemPublic, aad);
+      _suiteBuf('cipherbird_suite_seal_pq', plaintext, recipientKemPublic, aad);
 
   /// Like [suiteSealPq] but with the X25519+sntrup761 hybrid KEM (a different
   /// lattice family). [suiteOpenPq] auto-detects the KEM from the envelope.
   Uint8List suiteSealPqSntrup(Uint8List plaintext, Uint8List recipientKemPublic,
           {Uint8List? aad}) =>
-      _suiteBuf('cryptolib_suite_seal_pq_sntrup', plaintext, recipientKemPublic, aad);
+      _suiteBuf('cipherbird_suite_seal_pq_sntrup', plaintext, recipientKemPublic, aad);
 
   /// Open a [suiteSealPq]/[suiteSealPqSntrup] envelope with the recipient's
   /// hybrid-KEM secret key (KEM chosen from the envelope's suite id).
   Uint8List suiteOpenPq(Uint8List envelope, Uint8List recipientKemSecret,
           {Uint8List? aad}) =>
-      _suiteBuf('cryptolib_suite_open_pq', envelope, recipientKemSecret, aad);
+      _suiteBuf('cipherbird_suite_open_pq', envelope, recipientKemSecret, aad);
 
   /// Flagship: post-quantum confidentiality (hybrid KEM) + post-quantum
   /// authenticity (Ed25519+ML-DSA-65). [suiteOpenSignedPq] returns plaintext
   /// only if the signature verifies.
   Uint8List suiteSealSignedPq(Uint8List plaintext, Uint8List recipientKemPublic,
           Uint8List signerSigSecret, {Uint8List? aad}) =>
-      _suiteBuf3('cryptolib_suite_seal_signed_pq', plaintext, recipientKemPublic,
+      _suiteBuf3('cipherbird_suite_seal_signed_pq', plaintext, recipientKemPublic,
           signerSigSecret, aad);
 
   /// Flagship with the X25519+sntrup761 hybrid KEM.
   Uint8List suiteSealSignedPqSntrup(Uint8List plaintext, Uint8List recipientKemPublic,
           Uint8List signerSigSecret, {Uint8List? aad}) =>
-      _suiteBuf3('cryptolib_suite_seal_signed_pq_sntrup', plaintext, recipientKemPublic,
+      _suiteBuf3('cipherbird_suite_seal_signed_pq_sntrup', plaintext, recipientKemPublic,
           signerSigSecret, aad);
 
   /// Decrypt then verify; a signature mismatch throws and yields no plaintext.
   Uint8List suiteOpenSignedPq(Uint8List envelope, Uint8List recipientKemSecret,
           Uint8List signerSigPublic, {Uint8List? aad}) =>
-      _suiteBuf3('cryptolib_suite_open_signed_pq', envelope, recipientKemSecret,
+      _suiteBuf3('cipherbird_suite_open_signed_pq', envelope, recipientKemSecret,
           signerSigPublic, aad);
 
   /// File-as-key: deterministic media entropy from [path] derives the master.
   Uint8List suiteSealWithFile(Uint8List plaintext, String path, {Uint8List? aad}) =>
-      _suiteFile('cryptolib_suite_seal_with_file', plaintext, path, aad);
+      _suiteFile('cipherbird_suite_seal_with_file', plaintext, path, aad);
 
   /// Re-derive from the same file and open the envelope.
   Uint8List suiteOpenWithFile(Uint8List envelope, String path, {Uint8List? aad}) =>
-      _suiteFile('cryptolib_suite_open_with_file', envelope, path, aad);
+      _suiteFile('cipherbird_suite_open_with_file', envelope, path, aad);
 
   /// Keyring-guarded: a device-factor unlock provides the MolecularVault master.
   Uint8List suiteSealWithKeyringDevice(Uint8List plaintext, Pointer<Void> keyring,
           Uint8List factorKey, {Uint8List? aad}) =>
-      _suiteKeyringFactor('cryptolib_suite_seal_with_keyring_device', plaintext,
+      _suiteKeyringFactor('cipherbird_suite_seal_with_keyring_device', plaintext,
           keyring, factorKey, aad);
 
   Uint8List suiteOpenWithKeyringDevice(Uint8List envelope, Pointer<Void> keyring,
           Uint8List factorKey, {Uint8List? aad}) =>
-      _suiteKeyringFactor('cryptolib_suite_open_with_keyring_device', envelope,
+      _suiteKeyringFactor('cipherbird_suite_open_with_keyring_device', envelope,
           keyring, factorKey, aad);
 
   /// Keyring-guarded via a passphrase slot.
   Uint8List suiteSealWithKeyringPassphrase(Uint8List plaintext,
           Pointer<Void> keyring, String passphrase, {Uint8List? aad}) =>
-      _suiteKeyringPass('cryptolib_suite_seal_with_keyring_passphrase', plaintext,
+      _suiteKeyringPass('cipherbird_suite_seal_with_keyring_passphrase', plaintext,
           keyring, passphrase, aad);
 
   Uint8List suiteOpenWithKeyringPassphrase(Uint8List envelope,
           Pointer<Void> keyring, String passphrase, {Uint8List? aad}) =>
-      _suiteKeyringPass('cryptolib_suite_open_with_keyring_passphrase', envelope,
+      _suiteKeyringPass('cipherbird_suite_open_with_keyring_passphrase', envelope,
           keyring, passphrase, aad);
 
   /// EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key.
@@ -3241,7 +3241,7 @@ class CipherBird {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int)>(
-          'cryptolib_suite_evm_address')(pk, secp256k1PublicKey.length));
+          'cipherbird_suite_evm_address')(pk, secp256k1PublicKey.length));
     } finally {
       if (pk != nullptr) calloc.free(pk);
     }
@@ -3262,7 +3262,7 @@ class CipherBird {
               Pointer<Uint8>, Size, Pointer<CryptoBuffer>),
           CryptoBufferResult Function(Pointer<Uint8>, int, int, int,
               Pointer<Uint8>, int, Pointer<CryptoBuffer>)>(
-          'cryptolib_suite_seal_threshold')(
+          'cipherbird_suite_seal_threshold')(
           pp, plaintext.length, n, k, pa, aad?.length ?? 0, outShares);
       final env = _checkBufResult(r); // throws on error (outShares stays empty)
       final blob = _copyBuf(outShares.ref);
@@ -3290,7 +3290,7 @@ class CipherBird {
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint8>, Size),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int)>('cryptolib_suite_open_threshold')(
+              Pointer<Uint8>, int)>('cipherbird_suite_open_threshold')(
           pe, envelope.length, ps, joined.length, pa, aad?.length ?? 0));
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -3410,9 +3410,9 @@ class CipherBird {
   /// Generate a party's recipient (KEM) + sender (signature) keypairs.
   Identity newIdentity(SealedTier tier) {
     final r = _extractKeyPair(_lib.lookupFunction<CryptoKeyPair Function(Int32),
-        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_recipient')(tier.index));
+        CryptoKeyPair Function(int)>('cipherbird_sealed_generate_recipient')(tier.index));
     final s = _extractKeyPair(_lib.lookupFunction<CryptoKeyPair Function(Int32),
-        CryptoKeyPair Function(int)>('cryptolib_sealed_generate_sender')(tier.index));
+        CryptoKeyPair Function(int)>('cipherbird_sealed_generate_sender')(tier.index));
     return Identity(this, tier, r.publicKey, r.secretKey, s.publicKey, s.secretKey);
   }
 
@@ -3421,7 +3421,7 @@ class CipherBird {
     final pe = _toNative(envelope);
     try {
       final info = _lib.lookupFunction<CryptoSealedInfo Function(Pointer<Uint8>, Size),
-          CryptoSealedInfo Function(Pointer<Uint8>, int)>('cryptolib_sealed_inspect')(pe, envelope.length);
+          CryptoSealedInfo Function(Pointer<Uint8>, int)>('cipherbird_sealed_inspect')(pe, envelope.length);
       if (info.ok == 0) return null;
       final fp = Uint8List(16);
       for (var i = 0; i < 16; i++) { fp[i] = info.fingerprint[i]; }
@@ -3438,7 +3438,7 @@ class CipherBird {
     final pe = _toNative(envelope), pr = _toNative(recipientPublic);
     try {
       return _lib.lookupFunction<Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-              int Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_sealed_addressed_to')(
+              int Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_sealed_addressed_to')(
           pe, envelope.length, pr, recipientPublic.length) == 1;
     } finally {
       if (pe != nullptr) calloc.free(pe);
@@ -3454,7 +3454,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_sealed_seal')(
+          CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_sealed_seal')(
           tier.index, pp, pt.length, pr, recipientPublic.length, ps, senderSecret.length,
           pa, aad?.length ?? 0, pu, purpose?.length ?? 0));
     } finally {
@@ -3475,7 +3475,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_sealed_open')(
+          CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_sealed_open')(
           tier.index, pe, envelope.length, prs, recipientSecret.length, prp, recipientPublic.length,
           psp, senderPublic.length, pa, aad?.length ?? 0, pu, purpose?.length ?? 0));
     } finally {
@@ -3496,7 +3496,7 @@ class CipherBird {
     try {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
-          Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_sealed_sealer_begin')(
+          Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cipherbird_sealed_sealer_begin')(
           tier.index, pr, recipientPublic.length, ps, senderSecret.length, pu, purpose?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cipherbird: stream sealer begin failed');
@@ -3510,14 +3510,14 @@ class CipherBird {
   }
 
   Uint8List _sealedSealerPreamble(Pointer<Void> h) => _checkBufResult(_lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>), CryptoBufferResult Function(Pointer<Void>)>('cryptolib_sealed_sealer_preamble')(h));
+      CryptoBufferResult Function(Pointer<Void>), CryptoBufferResult Function(Pointer<Void>)>('cipherbird_sealed_sealer_preamble')(h));
 
   Uint8List _sealedSealerPush(Pointer<Void> h, Uint8List chunk) {
     final pc = _toNative(chunk);
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)>('cryptolib_sealed_sealer_push')(h, pc, chunk.length));
+          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)>('cipherbird_sealed_sealer_push')(h, pc, chunk.length));
     } finally { if (pc != nullptr) calloc.free(pc); }
   }
 
@@ -3527,14 +3527,14 @@ class CipherBird {
     try {
       final ct = _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size, Pointer<CryptoBuffer>),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, Pointer<CryptoBuffer>)>('cryptolib_sealed_sealer_finalize')(
+          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, Pointer<CryptoBuffer>)>('cipherbird_sealed_sealer_finalize')(
           h, pl, last?.length ?? 0, outTrailer));
       return (ct, _copyBuf(outTrailer.ref));
     } finally { if (pl != nullptr) calloc.free(pl); calloc.free(outTrailer); }
   }
 
   void _sealedSealerFree(Pointer<Void> h) => _lib.lookupFunction<
-      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cryptolib_sealed_sealer_free')(h);
+      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cipherbird_sealed_sealer_free')(h);
 
   SealedStreamOpener sealedOpenerBegin(SealedTier tier, Uint8List preamble,
       Uint8List recipientSecret, Uint8List recipientPublic, Uint8List senderPublic, {Uint8List? purpose}) {
@@ -3545,7 +3545,7 @@ class CipherBird {
     try {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
-          Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_sealed_opener_begin')(
+          Pointer<Void> Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cipherbird_sealed_opener_begin')(
           tier.index, pp, preamble.length, prs, recipientSecret.length, prp, recipientPublic.length,
           psp, senderPublic.length, pu, purpose?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
@@ -3567,7 +3567,7 @@ class CipherBird {
     try {
       final pt = _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size, Pointer<Int32>),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, Pointer<Int32>)>('cryptolib_sealed_opener_pull')(h, pc, ct.length, outFinal));
+          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, Pointer<Int32>)>('cipherbird_sealed_opener_pull')(h, pc, ct.length, outFinal));
       return (pt, outFinal.value == 1);
     } finally { if (pc != nullptr) calloc.free(pc); calloc.free(outFinal); }
   }
@@ -3577,18 +3577,18 @@ class CipherBird {
     try {
       _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)>('cryptolib_sealed_opener_finalize')(h, pt, trailer.length));
+          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)>('cipherbird_sealed_opener_finalize')(h, pt, trailer.length));
     } finally { if (pt != nullptr) calloc.free(pt); }
   }
 
   void _sealedOpenerFree(Pointer<Void> h) => _lib.lookupFunction<
-      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cryptolib_sealed_opener_free')(h);
+      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cipherbird_sealed_opener_free')(h);
 
   // ── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ────────
   /// Responder: generate a prekey (hybrid-KEM keypair). Publish publicKey.
   KeyPairResult generateSessionPrekey() => _extractKeyPair(
       _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>(
-          'cryptolib_session_generate_prekey')());
+          'cipherbird_session_generate_prekey')());
 
   /// Initiator: start a session to the responder's prekey public key.
   Session initiateSession(Uint8List responderPrekeyPublic) {
@@ -3597,7 +3597,7 @@ class CipherBird {
     try {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
-          Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_session_initiate')(
+          Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cipherbird_session_initiate')(
           pp, responderPrekeyPublic.length, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cipherbird: session initiate failed');
@@ -3612,7 +3612,7 @@ class CipherBird {
     try {
       final h = _lib.lookupFunction<
           Pointer<Void> Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
-          Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_session_accept')(
+          Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cipherbird_session_accept')(
           ph, handshake.length, pub, prekeyPublic.length, sec, prekeySecret.length, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
       if (h == nullptr) throw Exception('cipherbird: session accept failed');
@@ -3626,7 +3626,7 @@ class CipherBird {
   }
 
   Uint8List _sessionHandshake(Pointer<Void> h) => _checkBufResult(_lib.lookupFunction<
-      CryptoBufferResult Function(Pointer<Void>), CryptoBufferResult Function(Pointer<Void>)>('cryptolib_session_handshake')(h));
+      CryptoBufferResult Function(Pointer<Void>), CryptoBufferResult Function(Pointer<Void>)>('cipherbird_session_handshake')(h));
 
   Uint8List _sessionMsg(String symbol, Pointer<Void> h, Uint8List data, Uint8List? aad) {
     final pd = _toNative(data);
@@ -3640,7 +3640,7 @@ class CipherBird {
   }
 
   void _sessionFree(Pointer<Void> h) => _lib.lookupFunction<
-      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cryptolib_session_free')(h);
+      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cipherbird_session_free')(h);
 
   // ── FROST(Ed25519, SHA-512) — t-of-n threshold signatures (RFC 9591) ───────
   /// Trusted-dealer split: any [t] of [n] shares can sign. Share i (0-based) has
@@ -3648,7 +3648,7 @@ class CipherBird {
   FrostKeyGen frostKeygen(int n, int t) {
     final kg = _lib.lookupFunction<
         CryptoFrostKeyGen Function(Uint16, Uint16),
-        CryptoFrostKeyGen Function(int, int)>('cryptolib_frost_keygen')(n, t);
+        CryptoFrostKeyGen Function(int, int)>('cipherbird_frost_keygen')(n, t);
     if (kg.error != nullptr) {
       final m = kg.error.toDartString();
       _frostKeygenFree(kg);
@@ -3679,7 +3679,7 @@ class CipherBird {
     p.ref.count = kg.count;
     p.ref.error = kg.error;
     _lib.lookupFunction<Void Function(Pointer<CryptoFrostKeyGen>),
-        void Function(Pointer<CryptoFrostKeyGen>)>('cryptolib_frost_keygen_free')(p);
+        void Function(Pointer<CryptoFrostKeyGen>)>('cipherbird_frost_keygen_free')(p);
     calloc.free(p);
   }
 
@@ -3690,7 +3690,7 @@ class CipherBird {
     try {
       final c = _lib.lookupFunction<
           CryptoFrostCommit Function(Pointer<Uint8>, Size, Uint16),
-          CryptoFrostCommit Function(Pointer<Uint8>, int, int)>('cryptolib_frost_commit')(
+          CryptoFrostCommit Function(Pointer<Uint8>, int, int)>('cipherbird_frost_commit')(
           ps, shareSecret.length, identifier);
       return _frostCommitOut(c, identifier);
     } finally { if (ps != nullptr) calloc.free(ps); }
@@ -3702,7 +3702,7 @@ class CipherBird {
     try {
       final c = _lib.lookupFunction<
           CryptoFrostCommit Function(Uint16, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoFrostCommit Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_frost_commit_with_nonces')(
+          CryptoFrostCommit Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_frost_commit_with_nonces')(
           identifier, ph, hiding.length, pb, binding.length);
       return _frostCommitOut(c, identifier);
     } finally { if (ph != nullptr) calloc.free(ph); if (pb != nullptr) calloc.free(pb); }
@@ -3728,7 +3728,7 @@ class CipherBird {
     p.ref.bindingCommit.data = c.bindingCommit.data; p.ref.bindingCommit.len = c.bindingCommit.len;
     p.ref.error = c.error;
     _lib.lookupFunction<Void Function(Pointer<CryptoFrostCommit>),
-        void Function(Pointer<CryptoFrostCommit>)>('cryptolib_frost_commit_free')(p);
+        void Function(Pointer<CryptoFrostCommit>)>('cipherbird_frost_commit_free')(p);
     calloc.free(p);
   }
 
@@ -3764,7 +3764,7 @@ class CipherBird {
               Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, Size),
           CryptoBufferResult Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int)>('cryptolib_frost_sign')(
+              Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int)>('cipherbird_frost_sign')(
           identifier, ps, shareSecret.length, pg, groupPublicKey.length,
           ph, nonces.hiding.length, pbn, nonces.binding.length, pm, msg.length,
           ids, hid, bnd, commitments.length));
@@ -3787,7 +3787,7 @@ class CipherBird {
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, Size, Pointer<Uint8>),
           CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int, Pointer<Uint8>)>('cryptolib_frost_aggregate')(
+              Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int, Pointer<Uint8>)>('cipherbird_frost_aggregate')(
           pg, groupPublicKey.length, pm, msg.length, ids, hid, bnd, commitments.length, pf));
     } finally {
       if (pg != nullptr) calloc.free(pg);
@@ -3803,7 +3803,7 @@ class CipherBird {
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_frost_verify')(
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_frost_verify')(
           pm, msg.length, psig, sig.length, pg, groupPublicKey.length) == 1;
     } finally {
       if (pm != nullptr) calloc.free(pm);
@@ -3827,7 +3827,7 @@ class CipherBird {
               Pointer<Uint8>, Size, Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, Size),
           int Function(int, Pointer<Uint8>, int, Pointer<Uint8>, int,
               Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int, Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int)>('cryptolib_frost_verify_share')(
+              Pointer<Uint8>, int, Pointer<Uint16>, Pointer<Uint8>, Pointer<Uint8>, int)>('cipherbird_frost_verify_share')(
           identifier, pp, publicShare.length, pss, sigShare.length,
           pch, commitment.hiding.length, pcb, commitment.binding.length,
           pg, groupPublicKey.length, pm, msg.length, ids, hid, bnd, commitments.length) == 1;
@@ -3840,7 +3840,7 @@ class CipherBird {
   // ── HPKE — Hybrid Public Key Encryption (RFC 9180) ─────────────────────────
   /// Fresh X25519 key pair for HPKE.
   KeyPairResult hpkeKeygen() => _extractKeyPair(
-      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>('cryptolib_hpke_keygen')());
+      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>('cipherbird_hpke_keygen')());
 
   /// Deterministic DHKEM(X25519).DeriveKeyPair from input keying material.
   KeyPairResult hpkeDeriveKeyPair(Uint8List ikm) {
@@ -3848,7 +3848,7 @@ class CipherBird {
     try {
       return _extractKeyPair(_lib.lookupFunction<
           CryptoKeyPair Function(Pointer<Uint8>, Size),
-          CryptoKeyPair Function(Pointer<Uint8>, int)>('cryptolib_hpke_derive_keypair')(p, ikm.length));
+          CryptoKeyPair Function(Pointer<Uint8>, int)>('cipherbird_hpke_derive_keypair')(p, ikm.length));
     } finally { if (p != nullptr) calloc.free(p); }
   }
 
@@ -3866,7 +3866,7 @@ class CipherBird {
           Pointer<Void> Function(Int32, Int32, Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_s')(
+              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<CryptoBuffer>, Pointer<Pointer<Utf8>>)>('cipherbird_hpke_setup_s')(
           kdf, aead, mode, ppk, recipientPublic.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, psks, senderSecret?.length ?? 0, encOut, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
@@ -3892,7 +3892,7 @@ class CipherBird {
           Pointer<Void> Function(Int32, Int32, Int32, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size,
               Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
           Pointer<Void> Function(int, int, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int,
-              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cryptolib_hpke_setup_r')(
+              Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)>('cipherbird_hpke_setup_r')(
           kdf, aead, mode, pe, enc.length, psk_, recipientSecret.length, pinfo, info.length,
           ppsk, psk?.length ?? 0, ppid, pskId?.length ?? 0, pks, senderPublic?.length ?? 0, errPtr);
       if (errPtr.value != nullptr) { final m = errPtr.value.toDartString(); _strFree(errPtr.value); throw Exception(m); }
@@ -3934,18 +3934,18 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size, Size),
-          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, int)>('cryptolib_hpke_export')(
+          CryptoBufferResult Function(Pointer<Void>, Pointer<Uint8>, int, int)>('cipherbird_hpke_export')(
           h, pc, exporterContext.length, length));
     } finally { if (pc != nullptr) calloc.free(pc); }
   }
 
   void _hpkeFree(Pointer<Void> h) => _lib.lookupFunction<
-      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cryptolib_hpke_context_free')(h);
+      Void Function(Pointer<Void>), void Function(Pointer<Void>)>('cipherbird_hpke_context_free')(h);
 
   // ── ECVRF — Verifiable Random Function (RFC 9381) ──────────────────────────
   /// ECVRF key pair (pk 32 B, sk = 32-byte seed).
   KeyPairResult ecvrfKeygen() => _extractKeyPair(
-      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>('cryptolib_ecvrf_keygen')());
+      _lib.lookupFunction<CryptoKeyPair Function(), CryptoKeyPair Function()>('cipherbird_ecvrf_keygen')());
 
   /// Derive the public key Y = x·B from a 32-byte secret seed.
   Uint8List ecvrfPublicKey(Uint8List secretKey) {
@@ -3953,7 +3953,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)>('cryptolib_ecvrf_public_key')(p, secretKey.length));
+          CryptoBufferResult Function(Pointer<Uint8>, int)>('cipherbird_ecvrf_public_key')(p, secretKey.length));
     } finally { if (p != nullptr) calloc.free(p); }
   }
 
@@ -3963,7 +3963,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_ecvrf_prove')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_ecvrf_prove')(
           ps, secretKey.length, pa, alpha.length));
     } finally { if (ps != nullptr) calloc.free(ps); if (pa != nullptr) calloc.free(pa); }
   }
@@ -3974,7 +3974,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)>('cryptolib_ecvrf_proof_to_hash')(p, proof.length));
+          CryptoBufferResult Function(Pointer<Uint8>, int)>('cipherbird_ecvrf_proof_to_hash')(p, proof.length));
     } finally { if (p != nullptr) calloc.free(p); }
   }
 
@@ -3984,7 +3984,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_ecvrf_verify')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_ecvrf_verify')(
           pk, publicKey.length, pa, alpha.length, pi, proof.length));
     } finally {
       if (pk != nullptr) calloc.free(pk);
@@ -4001,7 +4001,7 @@ class CipherBird {
     try {
       final r = _extractKeyPair(_lib.lookupFunction<
           CryptoKeyPair Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_bbs_keygen')(
+          CryptoKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_bbs_keygen')(
           km, keyMaterial.length, ki, keyInfo?.length ?? 0));
       if (r.publicKey.isEmpty) throw Exception('cipherbird: bbs keygen failed (key material must be >= 32 bytes)');
       return r;
@@ -4014,7 +4014,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int)>('cryptolib_bbs_sk_to_pk')(p, secretKey.length));
+          CryptoBufferResult Function(Pointer<Uint8>, int)>('cipherbird_bbs_sk_to_pk')(p, secretKey.length));
     } finally { if (p != nullptr) calloc.free(p); }
   }
 
@@ -4025,7 +4025,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cryptolib_bbs_sign')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cipherbird_bbs_sign')(
           sk, secretKey.length, pk, publicKey.length, h, header.length, mp, ml, messages.length));
     } finally {
       if (sk != nullptr) calloc.free(sk); if (pk != nullptr) calloc.free(pk); if (h != nullptr) calloc.free(h);
@@ -4040,7 +4040,7 @@ class CipherBird {
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size),
-          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cryptolib_bbs_verify')(
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int)>('cipherbird_bbs_verify')(
           pk, publicKey.length, s, signature.length, h, header.length, mp, ml, messages.length) == 1;
     } finally {
       if (pk != nullptr) calloc.free(pk); if (s != nullptr) calloc.free(s); if (h != nullptr) calloc.free(h);
@@ -4058,7 +4058,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint64>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int)>('cryptolib_bbs_proof_gen')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int)>('cipherbird_bbs_proof_gen')(
           pk, publicKey.length, s, signature.length, h, header.length, p, ph.length,
           mp, ml, messages.length, idx, disclosedIndexes.length));
     } finally {
@@ -4077,7 +4077,7 @@ class CipherBird {
     try {
       return _lib.lookupFunction<
           Int32 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Pointer<Uint8>>, Pointer<Size>, Size, Pointer<Uint64>, Size),
-          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int)>('cryptolib_bbs_proof_verify')(
+          int Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Pointer<Uint8>>, Pointer<Size>, int, Pointer<Uint64>, int)>('cipherbird_bbs_proof_verify')(
           pk, publicKey.length, pr, proof.length, h, header.length, p, ph.length,
           mp, ml, disclosedMessages.length, idx, disclosedIndexes.length) == 1;
     } finally {
@@ -4101,7 +4101,7 @@ class CipherBird {
     try {
       final r = _extractKeyPair(_lib.lookupFunction<
           CryptoKeyPair Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_oprf_derive_keypair')(
+          CryptoKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_oprf_derive_keypair')(
           s, seed.length, i, info?.length ?? 0));
       if (r.publicKey.isEmpty) throw Exception('cipherbird: oprf derive_keypair failed');
       return r;
@@ -4114,7 +4114,7 @@ class CipherBird {
     try {
       final c = _lib.lookupFunction<
           CryptoOprfBlind Function(Pointer<Uint8>, Size),
-          CryptoOprfBlind Function(Pointer<Uint8>, int)>('cryptolib_oprf_blind')(p, input.length);
+          CryptoOprfBlind Function(Pointer<Uint8>, int)>('cipherbird_oprf_blind')(p, input.length);
       return _oprfBlindOut(c);
     } finally { if (p != nullptr) calloc.free(p); }
   }
@@ -4125,7 +4125,7 @@ class CipherBird {
     try {
       final c = _lib.lookupFunction<
           CryptoOprfBlind Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoOprfBlind Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_oprf_blind_with_scalar')(
+          CryptoOprfBlind Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_oprf_blind_with_scalar')(
           p, input.length, b, blind.length);
       return _oprfBlindOut(c);
     } finally { if (p != nullptr) calloc.free(p); if (b != nullptr) calloc.free(b); }
@@ -4148,7 +4148,7 @@ class CipherBird {
     p.ref.blindedElement.data = c.blindedElement.data; p.ref.blindedElement.len = c.blindedElement.len;
     p.ref.error = c.error;
     _lib.lookupFunction<Void Function(Pointer<CryptoOprfBlind>),
-        void Function(Pointer<CryptoOprfBlind>)>('cryptolib_oprf_blind_free')(p);
+        void Function(Pointer<CryptoOprfBlind>)>('cipherbird_oprf_blind_free')(p);
     calloc.free(p);
   }
 
@@ -4158,7 +4158,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_oprf_blind_evaluate')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_oprf_blind_evaluate')(
           s, secretKey.length, b, blindedElement.length));
     } finally { if (s != nullptr) calloc.free(s); if (b != nullptr) calloc.free(b); }
   }
@@ -4169,7 +4169,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_oprf_finalize')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_oprf_finalize')(
           p, input.length, b, blind.length, e, evaluatedElement.length));
     } finally {
       if (p != nullptr) calloc.free(p); if (b != nullptr) calloc.free(b); if (e != nullptr) calloc.free(e);
@@ -4182,7 +4182,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_oprf_evaluate')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_oprf_evaluate')(
           s, secretKey.length, p, input.length));
     } finally { if (s != nullptr) calloc.free(s); if (p != nullptr) calloc.free(p); }
   }
@@ -4194,7 +4194,7 @@ class CipherBird {
     try {
       final c = _lib.lookupFunction<
           CryptoOprfBlind Function(Pointer<Uint8>, Size),
-          CryptoOprfBlind Function(Pointer<Uint8>, int)>('cryptolib_opaque_registration_request')(p, password.length);
+          CryptoOprfBlind Function(Pointer<Uint8>, int)>('cipherbird_opaque_registration_request')(p, password.length);
       return _oprfBlindOut(c);
     } finally { if (p != nullptr) calloc.free(p); }
   }
@@ -4206,7 +4206,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_opaque_registration_response')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_opaque_registration_response')(
           a, request.length, b, serverPublicKey.length, c, credentialIdentifier.length, d, oprfSeed.length));
     } finally { for (final x in [a, b, c, d]) { if (x != nullptr) calloc.free(x); } }
   }
@@ -4220,7 +4220,7 @@ class CipherBird {
     try {
       final r = _lib.lookupFunction<
           CryptoOpaqueRecord Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoOpaqueRecord Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_opaque_finalize_request')(
+          CryptoOpaqueRecord Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_opaque_finalize_request')(
           a, password.length, b, blind.length, c, response.length, si, serverIdentity?.length ?? 0, ci, clientIdentity?.length ?? 0);
       if (r.error != nullptr) { final m = r.error.toDartString(); _opaqueRecordFree(r); throw Exception(m); }
       final out = OpaqueRecord(_copyBufView(r.record), _copyBufView(r.exportKey));
@@ -4235,7 +4235,7 @@ class CipherBird {
     try {
       final r = _lib.lookupFunction<
           CryptoOpaqueKe1 Function(Pointer<Uint8>, Size),
-          CryptoOpaqueKe1 Function(Pointer<Uint8>, int)>('cryptolib_opaque_client_init')(p, password.length);
+          CryptoOpaqueKe1 Function(Pointer<Uint8>, int)>('cipherbird_opaque_client_init')(p, password.length);
       if (r.error != nullptr) { final m = r.error.toDartString(); _opaqueKe1Free(r); throw Exception(m); }
       final out = OpaqueKe1(_copyBufView(r.ke1), _copyBufView(r.clientState));
       _opaqueKe1Free(r);
@@ -4254,7 +4254,7 @@ class CipherBird {
     try {
       final r = _lib.lookupFunction<
           CryptoOpaqueKe2 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoOpaqueKe2 Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_opaque_server_respond')(
+          CryptoOpaqueKe2 Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_opaque_server_respond')(
           ptrs[0], context.length, ptrs[1], serverPrivateKey.length, ptrs[2], serverPublicKey.length,
           ptrs[3], record.length, ptrs[4], credentialIdentifier.length, ptrs[5], oprfSeed.length, ptrs[6], ke1.length,
           si, serverIdentity?.length ?? 0, ci, clientIdentity?.length ?? 0);
@@ -4275,7 +4275,7 @@ class CipherBird {
     try {
       final r = _lib.lookupFunction<
           CryptoOpaqueKe3 Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoOpaqueKe3 Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_opaque_client_finish')(
+          CryptoOpaqueKe3 Function(Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_opaque_client_finish')(
           a, clientState.length, b, ke2.length, c, context.length, si, serverIdentity?.length ?? 0, ci, clientIdentity?.length ?? 0);
       if (r.error != nullptr) { final m = r.error.toDartString(); _opaqueKe3Free(r); throw Exception(m); }
       final out = OpaqueKe3(_copyBufView(r.ke3), _copyBufView(r.sessionKey), _copyBufView(r.exportKey));
@@ -4290,7 +4290,7 @@ class CipherBird {
     try {
       return _checkBufResult(_lib.lookupFunction<
           CryptoBufferResult Function(Pointer<Uint8>, Size, Pointer<Uint8>, Size),
-          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cryptolib_opaque_server_finish')(
+          CryptoBufferResult Function(Pointer<Uint8>, int, Pointer<Uint8>, int)>('cipherbird_opaque_server_finish')(
           a, serverState.length, b, ke3.length));
     } finally { if (a != nullptr) calloc.free(a); if (b != nullptr) calloc.free(b); }
   }
@@ -4300,7 +4300,7 @@ class CipherBird {
     p.ref.record.data = r.record.data; p.ref.record.len = r.record.len;
     p.ref.exportKey.data = r.exportKey.data; p.ref.exportKey.len = r.exportKey.len;
     p.ref.error = r.error;
-    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueRecord>), void Function(Pointer<CryptoOpaqueRecord>)>('cryptolib_opaque_record_free')(p);
+    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueRecord>), void Function(Pointer<CryptoOpaqueRecord>)>('cipherbird_opaque_record_free')(p);
     calloc.free(p);
   }
   void _opaqueKe1Free(CryptoOpaqueKe1 r) {
@@ -4308,7 +4308,7 @@ class CipherBird {
     p.ref.ke1.data = r.ke1.data; p.ref.ke1.len = r.ke1.len;
     p.ref.clientState.data = r.clientState.data; p.ref.clientState.len = r.clientState.len;
     p.ref.error = r.error;
-    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe1>), void Function(Pointer<CryptoOpaqueKe1>)>('cryptolib_opaque_ke1_free')(p);
+    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe1>), void Function(Pointer<CryptoOpaqueKe1>)>('cipherbird_opaque_ke1_free')(p);
     calloc.free(p);
   }
   void _opaqueKe2Free(CryptoOpaqueKe2 r) {
@@ -4316,7 +4316,7 @@ class CipherBird {
     p.ref.ke2.data = r.ke2.data; p.ref.ke2.len = r.ke2.len;
     p.ref.serverState.data = r.serverState.data; p.ref.serverState.len = r.serverState.len;
     p.ref.error = r.error;
-    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe2>), void Function(Pointer<CryptoOpaqueKe2>)>('cryptolib_opaque_ke2_free')(p);
+    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe2>), void Function(Pointer<CryptoOpaqueKe2>)>('cipherbird_opaque_ke2_free')(p);
     calloc.free(p);
   }
   void _opaqueKe3Free(CryptoOpaqueKe3 r) {
@@ -4325,7 +4325,7 @@ class CipherBird {
     p.ref.sessionKey.data = r.sessionKey.data; p.ref.sessionKey.len = r.sessionKey.len;
     p.ref.exportKey.data = r.exportKey.data; p.ref.exportKey.len = r.exportKey.len;
     p.ref.error = r.error;
-    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe3>), void Function(Pointer<CryptoOpaqueKe3>)>('cryptolib_opaque_ke3_free')(p);
+    _lib.lookupFunction<Void Function(Pointer<CryptoOpaqueKe3>), void Function(Pointer<CryptoOpaqueKe3>)>('cipherbird_opaque_ke3_free')(p);
     calloc.free(p);
   }
 }
@@ -4383,10 +4383,10 @@ class HpkeContext {
   HpkeContext(this._cl, this._h);
 
   /// Sender: AEAD-seal the next message (advances the sequence).
-  Uint8List seal(Uint8List plaintext, {Uint8List? aad}) => _cl._hpkeMsg('cryptolib_hpke_seal', _h, plaintext, aad);
+  Uint8List seal(Uint8List plaintext, {Uint8List? aad}) => _cl._hpkeMsg('cipherbird_hpke_seal', _h, plaintext, aad);
 
   /// Receiver: AEAD-open the next message (advances the sequence).
-  Uint8List open(Uint8List ciphertext, {Uint8List? aad}) => _cl._hpkeMsg('cryptolib_hpke_open', _h, ciphertext, aad);
+  Uint8List open(Uint8List ciphertext, {Uint8List? aad}) => _cl._hpkeMsg('cipherbird_hpke_open', _h, ciphertext, aad);
 
   /// Derive a length-byte secret bound to this context (RFC 9180 §5.3).
   Uint8List export(Uint8List exporterContext, int length) => _cl._hpkeExport(_h, exporterContext, length);
@@ -4413,11 +4413,11 @@ class Session {
 
   /// Encrypt the next outgoing message (advances the sending ratchet).
   Uint8List encrypt(Uint8List plaintext, {Uint8List? aad}) =>
-      _cl._sessionMsg('cryptolib_session_encrypt', _h, plaintext, aad);
+      _cl._sessionMsg('cipherbird_session_encrypt', _h, plaintext, aad);
 
   /// Decrypt an incoming message (handles ratchet turns + out-of-order; transactional).
   Uint8List decrypt(Uint8List message, {Uint8List? aad}) =>
-      _cl._sessionMsg('cryptolib_session_decrypt', _h, message, aad);
+      _cl._sessionMsg('cipherbird_session_decrypt', _h, message, aad);
 
   void close() { if (_h != nullptr) { _cl._sessionFree(_h); _h = nullptr; } }
 }

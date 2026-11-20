@@ -422,7 +422,7 @@ part 'utils.dart';
 final class CipherBird {
   CipherBird._(this._lib);
 
-  /// Opens the native library: an explicit [path], else `CRYPTOLIB_DYLIB`,
+  /// Opens the native library: an explicit [path], else `CIPHERBIRD_LIBRARY`,
   /// else the platform default (process image on Apple platforms, the bundled
   /// `libcipherbird.so` on Android and Linux).
   factory CipherBird.load([String? path]) =>

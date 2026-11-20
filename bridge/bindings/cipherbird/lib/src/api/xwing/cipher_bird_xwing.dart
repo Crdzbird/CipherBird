@@ -8,7 +8,7 @@ extension CipherBirdXWing on CipherBird {
       _lib.lookupFunction<
         CipherBirdKeyPair Function(),
         CipherBirdKeyPair Function()
-      >('cryptolib_xwing_keygen')(),
+      >('cipherbird_xwing_keygen')(),
     );
   }
 
@@ -20,7 +20,7 @@ extension CipherBirdXWing on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Pointer<Uint8>, Size),
           CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cryptolib_xwing_keypair_from_seed')(seedPtr, seed.length),
+        >('cipherbird_xwing_keypair_from_seed')(seedPtr, seed.length),
       );
     } finally {
       if (seedPtr != nullptr) calloc.free(seedPtr);
@@ -46,7 +46,7 @@ extension CipherBirdXWing on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_xwing_decapsulate')(
+        >('cipherbird_xwing_decapsulate')(
           ciphertextPtr,
           ciphertext.length,
           secretKeyPtr,

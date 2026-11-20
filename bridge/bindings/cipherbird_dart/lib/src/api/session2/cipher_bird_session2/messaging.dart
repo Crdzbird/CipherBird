@@ -39,14 +39,14 @@ extension CipherBirdSession2Messaging on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_session2_free')(h);
+      >('cipherbird_session2_free')(h);
 
   Uint8List _session2Handshake(Pointer<Void> h) {
     return _checkBufResult(
       _lib.lookupFunction<
         CipherBirdBufferResult Function(Pointer<Void>),
         CipherBirdBufferResult Function(Pointer<Void>)
-      >('cryptolib_session2_handshake')(h),
+      >('cipherbird_session2_handshake')(h),
     );
   }
 }

@@ -1,4 +1,4 @@
-# Minimal iOS toolchain for cryptolib.
+# Minimal iOS toolchain for cipherbird.
 #
 # Usage:
 #   cmake -B build/ios \

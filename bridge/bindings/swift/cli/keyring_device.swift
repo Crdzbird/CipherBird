@@ -18,8 +18,8 @@
 // over a key agreement with a fixed peer key — fully non-exportable.
 //
 // Build/run (see Makefile target `swift-keyring`):
-//   swiftc -import-objc-header ../../../cryptolib_c.h keyring_device.swift \
-//     -framework Security -L ../../../../build/release -lcryptolib_c \
+//   swiftc -import-objc-header ../../../cipherbird_c.h keyring_device.swift \
+//     -framework Security -L ../../../../build/release -lcipherbird_c \
 //     -Xlinker -rpath -Xlinker ../../../../build/release -o kd && ./kd
 
 import Foundation
@@ -68,40 +68,40 @@ private func deleteFactor() {
 }
 
 private func consume(_ r: CryptoBufferResult) -> [UInt8]? {
-    guard let d = r.buf.data else { if let e = r.error { cryptolib_str_free(e) }; return nil }
+    guard let d = r.buf.data else { if let e = r.error { cipherbird_str_free(e) }; return nil }
     let out = Array(UnsafeBufferPointer(start: d, count: r.buf.len))
     var b = r.buf
-    cryptolib_buffer_free(&b)
+    cipherbird_buffer_free(&b)
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
+guard cipherbird_init() == 0 else { fatalError("init failed") }
 deleteFactor()  // clean slate for a repeatable demo
 
 // ── Enroll: the Keychain device factor wraps a new keyring's master key ──────
 let factor = deviceFactorKey()
-let kr = cryptolib_keyring_create()
-factor.withUnsafeBufferPointer { _ = cryptolib_keyring_add_device_slot(kr, $0.baseAddress, $0.count) }
-let blob = consume(cryptolib_keyring_serialise(kr))!
-print("enrolled: \(cryptolib_keyring_slot_count(kr)) device slot · envelope \(blob.count) bytes")
+let kr = cipherbird_keyring_create()
+factor.withUnsafeBufferPointer { _ = cipherbird_keyring_add_device_slot(kr, $0.baseAddress, $0.count) }
+let blob = consume(cipherbird_keyring_serialise(kr))!
+print("enrolled: \(cipherbird_keyring_slot_count(kr)) device slot · envelope \(blob.count) bytes")
 
 // ── Relaunch: re-fetch the SAME factor from the Keychain and unlock ──────────
 let factor2 = deviceFactorKey()  // idempotent
 print("keychain factor stable across calls: \(factor == factor2)")
 var err: UnsafeMutablePointer<CChar>? = nil
-let kr2 = blob.withUnsafeBufferPointer { cryptolib_keyring_deserialise($0.baseAddress, $0.count, &err) }
+let kr2 = blob.withUnsafeBufferPointer { cipherbird_keyring_deserialise($0.baseAddress, $0.count, &err) }
 let master = factor2.withUnsafeBufferPointer {
-    consume(cryptolib_keyring_unlock_with_device(kr2, $0.baseAddress, $0.count))
+    consume(cipherbird_keyring_unlock_with_device(kr2, $0.baseAddress, $0.count))
 }
 print("unlocked master via Keychain factor: \(master != nil) (\(master?.count ?? 0) bytes)")
 
 // ── A wrong device key must fail ─────────────────────────────────────────────
 let wrong = [UInt8](repeating: 0, count: 32)
-let bad = wrong.withUnsafeBufferPointer { cryptolib_keyring_unlock_with_device(kr2, $0.baseAddress, $0.count) }
+let bad = wrong.withUnsafeBufferPointer { cipherbird_keyring_unlock_with_device(kr2, $0.baseAddress, $0.count) }
 print("wrong device key rejected: \(bad.buf.data == nil)")
-if let e = bad.error { cryptolib_str_free(e) }
+if let e = bad.error { cipherbird_str_free(e) }
 
-cryptolib_keyring_free(kr)
-cryptolib_keyring_free(kr2)
+cipherbird_keyring_free(kr)
+cipherbird_keyring_free(kr2)
 deleteFactor()
 print("Device-factor (Keychain) demo OK")

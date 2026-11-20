@@ -3,7 +3,7 @@
 // plus end-to-end sign/verify and selective-disclosure round trips.
 #include "test_framework.hpp"
 
-#include <cryptolib/bbs.hpp>
+#include <cipherbird/bbs.hpp>
 
 #include <cstdint>
 #include <string>

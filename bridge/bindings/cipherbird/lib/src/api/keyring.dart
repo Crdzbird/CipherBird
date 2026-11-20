@@ -5,7 +5,7 @@ extension CipherBirdKeyring on CipherBird {
   /// New keyring with a fresh random master key.
   Pointer<Void> keyringCreate() =>
       _lib.lookupFunction<Pointer<Void> Function(), Pointer<Void> Function()>(
-        'cryptolib_keyring_create',
+        'cipherbird_keyring_create',
       )();
 
   /// Wrap the master key under a >=32-byte hardware factor key.
@@ -16,7 +16,7 @@ extension CipherBirdKeyring on CipherBird {
       return _lib.lookupFunction<
             Int32 Function(Pointer<Void>, Pointer<Uint8>, Size),
             int Function(Pointer<Void>, Pointer<Uint8>, int)
-          >('cryptolib_keyring_add_device_slot')(kr, p, factor.length) ==
+          >('cipherbird_keyring_add_device_slot')(kr, p, factor.length) ==
           1;
     } finally {
       malloc.free(p);
@@ -42,14 +42,14 @@ extension CipherBirdKeyring on CipherBird {
       _lib.lookupFunction<
         Size Function(Pointer<Void>),
         int Function(Pointer<Void>)
-      >('cryptolib_keyring_slot_count')(kr);
+      >('cipherbird_keyring_slot_count')(kr);
 
   /// Serialise the envelope blob (no plaintext key).
   Uint8List keyringSerialise(Pointer<Void> kr) => _checkBufResult(
     _lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>),
       CipherBirdBufferResult Function(Pointer<Void>)
-    >('cryptolib_keyring_serialise')(kr),
+    >('cipherbird_keyring_serialise')(kr),
   );
 
   /// Parse an envelope blob into a (locked) keyring handle (nullptr on error).
@@ -61,7 +61,7 @@ extension CipherBirdKeyring on CipherBird {
       return _lib.lookupFunction<
         Pointer<Void> Function(Pointer<Uint8>, Size, Pointer<Pointer<Utf8>>),
         Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)
-      >('cryptolib_keyring_deserialise')(p, blob.length, errPtr);
+      >('cipherbird_keyring_deserialise')(p, blob.length, errPtr);
     } finally {
       malloc.free(p);
       malloc.free(errPtr);
@@ -77,7 +77,7 @@ extension CipherBirdKeyring on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_keyring_unlock_with_device')(kr, p, factor.length),
+        >('cipherbird_keyring_unlock_with_device')(kr, p, factor.length),
       );
     } finally {
       malloc.free(p);

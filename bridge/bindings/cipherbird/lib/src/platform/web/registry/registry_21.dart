@@ -1,14 +1,14 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry21 = {
-  'cryptolib_seal_from_file':
+  'cipherbird_seal_from_file':
       (
         Pointer<NativeType> path,
         Pointer<NativeType> plaintext,
         Pointer<NativeType> aad,
         Pointer<NativeType> outError,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_seal_from_file',
+        '_cbw_cipherbird_seal_from_file',
         [
           path.address.toJS,
           plaintext.address.toJS,
@@ -18,25 +18,25 @@ final Map<String, Function> _registry21 = {
         CipherBirdPacket.size,
         CipherBirdPacket._new,
       ),
-  'cryptolib_open_from_file':
+  'cipherbird_open_from_file':
       (
         Pointer<NativeType> path,
         Pointer<NativeType> packet,
         Pointer<NativeType> aad,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_open_from_file',
+        '_cbw_cipherbird_open_from_file',
         [path.address.toJS, packet.address.toJS, aad.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3': (Pointer<NativeType> msg, int msgLen, int outLen) =>
+  'cipherbird_blake3': (Pointer<NativeType> msg, int msgLen, int outLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3',
+        '_cbw_cipherbird_blake3',
         [msg.address.toJS, msgLen.toJS, outLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_keyed':
+  'cipherbird_blake3_keyed':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -44,7 +44,7 @@ final Map<String, Function> _registry21 = {
         int keyLen,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_keyed',
+        '_cbw_cipherbird_blake3_keyed',
         [
           msg.address.toJS,
           msgLen.toJS,
@@ -55,39 +55,39 @@ final Map<String, Function> _registry21 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_derive_key':
+  'cipherbird_blake3_derive_key':
       (
         Pointer<NativeType> context,
         Pointer<NativeType> ikm,
         int ikmLen,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_derive_key',
+        '_cbw_cipherbird_blake3_derive_key',
         [context.address.toJS, ikm.address.toJS, ikmLen.toJS, outLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_hasher_create': (Pointer<NativeType> key, int keyLen) =>
+  'cipherbird_blake3_hasher_create': (Pointer<NativeType> key, int keyLen) =>
       Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_create', [
+        WebEngine.current.callInt('_cbw_cipherbird_blake3_hasher_create', [
           key.address.toJS,
           keyLen.toJS,
         ]),
       ),
-  'cryptolib_blake3_hasher_update':
+  'cipherbird_blake3_hasher_update':
       (Pointer<NativeType> h, Pointer<NativeType> data, int len) =>
-          WebEngine.current.callInt('_cbw_cryptolib_blake3_hasher_update', [
+          WebEngine.current.callInt('_cbw_cipherbird_blake3_hasher_update', [
             h.address.toJS,
             data.address.toJS,
             len.toJS,
           ]),
-  'cryptolib_blake3_hasher_finalize': (Pointer<NativeType> h, int outLen) =>
+  'cipherbird_blake3_hasher_finalize': (Pointer<NativeType> h, int outLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_blake3_hasher_finalize',
+        '_cbw_cipherbird_blake3_hasher_finalize',
         [h.address.toJS, outLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_blake3_hasher_free': (Pointer<NativeType> h) => WebEngine.current
-      .callVoid('_cbw_cryptolib_blake3_hasher_free', [h.address.toJS]),
+  'cipherbird_blake3_hasher_free': (Pointer<NativeType> h) => WebEngine.current
+      .callVoid('_cbw_cipherbird_blake3_hasher_free', [h.address.toJS]),
 };

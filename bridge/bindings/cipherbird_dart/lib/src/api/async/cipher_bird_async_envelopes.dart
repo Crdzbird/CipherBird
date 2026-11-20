@@ -14,7 +14,7 @@ extension CipherBirdAsyncEnvelopes on CipherBird {
     final a = aad ?? Uint8List(0);
     return runner.run(
       EngineCallJob(
-        symbol: 'cryptolib_suite2_seal',
+        symbol: 'cipherbird_suite2_seal',
         args: [
           JobArg.bytes(plaintext),
           JobArg.bytes(recipientKemPublic),
@@ -48,7 +48,7 @@ extension CipherBirdAsyncEnvelopes on CipherBird {
     final a = aad ?? Uint8List(0);
     return runner.run(
       EngineCallJob(
-        symbol: 'cryptolib_suite2_open',
+        symbol: 'cipherbird_suite2_open',
         args: [
           JobArg.bytes(envelope),
           JobArg.bytes(recipientKemSecret),

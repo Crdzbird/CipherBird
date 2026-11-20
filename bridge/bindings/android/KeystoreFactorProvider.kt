@@ -16,10 +16,10 @@ import javax.crypto.SecretKey
  * leave secure hardware. Feed the returned factor to the keyring's device slot:
  *
  *   val factor = KeystoreFactorProvider.deviceFactorKey(requireBiometric = true)
- *   // then, over JNI/JNA to libcryptolib_c.so (Android has no java.lang.foreign),
+ *   // then, over JNI/JNA to libcipherbird_c.so (Android has no java.lang.foreign),
  *   // or via a Flutter MethodChannel handing the bytes to the Dart keyring binding:
- *   //   cryptolib_keyring_add_device_slot(kr, factor, factor.size)   // enroll
- *   //   cryptolib_keyring_unlock_with_device(kr, factor, factor.size) // unlock
+ *   //   cipherbird_keyring_add_device_slot(kr, factor, factor.size)   // enroll
+ *   //   cipherbird_keyring_unlock_with_device(kr, factor, factor.size) // unlock
  *
  * BUILD/RUN: this is app code — it needs the Android SDK + Gradle and runs on a
  * device/emulator inside an app process (the AndroidKeyStore JCA provider

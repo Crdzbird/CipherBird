@@ -8,7 +8,7 @@ extension CipherBirdFipsP256 on CipherBird {
       _lib.lookupFunction<
         CipherBirdKeyPair Function(),
         CipherBirdKeyPair Function()
-      >('cryptolib_fips_p256_keygen')(),
+      >('cipherbird_fips_p256_keygen')(),
     );
   }
 
@@ -31,7 +31,7 @@ extension CipherBirdFipsP256 on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_p256_ecdh')(
+        >('cipherbird_fips_p256_ecdh')(
           privateKeyPtr,
           privateKey.length,
           peerPublicPtr,
@@ -52,7 +52,7 @@ extension CipherBirdFipsP256 on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_fips_p256_public_key')(privateKeyPtr, privateKey.length),
+        >('cipherbird_fips_p256_public_key')(privateKeyPtr, privateKey.length),
       );
     } finally {
       if (privateKeyPtr != nullptr) calloc.free(privateKeyPtr);

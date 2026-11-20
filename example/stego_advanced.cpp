@@ -9,10 +9,10 @@
 // HONEST framing throughout: stego is concealment, not confidentiality (the AEAD
 // provides that); the analyzer's hidden-data probe is a heuristic, not a proof.
 //
-// Build:  cmake --build build --target cryptolib_stego_advanced
-// Run:    ./build/cryptolib_stego_advanced
+// Build:  cmake --build build --target cipherbird_stego_advanced
+// Run:    ./build/cipherbird_stego_advanced
 // ─────────────────────────────────────────────────────────────────────────────
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstdio>
 #include <filesystem>
@@ -30,7 +30,7 @@ static std::vector<uint8_t> bytes(const std::string& s) { return {s.begin(), s.e
 
 int main() {
     init();
-    fs::path dir = fs::temp_directory_path() / "cryptolib_stego_advanced";
+    fs::path dir = fs::temp_directory_path() / "cipherbird_stego_advanced";
     fs::create_directories(dir);
     const std::string cover = (dir / "cover.ppm").string();
     (void)stego::MediaGenerator::generate_ppm(cover, 256, 256);
@@ -107,13 +107,13 @@ int main() {
                      std::span<const uint8_t>(d1.value().data(), d1.value().size()));
         ok("tamper detected vs stored digest", v.is_ok() && !v.value());
 
-        // Hidden-data probe: an unkeyed cryptolib payload is detected; a keyed
+        // Hidden-data probe: an unkeyed cipherbird payload is detected; a keyed
         // (whitened) one is statistically invisible — the honest limit.
         const std::string plain = (dir / "plain.ppm").string();
         (void)stego::MediaGenerator::generate_ppm(plain, 128, 128);
         (void)stego::StegoEngine::embed(plain, bytes("hi"), plain);
         auto hd = stego::StegoAnalyzer::detect_hidden(plain);
-        ok("detect: unkeyed cryptolib payload flagged", hd.is_ok() && hd.value().cryptolib_payload);
+        ok("detect: unkeyed cipherbird payload flagged", hd.is_ok() && hd.value().cipherbird_payload);
         if (hd.is_ok()) std::printf("      note: %s\n", hd.value().note.c_str());
     }
 

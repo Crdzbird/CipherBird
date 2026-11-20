@@ -25,7 +25,7 @@ export default function Home() {
       <h1>CipherBird · Next.js</h1>
       <p style={{ color: '#666' }}>
         Client → <code>/api/crypto</code> (Node runtime route handler) →{' '}
-        <code>cipherbird-node</code> → native <code>libcryptolib_c</code>. Native FFI
+        <code>cipherbird-node</code> → native <code>libcipherbird_c</code>. Native FFI
         runs only on the server; the browser never loads the library.
       </p>
       <label>

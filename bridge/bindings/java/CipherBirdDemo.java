@@ -4,7 +4,7 @@
 //
 // Build/run (see Makefile target `java`):
 //   javac CipherBirdDemo.java
-//   java --enable-native-access=ALL-UNNAMED CipherBirdDemo <path-to-libcryptolib_c.dylib>
+//   java --enable-native-access=ALL-UNNAMED CipherBirdDemo <path-to-libcipherbird_c.dylib>
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
@@ -39,50 +39,50 @@ public final class CipherBirdDemo {
     CipherBirdDemo(String libPath) {
         Linker linker = Linker.nativeLinker();
         SymbolLookup lib = SymbolLookup.libraryLookup(Path.of(libPath), arena);
-        init        = h(linker, lib, "cryptolib_init",        FunctionDescriptor.of(JAVA_INT));
-        version     = h(linker, lib, "cryptolib_version",     FunctionDescriptor.of(ADDRESS));
-        randomBytes = h(linker, lib, "cryptolib_random_bytes",FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, JAVA_LONG));
-        sha256      = h(linker, lib, "cryptolib_sha256",      FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG));
-        vaultCreate = h(linker, lib, "cryptolib_vault_create",FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT));
-        vaultSeal   = h(linker, lib, "cryptolib_vault_seal",  FunctionDescriptor.of(CRYPTO_PACKET, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
-        vaultOpen   = h(linker, lib, "cryptolib_vault_open",  FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, ADDRESS));
-        bufferFree  = h(linker, lib, "cryptolib_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
-        packetFree  = h(linker, lib, "cryptolib_packet_free", FunctionDescriptor.ofVoid(ADDRESS));
-        vaultFree   = h(linker, lib, "cryptolib_vault_free",  FunctionDescriptor.ofVoid(ADDRESS));
-        strFree     = h(linker, lib, "cryptolib_str_free",    FunctionDescriptor.ofVoid(ADDRESS));
-        krCreate    = h(linker, lib, "cryptolib_keyring_create",   FunctionDescriptor.of(ADDRESS));
-        krAddDev    = h(linker, lib, "cryptolib_keyring_add_device_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG));
-        krAddPw     = h(linker, lib, "cryptolib_keyring_add_passphrase_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-        krCount     = h(linker, lib, "cryptolib_keyring_slot_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
-        krSer       = h(linker, lib, "cryptolib_keyring_serialise", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS));
-        krDeser     = h(linker, lib, "cryptolib_keyring_deserialise", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
-        krUnlockDev = h(linker, lib, "cryptolib_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
-        krUnlockPw  = h(linker, lib, "cryptolib_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS));
-        krFree      = h(linker, lib, "cryptolib_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS));
-        keypairFree = h(linker, lib, "cryptolib_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS));
+        init        = h(linker, lib, "cipherbird_init",        FunctionDescriptor.of(JAVA_INT));
+        version     = h(linker, lib, "cipherbird_version",     FunctionDescriptor.of(ADDRESS));
+        randomBytes = h(linker, lib, "cipherbird_random_bytes",FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, JAVA_LONG));
+        sha256      = h(linker, lib, "cipherbird_sha256",      FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG));
+        vaultCreate = h(linker, lib, "cipherbird_vault_create",FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT));
+        vaultSeal   = h(linker, lib, "cipherbird_vault_seal",  FunctionDescriptor.of(CRYPTO_PACKET, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
+        vaultOpen   = h(linker, lib, "cipherbird_vault_open",  FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, ADDRESS));
+        bufferFree  = h(linker, lib, "cipherbird_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
+        packetFree  = h(linker, lib, "cipherbird_packet_free", FunctionDescriptor.ofVoid(ADDRESS));
+        vaultFree   = h(linker, lib, "cipherbird_vault_free",  FunctionDescriptor.ofVoid(ADDRESS));
+        strFree     = h(linker, lib, "cipherbird_str_free",    FunctionDescriptor.ofVoid(ADDRESS));
+        krCreate    = h(linker, lib, "cipherbird_keyring_create",   FunctionDescriptor.of(ADDRESS));
+        krAddDev    = h(linker, lib, "cipherbird_keyring_add_device_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG));
+        krAddPw     = h(linker, lib, "cipherbird_keyring_add_passphrase_slot", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+        krCount     = h(linker, lib, "cipherbird_keyring_slot_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
+        krSer       = h(linker, lib, "cipherbird_keyring_serialise", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS));
+        krDeser     = h(linker, lib, "cipherbird_keyring_deserialise", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        krUnlockDev = h(linker, lib, "cipherbird_keyring_unlock_with_device", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG));
+        krUnlockPw  = h(linker, lib, "cipherbird_keyring_unlock_with_passphrase", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS));
+        krFree      = h(linker, lib, "cipherbird_keyring_free",     FunctionDescriptor.ofVoid(ADDRESS));
+        keypairFree = h(linker, lib, "cipherbird_keypair_free",     FunctionDescriptor.ofVoid(ADDRESS));
 
         // Newly exposed feature functions.
-        committingEnc = h(linker, lib, "cryptolib_committing_encrypt",
+        committingEnc = h(linker, lib, "cipherbird_committing_encrypt",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        committingDec = h(linker, lib, "cryptolib_committing_decrypt",
+        committingDec = h(linker, lib, "cipherbird_committing_decrypt",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hmac256       = h(linker, lib, "cryptolib_hmac_sha256",
+        hmac256       = h(linker, lib, "cipherbird_hmac_sha256",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hmac256Verify = h(linker, lib, "cryptolib_hmac_sha256_verify",
+        hmac256Verify = h(linker, lib, "cipherbird_hmac_sha256_verify",
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hkdfExtract   = h(linker, lib, "cryptolib_hkdf_extract",
+        hkdfExtract   = h(linker, lib, "cipherbird_hkdf_extract",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hkdfExpand    = h(linker, lib, "cryptolib_hkdf_expand",
+        hkdfExpand    = h(linker, lib, "cipherbird_hkdf_expand",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
-        hkdfDerive    = h(linker, lib, "cryptolib_hkdf_derive",
+        hkdfDerive    = h(linker, lib, "cipherbird_hkdf_derive",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
-        hybridSigKeygen = h(linker, lib, "cryptolib_hybrid_sig_keygen",
+        hybridSigKeygen = h(linker, lib, "cipherbird_hybrid_sig_keygen",
                 FunctionDescriptor.of(CRYPTO_KEYPAIR));
-        hybridSigSign = h(linker, lib, "cryptolib_hybrid_sig_sign",
+        hybridSigSign = h(linker, lib, "cipherbird_hybrid_sig_sign",
                 FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hybridSigVerify = h(linker, lib, "cryptolib_hybrid_sig_verify",
+        hybridSigVerify = h(linker, lib, "cipherbird_hybrid_sig_verify",
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        blsKeygenFromIkm = h(linker, lib, "cryptolib_bls_keygen_from_ikm",
+        blsKeygenFromIkm = h(linker, lib, "cipherbird_bls_keygen_from_ikm",
                 FunctionDescriptor.of(CRYPTO_KEYPAIR, ADDRESS, JAVA_LONG));
     }
 
@@ -249,7 +249,7 @@ public final class CipherBirdDemo {
     }
 
     public static void main(String[] args) throws Throwable {
-        String lib = args.length > 0 ? args[0] : "build/release/libcryptolib_c.dylib";
+        String lib = args.length > 0 ? args[0] : "build/release/libcipherbird_c.dylib";
         new CipherBirdDemo(lib).run();
     }
 }

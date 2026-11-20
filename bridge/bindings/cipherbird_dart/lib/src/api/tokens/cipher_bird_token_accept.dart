@@ -23,7 +23,7 @@ extension CipherBirdTokenAccept on CipherBird {
     final text = Uint8List.fromList(utf8.encode(token));
     final name = format.toNativeUtf8();
     final cap = _lib.lookupFunction<_TokenAcceptCapNative, _TokenAcceptCap>(
-      'cryptolib_token_accept_cap',
+      'cipherbird_token_accept_cap',
     )(name, text.length);
     final out = calloc<Uint8>(cap == 0 ? 1 : cap);
     final outLen = calloc<Size>();
@@ -34,7 +34,7 @@ extension CipherBirdTokenAccept on CipherBird {
     try {
       final rc =
           _lib.lookupFunction<_TokenNamedCallNative, _TokenNamedCall>(
-            'cryptolib_token_accept',
+            'cipherbird_token_accept',
           )(
             name,
             out,

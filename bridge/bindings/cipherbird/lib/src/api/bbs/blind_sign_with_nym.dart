@@ -53,7 +53,7 @@ extension CipherBirdBbsBlindSignWithNym on CipherBird {
             int,
             int,
           )
-        >('cryptolib_bbs_blind_sign_with_nym')(
+        >('cipherbird_bbs_blind_sign_with_nym')(
           sk,
           secretKey.length,
           pk,

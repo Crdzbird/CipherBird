@@ -1,6 +1,6 @@
 // Package cipherbird provides idiomatic Go bindings for CipherBird, a
 // header-only C++20 cryptography library exposed through a stable C ABI
-// (libcryptolib_c).
+// (libcipherbird_c).
 //
 // It wraps modern, vetted primitives — authenticated encryption, public-key
 // signatures and key exchange, post-quantum KEMs and signatures, BLS
@@ -12,7 +12,7 @@
 // # Requirements
 //
 // This package uses cgo and links against the native shared library
-// libcryptolib_c (which itself bundles libsodium, liboqs, blst, OpenSSL
+// libcipherbird_c (which itself bundles libsodium, liboqs, blst, OpenSSL
 // libcrypto and libsecp256k1). You must build that library once and make it
 // discoverable at both link time and run time. CGO_ENABLED=1 is required (it is
 // the default unless cross-compiling).
@@ -20,10 +20,10 @@
 // # Building and linking
 //
 // In the CipherBird repository the default build "just works": the header is
-// found at bridge/cryptolib_c.h and the library at build/release. Build it with:
+// found at bridge/cipherbird_c.h and the library at build/release. Build it with:
 //
 //	cmake -B build/release -DCMAKE_BUILD_TYPE=Release
-//	cmake --build build/release --target cryptolib_c
+//	cmake --build build/release --target cipherbird_c
 //
 // Then set the loader path at run time:
 //
@@ -32,7 +32,7 @@
 //
 // When importing this package from another module via `go get`, the prebuilt
 // library is not part of the Go module. Provide your own build of
-// libcryptolib_c and point the toolchain at it with environment variables:
+// libcipherbird_c and point the toolchain at it with environment variables:
 //
 //	export CGO_LDFLAGS="-L/opt/cipherbird/lib"
 //	export CGO_CFLAGS="-I/opt/cipherbird/include"   # if the header is elsewhere
@@ -40,7 +40,7 @@
 //	export LD_LIBRARY_PATH=/opt/cipherbird/lib      # Linux, run time
 //
 // Or, if the library is installed system-wide with a pkg-config file (a
-// template ships as cryptolib_c.pc.in), build with the pkg-config tag:
+// template ships as cipherbird_c.pc.in), build with the pkg-config tag:
 //
 //	go build -tags cipherbird_pkgconfig ./...
 //
@@ -50,7 +50,7 @@
 // dependencies — into the binary so there is NO shared library to ship or locate
 // at run time:
 //
-//	scripts/build_static_archive.sh        # builds build/static/libcryptolib_c.a
+//	scripts/build_static_archive.sh        # builds build/static/libcipherbird_c.a
 //	go build -tags cipherbird_static ./...   # or: make go-static
 //
 // The resulting binary depends only on system libraries (the C++ runtime stays

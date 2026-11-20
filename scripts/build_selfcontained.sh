@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a SELF-CONTAINED desktop libcryptolib_c (macOS host) — every dependency
+# Build a SELF-CONTAINED desktop libcipherbird_c (macOS host) — every dependency
 # (libsodium, BLAKE3, liboqs, OpenSSL libcrypto, blst) statically linked in, so
 # the resulting dylib runs with no Homebrew/system crypto libs installed. This
 # is the binary the npm / JVM / .NET bundles should ship.
@@ -34,14 +34,14 @@ BLAKE3_A=build/host-deps/blake3-build/libblake3.a
 SECP=/opt/homebrew/opt/secp256k1
 
 clang++ -std=c++20 -O2 -dynamiclib \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 -DCRYPTOLIB_BUILD_SHARED \
+    -DCIPHERBIRD_HAS_BLAKE3=1 -DCIPHERBIRD_HAS_PQ=1 -DCIPHERBIRD_HAS_SODIUM_CRYPTO=1 -DCIPHERBIRD_HAS_STEGO=1 -DCIPHERBIRD_HAS_MEDIA_ENTROPY=1 -DCIPHERBIRD_HAS_NATIVE_COMBINERS=1 -DCIPHERBIRD_HAS_BLS=1 -DCIPHERBIRD_HAS_OPENSSL=1 -DCIPHERBIRD_HAS_SECP256K1=1 -DCIPHERBIRD_BUILD_SHARED \
     -I include -I /opt/homebrew/include -I "$OSSL/include" -I "$SECP/include" \
-    -install_name "@rpath/libcryptolib_c.dylib" \
-    bridge/cryptolib_c.cpp \
+    -install_name "@rpath/libcipherbird_c.dylib" \
+    bridge/cipherbird_c.cpp \
     "$BREW_LIB/libsodium.a" "$BLAKE3_A" "$BREW_LIB/liboqs.a" \
     "$OSSL/lib/libcrypto.a" "$BREW_LIB/libblst.a" "$SECP/lib/libsecp256k1.a" \
-    -o "$OUT/libcryptolib_c.dylib"
+    -o "$OUT/libcipherbird_c.dylib"
 
-echo "→ $OUT/libcryptolib_c.dylib"
+echo "→ $OUT/libcipherbird_c.dylib"
 echo "=== external (non-system) dependencies — should be NONE ==="
-otool -L "$OUT/libcryptolib_c.dylib" | tail -n +2 | grep -vE "/usr/lib/|/System/" || echo "  (self-contained ✓)"
+otool -L "$OUT/libcipherbird_c.dylib" | tail -n +2 | grep -vE "/usr/lib/|/System/" || echo "  (self-contained ✓)"

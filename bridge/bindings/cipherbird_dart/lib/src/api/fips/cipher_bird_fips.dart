@@ -2,19 +2,19 @@ part of '../../cipher_bird.dart';
 
 /// FIPS profile control on CipherBird. Everything in the fips* family runs
 /// inside the OpenSSL FIPS Provider (CMVP #4985) when the native library was
-/// built with CRYPTOLIB_PROFILE=fips; otherwise [fipsAvailable] is false and
+/// built with CIPHERBIRD_PROFILE=fips; otherwise [fipsAvailable] is false and
 /// every call throws.
 extension CipherBirdFips on CipherBird {
   /// Whether the loaded native library is the fips profile.
   bool get fipsAvailable =>
       _lib.lookupFunction<Int32 Function(), int Function()>(
-        'cryptolib_fips_available',
+        'cipherbird_fips_available',
       )() ==
       1;
 
   /// Load the validated module from [moduleDir] with the OpenSSL config at
   /// [configFile], run its self tests and enter approved mode. Null falls
-  /// back to CRYPTOLIB_FIPS_MODULE_DIR and CRYPTOLIB_FIPS_CONFIG.
+  /// back to CIPHERBIRD_FIPS_MODULE_DIR and CIPHERBIRD_FIPS_CONFIG.
   void fipsInit({String? moduleDir, String? configFile}) {
     final pm = moduleDir == null ? nullptr : moduleDir.toNativeUtf8();
     final pc = configFile == null ? nullptr : configFile.toNativeUtf8();
@@ -23,7 +23,7 @@ extension CipherBirdFips on CipherBird {
         _lib.lookupFunction<
           CipherBirdResult Function(Pointer<Utf8>, Pointer<Utf8>),
           CipherBirdResult Function(Pointer<Utf8>, Pointer<Utf8>)
-        >('cryptolib_fips_init')(pm, pc),
+        >('cipherbird_fips_init')(pm, pc),
       );
     } finally {
       if (pm != nullptr) calloc.free(pm);
@@ -37,7 +37,7 @@ extension CipherBirdFips on CipherBird {
         .lookupFunction<
           CipherBirdFipsStatus Function(),
           CipherBirdFipsStatus Function()
-        >('cryptolib_fips_status')();
+        >('cipherbird_fips_status')();
     final out = FipsStatus(
       loaded: s.loaded == 1,
       selfTestsPassed: s.selfTestsPassed == 1,

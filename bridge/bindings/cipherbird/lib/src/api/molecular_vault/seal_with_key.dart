@@ -36,7 +36,7 @@ extension CipherBirdMolecularSealWithKey on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_molecular_seal_with_key')(
+        >('cipherbird_molecular_seal_with_key')(
           pp,
           plaintext.length,
           pk,

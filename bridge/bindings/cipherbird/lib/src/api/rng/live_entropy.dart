@@ -33,7 +33,7 @@ final class LiveEntropy {
               int,
               int,
             )
-          >('cryptolib_live_entropy_feed')(_h, d, chunk.length, sourceId);
+          >('cipherbird_live_entropy_feed')(_h, d, chunk.length, sourceId);
       return _lib._liveFeedReport(r);
     } finally {
       if (d != nullptr) {
@@ -47,7 +47,7 @@ final class LiveEntropy {
     _lib._lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>, Size),
       CipherBirdBufferResult Function(Pointer<Void>, int)
-    >('cryptolib_live_entropy_generate')(_h, numBytes),
+    >('cipherbird_live_entropy_generate')(_h, numBytes),
   );
 
   /// Counters, credit and the last verdict.
@@ -55,7 +55,7 @@ final class LiveEntropy {
     _lib._lib.lookupFunction<
       CipherBirdLiveStatus Function(Pointer<Void>),
       CipherBirdLiveStatus Function(Pointer<Void>)
-    >('cryptolib_live_entropy_status')(_h),
+    >('cipherbird_live_entropy_status')(_h),
   );
 
   /// Release the native handle. Idempotent.
@@ -64,7 +64,7 @@ final class LiveEntropy {
       _lib._lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_live_entropy_free')(_h);
+      >('cipherbird_live_entropy_free')(_h);
       _h = nullptr;
     }
   }

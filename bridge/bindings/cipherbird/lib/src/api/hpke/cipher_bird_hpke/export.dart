@@ -24,7 +24,7 @@ extension CipherBirdHpkeExport on CipherBird {
             int,
             int,
           )
-        >('cryptolib_hpke_export')(h, pc, exporterContext.length, length),
+        >('cipherbird_hpke_export')(h, pc, exporterContext.length, length),
       );
     } finally {
       if (pc != nullptr) calloc.free(pc);

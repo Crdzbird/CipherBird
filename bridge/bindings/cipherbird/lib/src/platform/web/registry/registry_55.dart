@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry55 = {
-  'cryptolib_fips_aes_gcm_decrypt':
+  'cipherbird_fips_aes_gcm_decrypt':
       (
         Pointer<NativeType> key,
         int keyLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry55 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_aes_gcm_decrypt',
+        '_cbw_cipherbird_fips_aes_gcm_decrypt',
         [
           key.address.toJS,
           keyLen.toJS,
@@ -22,20 +22,20 @@ final Map<String, Function> _registry55 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_p256_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_fips_p256_keygen',
+  'cipherbird_fips_p256_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cipherbird_fips_p256_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,
   ),
-  'cryptolib_fips_p256_ecdh':
+  'cipherbird_fips_p256_ecdh':
       (
         Pointer<NativeType> privateKey,
         int skLen,
         Pointer<NativeType> peerPublic,
         int pkLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_ecdh',
+        '_cbw_cipherbird_fips_p256_ecdh',
         [
           privateKey.address.toJS,
           skLen.toJS,
@@ -45,14 +45,14 @@ final Map<String, Function> _registry55 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_p256_sign':
+  'cipherbird_fips_p256_sign':
       (
         Pointer<NativeType> privateKey,
         int skLen,
         Pointer<NativeType> message,
         int msgLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_p256_sign',
+        '_cbw_cipherbird_fips_p256_sign',
         [
           privateKey.address.toJS,
           skLen.toJS,
@@ -62,7 +62,7 @@ final Map<String, Function> _registry55 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_p256_verify':
+  'cipherbird_fips_p256_verify':
       (
         Pointer<NativeType> publicKey,
         int pkLen,
@@ -70,7 +70,7 @@ final Map<String, Function> _registry55 = {
         int msgLen,
         Pointer<NativeType> signature,
         int sigLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_fips_p256_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_fips_p256_verify', [
         publicKey.address.toJS,
         pkLen.toJS,
         message.address.toJS,
@@ -78,10 +78,10 @@ final Map<String, Function> _registry55 = {
         signature.address.toJS,
         sigLen.toJS,
       ]),
-  'cryptolib_fips_p256_public_key':
+  'cipherbird_fips_p256_public_key':
       (Pointer<NativeType> privateKey, int skLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_fips_p256_public_key',
+            '_cbw_cipherbird_fips_p256_public_key',
             [privateKey.address.toJS, skLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,

@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry38 = {
-  'cryptolib_bbs_blind_sign':
+  'cipherbird_bbs_blind_sign':
       (
         Pointer<NativeType> sk,
         int skLen,
@@ -15,7 +15,7 @@ final Map<String, Function> _registry38 = {
         Pointer<NativeType> msgLens,
         int msgCount,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_blind_sign',
+        '_cbw_cipherbird_bbs_blind_sign',
         [
           sk.address.toJS,
           skLen.toJS,
@@ -32,7 +32,7 @@ final Map<String, Function> _registry38 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_verify_blind_sign':
+  'cipherbird_bbs_verify_blind_sign':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -48,7 +48,7 @@ final Map<String, Function> _registry38 = {
         int committedCount,
         Pointer<NativeType> secretProverBlind,
         int spbLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bbs_verify_blind_sign', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_bbs_verify_blind_sign', [
         pk.address.toJS,
         pkLen.toJS,
         signature.address.toJS,
@@ -64,20 +64,20 @@ final Map<String, Function> _registry38 = {
         secretProverBlind.address.toJS,
         spbLen.toJS,
       ]),
-  'cryptolib_bbs_hash_to_scalar':
+  'cipherbird_bbs_hash_to_scalar':
       (
         Pointer<NativeType> msg,
         int msgLen,
         Pointer<NativeType> dst,
         int dstLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_hash_to_scalar',
+        '_cbw_cipherbird_bbs_hash_to_scalar',
         [msg.address.toJS, msgLen.toJS, dst.address.toJS, dstLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_random_scalar': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_bbs_random_scalar',
+  'cipherbird_bbs_random_scalar': () => WebEngine.current.callStruct(
+    '_cbw_cipherbird_bbs_random_scalar',
     [],
     CipherBirdBufferResult.size,
     CipherBirdBufferResult._new,

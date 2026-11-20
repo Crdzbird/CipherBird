@@ -24,7 +24,7 @@ private val CRYPTO_FILE_INSPECTION = MemoryLayout.structLayout(
     JAVA_LONG.withName("width"), JAVA_LONG.withName("height"), JAVA_LONG.withName("file_size"),
     ADDRESS.withName("detail"), ADDRESS.withName("error"))
 private val CRYPTO_HIDDEN = MemoryLayout.structLayout(
-    JAVA_INT.withName("cryptolib_payload"), MemoryLayout.paddingLayout(4),
+    JAVA_INT.withName("cipherbird_payload"), MemoryLayout.paddingLayout(4),
     JAVA_DOUBLE.withName("lsb_chi_square"), JAVA_DOUBLE.withName("lsb_embedding_likelihood"),
     JAVA_LONG.withName("samples_analysed"), ADDRESS.withName("note"), ADDRESS.withName("error"))
 private val CRYPTO_KEYPAIR = MemoryLayout.structLayout(
@@ -41,37 +41,37 @@ class Native(libPath: String) {
     private fun h(name: String, fd: FunctionDescriptor): MethodHandle =
         linker.downcallHandle(lib.find(name).orElseThrow { RuntimeException("missing: $name") }, fd)
 
-    val init = h("cryptolib_init", FunctionDescriptor.of(JAVA_INT))
-    val strFree = h("cryptolib_str_free", FunctionDescriptor.ofVoid(ADDRESS))
-    val bufferFree = h("cryptolib_buffer_free", FunctionDescriptor.ofVoid(ADDRESS))
-    val embed = h("cryptolib_stego_embed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
-    val embedKeyed = h("cryptolib_stego_embed_keyed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG))
-    val extractKeyed = h("cryptolib_stego_extract_keyed", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
-    val embedEnc = h("cryptolib_stego_embed_encrypted", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG))
-    val extractDec = h("cryptolib_stego_extract_decrypt", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
-    val physSeal = h("cryptolib_physical_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
-    val physOpen = h("cryptolib_physical_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
-    val fecEncode = h("cryptolib_fec_encode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT))
-    val fecDecode = h("cryptolib_fec_decode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG))
-    val inspect = h("cryptolib_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS))
-    val digest = h("cryptolib_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS))
-    val detect = h("cryptolib_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS))
-    val ifSeal = h("cryptolib_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
-    val ifOpen = h("cryptolib_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
-    val hpkeKeygen = h("cryptolib_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
-    val keypairFree = h("cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS))
-    val hsSeal = h("cryptolib_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
-    val hsOpen = h("cryptolib_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
-    val drbgNew = h("cryptolib_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
-    val drbgGen = h("cryptolib_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
-    val drbgFree = h("cryptolib_drbg_free", FunctionDescriptor.ofVoid(ADDRESS))
-    val fortNew = h("cryptolib_fortuna_new", FunctionDescriptor.of(ADDRESS))
-    val fortAdd = h("cryptolib_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG))
-    val fortGen = h("cryptolib_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG))
-    val fortReseed = h("cryptolib_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS))
-    val fortCount = h("cryptolib_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
-    val fortFree = h("cryptolib_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS))
-    val assessHealth = h("cryptolib_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG))
+    val init = h("cipherbird_init", FunctionDescriptor.of(JAVA_INT))
+    val strFree = h("cipherbird_str_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val bufferFree = h("cipherbird_buffer_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val embed = h("cipherbird_stego_embed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
+    val embedKeyed = h("cipherbird_stego_embed_keyed", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG))
+    val extractKeyed = h("cipherbird_stego_extract_keyed", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
+    val embedEnc = h("cipherbird_stego_embed_encrypted", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG))
+    val extractDec = h("cipherbird_stego_extract_decrypt", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG))
+    val physSeal = h("cipherbird_physical_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    val physOpen = h("cipherbird_physical_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
+    val fecEncode = h("cipherbird_fec_encode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT))
+    val fecDecode = h("cipherbird_fec_decode", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG))
+    val inspect = h("cipherbird_stego_inspect", FunctionDescriptor.of(CRYPTO_FILE_INSPECTION, ADDRESS))
+    val digest = h("cipherbird_stego_content_digest", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS))
+    val detect = h("cipherbird_stego_detect_hidden", FunctionDescriptor.of(CRYPTO_HIDDEN, ADDRESS))
+    val ifSeal = h("cipherbird_image_factor_seal", FunctionDescriptor.of(CRYPTO_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    val ifOpen = h("cipherbird_image_factor_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS))
+    val hpkeKeygen = h("cipherbird_hpke_keygen", FunctionDescriptor.of(CRYPTO_KEYPAIR))
+    val keypairFree = h("cipherbird_keypair_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val hsSeal = h("cipherbird_hpke_stego_seal", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS))
+    val hsOpen = h("cipherbird_hpke_stego_open", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
+    val drbgNew = h("cipherbird_drbg_instantiate", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS))
+    val drbgGen = h("cipherbird_drbg_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG))
+    val drbgFree = h("cipherbird_drbg_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val fortNew = h("cipherbird_fortuna_new", FunctionDescriptor.of(ADDRESS))
+    val fortAdd = h("cipherbird_fortuna_add_entropy", FunctionDescriptor.ofVoid(ADDRESS, JAVA_BYTE, ADDRESS, JAVA_LONG))
+    val fortGen = h("cipherbird_fortuna_generate", FunctionDescriptor.of(CRYPTO_BUFFER_RESULT, ADDRESS, JAVA_LONG))
+    val fortReseed = h("cipherbird_fortuna_reseed", FunctionDescriptor.ofVoid(ADDRESS))
+    val fortCount = h("cipherbird_fortuna_reseed_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS))
+    val fortFree = h("cipherbird_fortuna_free", FunctionDescriptor.ofVoid(ADDRESS))
+    val assessHealth = h("cipherbird_entropy_assess_file_health", FunctionDescriptor.of(CRYPTO_HEALTH, ADDRESS, JAVA_LONG))
 
     fun cstr(s: String): MemorySegment = arena.allocateFrom(s)
     fun bytes(b: ByteArray): MemorySegment {
@@ -109,7 +109,7 @@ private fun noisePpm(p: Path, w: Int, h: Int, seed: Int) {
 }
 
 fun main(args: Array<String>) {
-    val libPath = if (args.isNotEmpty()) args[0] else "build/release/libcryptolib_c.dylib"
+    val libPath = if (args.isNotEmpty()) args[0] else "build/release/libcipherbird_c.dylib"
     val n = Native(libPath)
     if (n.init.invoke() as Int != 0) throw RuntimeException("init failed")
     val dir = Files.createTempDirectory("cl_p4_kt_")

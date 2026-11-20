@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -59,62 +59,62 @@ type OpaqueKe3 struct {
 
 // OpaqueRegistrationRequest (client) blinds the password.
 func OpaqueRegistrationRequest(password []byte) (OpaqueRegistrationRequestResult, error) {
-	b := C.cryptolib_opaque_registration_request(u8(password), C.size_t(len(password)))
+	b := C.cipherbird_opaque_registration_request(u8(password), C.size_t(len(password)))
 	if b.error != nil {
 		msg := C.GoString(b.error)
-		C.cryptolib_oprf_blind_free(&b)
+		C.cipherbird_oprf_blind_free(&b)
 		return OpaqueRegistrationRequestResult{}, errors.New(msg)
 	}
-	defer C.cryptolib_oprf_blind_free(&b)
+	defer C.cipherbird_oprf_blind_free(&b)
 	return OpaqueRegistrationRequestResult{Blind: cbufBytes(b.blind), Request: cbufBytes(b.blinded_element)}, nil
 }
 
 // OpaqueRegistrationResponse (server) evaluates the request → 64-byte response.
 func OpaqueRegistrationResponse(request, serverPublicKey, credentialIdentifier, oprfSeed []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_opaque_registration_response(
+	return checkBufResult(C.cipherbird_opaque_registration_response(
 		u8(request), C.size_t(len(request)), u8(serverPublicKey), C.size_t(len(serverPublicKey)),
 		u8(credentialIdentifier), C.size_t(len(credentialIdentifier)), u8(oprfSeed), C.size_t(len(oprfSeed))))
 }
 
 // OpaqueFinalizeRequest (client) → record (store on server) + export key.
 func OpaqueFinalizeRequest(password, blind, response, serverIdentity, clientIdentity []byte) (OpaqueRecord, error) {
-	r := C.cryptolib_opaque_finalize_request(u8(password), C.size_t(len(password)),
+	r := C.cipherbird_opaque_finalize_request(u8(password), C.size_t(len(password)),
 		u8(blind), C.size_t(len(blind)), u8(response), C.size_t(len(response)),
 		u8(serverIdentity), C.size_t(len(serverIdentity)), u8(clientIdentity), C.size_t(len(clientIdentity)))
 	if r.error != nil {
 		msg := C.GoString(r.error)
-		C.cryptolib_opaque_record_free(&r)
+		C.cipherbird_opaque_record_free(&r)
 		return OpaqueRecord{}, errors.New(msg)
 	}
-	defer C.cryptolib_opaque_record_free(&r)
+	defer C.cipherbird_opaque_record_free(&r)
 	return OpaqueRecord{Record: cbufBytes(r.record), ExportKey: cbufBytes(r.export_key)}, nil
 }
 
 // OpaqueClientInit (client) → KE1 + client state.
 func OpaqueClientInit(password []byte) (OpaqueKe1, error) {
-	k := C.cryptolib_opaque_client_init(u8(password), C.size_t(len(password)))
+	k := C.cipherbird_opaque_client_init(u8(password), C.size_t(len(password)))
 	if k.error != nil {
 		msg := C.GoString(k.error)
-		C.cryptolib_opaque_ke1_free(&k)
+		C.cipherbird_opaque_ke1_free(&k)
 		return OpaqueKe1{}, errors.New(msg)
 	}
-	defer C.cryptolib_opaque_ke1_free(&k)
+	defer C.cipherbird_opaque_ke1_free(&k)
 	return OpaqueKe1{Ke1: cbufBytes(k.ke1), ClientState: cbufBytes(k.client_state)}, nil
 }
 
 // OpaqueServerRespond (server) → KE2 + server state.
 func OpaqueServerRespond(context, serverPrivateKey, serverPublicKey, record, credentialIdentifier, oprfSeed, ke1, serverIdentity, clientIdentity []byte) (OpaqueKe2, error) {
-	k := C.cryptolib_opaque_server_respond(u8(context), C.size_t(len(context)),
+	k := C.cipherbird_opaque_server_respond(u8(context), C.size_t(len(context)),
 		u8(serverPrivateKey), C.size_t(len(serverPrivateKey)), u8(serverPublicKey), C.size_t(len(serverPublicKey)),
 		u8(record), C.size_t(len(record)), u8(credentialIdentifier), C.size_t(len(credentialIdentifier)),
 		u8(oprfSeed), C.size_t(len(oprfSeed)), u8(ke1), C.size_t(len(ke1)),
 		u8(serverIdentity), C.size_t(len(serverIdentity)), u8(clientIdentity), C.size_t(len(clientIdentity)))
 	if k.error != nil {
 		msg := C.GoString(k.error)
-		C.cryptolib_opaque_ke2_free(&k)
+		C.cipherbird_opaque_ke2_free(&k)
 		return OpaqueKe2{}, errors.New(msg)
 	}
-	defer C.cryptolib_opaque_ke2_free(&k)
+	defer C.cipherbird_opaque_ke2_free(&k)
 	return OpaqueKe2{Ke2: cbufBytes(k.ke2), ServerState: cbufBytes(k.server_state)}, nil
 }
 
@@ -122,20 +122,20 @@ func OpaqueServerRespond(context, serverPrivateKey, serverPublicKey, record, cre
 // export key. A non-nil error means a wrong password or server authentication
 // failure.
 func OpaqueClientFinish(clientState, ke2, context, serverIdentity, clientIdentity []byte) (OpaqueKe3, error) {
-	k := C.cryptolib_opaque_client_finish(u8(clientState), C.size_t(len(clientState)),
+	k := C.cipherbird_opaque_client_finish(u8(clientState), C.size_t(len(clientState)),
 		u8(ke2), C.size_t(len(ke2)), u8(context), C.size_t(len(context)),
 		u8(serverIdentity), C.size_t(len(serverIdentity)), u8(clientIdentity), C.size_t(len(clientIdentity)))
 	if k.error != nil {
 		msg := C.GoString(k.error)
-		C.cryptolib_opaque_ke3_free(&k)
+		C.cipherbird_opaque_ke3_free(&k)
 		return OpaqueKe3{}, errors.New(msg)
 	}
-	defer C.cryptolib_opaque_ke3_free(&k)
+	defer C.cipherbird_opaque_ke3_free(&k)
 	return OpaqueKe3{Ke3: cbufBytes(k.ke3), SessionKey: cbufBytes(k.session_key), ExportKey: cbufBytes(k.export_key)}, nil
 }
 
 // OpaqueServerFinish (server) verifies KE3 → the session key (error on failure).
 func OpaqueServerFinish(serverState, ke3 []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_opaque_server_finish(
+	return checkBufResult(C.cipherbird_opaque_server_finish(
 		u8(serverState), C.size_t(len(serverState)), u8(ke3), C.size_t(len(ke3))))
 }

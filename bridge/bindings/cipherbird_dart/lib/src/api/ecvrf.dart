@@ -8,7 +8,7 @@ extension CipherBirdEcvrf on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_ecvrf_keygen',
+      'cipherbird_ecvrf_keygen',
     )(),
   );
 
@@ -20,7 +20,7 @@ extension CipherBirdEcvrf on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_ecvrf_public_key')(p, secretKey.length),
+        >('cipherbird_ecvrf_public_key')(p, secretKey.length),
       );
     } finally {
       if (p != nullptr) calloc.free(p);
@@ -45,7 +45,7 @@ extension CipherBirdEcvrf on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_ecvrf_prove')(ps, secretKey.length, pa, alpha.length),
+        >('cipherbird_ecvrf_prove')(ps, secretKey.length, pa, alpha.length),
       );
     } finally {
       if (ps != nullptr) calloc.free(ps);
@@ -61,7 +61,7 @@ extension CipherBirdEcvrf on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_ecvrf_proof_to_hash')(p, proof.length),
+        >('cipherbird_ecvrf_proof_to_hash')(p, proof.length),
       );
     } finally {
       if (p != nullptr) calloc.free(p);

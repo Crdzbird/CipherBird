@@ -25,9 +25,9 @@ enum RecipeError: Error, CustomStringConvertible {
 }
 
 private func rcConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw RecipeError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw RecipeError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -35,10 +35,10 @@ private func rcConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
 private func rcCheck(_ r: CryptoResult, _ what: String) throws {
     if r.ok != 1 {
         let m = r.error.map { String(cString: $0) } ?? what
-        if let e = r.error { cryptolib_str_free(e) }
+        if let e = r.error { cipherbird_str_free(e) }
         throw RecipeError.failed(m)
     }
-    if let e = r.error { cryptolib_str_free(e) }
+    if let e = r.error { cipherbird_str_free(e) }
 }
 
 /// Call `body` with pointers for each buffer (nil for empty).
@@ -156,29 +156,29 @@ private func aead(_ data: [UInt8], _ key: [UInt8], _ aad: [UInt8],
 struct XChaCha20Layer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 1 }
     var wireName: String { "xchacha20Poly1305" }
-    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_xchacha20_encrypt) }
-    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_xchacha20_decrypt) }
+    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cipherbird_xchacha20_encrypt) }
+    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cipherbird_xchacha20_decrypt) }
 }
 /// AES-256-GCM — a different cipher family from ChaCha.
 struct Aes256GcmLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 2 }
     var wireName: String { "aes256Gcm" }
-    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_aes256gcm_encrypt) }
-    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_aes256gcm_decrypt) }
+    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cipherbird_aes256gcm_encrypt) }
+    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cipherbird_aes256gcm_decrypt) }
 }
 /// Key-committing AEAD (UtC) — binds the ciphertext to exactly one key.
 struct CommittingLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 3 }
     var wireName: String { "committing" }
-    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_committing_encrypt) }
-    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_committing_decrypt) }
+    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cipherbird_committing_encrypt) }
+    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cipherbird_committing_decrypt) }
 }
 /// A full MolecularVault nested as one layer.
 struct MolecularLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 4 }
     var wireName: String { "molecular" }
-    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_molecular_seal_with_key) }
-    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_molecular_open_with_key) }
+    func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cipherbird_molecular_seal_with_key) }
+    func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cipherbird_molecular_open_with_key) }
 }
 
 // Dot-shorthand for the built-ins: `.withLayers([.xchacha20Poly1305, .committing])`.
@@ -210,7 +210,7 @@ class CascadeLayer: ProtectionLayer {
 
     private func subKey(_ key: [UInt8], _ i: Int) throws -> [UInt8] {
         let info = Array("\(wireName)/\(i)/\(layers[i].wireName)".utf8)
-        return try withBufs([key, info]) { p in try rcConsume(cryptolib_hkdf_derive(p[0].0, p[0].1, nil, 0, p[1].0, p[1].1, 32)) }
+        return try withBufs([key, info]) { p in try rcConsume(cipherbird_hkdf_derive(p[0].0, p[0].1, nil, 0, p[1].0, p[1].1, 32)) }
     }
     func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] {
         var body = plaintext
@@ -254,7 +254,7 @@ struct PassphraseKeySource: KeySource, CipherBirdBuiltin {
     var label: String { "passphrase" }
     func deriveRoot(salt: [UInt8], argon2Ops: UInt64, argon2Memory: Int) throws -> [UInt8] {
         try salt.withUnsafeBufferPointer { s in
-            try rcConsume(cryptolib_argon2id_derive(passphrase, s.baseAddress, salt.count, 32, argon2Ops, argon2Memory))
+            try rcConsume(cipherbird_argon2id_derive(passphrase, s.baseAddress, salt.count, 32, argon2Ops, argon2Memory))
         }
     }
 }
@@ -268,11 +268,11 @@ struct KeyFileSource: KeySource, CipherBirdBuiltin {
     var label: String { "keyFile" }
     func deriveRoot(salt: [UInt8], argon2Ops: UInt64, argon2Memory: Int) throws -> [UInt8] {
         var err: UnsafeMutablePointer<CChar>?
-        let h = cryptolib_entropy_from_file_deterministic(path, &err)
-        if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw RecipeError.failed(m) }
+        let h = cipherbird_entropy_from_file_deterministic(path, &err)
+        if let e = err { let m = String(cString: e); cipherbird_str_free(e); throw RecipeError.failed(m) }
         guard let handle = h else { throw RecipeError.failed("cipherbird: entropy handle allocation failed") }
-        defer { cryptolib_entropy_free(handle) }
-        return try rcConsume(cryptolib_entropy_symmetric_key(handle))
+        defer { cipherbird_entropy_free(handle) }
+        return try rcConsume(cipherbird_entropy_symmetric_key(handle))
     }
 }
 
@@ -295,11 +295,11 @@ struct Ed25519Signature: SignatureScheme, CipherBirdBuiltin {
     var label: String { "ed25519" }
     func sign(_ m: [UInt8]) throws -> [UInt8] {
         guard !secretKey.isEmpty else { throw RecipeError.failed("cipherbird: Ed25519Signature has no secret key") }
-        return try withBufs([m, secretKey]) { p in try rcConsume(cryptolib_ed25519_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        return try withBufs([m, secretKey]) { p in try rcConsume(cipherbird_ed25519_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func verify(_ m: [UInt8], signature: [UInt8]) -> Bool {
         !publicKey.isEmpty && withBufs([m, signature, publicKey]) { p in
-            cryptolib_ed25519_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
+            cipherbird_ed25519_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
         }
     }
 }
@@ -311,11 +311,11 @@ struct HybridSignature: SignatureScheme, CipherBirdBuiltin {
     var label: String { "hybrid" }
     func sign(_ m: [UInt8]) throws -> [UInt8] {
         guard !secretKey.isEmpty else { throw RecipeError.failed("cipherbird: HybridSignature has no secret key") }
-        return try withBufs([m, secretKey]) { p in try rcConsume(cryptolib_hybrid_sig_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
+        return try withBufs([m, secretKey]) { p in try rcConsume(cipherbird_hybrid_sig_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func verify(_ m: [UInt8], signature: [UInt8]) -> Bool {
         !publicKey.isEmpty && withBufs([m, signature, publicKey]) { p in
-            cryptolib_hybrid_sig_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
+            cipherbird_hybrid_sig_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1) == 1
         }
     }
 }
@@ -464,7 +464,7 @@ final class Recipe {
     /// Protect `plaintext` and return the envelope.
     func seal(_ plaintext: [UInt8]) throws -> [UInt8] {
         let src = try requireSource()
-        let salt = try rcConsume(cryptolib_random_bytes(Recipe.saltLen))
+        let salt = try rcConsume(cipherbird_random_bytes(Recipe.saltLen))
         let header = buildHeader(source: src, salt: salt)
         let root = try rootKey(src, salt: salt, ops: argonOps, mem: argonMem)
 
@@ -510,13 +510,13 @@ final class Recipe {
     func sealIntoCarrier(_ plaintext: [UInt8], coverPath: String, outputPath: String) throws {
         let env = try seal(plaintext)
         try env.withUnsafeBufferPointer { p in
-            try rcCheck(cryptolib_stego_embed(coverPath, p.baseAddress, env.count, outputPath), "stego embed failed")
+            try rcCheck(cipherbird_stego_embed(coverPath, p.baseAddress, env.count, outputPath), "stego embed failed")
         }
     }
 
     /// Extract and open an envelope written by `sealIntoCarrier`.
     func openFromCarrier(_ stegoPath: String) throws -> [UInt8] {
-        try open(try rcConsume(cryptolib_stego_extract(stegoPath)))
+        try open(try rcConsume(cipherbird_stego_extract(stegoPath)))
     }
 
     // ── internals ────────────────────────────────────────────────────────────
@@ -547,7 +547,7 @@ final class Recipe {
     private func layerKey(root: [UInt8], salt: [UInt8], index: Int, layer: any ProtectionLayer) throws -> [UInt8] {
         let info = Array("cryptolib/recipe/v1/layer\(index)/\(layer.wireName)".utf8)
         return try withBufs([root, salt, info]) { p in
-            try rcConsume(cryptolib_hkdf_derive(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, 32))
+            try rcConsume(cipherbird_hkdf_derive(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, 32))
         }
     }
 
@@ -598,7 +598,7 @@ final class Recipe {
 
     private func wrapFec(_ envelope: [UInt8]) throws -> [UInt8] {
         let encoded = try envelope.withUnsafeBufferPointer { p in
-            try rcConsume(cryptolib_fec_encode(p.baseAddress, envelope.count, fec.rawValue))
+            try rcConsume(cipherbird_fec_encode(p.baseAddress, envelope.count, fec.rawValue))
         }
         return Recipe.fecMagic + [UInt8(fec.rawValue)] + Recipe.be32(UInt32(envelope.count)) + encoded
     }
@@ -609,7 +609,7 @@ final class Recipe {
         let originalLen = Int(Recipe.readBe32(Array(data[5..<9]), 0))
         let rest = Array(data[9...])
         return try rest.withUnsafeBufferPointer { p in
-            try rcConsume(cryptolib_fec_decode(p.baseAddress, rest.count, scheme, originalLen))
+            try rcConsume(cipherbird_fec_decode(p.baseAddress, rest.count, scheme, originalLen))
         }
     }
 
@@ -647,7 +647,7 @@ func secNoisePpm(_ w: Int, _ h: Int, _ seed: UInt32) -> Data {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
+guard cipherbird_init() == 0 else { fatalError("init failed") }
 
 // ── Cross-language interop mode ──────────────────────────────────────────────
 // `security seal|open <dir>` writes/reads a fixed set of configurations so the
@@ -679,10 +679,10 @@ let argv = CommandLine.arguments
 if argv.count >= 3, argv[1] == "seal" || argv[1] == "open" {
     let mode = argv[1], dir = argv[2]
     let seed = secHex(interopSkHex)
-    var skp = seed.withUnsafeBufferPointer { cryptolib_ed25519_keygen_from_seed($0.baseAddress, seed.count) }
+    var skp = seed.withUnsafeBufferPointer { cipherbird_ed25519_keygen_from_seed($0.baseAddress, seed.count) }
     let ipk = Array(UnsafeBufferPointer(start: skp.public_key.data, count: skp.public_key.len))
     let isk = Array(UnsafeBufferPointer(start: skp.secret_key.data, count: skp.secret_key.len))
-    cryptolib_keypair_free(&skp)
+    cipherbird_keypair_free(&skp)
     var interopFailures = 0
     do {
         for (name, recipe) in try interopConfigs(ipk, isk) {
@@ -706,7 +706,7 @@ if argv.count >= 3, argv[1] == "seal" || argv[1] == "open" {
     exit(interopFailures == 0 ? 0 : 1)
 }
 
-print("CipherBird \(String(cString: cryptolib_version())) — security profiles + recipes (Swift)")
+print("CipherBird \(String(cString: cipherbird_version())) — security profiles + recipes (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 func throwsErr(_ f: () throws -> Void) -> Bool { do { try f(); return false } catch { return true } }
@@ -727,7 +727,7 @@ do {
     ck("profiles are ordered", SecurityProfile.balanced.argon2Memory < SecurityProfile.maximum.argon2Memory)
 
     // Round-trips
-    let key = try rcConsume(cryptolib_random_bytes(32))
+    let key = try rcConsume(cipherbird_random_bytes(32))
     let r = try Recipe(.high).withKey(key)
     ck("raw key round-trip", try r.open(try r.seal(secret)) == secret)
 
@@ -745,17 +745,17 @@ do {
     let mol = try Recipe(.balanced).withKey(key).withLayers([.molecular])
     ck("MolecularVault as one layer", try mol.open(try mol.seal(secret)) == secret)
 
-    var idkp = cryptolib_ed25519_keygen()
+    var idkp = cipherbird_ed25519_keygen()
     let pubk = Array(UnsafeBufferPointer(start: idkp.public_key.data, count: idkp.public_key.len))
     let seck = Array(UnsafeBufferPointer(start: idkp.secret_key.data, count: idkp.secret_key.len))
-    cryptolib_keypair_free(&idkp)
+    cipherbird_keypair_free(&idkp)
     let signed = try Recipe(.high).withKey(key).signedBy(seck).verifiedBy(pubk)
     let senv = try signed.seal(secret)
     ck("signed round-trip", try signed.open(senv) == secret)
 
-    var imp = cryptolib_ed25519_keygen()
+    var imp = cipherbird_ed25519_keygen()
     let impPub = Array(UnsafeBufferPointer(start: imp.public_key.data, count: imp.public_key.len))
-    cryptolib_keypair_free(&imp)
+    cipherbird_keypair_free(&imp)
     ck("wrong signer rejected", throwsErr { _ = try Recipe(.high).withKey(key).verifiedBy(impPub).open(senv) })
     ck("signed envelope refuses to open unverified",
        throwsErr { _ = try Recipe(.high).withKey(key).open(senv) })
@@ -781,7 +781,7 @@ do {
     var henv = try r.seal(secret)
     henv[7] = 1
     ck("tampered header rejected (descriptor is AAD)", throwsErr { _ = try r.open(henv) })
-    let otherKey = try rcConsume(cryptolib_random_bytes(32))
+    let otherKey = try rcConsume(cipherbird_random_bytes(32))
     ck("wrong key rejected", throwsErr { _ = try Recipe(.high).withKey(otherKey).open(try r.seal(secret)) })
     ck("short key refused", throwsErr { _ = try Recipe(.balanced).withKey([UInt8](repeating: 0, count: 31)) })
 } catch { fail += 1; print("  ✗ threw: \(error)") }
@@ -831,7 +831,7 @@ struct FakeEd25519: SignatureScheme {
 
 do {
     let secret = Array("the treaty text nobody may read".utf8)
-    let key = try rcConsume(cryptolib_random_bytes(32))
+    let key = try rcConsume(cipherbird_random_bytes(32))
 
     ck("built-in ids pinned", XChaCha20Layer().id == 1 && Aes256GcmLayer().id == 2 && CommittingLayer().id == 3 &&
        MolecularLayer().id == 4 && PassphraseKeySource("x").id == 1 && Ed25519Signature().id == 1 && HybridSignature().id == 2)
@@ -863,17 +863,17 @@ do {
     let e2 = try Recipe(.balanced).withKey(key).withLayers([CascadeLayer(id: 203, wireName: "renamed", layers: [.xchacha20Poly1305])]).seal(secret)
     ck("wireName feeds the key derivation", e1.count == e2.count && e1 != e2)
 
-    let token = try rcConsume(cryptolib_random_bytes(32))
+    let token = try rcConsume(cipherbird_random_bytes(32))
     let tenv2 = try Recipe(.high).withKeySource(TokenSource(token: token)).seal(secret)
     ck("custom key source round-trips", try Recipe(.high).withKeySource(TokenSource(token: token)).open(tenv2) == secret)
-    ck("wrong token rejected", throwsErr { _ = try Recipe(.high).withKeySource(TokenSource(token: try rcConsume(cryptolib_random_bytes(32)))).open(tenv2) })
+    ck("wrong token rejected", throwsErr { _ = try Recipe(.high).withKeySource(TokenSource(token: try rcConsume(cipherbird_random_bytes(32)))).open(tenv2) })
     ck("header pins the source id", throwsErr { _ = try Recipe(.high).withKey(key).open(tenv2) })
     ck("narrowing key source refused", throwsErr { _ = try Recipe(.balanced).withKeySource(WeakSource()).seal(secret) })
 
-    var kp2 = cryptolib_ed25519_keygen()
+    var kp2 = cipherbird_ed25519_keygen()
     let pk2 = Array(UnsafeBufferPointer(start: kp2.public_key.data, count: kp2.public_key.len))
     let sk2 = Array(UnsafeBufferPointer(start: kp2.secret_key.data, count: kp2.secret_key.len))
-    cryptolib_keypair_free(&kp2)
+    cipherbird_keypair_free(&kp2)
     let senv2 = try Recipe(.balanced).withKey(key).signedWith(PrefixedEd25519(sk: sk2)).seal(secret)
     ck("custom signature scheme round-trips", try Recipe(.balanced).withKey(key).verifiedWith(PrefixedEd25519(pk: pk2)).open(senv2) == secret)
     ck("key-only verifier cannot serve a custom scheme", throwsErr { _ = try Recipe(.balanced).withKey(key).verifiedBy(pk2).open(senv2) })
@@ -881,10 +881,10 @@ do {
     ck("verifier with the wrong scheme id refused",
        throwsErr { _ = try Recipe(.balanced).withKey(key).verifiedWith(Ed25519Signature(publicKey: pk2)).open(senv2) })
 
-    var hkp = cryptolib_hybrid_sig_keygen()
+    var hkp = cipherbird_hybrid_sig_keygen()
     let hpk = Array(UnsafeBufferPointer(start: hkp.public_key.data, count: hkp.public_key.len))
     let hsk = Array(UnsafeBufferPointer(start: hkp.secret_key.data, count: hkp.secret_key.len))
-    cryptolib_keypair_free(&hkp)
+    cipherbird_keypair_free(&hkp)
     let hr = try Recipe(.balanced).withKey(key).signedBy(hsk, algorithm: .hybrid).verifiedBy(hpk)
     ck("built-in shorthand with key-only verifier", try hr.open(try hr.seal(secret)) == secret)
 

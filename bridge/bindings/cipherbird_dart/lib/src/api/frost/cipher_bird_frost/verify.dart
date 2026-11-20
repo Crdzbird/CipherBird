@@ -25,7 +25,7 @@ extension CipherBirdFrostVerify on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_frost_verify')(
+          >('cipherbird_frost_verify')(
             pm,
             msg.length,
             psig,

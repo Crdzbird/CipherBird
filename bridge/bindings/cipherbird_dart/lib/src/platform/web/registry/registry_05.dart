@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry05 = {
-  'cryptolib_cb1_public_sign':
+  'cipherbird_cb1_public_sign':
       (
         Pointer<NativeType> out,
         int outCap,
@@ -14,7 +14,7 @@ final Map<String, Function> _registry05 = {
         int footerLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_cb1_public_sign', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_cb1_public_sign', [
         out.address.toJS,
         outCap.toJS,
         outLen.address.toJS,
@@ -27,7 +27,7 @@ final Map<String, Function> _registry05 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_cb1_public_verify':
+  'cipherbird_cb1_public_verify':
       (
         Pointer<NativeType> out,
         int outCap,
@@ -40,7 +40,7 @@ final Map<String, Function> _registry05 = {
         int expectedFooterLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_cb1_public_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_cb1_public_verify', [
         out.address.toJS,
         outCap.toJS,
         outLen.address.toJS,
@@ -53,22 +53,22 @@ final Map<String, Function> _registry05 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_token_formats': (Pointer<NativeType> out, int outCap) => WebEngine
+  'cipherbird_token_formats': (Pointer<NativeType> out, int outCap) => WebEngine
       .current
-      .callInt('_cbw_cryptolib_token_formats', [out.address.toJS, outCap.toJS]),
-  'cryptolib_token_issue_len':
+      .callInt('_cbw_cipherbird_token_formats', [out.address.toJS, outCap.toJS]),
+  'cipherbird_token_issue_len':
       (Pointer<NativeType> format, int payloadLen, int footerLen) =>
-          WebEngine.current.callInt('_cbw_cryptolib_token_issue_len', [
+          WebEngine.current.callInt('_cbw_cipherbird_token_issue_len', [
             format.address.toJS,
             payloadLen.toJS,
             footerLen.toJS,
           ]),
-  'cryptolib_token_accept_cap': (Pointer<NativeType> format, int tokenLen) =>
-      WebEngine.current.callInt('_cbw_cryptolib_token_accept_cap', [
+  'cipherbird_token_accept_cap': (Pointer<NativeType> format, int tokenLen) =>
+      WebEngine.current.callInt('_cbw_cipherbird_token_accept_cap', [
         format.address.toJS,
         tokenLen.toJS,
       ]),
-  'cryptolib_token_keygen':
+  'cipherbird_token_keygen':
       (
         Pointer<NativeType> format,
         Pointer<NativeType> secret,
@@ -77,7 +77,7 @@ final Map<String, Function> _registry05 = {
         Pointer<NativeType> pub,
         int pubCap,
         Pointer<NativeType> pubLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_token_keygen', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_token_keygen', [
         format.address.toJS,
         secret.address.toJS,
         secretCap.toJS,

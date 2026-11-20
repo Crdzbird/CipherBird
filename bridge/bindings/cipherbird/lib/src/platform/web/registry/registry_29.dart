@@ -1,23 +1,23 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry29 = {
-  'cryptolib_frost_commit_free': (Pointer<NativeType> c) => WebEngine.current
-      .callVoid('_cbw_cryptolib_frost_commit_free', [c.address.toJS]),
-  'cryptolib_frost_keygen': (int n, int t) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_frost_keygen',
+  'cipherbird_frost_commit_free': (Pointer<NativeType> c) => WebEngine.current
+      .callVoid('_cbw_cipherbird_frost_commit_free', [c.address.toJS]),
+  'cipherbird_frost_keygen': (int n, int t) => WebEngine.current.callStruct(
+    '_cbw_cipherbird_frost_keygen',
     [n.toJS, t.toJS],
     CipherBirdFrostKeyGen.size,
     CipherBirdFrostKeyGen._new,
   ),
-  'cryptolib_frost_commit':
+  'cipherbird_frost_commit':
       (Pointer<NativeType> shareSecret, int skLen, int identifier) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_frost_commit',
+            '_cbw_cipherbird_frost_commit',
             [shareSecret.address.toJS, skLen.toJS, identifier.toJS],
             CipherBirdFrostCommit.size,
             CipherBirdFrostCommit._new,
           ),
-  'cryptolib_frost_commit_with_nonces':
+  'cipherbird_frost_commit_with_nonces':
       (
         int identifier,
         Pointer<NativeType> hidingNonce,
@@ -25,7 +25,7 @@ final Map<String, Function> _registry29 = {
         Pointer<NativeType> bindingNonce,
         int bnLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_frost_commit_with_nonces',
+        '_cbw_cipherbird_frost_commit_with_nonces',
         [
           identifier.toJS,
           hidingNonce.address.toJS,
@@ -36,7 +36,7 @@ final Map<String, Function> _registry29 = {
         CipherBirdFrostCommit.size,
         CipherBirdFrostCommit._new,
       ),
-  'cryptolib_frost_sign':
+  'cipherbird_frost_sign':
       (
         int identifier,
         Pointer<NativeType> shareSecret,
@@ -54,7 +54,7 @@ final Map<String, Function> _registry29 = {
         Pointer<NativeType> bindingCommits,
         int count,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_frost_sign',
+        '_cbw_cipherbird_frost_sign',
         [
           identifier.toJS,
           shareSecret.address.toJS,

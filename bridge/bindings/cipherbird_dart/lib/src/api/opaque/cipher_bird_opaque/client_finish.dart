@@ -43,7 +43,7 @@ extension CipherBirdOpaqueClientFinish on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_opaque_client_finish')(
+          >('cipherbird_opaque_client_finish')(
             a,
             clientState.length,
             b,

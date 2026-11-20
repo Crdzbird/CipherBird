@@ -1,6 +1,6 @@
 part of '../native_platform.dart';
 
-/// What one feed of a live entropy source did (`cryptolib_live_entropy_feed`).
+/// What one feed of a live entropy source did (`cipherbird_live_entropy_feed`).
 final class CipherBirdLiveFeedReport extends Struct {
   @Int32()
   external int accepted;

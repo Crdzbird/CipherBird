@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry46 = {
-  'cryptolib_image_factor_seal':
+  'cipherbird_image_factor_seal':
       (
         Pointer<NativeType> oprfSecretSeed,
         int seedLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry46 = {
         Pointer<NativeType> coverPath,
         Pointer<NativeType> outputPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_image_factor_seal',
+        '_cbw_cipherbird_image_factor_seal',
         [
           oprfSecretSeed.address.toJS,
           seedLen.toJS,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry46 = {
         CipherBirdResult.size,
         CipherBirdResult._new,
       ),
-  'cryptolib_image_factor_open':
+  'cipherbird_image_factor_open':
       (
         Pointer<NativeType> oprfSecretSeed,
         int seedLen,
@@ -37,7 +37,7 @@ final Map<String, Function> _registry46 = {
         int aadLen,
         Pointer<NativeType> stegoPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_image_factor_open',
+        '_cbw_cipherbird_image_factor_open',
         [
           oprfSecretSeed.address.toJS,
           seedLen.toJS,
@@ -49,7 +49,7 @@ final Map<String, Function> _registry46 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hpke_stego_seal':
+  'cipherbird_hpke_stego_seal':
       (
         Pointer<NativeType> pkR,
         int pkRLen,
@@ -62,7 +62,7 @@ final Map<String, Function> _registry46 = {
         Pointer<NativeType> coverPath,
         Pointer<NativeType> outputPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_stego_seal',
+        '_cbw_cipherbird_hpke_stego_seal',
         [
           pkR.address.toJS,
           pkRLen.toJS,

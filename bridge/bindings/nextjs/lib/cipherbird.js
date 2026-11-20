@@ -13,9 +13,9 @@ export async function lib() {
   if (crypto) return crypto;
 
   // Point the binding at the local build if no prebuilt binary is present.
-  if (!process.env.CRYPTOLIB_DYLIB) {
+  if (!process.env.CIPHERBIRD_LIBRARY) {
     const ext = process.platform === 'darwin' ? 'dylib' : process.platform === 'win32' ? 'dll' : 'so';
-    process.env.CRYPTOLIB_DYLIB = path.resolve(process.cwd(), `../../../build/release/libcryptolib_c.${ext}`);
+    process.env.CIPHERBIRD_LIBRARY = path.resolve(process.cwd(), `../../../build/release/libcipherbird_c.${ext}`);
   }
 
   const modPath = path.resolve(process.cwd(), '../cipherbird-node/index.js');

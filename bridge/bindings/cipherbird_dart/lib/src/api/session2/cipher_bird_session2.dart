@@ -10,7 +10,7 @@ extension CipherBirdSession2 on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Pointer<Uint8>, Size),
           CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cryptolib_session2_generate_prekey')(
+        >('cipherbird_session2_generate_prekey')(
           responderSigSecretPtr,
           responderSigSecret.length,
         ),
@@ -42,7 +42,7 @@ extension CipherBirdSession2 on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_session2_verify_prekey')(
+        >('cipherbird_session2_verify_prekey')(
           bundlePtr,
           bundle.length,
           responderSigPublicPtr,
@@ -63,7 +63,7 @@ extension CipherBirdSession2 on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_session2_claimed_initiator')(
+        >('cipherbird_session2_claimed_initiator')(
           handshakePtr,
           handshake.length,
         ),

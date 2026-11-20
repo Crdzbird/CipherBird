@@ -1,6 +1,6 @@
 /*
  * BBS per-verifier pseudonym / blind-issuance verify: round-trips across the boundary.
- * CRYPTOLIB_DYLIB=<path> node test/bbs_pseudonym.js
+ * CIPHERBIRD_LIBRARY=<path> node test/bbs_pseudonym.js
  */
 const c = require('..');
 const { Bbs } = c;

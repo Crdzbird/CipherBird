@@ -29,7 +29,7 @@ extension CipherBirdMlDsa on CipherBird {
               int,
               int,
             )
-          >('cryptolib_ml_dsa_verify')(
+          >('cipherbird_ml_dsa_verify')(
             mp,
             msg.length,
             sgp,
@@ -50,7 +50,7 @@ extension CipherBirdMlDsa on CipherBird {
     _lib.lookupFunction<
       CipherBirdKeyPair Function(Int32),
       CipherBirdKeyPair Function(int)
-    >('cryptolib_ml_dsa_keygen')(level.value),
+    >('cipherbird_ml_dsa_keygen')(level.value),
   );
 
   Uint8List mlDsaSign(Uint8List msg, Uint8List secretKey, MlDsaLevel level) {
@@ -72,7 +72,7 @@ extension CipherBirdMlDsa on CipherBird {
             int,
             int,
           )
-        >('cryptolib_ml_dsa_sign')(
+        >('cipherbird_ml_dsa_sign')(
           mp,
           msg.length,
           sp,

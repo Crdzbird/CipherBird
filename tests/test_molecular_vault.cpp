@@ -3,7 +3,7 @@
 // the plaintext and that every tamper/wrong-input path fails closed.
 #include "test_framework.hpp"
 
-#include <cryptolib/molecular_vault.hpp>
+#include <cipherbird/molecular_vault.hpp>
 
 #include <array>
 #include <cstdint>

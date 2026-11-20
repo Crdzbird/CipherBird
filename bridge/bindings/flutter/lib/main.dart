@@ -11,8 +11,8 @@ void main() {
   final isMobile = Platform.isIOS || Platform.isAndroid;
   final String? libPath = isMobile
       ? null
-      : (Platform.environment['CRYPTOLIB_PATH'] ??
-          '${Directory.current.parent.parent.path}/build/release/libcryptolib_c.dylib');
+      : (Platform.environment['CIPHERBIRD_PATH'] ??
+          '${Directory.current.parent.parent.path}/build/release/libcipherbird_c.dylib');
 
   runApp(CipherBirdApp(initialLibPath: libPath));
 }

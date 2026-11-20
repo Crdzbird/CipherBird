@@ -5,7 +5,7 @@
 // sequence) before the ZK layers are built on top of it.
 #include "test_framework.hpp"
 
-#include <cryptolib/bbs.hpp>
+#include <cipherbird/bbs.hpp>
 
 #include <array>
 #include <string>

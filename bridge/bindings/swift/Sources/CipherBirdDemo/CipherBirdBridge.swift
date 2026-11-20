@@ -79,7 +79,7 @@ private func withPassword<T>(_ password: String, _ use: (UnsafePointer<CChar>) t
 private func copyAndFree(_ buf: inout CryptoBuffer) -> Data {
     guard let ptr = buf.data, buf.len > 0 else { return Data() }
     let data = Data(bytes: ptr, count: buf.len)
-    cryptolib_buffer_free(&buf)
+    cipherbird_buffer_free(&buf)
     return data
 }
 
@@ -87,7 +87,7 @@ private func copyAndFree(_ buf: inout CryptoBuffer) -> Data {
 private func check(_ result: inout CryptoBufferResult) throws -> Data {
     if let err = result.error {
         let msg = String(cString: err)
-        cryptolib_str_free(err)
+        cipherbird_str_free(err)
         throw CipherBirdError.operationFailed(msg)
     }
     return copyAndFree(&result.buf)
@@ -97,7 +97,7 @@ private func check(_ result: inout CryptoBufferResult) throws -> Data {
 private func checkError(_ errPtr: UnsafeMutablePointer<CChar>?) throws {
     if let err = errPtr {
         let msg = String(cString: err)
-        cryptolib_str_free(err)
+        cipherbird_str_free(err)
         throw CipherBirdError.operationFailed(msg)
     }
 }
@@ -140,11 +140,11 @@ final class CipherBirdBridge {
 
     /// Initialize the library. Call once at app launch.
     func load() throws {
-        let rc = cryptolib_init()
+        let rc = cipherbird_init()
         if rc != 0 {
-            throw CipherBirdError.operationFailed("cryptolib_init failed: \(rc)")
+            throw CipherBirdError.operationFailed("cipherbird_init failed: \(rc)")
         }
-        if let v = cryptolib_version() {
+        if let v = cipherbird_version() {
             libraryVersion = String(cString: v)
         }
         isLoaded = true
@@ -153,7 +153,7 @@ final class CipherBirdBridge {
     // MARK: - Random Bytes
 
     func randomBytes(_ n: Int) throws -> Data {
-        var r = cryptolib_random_bytes(n)
+        var r = cipherbird_random_bytes(n)
         return try check(&r)
     }
 
@@ -165,11 +165,11 @@ final class CipherBirdBridge {
             if let key = key {
                 return try key.withUnsafeBytes { keyPtr in
                     let keyBase = keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self)
-                    var r = cryptolib_blake2b(msgBase, msg.count, keyBase, key.count)
+                    var r = cipherbird_blake2b(msgBase, msg.count, keyBase, key.count)
                     return try check(&r)
                 }
             } else {
-                var r = cryptolib_blake2b(msgBase, msg.count, nil, 0)
+                var r = cipherbird_blake2b(msgBase, msg.count, nil, 0)
                 return try check(&r)
             }
         }
@@ -177,14 +177,14 @@ final class CipherBirdBridge {
 
     func sha256(_ msg: Data) throws -> Data {
         return try msg.withUnsafeBytes { ptr in
-            var r = cryptolib_sha256(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count)
+            var r = cipherbird_sha256(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count)
             return try check(&r)
         }
     }
 
     func sha512(_ msg: Data) throws -> Data {
         return try msg.withUnsafeBytes { ptr in
-            var r = cryptolib_sha512(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count)
+            var r = cipherbird_sha512(ptr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count)
             return try check(&r)
         }
     }
@@ -192,7 +192,7 @@ final class CipherBirdBridge {
     func hmacSha512(_ msg: Data, key: Data) throws -> Data {
         return try msg.withUnsafeBytes { msgPtr in
             try key.withUnsafeBytes { keyPtr in
-                var r = cryptolib_hmac_sha512(
+                var r = cipherbird_hmac_sha512(
                     msgPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                     keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count)
                 return try check(&r)
@@ -209,7 +209,7 @@ final class CipherBirdBridge {
 
     func argon2idHashStr(_ password: Data, ops: UInt64 = 2, mem: Int = 67108864) throws -> String {
         try withPassword(password) { pw in
-            var r = cryptolib_argon2id_hash_str(pw, ops, mem)
+            var r = cipherbird_argon2id_hash_str(pw, ops, mem)
             let data = try check(&r)
             return String(data: data, encoding: .utf8) ?? ""
         }
@@ -220,13 +220,13 @@ final class CipherBirdBridge {
     }
 
     func argon2idVerifyStr(_ password: Data, phcStr: String) -> Bool {
-        withPassword(password) { pw in cryptolib_argon2id_verify_str(pw, phcStr) == 1 }
+        withPassword(password) { pw in cipherbird_argon2id_verify_str(pw, phcStr) == 1 }
     }
 
     // MARK: - Symmetric Encryption
 
     func symKeygen() throws -> Data {
-        var r = cryptolib_sym_keygen()
+        var r = cipherbird_sym_keygen()
         return try check(&r)
     }
 
@@ -237,13 +237,13 @@ final class CipherBirdBridge {
                 let k = keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self)
                 if let aad = aad {
                     return try aad.withUnsafeBytes { aadPtr in
-                        var r = cryptolib_xchacha20_encrypt(
+                        var r = cipherbird_xchacha20_encrypt(
                             pt, plaintext.count, k, key.count,
                             aadPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), aad.count)
                         return try check(&r)
                     }
                 } else {
-                    var r = cryptolib_xchacha20_encrypt(pt, plaintext.count, k, key.count, nil, 0)
+                    var r = cipherbird_xchacha20_encrypt(pt, plaintext.count, k, key.count, nil, 0)
                     return try check(&r)
                 }
             }
@@ -257,13 +257,13 @@ final class CipherBirdBridge {
                 let k = keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self)
                 if let aad = aad {
                     return try aad.withUnsafeBytes { aadPtr in
-                        var r = cryptolib_xchacha20_decrypt(
+                        var r = cipherbird_xchacha20_decrypt(
                             ct, ciphertext.count, k, key.count,
                             aadPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), aad.count)
                         return try check(&r)
                     }
                 } else {
-                    var r = cryptolib_xchacha20_decrypt(ct, ciphertext.count, k, key.count, nil, 0)
+                    var r = cipherbird_xchacha20_decrypt(ct, ciphertext.count, k, key.count, nil, 0)
                     return try check(&r)
                 }
             }
@@ -271,7 +271,7 @@ final class CipherBirdBridge {
     }
 
     func aes256gcmAvailable() -> Bool {
-        return cryptolib_aes256gcm_available() == 1
+        return cipherbird_aes256gcm_available() == 1
     }
 
     func aes256gcmEncrypt(_ plaintext: Data, key: Data, aad: Data? = nil) throws -> Data {
@@ -281,13 +281,13 @@ final class CipherBirdBridge {
                 let k = keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self)
                 if let aad = aad {
                     return try aad.withUnsafeBytes { aadPtr in
-                        var r = cryptolib_aes256gcm_encrypt(
+                        var r = cipherbird_aes256gcm_encrypt(
                             pt, plaintext.count, k, key.count,
                             aadPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), aad.count)
                         return try check(&r)
                     }
                 } else {
-                    var r = cryptolib_aes256gcm_encrypt(pt, plaintext.count, k, key.count, nil, 0)
+                    var r = cipherbird_aes256gcm_encrypt(pt, plaintext.count, k, key.count, nil, 0)
                     return try check(&r)
                 }
             }
@@ -301,13 +301,13 @@ final class CipherBirdBridge {
                 let k = keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self)
                 if let aad = aad {
                     return try aad.withUnsafeBytes { aadPtr in
-                        var r = cryptolib_aes256gcm_decrypt(
+                        var r = cipherbird_aes256gcm_decrypt(
                             ct, ciphertext.count, k, key.count,
                             aadPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), aad.count)
                         return try check(&r)
                     }
                 } else {
-                    var r = cryptolib_aes256gcm_decrypt(ct, ciphertext.count, k, key.count, nil, 0)
+                    var r = cipherbird_aes256gcm_decrypt(ct, ciphertext.count, k, key.count, nil, 0)
                     return try check(&r)
                 }
             }
@@ -317,7 +317,7 @@ final class CipherBirdBridge {
     // MARK: - Ed25519
 
     func ed25519Keygen() -> KeyPairResult {
-        var kp = cryptolib_ed25519_keygen()
+        var kp = cipherbird_ed25519_keygen()
         return KeyPairResult(
             publicKey: copyAndFree(&kp.public_key),
             secretKey: copyAndFree(&kp.secret_key))
@@ -326,7 +326,7 @@ final class CipherBirdBridge {
     func ed25519Sign(_ msg: Data, secretKey: Data) throws -> Data {
         return try msg.withUnsafeBytes { msgPtr in
             try secretKey.withUnsafeBytes { skPtr in
-                var r = cryptolib_ed25519_sign(
+                var r = cipherbird_ed25519_sign(
                     msgPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                     skPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), secretKey.count)
                 return try check(&r)
@@ -338,7 +338,7 @@ final class CipherBirdBridge {
         return msg.withUnsafeBytes { msgPtr in
             sig.withUnsafeBytes { sigPtr in
                 publicKey.withUnsafeBytes { pkPtr in
-                    cryptolib_ed25519_verify(
+                    cipherbird_ed25519_verify(
                         msgPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                         sigPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), sig.count,
                         pkPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), publicKey.count) == 1
@@ -350,7 +350,7 @@ final class CipherBirdBridge {
     // MARK: - Box
 
     func boxKeygen() -> KeyPairResult {
-        var kp = cryptolib_box_keygen()
+        var kp = cipherbird_box_keygen()
         return KeyPairResult(
             publicKey: copyAndFree(&kp.public_key),
             secretKey: copyAndFree(&kp.secret_key))
@@ -360,7 +360,7 @@ final class CipherBirdBridge {
         return try plaintext.withUnsafeBytes { ptPtr in
             try recipientPub.withUnsafeBytes { rpPtr in
                 try senderSec.withUnsafeBytes { ssPtr in
-                    var r = cryptolib_box_encrypt(
+                    var r = cipherbird_box_encrypt(
                         ptPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), plaintext.count,
                         rpPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), recipientPub.count,
                         ssPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), senderSec.count)
@@ -374,7 +374,7 @@ final class CipherBirdBridge {
         return try ciphertext.withUnsafeBytes { ctPtr in
             try senderPub.withUnsafeBytes { spPtr in
                 try recipientSec.withUnsafeBytes { rsPtr in
-                    var r = cryptolib_box_decrypt(
+                    var r = cipherbird_box_decrypt(
                         ctPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), ciphertext.count,
                         spPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), senderPub.count,
                         rsPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), recipientSec.count)
@@ -390,9 +390,9 @@ final class CipherBirdBridge {
         var errPtr: UnsafeMutablePointer<CChar>? = nil
         let handle: CryptoEntropyHandle?
         if deterministic {
-            handle = cryptolib_entropy_from_file_deterministic(path, &errPtr)
+            handle = cipherbird_entropy_from_file_deterministic(path, &errPtr)
         } else {
-            handle = cryptolib_entropy_from_file(path, &errPtr)
+            handle = cipherbird_entropy_from_file(path, &errPtr)
         }
         try checkError(errPtr)
         guard let h = handle else {
@@ -402,7 +402,7 @@ final class CipherBirdBridge {
     }
 
     func entropyDeriveAll(_ handle: CryptoEntropyHandle) -> DerivedKeysResult {
-        var dk = cryptolib_entropy_derive_all(handle)
+        var dk = cipherbird_entropy_derive_all(handle)
         return DerivedKeysResult(
             symmetricKey: copyAndFree(&dk.symmetric_key),
             vaultMasterKey: copyAndFree(&dk.vault_master_key),
@@ -413,39 +413,39 @@ final class CipherBirdBridge {
     }
 
     func entropySymmetricKey(_ handle: CryptoEntropyHandle) throws -> Data {
-        var r = cryptolib_entropy_symmetric_key(handle)
+        var r = cipherbird_entropy_symmetric_key(handle)
         return try check(&r)
     }
 
     func entropyInfo(_ handle: CryptoEntropyHandle) -> EntropyInfoResult {
-        var info = cryptolib_entropy_info(handle)
+        var info = cipherbird_entropy_info(handle)
         let result = EntropyInfoResult(
             path: info.path.map { String(cString: $0) } ?? "",
             fileSize: info.file_size,
             chunksRead: info.chunks_read,
             entropyBits: info.entropy_bits)
-        cryptolib_entropy_info_free(&info)
+        cipherbird_entropy_info_free(&info)
         return result
     }
 
     func entropyRefresh(_ handle: CryptoEntropyHandle) {
-        cryptolib_entropy_refresh(handle)
+        cipherbird_entropy_refresh(handle)
     }
 
     func entropyFree(_ handle: CryptoEntropyHandle) {
-        cryptolib_entropy_free(handle)
+        cipherbird_entropy_free(handle)
     }
 
     // MARK: - Entropy Convenience
 
     func keyFromFile(_ path: String) throws -> Data {
-        var r = cryptolib_key_from_file(path)
+        var r = cipherbird_key_from_file(path)
         return try check(&r)
     }
 
     func sealFromFile(_ path: String, plaintext: String, aad: String) throws -> PacketResult {
         var errPtr: UnsafeMutablePointer<CChar>? = nil
-        var pkt = cryptolib_seal_from_file(path, plaintext, aad, &errPtr)
+        var pkt = cipherbird_seal_from_file(path, plaintext, aad, &errPtr)
         try checkError(errPtr)
         return PacketResult(
             ciphertext: copyAndFree(&pkt.ciphertext),
@@ -478,7 +478,7 @@ final class CipherBirdBridge {
                     cpkt.kdf_salt.data = saltCopy
                     cpkt.kdf_salt.len = packet.kdfSalt.count
 
-                    var r = cryptolib_open_from_file(path, &cpkt, aad)
+                    var r = cipherbird_open_from_file(path, &cpkt, aad)
                     return try check(&r)
                 }
             }
@@ -488,7 +488,7 @@ final class CipherBirdBridge {
     // MARK: - Vault
 
     func vaultFromEntropy(_ entropyHandle: CryptoEntropyHandle, kdf: Int32 = 0) throws -> CryptoVaultHandle {
-        guard let h = cryptolib_vault_from_entropy(entropyHandle, kdf) else {
+        guard let h = cipherbird_vault_from_entropy(entropyHandle, kdf) else {
             throw CipherBirdError.operationFailed("vault from entropy failed")
         }
         return h
@@ -497,7 +497,7 @@ final class CipherBirdBridge {
     func vaultSeal(_ vault: CryptoVaultHandle, plaintext: Data, aad: String) throws -> PacketResult {
         var errPtr: UnsafeMutablePointer<CChar>? = nil
         var pkt = plaintext.withUnsafeBytes { ptPtr in
-            cryptolib_vault_seal(vault,
+            cipherbird_vault_seal(vault,
                 ptPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                 plaintext.count, aad, &errPtr)
         }
@@ -532,7 +532,7 @@ final class CipherBirdBridge {
                     cpkt.kdf_salt.data = saltCopy
                     cpkt.kdf_salt.len = packet.kdfSalt.count
 
-                    var r = cryptolib_vault_open(vault, &cpkt, aad)
+                    var r = cipherbird_vault_open(vault, &cpkt, aad)
                     return try check(&r)
                 }
             }
@@ -540,7 +540,7 @@ final class CipherBirdBridge {
     }
 
     func vaultFree(_ vault: CryptoVaultHandle) {
-        cryptolib_vault_free(vault)
+        cipherbird_vault_free(vault)
     }
 
     // MARK: - SealedBox
@@ -548,7 +548,7 @@ final class CipherBirdBridge {
     func sealedboxEncrypt(_ plaintext: Data, recipientPub: Data) throws -> Data {
         return try plaintext.withUnsafeBytes { ptPtr in
             try recipientPub.withUnsafeBytes { rpPtr in
-                var r = cryptolib_sealedbox_encrypt(
+                var r = cipherbird_sealedbox_encrypt(
                     ptPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), plaintext.count,
                     rpPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), recipientPub.count)
                 return try check(&r)
@@ -560,7 +560,7 @@ final class CipherBirdBridge {
         return try ciphertext.withUnsafeBytes { ctPtr in
             try recipientPub.withUnsafeBytes { rpPtr in
                 try recipientSec.withUnsafeBytes { rsPtr in
-                    var r = cryptolib_sealedbox_decrypt(
+                    var r = cipherbird_sealedbox_decrypt(
                         ctPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), ciphertext.count,
                         rpPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), recipientPub.count,
                         rsPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), recipientSec.count)
@@ -573,7 +573,7 @@ final class CipherBirdBridge {
     // MARK: - X25519
 
     func x25519Keygen() -> KeyPairResult {
-        var kp = cryptolib_x25519_keygen()
+        var kp = cipherbird_x25519_keygen()
         return KeyPairResult(
             publicKey: copyAndFree(&kp.public_key),
             secretKey: copyAndFree(&kp.secret_key))
@@ -582,7 +582,7 @@ final class CipherBirdBridge {
     func x25519SharedSecret(ourSecret: Data, theirPublic: Data) throws -> Data {
         return try ourSecret.withUnsafeBytes { osPtr in
             try theirPublic.withUnsafeBytes { tpPtr in
-                var r = cryptolib_x25519_shared_secret(
+                var r = cipherbird_x25519_shared_secret(
                     osPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), ourSecret.count,
                     tpPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), theirPublic.count)
                 return try check(&r)
@@ -596,7 +596,7 @@ final class CipherBirdBridge {
         return msg.withUnsafeBytes { msgPtr in
             mac.withUnsafeBytes { macPtr in
                 key.withUnsafeBytes { keyPtr in
-                    cryptolib_hmac_sha512_verify(
+                    cipherbird_hmac_sha512_verify(
                         msgPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                         macPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), mac.count,
                         keyPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count) == 1
@@ -610,7 +610,7 @@ final class CipherBirdBridge {
     func hmacSha256(_ msg: Data, key: Data) throws -> Data {
         return try msg.withUnsafeBytes { m in
             try key.withUnsafeBytes { k in
-                var r = cryptolib_hmac_sha256(
+                var r = cipherbird_hmac_sha256(
                     m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                     k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count)
                 return try check(&r)
@@ -622,7 +622,7 @@ final class CipherBirdBridge {
         return msg.withUnsafeBytes { m in
             mac.withUnsafeBytes { t in
                 key.withUnsafeBytes { k in
-                    cryptolib_hmac_sha256_verify(
+                    cipherbird_hmac_sha256_verify(
                         m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                         t.baseAddress?.assumingMemoryBound(to: UInt8.self), mac.count,
                         k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count) == 1
@@ -637,12 +637,12 @@ final class CipherBirdBridge {
             let ikmBase = i.baseAddress?.assumingMemoryBound(to: UInt8.self)
             if let salt = salt {
                 return try salt.withUnsafeBytes { s in
-                    var r = cryptolib_hkdf_extract(
+                    var r = cipherbird_hkdf_extract(
                         s.baseAddress?.assumingMemoryBound(to: UInt8.self), salt.count, ikmBase, ikm.count)
                     return try check(&r)
                 }
             }
-            var r = cryptolib_hkdf_extract(nil, 0, ikmBase, ikm.count)
+            var r = cipherbird_hkdf_extract(nil, 0, ikmBase, ikm.count)
             return try check(&r)
         }
     }
@@ -653,12 +653,12 @@ final class CipherBirdBridge {
             let prkBase = p.baseAddress?.assumingMemoryBound(to: UInt8.self)
             if let info = info {
                 return try info.withUnsafeBytes { f in
-                    var r = cryptolib_hkdf_expand(
+                    var r = cipherbird_hkdf_expand(
                         prkBase, prk.count, f.baseAddress?.assumingMemoryBound(to: UInt8.self), info.count, outLen)
                     return try check(&r)
                 }
             }
-            var r = cryptolib_hkdf_expand(prkBase, prk.count, nil, 0, outLen)
+            var r = cipherbird_hkdf_expand(prkBase, prk.count, nil, 0, outLen)
             return try check(&r)
         }
     }
@@ -670,7 +670,7 @@ final class CipherBirdBridge {
         return try ikm.withUnsafeBytes { i in
             try saltData.withUnsafeBytes { s in
                 try infoData.withUnsafeBytes { f in
-                    var r = cryptolib_hkdf_derive(
+                    var r = cipherbird_hkdf_derive(
                         i.baseAddress?.assumingMemoryBound(to: UInt8.self), ikm.count,
                         salt == nil ? nil : s.baseAddress?.assumingMemoryBound(to: UInt8.self), saltData.count,
                         info == nil ? nil : f.baseAddress?.assumingMemoryBound(to: UInt8.self), infoData.count,
@@ -689,7 +689,7 @@ final class CipherBirdBridge {
         return try plaintext.withUnsafeBytes { p in
             try key.withUnsafeBytes { k in
                 try aadData.withUnsafeBytes { a in
-                    var r = cryptolib_committing_encrypt(
+                    var r = cipherbird_committing_encrypt(
                         p.baseAddress?.assumingMemoryBound(to: UInt8.self), plaintext.count,
                         k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count,
                         aad == nil ? nil : a.baseAddress?.assumingMemoryBound(to: UInt8.self), aadData.count)
@@ -705,7 +705,7 @@ final class CipherBirdBridge {
         return try ciphertext.withUnsafeBytes { c in
             try key.withUnsafeBytes { k in
                 try aadData.withUnsafeBytes { a in
-                    var r = cryptolib_committing_decrypt(
+                    var r = cipherbird_committing_decrypt(
                         c.baseAddress?.assumingMemoryBound(to: UInt8.self), ciphertext.count,
                         k.baseAddress?.assumingMemoryBound(to: UInt8.self), key.count,
                         aad == nil ? nil : a.baseAddress?.assumingMemoryBound(to: UInt8.self), aadData.count)
@@ -718,7 +718,7 @@ final class CipherBirdBridge {
     // MARK: - Hybrid signature (Ed25519 + ML-DSA-65)
 
     func hybridSigKeygen() -> KeyPairResult {
-        var kp = cryptolib_hybrid_sig_keygen()
+        var kp = cipherbird_hybrid_sig_keygen()
         return KeyPairResult(
             publicKey: copyAndFree(&kp.public_key),
             secretKey: copyAndFree(&kp.secret_key))
@@ -727,7 +727,7 @@ final class CipherBirdBridge {
     func hybridSigSign(_ msg: Data, secretKey: Data) throws -> Data {
         return try msg.withUnsafeBytes { m in
             try secretKey.withUnsafeBytes { s in
-                var r = cryptolib_hybrid_sig_sign(
+                var r = cipherbird_hybrid_sig_sign(
                     m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                     s.baseAddress?.assumingMemoryBound(to: UInt8.self), secretKey.count)
                 return try check(&r)
@@ -739,7 +739,7 @@ final class CipherBirdBridge {
         return msg.withUnsafeBytes { m in
             sig.withUnsafeBytes { s in
                 publicKey.withUnsafeBytes { p in
-                    cryptolib_hybrid_sig_verify(
+                    cipherbird_hybrid_sig_verify(
                         m.baseAddress?.assumingMemoryBound(to: UInt8.self), msg.count,
                         s.baseAddress?.assumingMemoryBound(to: UInt8.self), sig.count,
                         p.baseAddress?.assumingMemoryBound(to: UInt8.self), publicKey.count) == 1
@@ -753,7 +753,7 @@ final class CipherBirdBridge {
     /// Deterministic BLS keygen from input key material (>= 32 bytes).
     func blsKeygenFromIkm(_ ikm: Data) -> KeyPairResult {
         var kp = ikm.withUnsafeBytes { i in
-            cryptolib_bls_keygen_from_ikm(i.baseAddress?.assumingMemoryBound(to: UInt8.self), ikm.count)
+            cipherbird_bls_keygen_from_ikm(i.baseAddress?.assumingMemoryBound(to: UInt8.self), ikm.count)
         }
         return KeyPairResult(
             publicKey: copyAndFree(&kp.public_key),
@@ -765,7 +765,7 @@ final class CipherBirdBridge {
     func secureEqual(_ a: Data, _ b: Data) -> Bool {
         return a.withUnsafeBytes { aPtr in
             b.withUnsafeBytes { bPtr in
-                cryptolib_secure_equal(
+                cipherbird_secure_equal(
                     aPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), a.count,
                     bPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), b.count) == 1
             }
@@ -776,7 +776,7 @@ final class CipherBirdBridge {
 
     func ed25519KeygenFromSeed(_ seed: Data) -> KeyPairResult {
         return seed.withUnsafeBytes { seedPtr in
-            var kp = cryptolib_ed25519_keygen_from_seed(
+            var kp = cipherbird_ed25519_keygen_from_seed(
                 seedPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), seed.count)
             return KeyPairResult(
                 publicKey: copyAndFree(&kp.public_key),
@@ -788,23 +788,23 @@ final class CipherBirdBridge {
 
     func stegoEmbed(_ coverPath: String, payload: Data, outputPath: String) throws {
         let r = payload.withUnsafeBytes { payloadPtr in
-            cryptolib_stego_embed(coverPath,
+            cipherbird_stego_embed(coverPath,
                 payloadPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                 payload.count, outputPath)
         }
         if r.ok == 0 {
             let msg = r.error.map { String(cString: $0) } ?? "unknown error"
-            if let err = r.error { cryptolib_str_free(err) }
+            if let err = r.error { cipherbird_str_free(err) }
             throw CipherBirdError.operationFailed(msg)
         }
     }
 
     func stegoExtract(_ stegoPath: String) throws -> Data {
-        var r = cryptolib_stego_extract(stegoPath)
+        var r = cipherbird_stego_extract(stegoPath)
         return try check(&r)
     }
 
     func stegoCapacity(_ coverPath: String) -> Int {
-        return cryptolib_stego_capacity(coverPath)
+        return cipherbird_stego_capacity(coverPath)
     }
 }

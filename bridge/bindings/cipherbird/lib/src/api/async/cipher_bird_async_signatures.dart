@@ -15,7 +15,7 @@ extension CipherBirdAsyncSignatures on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_ml_dsa_keygen',
+      symbol: 'cipherbird_ml_dsa_keygen',
       args: [JobArg.i32(level.value)],
       returns: JobReturn.keypair,
       cost: 1 << 16,
@@ -32,7 +32,7 @@ extension CipherBirdAsyncSignatures on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_ml_dsa_sign',
+      symbol: 'cipherbird_ml_dsa_sign',
       args: [
         JobArg.bytes(msg),
         JobArg.bytes(secretKey),
@@ -52,7 +52,7 @@ extension CipherBirdAsyncSignatures on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_slh_dsa_keygen',
+      symbol: 'cipherbird_slh_dsa_keygen',
       args: [JobArg.i32(level.value), JobArg.i32(hash.value)],
       returns: JobReturn.keypair,
       cost: 1 << 22,
@@ -70,7 +70,7 @@ extension CipherBirdAsyncSignatures on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_slh_dsa_sign',
+      symbol: 'cipherbird_slh_dsa_sign',
       args: [
         JobArg.bytes(msg),
         JobArg.bytes(secretKey),

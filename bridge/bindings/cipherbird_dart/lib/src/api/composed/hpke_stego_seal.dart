@@ -49,7 +49,7 @@ extension CipherBirdComposedHpkeStegoSeal on CipherBird {
             Pointer<Utf8>,
             Pointer<Utf8>,
           )
-        >('cryptolib_hpke_stego_seal')(
+        >('cipherbird_hpke_stego_seal')(
           pk,
           recipientPublic.length,
           pt,

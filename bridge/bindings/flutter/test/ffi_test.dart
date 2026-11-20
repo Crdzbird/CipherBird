@@ -1,7 +1,7 @@
 // Runtime FFI test: loads the native library and exercises the real dart:ffi
 // binding (lib/cipherbird_ffi.dart) the GUI app uses. `flutter test` runs this on
 // the host VM, so it actually marshals data across the C boundary — not just a
-// static analyze. Assumes `make lib` has built build/release/libcryptolib_c.dylib.
+// static analyze. Assumes `make lib` has built build/release/libcipherbird_c.dylib.
 //
 // This is the FULL showcase: every capability family the binding exposes —
 // hashing, symmetric AEAD, asymmetric, vaults, post-quantum, BLS, and the
@@ -25,7 +25,7 @@ bool _eq(List<int> a, List<int> b) {
 }
 
 void main() {
-  final dylib = '../../../build/release/libcryptolib_c.dylib';
+  final dylib = '../../../build/release/libcipherbird_c.dylib';
 
   test('native library is present', () {
     expect(File(dylib).existsSync(), isTrue,

@@ -7,13 +7,13 @@
  * analyzer and the media entropy harvester. This exercises every reader of
  * untrusted media in the library.
  *
- * Build with -DCRYPTOLIB_FUZZ=ON (clang), then:
+ * Build with -DCIPHERBIRD_FUZZ=ON (clang), then:
  *   ./fuzz_stego -max_total_time=120 tests/fuzz/corpus/stego
  * The seed corpus is produced by fuzz_corpus_gen (small valid carriers of
  * every format) so the fuzzer starts from well-formed structure.
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -35,54 +35,54 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // Each parser gets the same bytes via its own temp file. Errors are expected;
     // we only care that nothing reads/writes out of bounds (ASan/UBSan enforce).
     {
-        const char* p = "/tmp/cryptolib_fuzz.bmp";
+        const char* p = "/tmp/cipherbird_fuzz.bmp";
         write_tmp(p, data, size);
         (void)BmpSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.ppm";
+        const char* p = "/tmp/cipherbird_fuzz.ppm";
         write_tmp(p, data, size);
         (void)ImageSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.png";
+        const char* p = "/tmp/cipherbird_fuzz.png";
         write_tmp(p, data, size);
         (void)PngSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.gif";
+        const char* p = "/tmp/cipherbird_fuzz.gif";
         write_tmp(p, data, size);
         (void)GifSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.jpg";
+        const char* p = "/tmp/cipherbird_fuzz.jpg";
         write_tmp(p, data, size);
         (void)JpegSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.wav";
+        const char* p = "/tmp/cipherbird_fuzz.wav";
         write_tmp(p, data, size);
         (void)AudioSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.flac";
+        const char* p = "/tmp/cipherbird_fuzz.flac";
         write_tmp(p, data, size);
         (void)FlacSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.mp3";
+        const char* p = "/tmp/cipherbird_fuzz.mp3";
         write_tmp(p, data, size);
         (void)Mp3Steganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.mp4";
+        const char* p = "/tmp/cipherbird_fuzz.mp4";
         write_tmp(p, data, size);
         (void)Mp4Steganographer::extract(p);
     }
     {
         /* The engine sniffs content, not the extension; the analyzer and the
          * entropy harvester read the same bytes through their own paths. */
-        const char* p = "/tmp/cryptolib_fuzz.bin";
+        const char* p = "/tmp/cipherbird_fuzz.bin";
         write_tmp(p, data, size);
         (void)StegoEngine::extract(p);
         (void)StegoAnalyzer::inspect(p);
@@ -98,12 +98,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.avi";
+        const char* p = "/tmp/cipherbird_fuzz.avi";
         write_tmp(p, data, size);
         (void)AviSteganographer::extract(p);
     }
     {
-        const char* p = "/tmp/cryptolib_fuzz.crvf";
+        const char* p = "/tmp/cipherbird_fuzz.crvf";
         write_tmp(p, data, size);
         (void)VideoSteganographer::extract(p);
     }

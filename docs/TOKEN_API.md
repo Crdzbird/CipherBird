@@ -1,15 +1,15 @@
 # Tokens: one API for every format
 
 Status: design note, 2026-11-09, implemented the same day in the engine
-(`include/cryptolib/token.hpp`, the eight `cryptolib_token_*` functions)
+(`include/cipherbird/token.hpp`, the eight `cipherbird_token_*` functions)
 and in the Go, Dart and Node bindings. Supersedes the per-format API
 section of `CB1_TOKEN.md`; the per-format functions stay as aliases.
 
 ## The problem
 
 Every token format has so far arrived as its own family of entry points:
-`cryptolib_paseto_v4_local_encrypt` and `_decrypt` for PASETO v4.local,
-`cryptolib_cb1_local_encrypt`, `_decrypt`, `cryptolib_cb1_public_sign` and
+`cipherbird_paseto_v4_local_encrypt` and `_decrypt` for PASETO v4.local,
+`cipherbird_cb1_local_encrypt`, `_decrypt`, `cipherbird_cb1_public_sign` and
 `_verify` for cb1, each with its `_len` or `_cap` helper, each wrapped by
 hand in Go, both Dart packages and Node, each with a parity-test entry, a
 README row and a changelog line. The next format (cb2, or PASETO v4.public,
@@ -41,7 +41,7 @@ with any other suffix is refused.
 The engine publishes its table:
 
 ```c
-size_t cryptolib_token_formats(char* out, size_t out_cap);
+size_t cipherbird_token_formats(char* out, size_t out_cap);
 ```
 
 It writes a JSON array to `out` and returns the number of bytes the full
@@ -65,8 +65,8 @@ of the array is stable within a release and carries no meaning.
 ### Sizing
 
 ```c
-size_t cryptolib_token_issue_len(const char* format, size_t payload_len, size_t footer_len);
-size_t cryptolib_token_accept_cap(const char* format, size_t token_len);
+size_t cipherbird_token_issue_len(const char* format, size_t payload_len, size_t footer_len);
+size_t cipherbird_token_accept_cap(const char* format, size_t token_len);
 ```
 
 The exact token length a format produces for a payload and footer, and the
@@ -77,7 +77,7 @@ per-format helpers do today.
 ### Keys
 
 ```c
-int cryptolib_token_keygen(const char* format,
+int cipherbird_token_keygen(const char* format,
                            uint8_t* secret, size_t secret_cap, size_t* secret_len,
                            uint8_t* pub, size_t pub_cap, size_t* pub_len);
 ```
@@ -98,14 +98,14 @@ one and not a precondition for it.
 ### Issue and accept
 
 ```c
-int cryptolib_token_issue(const char* format,
+int cipherbird_token_issue(const char* format,
                           uint8_t* out, size_t out_cap, size_t* out_len,
                           const uint8_t* key, size_t key_len,
                           const uint8_t* payload, size_t payload_len,
                           const uint8_t* footer, size_t footer_len,
                           const uint8_t* implicit, size_t implicit_len);
 
-int cryptolib_token_accept(const char* format,
+int cipherbird_token_accept(const char* format,
                            uint8_t* out, size_t out_cap, size_t* out_len,
                            const uint8_t* token, size_t token_len,
                            const uint8_t* key, size_t key_len,
@@ -133,9 +133,9 @@ its own allow-list, and then calls accept with the format it chose.
 ### Reading before verifying
 
 ```c
-size_t cryptolib_token_peek_format(const uint8_t* token, size_t token_len,
+size_t cipherbird_token_peek_format(const uint8_t* token, size_t token_len,
                                    char* out, size_t out_cap);
-int cryptolib_token_peek_footer(const uint8_t* token, size_t token_len,
+int cipherbird_token_peek_footer(const uint8_t* token, size_t token_len,
                                 uint8_t* out, size_t out_cap, size_t* out_len);
 ```
 
@@ -154,12 +154,12 @@ the old names remain as aliases.
 
 | Name | Value | Meaning |
 |---|---|---|
-| `CRYPTOLIB_TOKEN_OK` | 0 | success |
-| `CRYPTOLIB_TOKEN_ERR_INVALID` | -1 | the token is not accepted, with no further detail: wrong header, bad base64url, wrong length, failed tag or signature, footer mismatch |
-| `CRYPTOLIB_TOKEN_ERR_ARGUMENT` | -2 | a caller error: a key of the wrong length, a NULL with a non-zero length, an input over the maximum, an output buffer too small |
-| `CRYPTOLIB_TOKEN_ERR_INTERNAL` | -3 | the engine failed (no randomness, a backend error) |
-| `CRYPTOLIB_TOKEN_ERR_UNAVAILABLE` | -4 | the format exists but is not available in this profile |
-| `CRYPTOLIB_TOKEN_ERR_FORMAT` | -5 | the format string names no format this engine knows |
+| `CIPHERBIRD_TOKEN_OK` | 0 | success |
+| `CIPHERBIRD_TOKEN_ERR_INVALID` | -1 | the token is not accepted, with no further detail: wrong header, bad base64url, wrong length, failed tag or signature, footer mismatch |
+| `CIPHERBIRD_TOKEN_ERR_ARGUMENT` | -2 | a caller error: a key of the wrong length, a NULL with a non-zero length, an input over the maximum, an output buffer too small |
+| `CIPHERBIRD_TOKEN_ERR_INTERNAL` | -3 | the engine failed (no randomness, a backend error) |
+| `CIPHERBIRD_TOKEN_ERR_UNAVAILABLE` | -4 | the format exists but is not available in this profile |
+| `CIPHERBIRD_TOKEN_ERR_FORMAT` | -5 | the format string names no format this engine knows |
 
 Invalid stays one code on purpose: a verifier that distinguished a bad tag
 from a bad footer or a wrong header would be an oracle. Argument errors are
@@ -170,7 +170,7 @@ anything about the token.
 
 ## Engine design
 
-`include/cryptolib/token.hpp` holds a descriptor per format and a table:
+`include/cipherbird/token.hpp` holds a descriptor per format and a table:
 
 ```cpp
 struct Format {

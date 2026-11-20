@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry52 = {
-  'cryptolib_session2_initiate':
+  'cipherbird_session2_initiate':
       (
         Pointer<NativeType> bundle,
         int bundleLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry52 = {
         int iskLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_session2_initiate', [
+        WebEngine.current.callInt('_cbw_cipherbird_session2_initiate', [
           bundle.address.toJS,
           bundleLen.toJS,
           responderSigPublic.address.toJS,
@@ -25,22 +25,22 @@ final Map<String, Function> _registry52 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_session2_handshake': (Pointer<NativeType> h) =>
+  'cipherbird_session2_handshake': (Pointer<NativeType> h) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_session2_handshake',
+        '_cbw_cipherbird_session2_handshake',
         [h.address.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_session2_claimed_initiator':
+  'cipherbird_session2_claimed_initiator':
       (Pointer<NativeType> handshake, int hsLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_session2_claimed_initiator',
+            '_cbw_cipherbird_session2_claimed_initiator',
             [handshake.address.toJS, hsLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,
           ),
-  'cryptolib_session2_accept':
+  'cipherbird_session2_accept':
       (
         Pointer<NativeType> handshake,
         int hsLen,
@@ -56,7 +56,7 @@ final Map<String, Function> _registry52 = {
         int ipkLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_session2_accept', [
+        WebEngine.current.callInt('_cbw_cipherbird_session2_accept', [
           handshake.address.toJS,
           hsLen.toJS,
           bundle.address.toJS,
@@ -72,7 +72,7 @@ final Map<String, Function> _registry52 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_session2_encrypt':
+  'cipherbird_session2_encrypt':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> pt,
@@ -80,7 +80,7 @@ final Map<String, Function> _registry52 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_session2_encrypt',
+        '_cbw_cipherbird_session2_encrypt',
         [
           h.address.toJS,
           pt.address.toJS,

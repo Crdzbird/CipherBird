@@ -10,7 +10,7 @@ extension CipherBirdFipsDigest on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Int32, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(int, Pointer<Uint8>, int)
-        >('cryptolib_fips_digest')(hash.value, dataPtr, data.length),
+        >('cipherbird_fips_digest')(hash.value, dataPtr, data.length),
       );
     } finally {
       if (dataPtr != nullptr) calloc.free(dataPtr);
@@ -38,7 +38,7 @@ extension CipherBirdFipsDigest on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_hmac')(
+        >('cipherbird_fips_hmac')(
           hash.value,
           keyPtr,
           key.length,

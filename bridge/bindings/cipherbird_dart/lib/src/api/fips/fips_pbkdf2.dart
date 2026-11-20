@@ -33,7 +33,7 @@ extension CipherBirdFipsPbkdf2 on CipherBird {
             int,
             int,
           )
-        >('cryptolib_fips_pbkdf2')(
+        >('cipherbird_fips_pbkdf2')(
           hash.value,
           passwordPtr,
           password.length,
@@ -55,7 +55,7 @@ extension CipherBirdFipsPbkdf2 on CipherBird {
       _lib.lookupFunction<
         CipherBirdBufferResult Function(Size),
         CipherBirdBufferResult Function(int)
-      >('cryptolib_fips_random')(n),
+      >('cipherbird_fips_random')(n),
     );
   }
 }

@@ -57,7 +57,7 @@ extension CipherBirdFrostVerifyShare on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_frost_verify_share')(
+          >('cipherbird_frost_verify_share')(
             identifier,
             pp,
             publicShare.length,

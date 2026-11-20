@@ -10,7 +10,7 @@ extension CipherBirdStegoInspection on CipherBird {
           .lookupFunction<
             CipherBirdFileInspection Function(Pointer<Utf8>),
             CipherBirdFileInspection Function(Pointer<Utf8>)
-          >('cryptolib_stego_inspect')(p);
+          >('cipherbird_stego_inspect')(p);
       if (r.error != nullptr) {
         final msg = r.error.toDartString();
         _core.strFree(r.error);
@@ -49,7 +49,7 @@ extension CipherBirdStegoInspection on CipherBird {
           .lookupFunction<
             CipherBirdHiddenDataReport Function(Pointer<Utf8>),
             CipherBirdHiddenDataReport Function(Pointer<Utf8>)
-          >('cryptolib_stego_detect_hidden')(p);
+          >('cipherbird_stego_detect_hidden')(p);
       if (r.error != nullptr) {
         final msg = r.error.toDartString();
         _core.strFree(r.error);
@@ -85,7 +85,7 @@ extension CipherBirdStegoInspection on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Utf8>),
           CipherBirdBufferResult Function(Pointer<Utf8>)
-        >('cryptolib_stego_content_digest')(p),
+        >('cipherbird_stego_content_digest')(p),
       );
     } finally {
       calloc.free(p);

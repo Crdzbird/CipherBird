@@ -28,7 +28,7 @@ a minimal reproduction. Encrypting the report is welcome but not required.
 |---|---|
 | cipherbird 1.1.x | yes, latest patch release |
 | cipherbird_dart 1.1.x | yes, latest patch release |
-| cryptolib_flutter 4.x (previous name) | no, upgrade to cipherbird |
+| cipherbird_flutter 4.x (previous name) | no, upgrade to cipherbird |
 | C++ engine on `main` | yes |
 
 Fixes ship as new versions; released versions and their tags are never

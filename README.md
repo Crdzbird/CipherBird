@@ -20,7 +20,7 @@ the **same** native core, so a value sealed in one language opens byte-for-byte
 in another.
 
 ```cpp
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 ```
 
 ---
@@ -150,19 +150,19 @@ Issuer                                   Holder                          Verifie
 ## How it works
 
 One header-only C++ core is exposed through a stable C ABI; every language
-binding is a thin wrapper over the **same** `libcryptolib_c`. There is no
+binding is a thin wrapper over the **same** `libcipherbird_c`. There is no
 per-language wire format, only the library's format, so ciphertext, packets,
 signatures and MolecularVault "MVLT" envelopes are byte-identical across
 languages.
 
 ```mermaid
 flowchart TB
-  subgraph core["C++20 header-only core, include/cryptolib/*.hpp"]
+  subgraph core["C++20 header-only core, include/cipherbird/*.hpp"]
     prim["Primitives<br/>AEAD, Ed25519/X25519, ML-KEM/ML-DSA/SLH-DSA<br/>BLS12-381, secp256k1, Keccak/RIPEMD/BLAKE3"]
     hl["Constructions<br/>Vault, MolecularVault, Flagship/Fortress sealed messaging<br/>Keyring, Noise XX, Shamir, media entropy"]
     safe["Result monad, SecureBuffer (mlock + zeroize), constant-time"]
   end
-  core --> abi["C ABI, bridge/cryptolib_c.h / .cpp<br/>libcryptolib_c, 127 functions, exception-isolated"]
+  core --> abi["C ABI, bridge/cipherbird_c.h / .cpp<br/>libcipherbird_c, 127 functions, exception-isolated"]
   abi --> ffi{{"FFI boundary (caller's concern)"}}
   ffi --> go["Go<br/>(cgo)"]
   ffi --> dart["Dart /<br/>Flutter"]
@@ -285,7 +285,7 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test); every call that reaches OpenSSL is tested cold from many threads under signals and at thread exit, after the macOS lock-wait hang fixed in 1.5.0 (`docs/P256.md`, "Threads") |
 | Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
-| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCRYPTOLIB_CT_VALGRIND=ON`); the Linux `ctgrind` CI job blocks on any secret-dependent branch |
+| Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCIPHERBIRD_CT_VALGRIND=ON`); the Linux `ctgrind` CI job blocks on any secret-dependent branch |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |
 | Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model section 8) |
 | C-ABI boundary | Exception isolation, indistinguishable error returns (no oracle), bounds-checked length math |
@@ -297,7 +297,7 @@ The full threat model, assets, AI-assisted adversary, security arguments for
 the original compositions (Vault, Keyring, hybrid KEM combiner, committing
 AEAD), zeroization audit, lives in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
-**Build profiles.** `-DCRYPTOLIB_PROFILE=full` (default) builds everything.
+**Build profiles.** `-DCIPHERBIRD_PROFILE=full` (default) builds everything.
 `bank` drops steganography, media entropy and the library-native combiners
 and makes X-Wing, HPKE with ML-KEM and the v2 envelopes (Suite v2, Session
 v2) the defaults; it is the audit target in [`docs/AUDIT_SCOPE.md`](docs/AUDIT_SCOPE.md).
@@ -340,7 +340,7 @@ Cryptography is high-stakes; deployments are the operator's responsibility.
 
 ## Multi-language usage, step by step
 
-The C++ library is exposed through a single C ABI (`bridge/cryptolib_c.h`),
+The C++ library is exposed through a single C ABI (`bridge/cipherbird_c.h`),
 and every supported language ships an auto-loading package that bundles the
 native binary. Consumers add the dependency and call the API, no path
 configuration, no manual `.so`/`.dylib` placement.
@@ -453,11 +453,11 @@ library and extracts it at startup.
 3. **Use.**
    ```swift
    import CipherBirdC
-   guard cryptolib_init() == 0 else { exit(1) }
-   let v = String(cString: cryptolib_version())                            // "3.0.0"
-   let kp = cryptolib_hybrid_kem_keygen()
+   guard cipherbird_init() == 0 else { exit(1) }
+   let v = String(cString: cipherbird_version())                            // "3.0.0"
+   let kp = cipherbird_hybrid_kem_keygen()
    var err: UnsafeMutablePointer<CChar>? = nil
-   let enc = cryptolib_hybrid_kem_encapsulate(kp.public_key.data, kp.public_key.len, &err)
+   let enc = cipherbird_hybrid_kem_encapsulate(kp.public_key.data, kp.public_key.len, &err)
    // ... decapsulate, compare
    ```
 
@@ -485,7 +485,7 @@ links against a locally-built dylib; for portable distribution, use the
 vendored merged static archive (see `PUBLISHING.md`).
 
 1. **Build the native library** (one-time): `make lib` (produces
-   `build/release/libcryptolib_c.dylib`).
+   `build/release/libcipherbird_c.dylib`).
 2. **Run the example:**
    ```bash
    cd bridge/bindings/go
@@ -514,29 +514,29 @@ brew install cmake ninja libsodium liboqs blake3 openssl@3
 
 # Build + run the C++ test suite (526 cases, ASan and UBSan clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
-cmake --build build/test --target cryptolib_tests
-./build/test/cryptolib_tests
+  -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF
+cmake --build build/test --target cipherbird_tests
+./build/test/cipherbird_tests
 
-# Showcases: cryptolib_showcase walks every feature in the full profile,
-# cryptolib_showcase_bank the standards-track surface (full and bank profiles),
-# cryptolib_showcase_fips the OpenSSL FIPS Provider layer (fips profile).
+# Showcases: cipherbird_showcase walks every feature in the full profile,
+# cipherbird_showcase_bank the standards-track surface (full and bank profiles),
+# cipherbird_showcase_fips the OpenSSL FIPS Provider layer (fips profile).
 # The Flutter showcase lives in bridge/bindings/cipherbird/example (one screen
 # per capability, runs on iOS, Android, macOS and the web).
-cmake --build build/test --target cryptolib_showcase cryptolib_showcase_bank
-./build/test/cryptolib_showcase && ./build/test/cryptolib_showcase_bank
+cmake --build build/test --target cipherbird_showcase cipherbird_showcase_bank
+./build/test/cipherbird_showcase && ./build/test/cipherbird_showcase_bank
 
 # Build the shared C library used by every binding
 cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --target cryptolib_c
+cmake --build build/release --target cipherbird_c
 
 # Sealed, self-contained static archive: every dependency linked in, with a
 # no-sock/no-dso libcrypto so the binary carries no socket or dlopen code.
-bash scripts/build_static_archive.sh          # writes build/static/libcryptolib_c.a
+bash scripts/build_static_archive.sh          # writes build/static/libcipherbird_c.a
 make audit                                     # no-ambient-authority symbol gate
 
 # Optionally back ML-KEM/ML-DSA/SLH-DSA with OpenSSL EVP (FIPS-track) vs liboqs
-cmake -S . -B build/ossl -G Ninja -DCRYPTOLIB_PQ_BACKEND_OPENSSL=ON   # see pq.hpp
+cmake -S . -B build/ossl -G Ninja -DCIPHERBIRD_PQ_BACKEND_OPENSSL=ON   # see pq.hpp
 ```
 
 See [`PUBLISHING.md`](PUBLISHING.md) for cross-platform packaging notes (npm,
@@ -553,7 +553,7 @@ the publish checklist.
   audit, sealed (no-sock/no-dso) static build, dependency-substitution defense
 - [`docs/ROADMAP.md`](docs/ROADMAP.md), candidate primitives for later iterations
 - [`PUBLISHING.md`](PUBLISHING.md), per-ecosystem packaging + release pipeline
-- `bridge/cryptolib_c.h`, the C ABI surface every binding marshals over
+- `bridge/cipherbird_c.h`, the C ABI surface every binding marshals over
 
 ---
 
@@ -562,5 +562,5 @@ the publish checklist.
 Issues and pull requests welcome. **Do not file vulnerabilities as public
 issues**: use the private reporting route and response targets in
 [SECURITY.md](SECURITY.md). Before submitting code, please ensure
-the test suite still runs clean (`./build/test/cryptolib_tests`) and that
+the test suite still runs clean (`./build/test/cipherbird_tests`) and that
 `scripts/verify_bindings.sh` stays green across all 10 bindings.

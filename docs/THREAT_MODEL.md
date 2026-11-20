@@ -55,7 +55,7 @@ ciphertexts and envelopes) **plus** the following, explicitly including an
 
 ## 4. Trust boundary
 
-The **C ABI** (`bridge/cryptolib_c.h`) is the boundary. Contract:
+The **C ABI** (`bridge/cipherbird_c.h`) is the boundary. Contract:
 - No C++ exception crosses it (function-try-blocks + `CL_FAIL_*`).
 - Ownership is explicit: every returned buffer/handle has a matching `*_free`.
 - Error returns must **not** be a decryption oracle: failures are
@@ -207,7 +207,7 @@ Reviewed every secret-bearing intermediate in the core constructions:
   `finalize_digest`; and hasher and cipher state is still wiped in every
   mode.
 - **Randomness in WebAssembly** comes from the browser CSPRNG through one
-  `crypto.getRandomValues` call per buffer (`cryptolib_init` installs the
+  `crypto.getRandomValues` call per buffer (`cipherbird_init` installs the
   provider). No user-space generator sits between the platform CSPRNG and
   the keys; the change only removed a per-byte round trip through the
   in-memory filesystem.
@@ -257,7 +257,7 @@ Frida, Xposed, substrate hooks, or a patched runtime intercept calls at the
 Dart, FFI, or native layer.
 
 - The library has no anti-hooking defence and does not claim one; a hook on
-  `cryptolib_vault_open` sees the plaintext. Detection and response belong to
+  `cipherbird_vault_open` sees the plaintext. Detection and response belong to
   the application's runtime protection and to the platform attestation above.
 - The controls that survive a hooked client are the ones that move trust
   off the device: hardware-attested keys (the hook cannot export the key),
@@ -270,7 +270,7 @@ Dart, FFI, or native layer.
 
 ### 9.4 Profile guidance
 
-- Build the `bank` profile (`-DCRYPTOLIB_PROFILE=bank`): no steganography,
+- Build the `bank` profile (`-DCIPHERBIRD_PROFILE=bank`): no steganography,
   no media entropy, no library-native combiners; X-Wing and HPKE with ML-KEM
   are the defaults and Suite v2 and Session v2 the envelopes.
 - Where the regulator requires validated cryptography, the `fips` profile

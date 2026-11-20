@@ -120,7 +120,7 @@ TEST("health/markov-estimate-on-analytic-inputs") {
 }
 
 TEST("health/source-policy-refuses-a-weak-file-unless-permissive") {
-    const char* weak = "/tmp/cryptolib_health_weak.bin";
+    const char* weak = "/tmp/cipherbird_health_weak.bin";
     {
         std::ofstream f(weak, std::ios::binary);
         std::vector<char> z(1 << 16, 'A');
@@ -134,7 +134,7 @@ TEST("health/source-policy-refuses-a-weak-file-unless-permissive") {
     CHECK(loose.is_ok());
     CHECK(loose.is_ok() && loose.value().info().health.min_entropy_per_byte < 0.01);
     CHECK(loose.is_ok() && loose.value().info().entropy_bits_claimed < 1.0);
-    const char* good = "/tmp/cryptolib_health_good.bin";
+    const char* good = "/tmp/cipherbird_health_good.bin";
     {
         std::vector<uint8_t> r(1 << 16);
         randombytes_buf(r.data(), r.size());

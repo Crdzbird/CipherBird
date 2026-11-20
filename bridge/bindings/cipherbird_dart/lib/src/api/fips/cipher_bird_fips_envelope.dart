@@ -10,7 +10,7 @@ extension CipherBirdFipsEnvelope on CipherBird {
           .lookupFunction<
             Pointer<Void> Function(Pointer<Pointer<Utf8>>),
             Pointer<Void> Function(Pointer<Pointer<Utf8>>)
-          >('cryptolib_fips_envelope_create')(errPtr);
+          >('cipherbird_fips_envelope_create')(errPtr);
       return _fipsEnvelopeHandle(h, errPtr);
     } finally {
       calloc.free(errPtr);
@@ -30,7 +30,7 @@ extension CipherBirdFipsEnvelope on CipherBird {
               Pointer<Pointer<Utf8>>,
             ),
             Pointer<Void> Function(Pointer<Uint8>, int, Pointer<Pointer<Utf8>>)
-          >('cryptolib_fips_envelope_deserialise')(pb, blob.length, errPtr);
+          >('cipherbird_fips_envelope_deserialise')(pb, blob.length, errPtr);
       return _fipsEnvelopeHandle(h, errPtr);
     } finally {
       if (pb != nullptr) calloc.free(pb);
@@ -57,5 +57,5 @@ extension CipherBirdFipsEnvelope on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_fips_envelope_free')(h);
+      >('cipherbird_fips_envelope_free')(h);
 }

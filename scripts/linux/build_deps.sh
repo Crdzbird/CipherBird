@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the static dependency set for a native Linux x86_64 host from the
 # hash-pinned tarballs and the pinned blst commit, into
-# third_party/linux/x86_64 for -DCRYPTOLIB_DEPS_ROOT. Used by the CI
+# third_party/linux/x86_64 for -DCIPHERBIRD_DEPS_ROOT. Used by the CI
 # constant-time job; the recipes mirror scripts/android/deps.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

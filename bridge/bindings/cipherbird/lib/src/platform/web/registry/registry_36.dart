@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry36 = {
-  'cryptolib_bbs_calculate_pseudonym':
+  'cipherbird_bbs_calculate_pseudonym':
       (
         Pointer<NativeType> contextId,
         int ctxLen,
@@ -9,7 +9,7 @@ final Map<String, Function> _registry36 = {
         Pointer<NativeType> nymLens,
         int nymCount,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_calculate_pseudonym',
+        '_cbw_cipherbird_bbs_calculate_pseudonym',
         [
           contextId.address.toJS,
           ctxLen.toJS,
@@ -20,7 +20,7 @@ final Map<String, Function> _registry36 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_proof_gen_with_pseudonym':
+  'cipherbird_bbs_proof_gen_with_pseudonym':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -49,7 +49,7 @@ final Map<String, Function> _registry36 = {
         int disclosedCommittedCount,
         Pointer<NativeType> pseudonymOut,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_proof_gen_with_pseudonym',
+        '_cbw_cipherbird_bbs_proof_gen_with_pseudonym',
         [
           pk.address.toJS,
           pkLen.toJS,

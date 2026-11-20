@@ -20,7 +20,7 @@ extension CipherBirdTokenPeek on CipherBird {
     if (token.isEmpty) return '';
     final text = Uint8List.fromList(utf8.encode(token));
     final f = _lib.lookupFunction<_TokenPeekFormatNative, _TokenPeekFormat>(
-      'cryptolib_token_peek_format',
+      'cipherbird_token_peek_format',
     );
     final pt = _toNative(text);
     try {
@@ -46,7 +46,7 @@ extension CipherBirdTokenPeek on CipherBird {
   Uint8List? tokenPeekFooter(String token) {
     final text = Uint8List.fromList(utf8.encode(token));
     final f = _lib.lookupFunction<_TokenPeekFooterNative, _TokenPeekFooter>(
-      'cryptolib_token_peek_footer',
+      'cipherbird_token_peek_footer',
     );
     final cap = text.isEmpty ? 1 : text.length;
     final pt = _toNative(text);

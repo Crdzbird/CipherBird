@@ -3,7 +3,7 @@
  *
  * The Suite facade composes hybrid KEM, hybrid signatures, MolecularVault, media
  * entropy, keyring, Shamir and Keccak into single calls. Run against the build:
- * CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node suite.js
+ * CIPHERBIRD_LIBRARY=../../../build/release/libcipherbird_c.dylib node suite.js
  */
 'use strict';
 const os = require('node:os');

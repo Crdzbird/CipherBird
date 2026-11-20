@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot orchestrator: build all deps for all slices, then cryptolib_c per
+# One-shot orchestrator: build all deps for all slices, then cipherbird_c per
 # slice, then assemble CipherBird.xcframework.
 #
 # Usage:
@@ -29,8 +29,8 @@ for slice in "${SLICES[@]}"; do
 done
 
 for slice in "${SLICES[@]}"; do
-    printf "\n%s═══ Building cryptolib_c for %s ═══%s\n" "$BOLD$CYN" "$slice" "$RST"
-    "$IOS_SCRIPT_DIR/build_cryptolib_slice.sh" "$slice"
+    printf "\n%s═══ Building cipherbird_c for %s ═══%s\n" "$BOLD$CYN" "$slice" "$RST"
+    "$IOS_SCRIPT_DIR/build_cipherbird_slice.sh" "$slice"
 done
 
 printf "\n%s═══ Assembling XCFramework ═══%s\n" "$BOLD$CYN" "$RST"

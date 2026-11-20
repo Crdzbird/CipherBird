@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry23 = {
-  'cryptolib_noise_decrypt':
+  'cipherbird_noise_decrypt':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> ciphertext,
@@ -9,7 +9,7 @@ final Map<String, Function> _registry23 = {
         Pointer<NativeType> ad,
         int adLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt',
+        '_cbw_cipherbird_noise_decrypt',
         [
           h.address.toJS,
           ciphertext.address.toJS,
@@ -20,7 +20,7 @@ final Map<String, Function> _registry23 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_noise_decrypt_at':
+  'cipherbird_noise_decrypt_at':
       (
         Pointer<NativeType> h,
         int nonceCounter,
@@ -29,7 +29,7 @@ final Map<String, Function> _registry23 = {
         Pointer<NativeType> ad,
         int adLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_noise_decrypt_at',
+        '_cbw_cipherbird_noise_decrypt_at',
         [
           h.address.toJS,
           (nonceCounter % 4294967296).toJS,
@@ -42,21 +42,21 @@ final Map<String, Function> _registry23 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_noise_free': (Pointer<NativeType> h) =>
-      WebEngine.current.callVoid('_cbw_cryptolib_noise_free', [h.address.toJS]),
-  'cryptolib_hmac_sha256':
+  'cipherbird_noise_free': (Pointer<NativeType> h) =>
+      WebEngine.current.callVoid('_cbw_cipherbird_noise_free', [h.address.toJS]),
+  'cipherbird_hmac_sha256':
       (
         Pointer<NativeType> msg,
         int msgLen,
         Pointer<NativeType> key,
         int keyLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hmac_sha256',
+        '_cbw_cipherbird_hmac_sha256',
         [msg.address.toJS, msgLen.toJS, key.address.toJS, keyLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_hmac_sha256_verify':
+  'cipherbird_hmac_sha256_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -64,7 +64,7 @@ final Map<String, Function> _registry23 = {
         int macLen,
         Pointer<NativeType> key,
         int keyLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_hmac_sha256_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_hmac_sha256_verify', [
         msg.address.toJS,
         msgLen.toJS,
         mac.address.toJS,
@@ -72,14 +72,14 @@ final Map<String, Function> _registry23 = {
         key.address.toJS,
         keyLen.toJS,
       ]),
-  'cryptolib_hkdf_extract':
+  'cipherbird_hkdf_extract':
       (
         Pointer<NativeType> salt,
         int saltLen,
         Pointer<NativeType> ikm,
         int ikmLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hkdf_extract',
+        '_cbw_cipherbird_hkdf_extract',
         [salt.address.toJS, saltLen.toJS, ikm.address.toJS, ikmLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,

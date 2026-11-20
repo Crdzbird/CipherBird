@@ -3,7 +3,7 @@
  *
  * These feed crafted media headers (oversized or overflowing dimension and
  * count fields) to the extract paths. Each must return a clean error rather
- * than crashing. Run under -DCRYPTOLIB_SANITIZE=ON so any out-of-bounds access
+ * than crashing. Run under -DCIPHERBIRD_SANITIZE=ON so any out-of-bounds access
  * or integer-overflow-driven allocation trips ASan/UBSan and fails the test.
  */
 

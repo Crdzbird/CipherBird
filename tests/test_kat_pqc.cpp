@@ -16,7 +16,7 @@
 // committed; regenerate with vectors/extract_pqc_kat.py).
 #include "test_framework.hpp"
 
-#include <cryptolib/pq.hpp>
+#include <cipherbird/pq.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -25,7 +25,7 @@
 #include <string_view>
 #include <vector>
 
-#if defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_PQ)
 
 #include "vectors/pqc_kat_vectors.hpp"
 
@@ -103,11 +103,11 @@ TEST("kat/slh-dsa-128f/sigver/acvp") {
     }
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_kat_pqc() {
-#if defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_PQ)
     RUN("kat/ml-kem-768/decap/acvp");
     RUN("kat/ml-dsa-65/sigver/acvp");
     RUN("kat/slh-dsa-128f/sigver/acvp");

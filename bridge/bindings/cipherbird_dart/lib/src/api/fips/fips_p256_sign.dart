@@ -21,7 +21,7 @@ extension CipherBirdFipsP256Sign on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_p256_sign')(
+        >('cipherbird_fips_p256_sign')(
           privateKeyPtr,
           privateKey.length,
           messagePtr,
@@ -61,7 +61,7 @@ extension CipherBirdFipsP256Sign on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_fips_p256_verify')(
+          >('cipherbird_fips_p256_verify')(
             publicKeyPtr,
             publicKey.length,
             messagePtr,

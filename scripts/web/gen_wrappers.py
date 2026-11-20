@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the flat WebAssembly boundary over bridge/cryptolib_c.h.
+"""Generate the flat WebAssembly boundary over bridge/cipherbird_c.h.
 
 Every C ABI function gets a cbw_ twin that JavaScript can call without
 knowing the wasm32 struct-return convention: struct results are written to
@@ -71,7 +71,7 @@ def classify(ctype, struct_names):
 
 def parse_functions(text, struct_names):
     functions = []
-    pattern = re.compile(r'CRYPTO_API\s+([\w\s\*]+?)\s*\b(cryptolib_\w+)\s*\(([^;{]*)\)\s*;')
+    pattern = re.compile(r'CRYPTO_API\s+([\w\s\*]+?)\s*\b(cipherbird_\w+)\s*\(([^;{]*)\)\s*;')
     for ret, name, params in pattern.findall(text):
         if name.endswith('_for_testing'):
             continue
@@ -114,7 +114,7 @@ def c_wrapper(fn):
 
 
 def layouts_program(structs):
-    lines = ['#include "cryptolib_c.h"', '#include <stddef.h>', '#include <stdio.h>', '', 'int main(void) {', '    printf("{");']
+    lines = ['#include "cipherbird_c.h"', '#include <stddef.h>', '#include <stdio.h>', '', 'int main(void) {', '    printf("{");']
     for i, s in enumerate(structs):
         sep = ', ' if i else ''
         lines.append('    printf("%s\\"%s\\": {\\"size\\": %%u, \\"fields\\": {", (unsigned)sizeof(%s));' % (sep, s['name'], s['name']))
@@ -140,7 +140,7 @@ def main():
             if f['ctype'] in ('uint8_t', 'uint16_t', 'int', 'int32_t', 'uint32_t', 'size_t'):
                 f['kind'] = f['ctype']
     functions = parse_functions(text, struct_names)
-    c_lines = ['#include "cryptolib_c.h"', '#include <emscripten/emscripten.h>', '#include <stdint.h>', '']
+    c_lines = ['#include "cipherbird_c.h"', '#include <emscripten/emscripten.h>', '#include <stdint.h>', '']
     c_lines += [c_wrapper(fn) for fn in functions]
     (out_dir / 'cipherbird_wrappers.c').write_text('\n'.join(c_lines))
     exports = ['_cbw_' + fn['name'] for fn in functions] + ['_malloc', '_free']

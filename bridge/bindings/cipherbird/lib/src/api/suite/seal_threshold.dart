@@ -44,7 +44,7 @@ extension CipherBirdSuiteSealThreshold on CipherBird {
               Pointer<CipherBirdBuffer>,
             )
           >(
-            'cryptolib_suite_seal_threshold',
+            'cipherbird_suite_seal_threshold',
           )(pp, plaintext.length, n, k, pa, aad?.length ?? 0, outShares);
       final env = _checkBufResult(r);
       final blob = _copyBuf(outShares.ref);

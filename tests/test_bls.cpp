@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
 
 TEST("bls/keypair/random") {
     auto kp = crypto::bls::Bls12381::generate_keypair();
@@ -172,10 +172,10 @@ TEST("bls/aggregate/empty-rejected") {
     CHECK_ERR(agg);
 }
 
-#endif // CRYPTOLIB_HAS_BLS
+#endif // CIPHERBIRD_HAS_BLS
 
 void run_tests_bls() {
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
     RUN("bls/keypair/random");
     RUN("bls/keypair/from-ikm");
     RUN("bls/keypair/from-ikm-deterministic");

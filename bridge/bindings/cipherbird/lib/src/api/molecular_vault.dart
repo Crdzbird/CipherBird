@@ -58,7 +58,7 @@ extension CipherBirdMolecular on CipherBird {
             int,
             int,
           )
-        >('cryptolib_molecular_seal')(
+        >('cipherbird_molecular_seal')(
           pp,
           plaintext.length,
           cpw,

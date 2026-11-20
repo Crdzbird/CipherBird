@@ -8,7 +8,7 @@ extension CipherBirdHpke on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_hpke_keygen',
+      'cipherbird_hpke_keygen',
     )(),
   );
 
@@ -20,7 +20,7 @@ extension CipherBirdHpke on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Pointer<Uint8>, Size),
           CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cryptolib_hpke_derive_keypair')(p, ikm.length),
+        >('cipherbird_hpke_derive_keypair')(p, ikm.length),
       );
     } finally {
       if (p != nullptr) calloc.free(p);

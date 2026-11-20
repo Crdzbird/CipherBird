@@ -16,7 +16,7 @@ extension CipherBirdOprf on CipherBird {
             Size,
           ),
           CipherBirdKeyPair Function(Pointer<Uint8>, int, Pointer<Uint8>, int)
-        >('cryptolib_oprf_derive_keypair')(
+        >('cipherbird_oprf_derive_keypair')(
           s,
           seed.length,
           i,
@@ -41,7 +41,7 @@ extension CipherBirdOprf on CipherBird {
           .lookupFunction<
             CipherBirdOprfBlind Function(Pointer<Uint8>, Size),
             CipherBirdOprfBlind Function(Pointer<Uint8>, int)
-          >('cryptolib_oprf_blind')(p, input.length);
+          >('cipherbird_oprf_blind')(p, input.length);
       return _oprfBlindOut(c);
     } finally {
       if (p != nullptr) calloc.free(p);
@@ -72,7 +72,7 @@ extension CipherBirdOprf on CipherBird {
     _lib.lookupFunction<
       Void Function(Pointer<CipherBirdOprfBlind>),
       void Function(Pointer<CipherBirdOprfBlind>)
-    >('cryptolib_oprf_blind_free')(p);
+    >('cipherbird_oprf_blind_free')(p);
     calloc.free(p);
   }
 }

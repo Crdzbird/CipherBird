@@ -1,11 +1,11 @@
 package cipherbird
 
 /*
-#cgo noescape cryptolib_paseto_v4_local_encrypt
-#cgo nocallback cryptolib_paseto_v4_local_encrypt
-#cgo noescape cryptolib_paseto_v4_local_decrypt
-#cgo nocallback cryptolib_paseto_v4_local_decrypt
-#include "cryptolib_c.h"
+#cgo noescape cipherbird_paseto_v4_local_encrypt
+#cgo nocallback cipherbird_paseto_v4_local_encrypt
+#cgo noescape cipherbird_paseto_v4_local_decrypt
+#cgo nocallback cipherbird_paseto_v4_local_decrypt
+#include "cipherbird_c.h"
 */
 import "C"
 
@@ -15,7 +15,7 @@ import (
 )
 
 // PasetoV4LocalKeyBytes is the length of a PASETO v4.local key.
-const PasetoV4LocalKeyBytes = C.CRYPTOLIB_PASETO_V4_LOCAL_KEY_BYTES
+const PasetoV4LocalKeyBytes = C.CIPHERBIRD_PASETO_V4_LOCAL_KEY_BYTES
 
 // PasetoV4MaxInputBytes is the largest message, footer or implicit assertion
 // the PASETO v4.local functions accept.
@@ -38,13 +38,13 @@ var (
 
 func pasetoErr(rc C.int) error {
 	switch rc {
-	case C.CRYPTOLIB_PASETO_ERR_INVALID:
+	case C.CIPHERBIRD_PASETO_ERR_INVALID:
 		return ErrPasetoInvalid
-	case C.CRYPTOLIB_PASETO_ERR_ARGUMENT:
+	case C.CIPHERBIRD_PASETO_ERR_ARGUMENT:
 		return ErrPasetoArgument
-	case C.CRYPTOLIB_PASETO_ERR_UNAVAILABLE:
+	case C.CIPHERBIRD_PASETO_ERR_UNAVAILABLE:
 		return ErrPasetoUnavailable
-	case C.CRYPTOLIB_TOKEN_ERR_FORMAT:
+	case C.CIPHERBIRD_TOKEN_ERR_FORMAT:
 		return ErrTokenFormat
 	}
 	return ErrPasetoInternal
@@ -62,7 +62,7 @@ func b64Len(n int) int {
 // [PasetoV4LocalEncrypt] produces for a msgLen-byte message and a
 // footerLen-byte footer, or 0 when either is negative or larger than
 // [PasetoV4MaxInputBytes]. It is computed in Go, without calling the
-// native library, and equals cryptolib_paseto_v4_local_encrypt_len.
+// native library, and equals cipherbird_paseto_v4_local_encrypt_len.
 func PasetoV4LocalEncryptLen(msgLen, footerLen int) int {
 	if msgLen < 0 || footerLen < 0 || msgLen > PasetoV4MaxInputBytes || footerLen > PasetoV4MaxInputBytes {
 		return 0
@@ -77,7 +77,7 @@ func PasetoV4LocalEncryptLen(msgLen, footerLen int) int {
 // PasetoV4LocalDecryptCap returns the output capacity
 // [PasetoV4LocalDecryptTo] requires for a token of tokenLen bytes, or 0 for
 // a length no valid token has. It depends only on the length, is computed
-// in Go, and equals cryptolib_paseto_v4_local_decrypt_cap.
+// in Go, and equals cipherbird_paseto_v4_local_decrypt_cap.
 func PasetoV4LocalDecryptCap(tokenLen int) int {
 	if tokenLen <= pasetoHeaderLen || tokenLen > PasetoV4LocalEncryptLen(PasetoV4MaxInputBytes, PasetoV4MaxInputBytes) {
 		return 0
@@ -106,13 +106,13 @@ func PasetoV4LocalEncrypt(key, message, footer, implicit []byte) (string, error)
 	}
 	out := make([]byte, n)
 	var outLen C.size_t
-	rc := C.cryptolib_paseto_v4_local_encrypt(
+	rc := C.cipherbird_paseto_v4_local_encrypt(
 		u8(out), C.size_t(n), &outLen,
 		u8(key), C.size_t(len(key)),
 		u8(message), C.size_t(len(message)),
 		u8(footer), C.size_t(len(footer)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK || int(outLen) != n {
+	if rc != C.CIPHERBIRD_PASETO_OK || int(outLen) != n {
 		return "", pasetoErr(rc)
 	}
 	return unsafe.String(&out[0], n), nil
@@ -156,13 +156,13 @@ func PasetoV4LocalDecryptTo(out []byte, token string, key, expectedFooter, impli
 		return 0, ErrPasetoArgument
 	}
 	var outLen C.size_t
-	rc := C.cryptolib_paseto_v4_local_decrypt(
+	rc := C.cipherbird_paseto_v4_local_decrypt(
 		u8(out), C.size_t(capN), &outLen,
 		(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 		u8(key), C.size_t(len(key)),
 		u8(expectedFooter), C.size_t(len(expectedFooter)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK {
+	if rc != C.CIPHERBIRD_PASETO_OK {
 		return 0, pasetoErr(rc)
 	}
 	return int(outLen), nil
@@ -183,9 +183,9 @@ func pasetoDecryptCap(tokenLen int, key, expectedFooter, implicit []byte) (int, 
 }
 
 func nativePasetoV4LocalEncryptLen(msgLen, footerLen int) int {
-	return int(C.cryptolib_paseto_v4_local_encrypt_len(C.size_t(msgLen), C.size_t(footerLen)))
+	return int(C.cipherbird_paseto_v4_local_encrypt_len(C.size_t(msgLen), C.size_t(footerLen)))
 }
 
 func nativePasetoV4LocalDecryptCap(tokenLen int) int {
-	return int(C.cryptolib_paseto_v4_local_decrypt_cap(C.size_t(tokenLen)))
+	return int(C.cipherbird_paseto_v4_local_decrypt_cap(C.size_t(tokenLen)))
 }

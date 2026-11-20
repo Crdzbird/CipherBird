@@ -7,7 +7,7 @@
  * __LINE__ is resolved BEFORE the ## paste operator sees it.
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstdio>
 #include <exception>

@@ -63,18 +63,18 @@ final class NoiseXX {
 
   /// Next handshake message on this side's turn, embedding an optional payload.
   Uint8List writeMessage([Uint8List? payload]) =>
-      _handshakeMsg('cryptolib_noise_write_message', payload);
+      _handshakeMsg('cipherbird_noise_write_message', payload);
 
   /// Consume the peer's handshake message; returns its embedded payload.
   Uint8List readMessage(Uint8List message) =>
-      _handshakeMsg('cryptolib_noise_read_message', message);
+      _handshakeMsg('cipherbird_noise_read_message', message);
 
   /// True once all three handshake messages are processed.
   bool get handshakeFinished =>
       _lib._lib.lookupFunction<
         Int32 Function(Pointer<Void>),
         int Function(Pointer<Void>)
-      >('cryptolib_noise_handshake_finished')(_h) ==
+      >('cipherbird_noise_handshake_finished')(_h) ==
       1;
 
   /// 32-byte channel-binding value both sides agree on after the handshake.
@@ -82,7 +82,7 @@ final class NoiseXX {
     _lib._lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>),
       CipherBirdBufferResult Function(Pointer<Void>)
-    >('cryptolib_noise_handshake_hash')(_h),
+    >('cipherbird_noise_handshake_hash')(_h),
   );
 
   /// The peer's static X25519 public key learned in the handshake - pin it to
@@ -91,6 +91,6 @@ final class NoiseXX {
     _lib._lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>),
       CipherBirdBufferResult Function(Pointer<Void>)
-    >('cryptolib_noise_remote_static')(_h),
+    >('cipherbird_noise_remote_static')(_h),
   );
 }

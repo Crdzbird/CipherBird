@@ -46,7 +46,7 @@ extension CipherBirdComposedImageFactorSeal on CipherBird {
             Pointer<Utf8>,
             Pointer<Utf8>,
           )
-        >('cryptolib_image_factor_seal')(
+        >('cipherbird_image_factor_seal')(
           seed,
           oprfSecretSeed.length,
           ref,

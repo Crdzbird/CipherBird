@@ -19,16 +19,16 @@
 # a reviewer can confirm they originate from a vetted dependency, not new code.
 #
 # Usage: scripts/audit_symbols.sh [path-to-lib]
-#   default: build/release/libcryptolib_c.dylib (or .so on Linux)
+#   default: build/release/libcipherbird_c.dylib (or .so on Linux)
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LIB="${1:-}"
 if [[ -z "$LIB" ]]; then
-  for cand in "$ROOT/build/release/libcryptolib_c.dylib" \
-              "$ROOT/build/release/libcryptolib_c.so" \
-              "$ROOT/build/test/libcryptolib_c.dylib"; do
+  for cand in "$ROOT/build/release/libcipherbird_c.dylib" \
+              "$ROOT/build/release/libcipherbird_c.so" \
+              "$ROOT/build/test/libcipherbird_c.dylib"; do
     [[ -f "$cand" ]] && { LIB="$cand"; break; }
   done
 fi
@@ -78,7 +78,7 @@ if command -v otool >/dev/null 2>&1; then
   # and not substitutable, so they don't defeat self-containment. Beyond those,
   # only our own lib and the known crypto dependencies are allowed — an
   # unexpected third-party dylib (e.g. a network client) would be flagged.
-  ALLOW='^/usr/lib/|^/System/Library/|/(libcryptolib_c|libsodium|libblake3|libcrypto|libsecp256k1)\.'
+  ALLOW='^/usr/lib/|^/System/Library/|/(libcipherbird_c|libsodium|libblake3|libcrypto|libsecp256k1)\.'
   unexpected="$(otool -L "$LIB" 2>/dev/null | sed -n '2,$p' | awk '{print $1}' \
                 | grep -vE "$ALLOW" || true)"
   if [[ -n "$unexpected" ]]; then

@@ -31,7 +31,7 @@ extension CipherBirdSymmetricCommittingEncrypt on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_committing_encrypt')(
+        >('cipherbird_committing_encrypt')(
           pp,
           plaintext.length,
           pk,

@@ -49,7 +49,7 @@ extension CipherBirdBbsProofVerify on CipherBird {
               Pointer<Uint64>,
               int,
             )
-          >('cryptolib_bbs_proof_verify')(
+          >('cipherbird_bbs_proof_verify')(
             pk,
             publicKey.length,
             pr,

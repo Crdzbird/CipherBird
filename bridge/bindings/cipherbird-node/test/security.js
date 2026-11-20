@@ -1,6 +1,6 @@
 /*
  * SecurityProfile presets and the composable Recipe pipeline.
- * CRYPTOLIB_DYLIB=<path> node test/security.js
+ * CIPHERBIRD_LIBRARY=<path> node test/security.js
  */
 const fs = require('fs');
 const os = require('os');

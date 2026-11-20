@@ -7,7 +7,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 #include <string.h>
 */
@@ -21,7 +21,7 @@ import (
 
 // VaultFromEntropy creates a vault from a MediaEntropy handle.
 func VaultFromEntropy(me *Entropy, kdf int) (*Vault, error) {
-	h := C.cryptolib_vault_from_entropy(me.handle, C.int(kdf))
+	h := C.cipherbird_vault_from_entropy(me.handle, C.int(kdf))
 	runtime.KeepAlive(me) // keep the entropy handle alive across the C call
 	if h == nil {
 		return nil, errors.New("cipherbird: vault from entropy failed")
@@ -38,12 +38,12 @@ func (v *Vault) SealBoosted(plaintext []byte, aad string, boost *Entropy) (*Pack
 	caad := C.CString(aad)
 	defer C.free(unsafe.Pointer(caad))
 	var cerr *C.char
-	cp := C.cryptolib_vault_seal_boosted(v.handle,
+	cp := C.cipherbird_vault_seal_boosted(v.handle,
 		u8(plaintext), C.size_t(len(plaintext)),
 		caad, boost.handle, &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	pkt := packetFromC(cp)
@@ -58,7 +58,7 @@ func (v *Vault) OpenBoosted(pkt *Packet, aad string, boost *Entropy) ([]byte, er
 	defer C.free(unsafe.Pointer(caad))
 	cp := pkt.toC()
 	defer pkt.freeC(&cp)
-	return checkBufResult(C.cryptolib_vault_open_boosted(v.handle, &cp, caad, boost.handle))
+	return checkBufResult(C.cipherbird_vault_open_boosted(v.handle, &cp, caad, boost.handle))
 }
 
 // EntropyFromFile harvests entropy from a file (LavaRand mode).
@@ -67,10 +67,10 @@ func EntropyFromFile(path string) (*Entropy, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
 	var cerr *C.char
-	h := C.cryptolib_entropy_from_file(cp, &cerr)
+	h := C.cipherbird_entropy_from_file(cp, &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	e := &Entropy{handle: h}
@@ -84,10 +84,10 @@ func EntropyFromFileDeterministic(path string) (*Entropy, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
 	var cerr *C.char
-	h := C.cryptolib_entropy_from_file_deterministic(cp, &cerr)
+	h := C.cipherbird_entropy_from_file_deterministic(cp, &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	e := &Entropy{handle: h}
@@ -106,10 +106,10 @@ func EntropyFromFiles(paths []string) (*Entropy, error) {
 		defer C.free(unsafe.Pointer(cPaths[i]))
 	}
 	var cerr *C.char
-	h := C.cryptolib_entropy_from_files(&cPaths[0], C.size_t(len(paths)), &cerr)
+	h := C.cipherbird_entropy_from_files(&cPaths[0], C.size_t(len(paths)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	e := &Entropy{handle: h}
@@ -120,7 +120,7 @@ func EntropyFromFiles(paths []string) (*Entropy, error) {
 // DeriveAll returns all 6 domain-separated keys at once.
 func (e *Entropy) DeriveAll() DerivedKeys {
 	defer runtime.KeepAlive(e)
-	dk := C.cryptolib_entropy_derive_all(e.handle)
+	dk := C.cipherbird_entropy_derive_all(e.handle)
 	return DerivedKeys{
 		SymmetricKey:   goBytes(dk.symmetric_key),
 		VaultMasterKey: goBytes(dk.vault_master_key),
@@ -134,46 +134,46 @@ func (e *Entropy) DeriveAll() DerivedKeys {
 // SymmetricKey derives a 32-byte symmetric encryption key.
 func (e *Entropy) SymmetricKey() ([]byte, error) {
 	defer runtime.KeepAlive(e)
-	return checkBufResult(C.cryptolib_entropy_symmetric_key(e.handle))
+	return checkBufResult(C.cipherbird_entropy_symmetric_key(e.handle))
 }
 
 // Raw returns the 64-byte raw mixed entropy.
 func (e *Entropy) Raw() ([]byte, error) {
 	defer runtime.KeepAlive(e)
-	return checkBufResult(C.cryptolib_entropy_raw(e.handle))
+	return checkBufResult(C.cipherbird_entropy_raw(e.handle))
 }
 
 // Boost returns the 32-byte entropy boost key (for two-factor vault).
 func (e *Entropy) Boost() ([]byte, error) {
 	defer runtime.KeepAlive(e)
-	return checkBufResult(C.cryptolib_entropy_boost(e.handle))
+	return checkBufResult(C.cipherbird_entropy_boost(e.handle))
 }
 
 // Info returns metadata about the entropy source.
 func (e *Entropy) Info() EntropyInfo {
 	defer runtime.KeepAlive(e)
-	ci := C.cryptolib_entropy_info(e.handle)
+	ci := C.cipherbird_entropy_info(e.handle)
 	info := EntropyInfo{
 		Path:        C.GoString(ci.path),
 		FileSize:    uint64(ci.file_size),
 		ChunksRead:  uint64(ci.chunks_read),
 		EntropyBits: float64(ci.entropy_bits),
 	}
-	C.cryptolib_entropy_info_free(&ci)
+	C.cipherbird_entropy_info_free(&ci)
 	return info
 }
 
 // Refresh re-mixes fresh system entropy in-place (for long-lived sessions).
 func (e *Entropy) Refresh() {
 	defer runtime.KeepAlive(e)
-	C.cryptolib_entropy_refresh(e.handle)
+	C.cipherbird_entropy_refresh(e.handle)
 }
 
 // Close destroys the entropy handle. Idempotent; cancels the finalizer.
 func (e *Entropy) Close() {
 	runtime.SetFinalizer(e, nil)
 	if e.handle != nil {
-		C.cryptolib_entropy_free(e.handle)
+		C.cipherbird_entropy_free(e.handle)
 		e.handle = nil
 	}
 }
@@ -184,7 +184,7 @@ func (e *Entropy) Close() {
 func KeyFromFile(path string) ([]byte, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
-	return checkBufResult(C.cryptolib_key_from_file(cp))
+	return checkBufResult(C.cipherbird_key_from_file(cp))
 }
 
 // SealFromFile encrypts plaintext using a file as the key (one-liner).
@@ -196,10 +196,10 @@ func SealFromFile(path, plaintext, aad string) (*Packet, error) {
 	defer wipeFreeStr(cpt)
 	defer C.free(unsafe.Pointer(caad))
 	var cerr *C.char
-	cp := C.cryptolib_seal_from_file(cpath, cpt, caad, &cerr)
+	cp := C.cipherbird_seal_from_file(cpath, cpt, caad, &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	pkt := packetFromC(cp)
@@ -214,7 +214,7 @@ func OpenFromFile(path string, pkt *Packet, aad string) ([]byte, error) {
 	defer C.free(unsafe.Pointer(caad))
 	cp := pkt.toC()
 	defer pkt.freeC(&cp)
-	return checkBufResult(C.cryptolib_open_from_file(cpath, &cp, caad))
+	return checkBufResult(C.cipherbird_open_from_file(cpath, &cp, caad))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -227,12 +227,12 @@ func StegoEmbed(coverPath string, payload []byte, outputPath string) error {
 	co := C.CString(outputPath)
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	r := C.cryptolib_stego_embed(cc,
+	r := C.cipherbird_stego_embed(cc,
 		u8(payload), C.size_t(len(payload)),
 		co)
 	if r.ok == 0 {
 		msg := C.GoString(r.error)
-		C.cryptolib_str_free(r.error)
+		C.cipherbird_str_free(r.error)
 		return errors.New(msg)
 	}
 	return nil
@@ -242,14 +242,14 @@ func StegoEmbed(coverPath string, payload []byte, outputPath string) error {
 func StegoExtract(stegoPath string) ([]byte, error) {
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_stego_extract(cs))
+	return checkBufResult(C.cipherbird_stego_extract(cs))
 }
 
 // StegoCapacity returns the maximum payload size for a cover file.
 func StegoCapacity(coverPath string) int {
 	cc := C.CString(coverPath)
 	defer C.free(unsafe.Pointer(cc))
-	return int(C.cryptolib_stego_capacity(cc))
+	return int(C.cipherbird_stego_capacity(cc))
 }
 
 // StegoEmbedKeyed hides payload bytes with key-derived whitening (and, for
@@ -261,7 +261,7 @@ func StegoEmbedKeyed(coverPath string, payload []byte, outputPath string, key []
 	co := C.CString(outputPath)
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	r := C.cryptolib_stego_embed_keyed(cc,
+	r := C.cipherbird_stego_embed_keyed(cc,
 		u8(payload), C.size_t(len(payload)), co,
 		u8(key), C.size_t(len(key)))
 	return checkResult(r)
@@ -271,7 +271,7 @@ func StegoEmbedKeyed(coverPath string, payload []byte, outputPath string, key []
 func StegoExtractKeyed(stegoPath string, key []byte) ([]byte, error) {
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_stego_extract_keyed(cs, u8(key), C.size_t(len(key))))
+	return checkBufResult(C.cipherbird_stego_extract_keyed(cs, u8(key), C.size_t(len(key))))
 }
 
 // StegoEmbedEncrypted AEAD-seals plaintext under a key derived from masterKey,
@@ -282,7 +282,7 @@ func StegoEmbedEncrypted(coverPath string, plaintext []byte, outputPath string, 
 	co := C.CString(outputPath)
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	r := C.cryptolib_stego_embed_encrypted(cc,
+	r := C.cipherbird_stego_embed_encrypted(cc,
 		u8(plaintext), C.size_t(len(plaintext)), co,
 		u8(masterKey), C.size_t(len(masterKey)))
 	return checkResult(r)
@@ -293,7 +293,7 @@ func StegoEmbedEncrypted(coverPath string, plaintext []byte, outputPath string, 
 func StegoExtractDecrypt(stegoPath string, masterKey []byte) ([]byte, error) {
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_stego_extract_decrypt(cs, u8(masterKey), C.size_t(len(masterKey))))
+	return checkBufResult(C.cipherbird_stego_extract_decrypt(cs, u8(masterKey), C.size_t(len(masterKey))))
 }
 
 // PhysicalSeal is the two-factor "the photo is the key" seal: keyMediaPath is
@@ -307,7 +307,7 @@ func PhysicalSeal(keyMediaPath string, plaintext, aad []byte, coverPath, outputP
 	defer C.free(unsafe.Pointer(km))
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	r := C.cryptolib_physical_seal(km,
+	r := C.cipherbird_physical_seal(km,
 		u8(plaintext), C.size_t(len(plaintext)),
 		u8(aad), C.size_t(len(aad)),
 		cc, co)
@@ -321,18 +321,18 @@ func PhysicalOpen(keyMediaPath string, aad []byte, stegoPath string) ([]byte, er
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(km))
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_physical_open(km, u8(aad), C.size_t(len(aad)), cs))
+	return checkBufResult(C.cipherbird_physical_open(km, u8(aad), C.size_t(len(aad)), cs))
 }
 
 // FecEncode applies forward error correction to data.
 func FecEncode(data []byte, scheme FecScheme) ([]byte, error) {
-	return checkBufResult(C.cryptolib_fec_encode(u8(data), C.size_t(len(data)), C.int(scheme)))
+	return checkBufResult(C.cipherbird_fec_encode(u8(data), C.size_t(len(data)), C.int(scheme)))
 }
 
 // FecDecode recovers originalLen bytes from FEC-encoded data, correcting bit
 // errors within the scheme's capability. Returns an error if data is too short.
 func FecDecode(data []byte, scheme FecScheme, originalLen int) ([]byte, error) {
-	return checkBufResult(C.cryptolib_fec_decode(u8(data), C.size_t(len(data)), C.int(scheme), C.size_t(originalLen)))
+	return checkBufResult(C.cipherbird_fec_decode(u8(data), C.size_t(len(data)), C.int(scheme), C.size_t(originalLen)))
 }
 
 // StegoInspect checks whether a file is a structurally valid media carrier and
@@ -340,12 +340,12 @@ func FecDecode(data []byte, scheme FecScheme, originalLen int) ([]byte, error) {
 func StegoInspect(path string) (FileInspection, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
-	r := C.cryptolib_stego_inspect(cp)
+	r := C.cipherbird_stego_inspect(cp)
 	if r.error != nil {
 		msg := C.GoString(r.error)
-		C.cryptolib_str_free(r.error)
+		C.cipherbird_str_free(r.error)
 		if r.detail != nil {
-			C.cryptolib_str_free(r.detail)
+			C.cipherbird_str_free(r.detail)
 		}
 		return FileInspection{}, errors.New(msg)
 	}
@@ -359,7 +359,7 @@ func StegoInspect(path string) (FileInspection, error) {
 		Detail:     C.GoString(r.detail),
 	}
 	if r.detail != nil {
-		C.cryptolib_str_free(r.detail)
+		C.cipherbird_str_free(r.detail)
 	}
 	return fi, nil
 }
@@ -369,7 +369,7 @@ func StegoInspect(path string) (FileInspection, error) {
 func StegoContentDigest(path string) ([]byte, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
-	return checkBufResult(C.cryptolib_stego_content_digest(cp))
+	return checkBufResult(C.cipherbird_stego_content_digest(cp))
 }
 
 // StegoDetectHidden runs the heuristic hidden-data probe over a file. See the
@@ -377,24 +377,24 @@ func StegoContentDigest(path string) ([]byte, error) {
 func StegoDetectHidden(path string) (HiddenDataReport, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
-	r := C.cryptolib_stego_detect_hidden(cp)
+	r := C.cipherbird_stego_detect_hidden(cp)
 	if r.error != nil {
 		msg := C.GoString(r.error)
-		C.cryptolib_str_free(r.error)
+		C.cipherbird_str_free(r.error)
 		if r.note != nil {
-			C.cryptolib_str_free(r.note)
+			C.cipherbird_str_free(r.note)
 		}
 		return HiddenDataReport{}, errors.New(msg)
 	}
 	rep := HiddenDataReport{
-		CipherbirdPayload:      r.cryptolib_payload != 0,
+		CipherbirdPayload:      r.cipherbird_payload != 0,
 		LsbChiSquare:           float64(r.lsb_chi_square),
 		LsbEmbeddingLikelihood: float64(r.lsb_embedding_likelihood),
 		SamplesAnalysed:        uint64(r.samples_analysed),
 		Note:                   C.GoString(r.note),
 	}
 	if r.note != nil {
-		C.cryptolib_str_free(r.note)
+		C.cipherbird_str_free(r.note)
 	}
 	return rep, nil
 }
@@ -405,10 +405,10 @@ func StegoDetectHidden(path string) (HiddenDataReport, error) {
 func AssessFileHealth(path string, maxBytes int) (HealthReport, error) {
 	cp := C.CString(path)
 	defer C.free(unsafe.Pointer(cp))
-	r := C.cryptolib_entropy_assess_file_health(cp, C.size_t(maxBytes))
+	r := C.cipherbird_entropy_assess_file_health(cp, C.size_t(maxBytes))
 	if r.error != nil {
 		msg := C.GoString(r.error)
-		C.cryptolib_str_free(r.error)
+		C.cipherbird_str_free(r.error)
 		return HealthReport{}, errors.New(msg)
 	}
 	return HealthReport{
@@ -434,7 +434,7 @@ func ImageFactorSeal(oprfSecretSeed []byte, referenceImagePath string, plaintext
 	defer C.free(unsafe.Pointer(ri))
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	return checkResult(C.cryptolib_image_factor_seal(
+	return checkResult(C.cipherbird_image_factor_seal(
 		u8(oprfSecretSeed), C.size_t(len(oprfSecretSeed)), ri,
 		u8(plaintext), C.size_t(len(plaintext)),
 		u8(aad), C.size_t(len(aad)), cc, co))
@@ -447,7 +447,7 @@ func ImageFactorOpen(oprfSecretSeed []byte, referenceImagePath string, aad []byt
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(ri))
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_image_factor_open(
+	return checkBufResult(C.cipherbird_image_factor_open(
 		u8(oprfSecretSeed), C.size_t(len(oprfSecretSeed)), ri,
 		u8(aad), C.size_t(len(aad)), cs))
 }
@@ -464,7 +464,7 @@ func HpkeStegoSeal(pkR, plaintext, aad, info []byte, coverPath, outputPath strin
 	co := C.CString(outputPath)
 	defer C.free(unsafe.Pointer(cc))
 	defer C.free(unsafe.Pointer(co))
-	return checkBufResult(C.cryptolib_hpke_stego_seal(
+	return checkBufResult(C.cipherbird_hpke_stego_seal(
 		u8(pkR), C.size_t(len(pkR)),
 		u8(plaintext), C.size_t(len(plaintext)),
 		u8(aad), C.size_t(len(aad)),
@@ -476,7 +476,7 @@ func HpkeStegoSeal(pkR, plaintext, aad, info []byte, coverPath, outputPath strin
 func HpkeStegoOpen(skR, enc, aad, info []byte, stegoPath string) ([]byte, error) {
 	cs := C.CString(stegoPath)
 	defer C.free(unsafe.Pointer(cs))
-	return checkBufResult(C.cryptolib_hpke_stego_open(
+	return checkBufResult(C.cipherbird_hpke_stego_open(
 		u8(skR), C.size_t(len(skR)),
 		u8(enc), C.size_t(len(enc)),
 		u8(aad), C.size_t(len(aad)),
@@ -491,13 +491,13 @@ func HpkeStegoOpen(skR, enc, aad, info []byte, stegoPath string) ([]byte, error)
 // nonce, and an optional personalization string.
 func NewDrbg(entropy, nonce, personalization []byte) (*Drbg, error) {
 	var cerr *C.char
-	h := C.cryptolib_drbg_instantiate(
+	h := C.cipherbird_drbg_instantiate(
 		u8(entropy), C.size_t(len(entropy)),
 		u8(nonce), C.size_t(len(nonce)),
 		u8(personalization), C.size_t(len(personalization)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	d := &Drbg{handle: h}
@@ -507,7 +507,7 @@ func NewDrbg(entropy, nonce, personalization []byte) (*Drbg, error) {
 
 // Generate returns numBytes pseudo-random bytes (<= 65536), optional additional input.
 func (d *Drbg) Generate(numBytes int, additional []byte) ([]byte, error) {
-	r, err := checkBufResult(C.cryptolib_drbg_generate(
+	r, err := checkBufResult(C.cipherbird_drbg_generate(
 		d.handle, C.size_t(numBytes), u8(additional), C.size_t(len(additional))))
 	runtime.KeepAlive(d)
 	return r, err
@@ -515,7 +515,7 @@ func (d *Drbg) Generate(numBytes int, additional []byte) ([]byte, error) {
 
 // Reseed folds fresh entropy into the state.
 func (d *Drbg) Reseed(entropy, additional []byte) error {
-	err := checkResult(C.cryptolib_drbg_reseed(
+	err := checkResult(C.cipherbird_drbg_reseed(
 		d.handle, u8(entropy), C.size_t(len(entropy)), u8(additional), C.size_t(len(additional))))
 	runtime.KeepAlive(d)
 	return err
@@ -525,7 +525,7 @@ func (d *Drbg) Reseed(entropy, additional []byte) error {
 func (d *Drbg) Close() {
 	runtime.SetFinalizer(d, nil)
 	if d.handle != nil {
-		C.cryptolib_drbg_free(d.handle)
+		C.cipherbird_drbg_free(d.handle)
 		d.handle = nil
 	}
 }
@@ -536,30 +536,30 @@ func (d *Drbg) Close() {
 
 // NewFortuna creates a new, unseeded pool.
 func NewFortuna() *Fortuna {
-	f := &Fortuna{handle: C.cryptolib_fortuna_new()}
+	f := &Fortuna{handle: C.cipherbird_fortuna_new()}
 	runtime.SetFinalizer(f, func(f *Fortuna) { f.Close() })
 	return f
 }
 
 // AddEntropy adds an entropy event from logical source sourceID.
 func (f *Fortuna) AddEntropy(sourceID byte, data []byte) {
-	C.cryptolib_fortuna_add_entropy(f.handle, C.uint8_t(sourceID), u8(data), C.size_t(len(data)))
+	C.cipherbird_fortuna_add_entropy(f.handle, C.uint8_t(sourceID), u8(data), C.size_t(len(data)))
 	runtime.KeepAlive(f)
 }
 
 // Generate returns numBytes; errors if the pool has never been seeded.
 func (f *Fortuna) Generate(numBytes int) ([]byte, error) {
-	r, err := checkBufResult(C.cryptolib_fortuna_generate(f.handle, C.size_t(numBytes)))
+	r, err := checkBufResult(C.cipherbird_fortuna_generate(f.handle, C.size_t(numBytes)))
 	runtime.KeepAlive(f)
 	return r, err
 }
 
 // Reseed forces a reseed now (folds in the catch-up-scheduled pools).
-func (f *Fortuna) Reseed() { C.cryptolib_fortuna_reseed(f.handle); runtime.KeepAlive(f) }
+func (f *Fortuna) Reseed() { C.cipherbird_fortuna_reseed(f.handle); runtime.KeepAlive(f) }
 
 // ReseedCount returns the number of reseeds so far (0 = never seeded).
 func (f *Fortuna) ReseedCount() uint64 {
-	n := uint64(C.cryptolib_fortuna_reseed_count(f.handle))
+	n := uint64(C.cipherbird_fortuna_reseed_count(f.handle))
 	runtime.KeepAlive(f)
 	return n
 }
@@ -568,7 +568,7 @@ func (f *Fortuna) ReseedCount() uint64 {
 func (f *Fortuna) Close() {
 	runtime.SetFinalizer(f, nil)
 	if f.handle != nil {
-		C.cryptolib_fortuna_free(f.handle)
+		C.cipherbird_fortuna_free(f.handle)
 		f.handle = nil
 	}
 }
@@ -580,18 +580,18 @@ func (f *Fortuna) Close() {
 // SntrupX25519Keygen generates an X25519 + sntrup761 hybrid keypair. sntrup761
 // (NTRU Prime) is a different lattice family than ML-KEM — defense-in-diversity.
 func SntrupX25519Keygen() KeyPair {
-	kp := C.cryptolib_sntrup_x25519_keygen()
+	kp := C.cipherbird_sntrup_x25519_keygen()
 	return KeyPair{Public: goBytes(kp.public_key), Secret: goBytes(kp.secret_key)}
 }
 
 // SntrupX25519Encapsulate produces a ciphertext + 32-byte hybrid shared secret.
 func SntrupX25519Encapsulate(publicKey []byte) (*KemResult, error) {
 	var cerr *C.char
-	r := C.cryptolib_sntrup_x25519_encapsulate(
+	r := C.cipherbird_sntrup_x25519_encapsulate(
 		u8(publicKey), C.size_t(len(publicKey)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	return &KemResult{Ciphertext: goBytes(r.ciphertext), SharedSecret: goBytes(r.shared_secret)}, nil
@@ -599,7 +599,7 @@ func SntrupX25519Encapsulate(publicKey []byte) (*KemResult, error) {
 
 // SntrupX25519Decapsulate recovers the shared secret from a ciphertext + secret key.
 func SntrupX25519Decapsulate(ciphertext, secretKey []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_sntrup_x25519_decapsulate(
+	return checkBufResult(C.cipherbird_sntrup_x25519_decapsulate(
 		u8(ciphertext), C.size_t(len(ciphertext)),
 		u8(secretKey), C.size_t(len(secretKey))))
 }
@@ -617,10 +617,10 @@ func EntropyFromFilesDeterministic(paths []string) (*Entropy, error) {
 		defer C.free(unsafe.Pointer(cPaths[i]))
 	}
 	var cerr *C.char
-	h := C.cryptolib_entropy_from_files_deterministic(&cPaths[0], C.size_t(len(paths)), &cerr)
+	h := C.cipherbird_entropy_from_files_deterministic(&cPaths[0], C.size_t(len(paths)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	e := &Entropy{handle: h}
@@ -633,10 +633,10 @@ func EntropyFromFilesDeterministic(paths []string) (*Entropy, error) {
 func (e *Entropy) AsymBundle() (AsymBundle, error) {
 	defer runtime.KeepAlive(e)
 	var cerr *C.char
-	cb := C.cryptolib_entropy_asym_bundle(e.handle, &cerr)
+	cb := C.cipherbird_entropy_asym_bundle(e.handle, &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return AsymBundle{}, errors.New(msg)
 	}
 	return AsymBundle{

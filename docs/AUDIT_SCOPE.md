@@ -20,8 +20,8 @@ attested by CI, see section 6).
 
 ## 2. What is in scope: the bank profile
 
-Build with `-DCRYPTOLIB_PROFILE=bank`. The reviewer evaluates only what that
-profile compiles. Headers under `include/cryptolib/`:
+Build with `-DCIPHERBIRD_PROFILE=bank`. The reviewer evaluates only what that
+profile compiles. Headers under `include/cipherbird/`:
 
 | Area | Headers | Standard or construction |
 |---|---|---|
@@ -35,7 +35,7 @@ profile compiles. Headers under `include/cryptolib/`:
 | Protocols | `frost.hpp`, `ecvrf.hpp`, `bbs.hpp`, `oprf.hpp`, `opaque.hpp`, `bls.hpp` | FROST (RFC 9591), ECVRF (RFC 9381), BBS, OPRF (RFC 9497), OPAQUE, BLS12-381 |
 | Entropy | `entropy_drbg.hpp`, `entropy_fortuna.hpp` | HMAC-DRBG, Fortuna |
 | Tokens | `paseto.hpp` | PASETO v4.local (paseto-standard v4, official vectors vendored under `tests/vectors/paseto`), keyed BLAKE2b at a chosen length |
-| C ABI | `bridge/cryptolib_c.h`, `bridge/cryptolib_c.cpp` | the trust boundary, 356 functions in the full build, 299 in the bank build |
+| C ABI | `bridge/cipherbird_c.h`, `bridge/cipherbird_c.cpp` | the trust boundary, 356 functions in the full build, 299 in the bank build |
 
 Priority for the reviewer, highest first:
 
@@ -105,7 +105,7 @@ frozen commit:
 | M4 standards-track defaults | FIXED | X-Wing and HPKE with ML-KEM-768 and X-Wing; `SecurityProfile.hpkeKem` |
 | M5 Suite recipient binding | FIXED | Suite v2, suite ids 0x11 and 0x12, `tests/test_suite_v2.cpp` |
 | M6 Session initiator authentication | FIXED | Session v2, wire "RTC2", `tests/test_session_v2.cpp` |
-| M8 bank profile build | FIXED | `-DCRYPTOLIB_PROFILE=bank`, `bank_profile` CI job |
+| M8 bank profile build | FIXED | `-DCIPHERBIRD_PROFILE=bank`, `bank_profile` CI job |
 | M9 mobile threat model | FIXED | `docs/THREAT_MODEL.md` section 9 |
 | M12 CI gaps | FIXED | release gated on CI, fuzz crashes fail the job, Linux ctgrind job blocks on any secret-dependent branch (verdicts declassified in `detail/ct.hpp`, one libsodium verdict branch in `tests/ct/ct_probe.supp`), Dart, Flutter and Go binding jobs, examples built in the test job |
 | L1-L7 | FIXED | Phase 2 |
@@ -123,9 +123,9 @@ bash scripts/ci/install_blst.sh /opt/homebrew
 Bank profile, the audit target:
 
 ```bash
-cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=bank -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_PROFILE=bank -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=ON
 cmake --build build/bank
-./build/bank/cryptolib_tests
+./build/bank/cipherbird_tests
 ```
 
 Expected: 274 tests, 0 failed. The library exports 270 C functions and none
@@ -134,8 +134,8 @@ of the excluded families (the `bank_profile` CI job asserts this).
 Full profile with sanitizers (the reviewer's fuzzing and memory baseline):
 
 ```bash
-cmake -S . -B build/asan -G Ninja -DCRYPTOLIB_SANITIZE=ON -DCRYPTOLIB_BUILD_TESTS=ON
-cmake --build build/asan && ./build/asan/cryptolib_tests
+cmake -S . -B build/asan -G Ninja -DCIPHERBIRD_SANITIZE=ON -DCIPHERBIRD_BUILD_TESTS=ON
+cmake --build build/asan && ./build/asan/cipherbird_tests
 ```
 
 Expected: 526 tests, 0 failed, no sanitizer report. The Linux constant-time
@@ -145,9 +145,9 @@ FIPS profile:
 
 ```bash
 bash scripts/ci/install_openssl_fips.sh "$HOME/openssl-fips"
-PKG_CONFIG_PATH="$HOME/openssl-fips/lib/pkgconfig" cmake -S . -B build/fips -G Ninja -DCRYPTOLIB_PROFILE=fips -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+PKG_CONFIG_PATH="$HOME/openssl-fips/lib/pkgconfig" cmake -S . -B build/fips -G Ninja -DCIPHERBIRD_PROFILE=fips -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=ON
 cmake --build build/fips
-CRYPTOLIB_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules" CRYPTOLIB_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf" ./build/fips/cryptolib_tests
+CIPHERBIRD_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules" CIPHERBIRD_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf" ./build/fips/cipherbird_tests
 ```
 
 Expected: 25 tests, 0 failed; the library references only
@@ -157,9 +157,9 @@ Expected: 25 tests, 0 failed; the library references only
 Dart packages (the plugin and its twin), natively and in Chrome:
 
 ```bash
-cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_BUILD_TESTS=OFF && cmake --build build/release --target cryptolib_c
-cd bridge/bindings/cipherbird && CIPHERBIRD_LIBRARY="$PWD/../../../build/release/libcryptolib_c.dylib" flutter test
-cd ../cipherbird_dart && CIPHERBIRD_LIBRARY="$PWD/../../../build/release/libcryptolib_c.dylib" dart test && dart test -p chrome
+cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_BUILD_TESTS=OFF && cmake --build build/release --target cipherbird_c
+cd bridge/bindings/cipherbird && CIPHERBIRD_LIBRARY="$PWD/../../../build/release/libcipherbird_c.dylib" flutter test
+cd ../cipherbird_dart && CIPHERBIRD_LIBRARY="$PWD/../../../build/release/libcipherbird_c.dylib" dart test && dart test -p chrome
 cd ../../.. && make flutter-web-test
 ```
 
@@ -169,16 +169,16 @@ All bindings end to end:
 bash scripts/verify_bindings.sh
 ```
 
-Walk-throughs for the reviewer: `cryptolib_showcase_bank` (full and bank
+Walk-throughs for the reviewer: `cipherbird_showcase_bank` (full and bank
 profiles) exercises X-Wing, HPKE with ML-KEM-768 and X-Wing, Suite v2 and
-Session v2; `cryptolib_showcase_fips` (fips profile) exercises every
+Session v2; `cipherbird_showcase_fips` (fips profile) exercises every
 approved operation against its known answer; the Flutter showcase in
 `bridge/bindings/cipherbird/example` runs the same surface plus the
 hardware keys and the device validated module on iOS, Android, macOS and
 the web.
 
 Fuzzers and the constant-time probe are described in `CMakeLists.txt`
-(`CRYPTOLIB_FUZZ`, `CRYPTOLIB_CT_VALGRIND`) and in the `fuzz` and `ctgrind`
+(`CIPHERBIRD_FUZZ`, `CIPHERBIRD_CT_VALGRIND`) and in the `fuzz` and `ctgrind`
 CI jobs.
 
 ## 7. DORA exit plan

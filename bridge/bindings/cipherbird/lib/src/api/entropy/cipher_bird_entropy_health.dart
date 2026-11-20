@@ -30,7 +30,7 @@ extension CipherBirdEntropyHealth on CipherBird {
           .lookupFunction<
             CipherBirdHealthReport2 Function(Pointer<Utf8>, Size, Double),
             CipherBirdHealthReport2 Function(Pointer<Utf8>, int, double)
-          >('cryptolib_entropy_assess_file_health_v2');
+          >('cipherbird_entropy_assess_file_health_v2');
     } catch (e) {
       if (e is! ArgumentError) {
         rethrow;
@@ -69,7 +69,7 @@ extension CipherBirdEntropyHealth on CipherBird {
         .lookupFunction<
           CipherBirdHealthReport Function(Pointer<Utf8>, Size),
           CipherBirdHealthReport Function(Pointer<Utf8>, int)
-        >('cryptolib_entropy_assess_file_health')(p, maxBytes);
+        >('cipherbird_entropy_assess_file_health')(p, maxBytes);
     if (r.error != nullptr) {
       final msg = r.error.toDartString();
       _core.strFree(r.error);

@@ -17,13 +17,13 @@ or environment-reading code. This is enforced mechanically, not by inspection:
 - `dlopen`/`getenv` are watch-listed (reported, non-fatal) because OpenSSL uses
   them internally; they must originate from a vetted dependency, not new code.
 
-**Verified:** the shipped shared library `libcryptolib_c.dylib` imports none of
+**Verified:** the shipped shared library `libcipherbird_c.dylib` imports none of
 the forbidden symbols. Secrets are also excluded from core dumps — `SecureBuffer`
 locks pages with `sodium_mlock`, which marks them `MADV_DONTDUMP`.
 
 ## 2. Minimal surface
 
-- **Exports:** only the `cryptolib_*` C ABI is exported (356 symbols). Every
+- **Exports:** only the `cipherbird_*` C ABI is exported (356 symbols). Every
   statically-linked dependency symbol (liboqs, blst, …) is hidden via an
   exported-symbols list (macOS) / version script (ELF). Down from 1757.
 - **libcrypto only:** we link OpenSSL's `libcrypto` (EVP: AES-256-GCM-SIV,
@@ -35,7 +35,7 @@ locks pages with `sodium_mlock`, which marks them `MADV_DONTDUMP`.
 
 ## 3. Bring everything it needs (the static artifact)
 
-`scripts/build_static_archive.sh` produces a single `build/static/libcryptolib_c.a`
+`scripts/build_static_archive.sh` produces a single `build/static/libcipherbird_c.a`
 merging the bridge with every dependency's static archive (libsodium, BLAKE3,
 liboqs, libcrypto, blst, libsecp256k1). A binary linking it has **no Homebrew /
 third-party dynamic dependencies** — only the OS's `libSystem`, `libc++`, and (on
@@ -56,7 +56,7 @@ time**, not by surgery on a prebuilt archive.
 
 `scripts/build_openssl_nosock.sh` therefore builds `libcrypto.a` from **pinned,
 checksum-verified** OpenSSL source configured `no-sock no-dso`, and
-`build_static_archive.sh` links that by default (set `CRYPTOLIB_SEALED_OPENSSL=0`
+`build_static_archive.sh` links that by default (set `CIPHERBIRD_SEALED_OPENSSL=0`
 to fall back to the system libcrypto) and compiles the bridge against that
 build's own headers, so the features the code sees are the features the
 archive has. OpenSSL 3.x has a stable ABI across the

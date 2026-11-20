@@ -18,7 +18,7 @@ function initEngine(args) {
     }
   };
   resolveEngine(createCipherBird(options).then(function (module) {
-    if (module._cbw_cryptolib_init() !== 0) {
+    if (module._cbw_cipherbird_init() !== 0) {
       throw new Error('cipherbird: engine init failed');
     }
     return module;
@@ -71,12 +71,12 @@ function takeBuffer(module, out) {
   var error = module.HEAPU32[(out + 8) >> 2];
   if (error !== 0) {
     var message = readCString(module, error);
-    module._cbw_cryptolib_str_free(error);
+    module._cbw_cipherbird_str_free(error);
     throw new Error(message);
   }
   var copy = new Uint8Array(len);
   copy.set(module.HEAPU8.subarray(data, data + len));
-  module._cbw_cryptolib_buffer_free(out);
+  module._cbw_cipherbird_buffer_free(out);
   return copy;
 }
 
@@ -96,10 +96,10 @@ function fsPath(module, ext) {
 function takeKeyPair(module, out) {
   var pk = module.HEAPU32[out >> 2], pkLen = module.HEAPU32[(out + 4) >> 2];
   var sk = module.HEAPU32[(out + 8) >> 2], skLen = module.HEAPU32[(out + 12) >> 2];
-  if (pk === 0 || sk === 0) { module._cbw_cryptolib_keypair_free(out); throw new Error('key generation failed'); }
+  if (pk === 0 || sk === 0) { module._cbw_cipherbird_keypair_free(out); throw new Error('key generation failed'); }
   var pkCopy = new Uint8Array(pkLen); pkCopy.set(module.HEAPU8.subarray(pk, pk + pkLen));
   var skCopy = new Uint8Array(skLen); skCopy.set(module.HEAPU8.subarray(sk, sk + skLen));
-  module._cbw_cryptolib_keypair_free(out);
+  module._cbw_cipherbird_keypair_free(out);
   return { pk: pkCopy, sk: skCopy };
 }
 
@@ -108,7 +108,7 @@ function takeResult(module, out) {
   var error = module.HEAPU32[(out + 4) >> 2];
   if (error !== 0) {
     var message = readCString(module, error);
-    module._cbw_cryptolib_str_free(error);
+    module._cbw_cipherbird_str_free(error);
     throw new Error(message);
   }
   return module.HEAPU32[out >> 2] !== 0;
@@ -170,7 +170,7 @@ var ops = {
     var out = module._malloc(12);
     var ops64 = split64(a.ops);
     try {
-      module._cbw_cryptolib_argon2id_derive(out, password, salt, a.salt.length, a.keyLen, ops64[0], ops64[1], a.mem);
+      module._cbw_cipherbird_argon2id_derive(out, password, salt, a.salt.length, a.keyLen, ops64[0], ops64[1], a.mem);
       return takeBuffer(module, out);
     } finally {
       module._free(out); release(module, salt); release(module, password);
@@ -181,7 +181,7 @@ var ops = {
     var out = module._malloc(12);
     var ops64 = split64(a.ops);
     try {
-      module._cbw_cryptolib_argon2id_hash_str(out, password, ops64[0], ops64[1], a.mem);
+      module._cbw_cipherbird_argon2id_hash_str(out, password, ops64[0], ops64[1], a.mem);
       var bytes = takeBuffer(module, out);
       var end = bytes.indexOf(0);
       return new TextDecoder().decode(end < 0 ? bytes : bytes.subarray(0, end));
@@ -193,7 +193,7 @@ var ops = {
     var password = cString(module, a.password);
     var phc = cString(module, a.phc);
     try {
-      return module._cbw_cryptolib_argon2id_verify_str(password, phc) === 1;
+      return module._cbw_cipherbird_argon2id_verify_str(password, phc) === 1;
     } finally {
       release(module, phc); release(module, password);
     }

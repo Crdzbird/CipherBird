@@ -1,6 +1,6 @@
 /**
  * ╔════════════════════════════════════════════════════════════════════════════╗
- * ║  CryptoLib — Steganography as a native vault feature                     ║
+ * ║  CipherBird — Steganography as a native vault feature                     ║
  * ║                                                                            ║
  * ║  Demonstrates the integrated API: stego is a method on the vault,        ║
  * ║  not a separate engine you wire up manually.                              ║
@@ -18,7 +18,7 @@
  * ╚════════════════════════════════════════════════════════════════════════════╝
  */
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -360,7 +360,7 @@ static void pattern_low_level() {
 //  Alice and Bob establish a shared secret using ML-KEM (FIPS 203), then
 //  use it as a symmetric key for XChaCha20-Poly1305 AEAD encryption.
 // ─────────────────────────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 static void pattern_pq_key_exchange() {
     pattern(7, "Post-Quantum Key Exchange (ML-KEM-768 + XChaCha20-Poly1305)");
 
@@ -422,7 +422,7 @@ static void pattern_pq_key_exchange() {
     note("Full pipeline: ML-KEM-768 key exchange -> XChaCha20-Poly1305 AEAD -> verified.");
     note("Both parties derive the same 32-byte shared secret without transmitting it.");
 }
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,15 +431,15 @@ static void pattern_pq_key_exchange() {
 //  Sign and verify documents using two distinct PQ signature algorithms:
 //  lattice-based ML-DSA and hash-based SLH-DSA.
 // ─────────────────────────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 static void pattern_pq_signatures() {
     pattern(8, "Post-Quantum Signatures (ML-DSA-65 + SLH-DSA-128f)");
 
     using DSA = crypto::pq::MlDsa;
     using SLH = crypto::pq::SlhDsa;
 
-    const std::string document = "CryptoLib v3.0.0 release: all post-quantum algorithms verified.";
-    const std::string tampered = "CryptoLib v3.0.0 release: all post-quantum algorithms TAMPERED.";
+    const std::string document = "CipherBird v3.0.0 release: all post-quantum algorithms verified.";
+    const std::string tampered = "CipherBird v3.0.0 release: all post-quantum algorithms TAMPERED.";
 
     // ── ML-DSA-65: Sign ─────────────────────────────────────────────────
     step("Generate ML-DSA-65 keypair and sign document");
@@ -494,7 +494,7 @@ static void pattern_pq_signatures() {
     note("ML-DSA is smaller and faster; SLH-DSA relies only on hash assumptions (conservative).");
     note("Both are NIST FIPS standardized post-quantum signature algorithms.");
 }
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ static void pattern_pq_signatures() {
 //  signatures are aggregated into a single 96-byte signature and verified
 //  in one pairing check.
 // ─────────────────────────────────────────────────────────────────────────────
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
 static void pattern_bls_aggregate() {
     pattern(9, "BLS Aggregate Signatures (3 validators -> 1 signature)");
 
@@ -566,7 +566,7 @@ static void pattern_bls_aggregate() {
     note("BLS aggregation: N signatures compress to 1, verified in a single pairing check.");
     note("Ethereum 2.0 uses this to compress thousands of validator attestations.");
 }
-#endif // CRYPTOLIB_HAS_BLS
+#endif // CIPHERBIRD_HAS_BLS
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -575,7 +575,7 @@ static void pattern_bls_aggregate() {
 //  Full pipeline: ML-KEM key exchange → XChaCha20-Poly1305 encryption →
 //  ML-DSA signature on ciphertext → verify signature → decrypt.
 // ─────────────────────────────────────────────────────────────────────────────
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_BLS)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_BLS)
 static void pattern_hybrid_pipeline() {
     pattern(10, "Hybrid Classical + PQ Pipeline (ML-KEM + XChaCha20 + ML-DSA)");
 
@@ -648,12 +648,12 @@ static void pattern_hybrid_pipeline() {
     note("5. Decrypt with shared secret (only if signature passes)");
     note("Result: quantum-safe confidentiality + quantum-safe authentication.");
 }
-#endif // CRYPTOLIB_HAS_PQ && CRYPTOLIB_HAS_BLS
+#endif // CIPHERBIRD_HAS_PQ && CIPHERBIRD_HAS_BLS
 
 
 // ─────────────────────────────────────────────────────────────────────────────
 int main(int argc, char* argv[]) {
-    std::printf(BOLD "\nCryptoLib — Steganography as a native vault feature\n" RST
+    std::printf(BOLD "\nCipherBird — Steganography as a native vault feature\n" RST
                 "Stego is a method on the vault, not an external engine.\n");
 
     // ── Resolve output directory from argv or default to temp ─────────────
@@ -661,7 +661,7 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) {
         output_dir = fs::path(argv[1]);
     } else {
-        output_dir = fs::temp_directory_path() / "cryptolib_usage";
+        output_dir = fs::temp_directory_path() / "cipherbird_usage";
     }
     fs::create_directories(output_dir);
 
@@ -684,16 +684,16 @@ int main(int argc, char* argv[]) {
     pattern_aad_binding();
     pattern_low_level();
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     pattern_pq_key_exchange();
     pattern_pq_signatures();
 #endif
 
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
     pattern_bls_aggregate();
 #endif
 
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_BLS)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_BLS)
     pattern_hybrid_pipeline();
 #endif
 

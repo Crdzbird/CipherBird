@@ -32,7 +32,7 @@ extension CipherBirdFipsHmacVerify on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_fips_hmac_verify')(
+          >('cipherbird_fips_hmac_verify')(
             hash.value,
             keyPtr,
             key.length,

@@ -32,8 +32,8 @@ jobs:
           CC: /opt/homebrew/opt/llvm/bin/clang
           CXX: /opt/homebrew/opt/llvm/bin/clang++
         run: |
-          cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
-            -DCRYPTOLIB_BUILD_TESTS=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF -DCRYPTOLIB_BUILD_SHOWCASES=OFF \
+          cmake -S . -B build/fuzz -G Ninja -DCIPHERBIRD_FUZZ=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF \
+            -DCIPHERBIRD_BUILD_TESTS=OFF -DCIPHERBIRD_BUILD_EXAMPLE=OFF -DCIPHERBIRD_BUILD_SHOWCASES=OFF \
             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
           cmake --build build/fuzz
       - name: Restore the evolving corpus

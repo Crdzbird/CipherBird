@@ -34,7 +34,7 @@
 		AA0000000000000000000108 /* SteganographyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteganographyView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000109 /* HexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexView.swift; sourceTree = "<group>"; };
 		AA000000000000000000010A /* FilePickerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePickerButton.swift; sourceTree = "<group>"; };
-		AA000000000000000000010B /* cryptolib_c.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cryptolib_c.h; sourceTree = "<group>"; };
+		AA000000000000000000010B /* cipherbird_c.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = cipherbird_c.h; sourceTree = "<group>"; };
 		AA000000000000000000010C /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
 		AA000000000000000000010D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000000000000000000010E /* CipherBirdDemo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CipherBirdDemo.entitlements; sourceTree = "<group>"; };
@@ -76,7 +76,7 @@
 		AA0000000000000000000202 /* CCipherBird */ = {
 			isa = PBXGroup;
 			children = (
-				AA000000000000000000010B /* cryptolib_c.h */,
+				AA000000000000000000010B /* cipherbird_c.h */,
 				AA000000000000000000010C /* module.modulemap */,
 			);
 			path = CCipherBird;
@@ -347,7 +347,7 @@
 					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_LDFLAGS = "-lcryptolib_c";
+				OTHER_LDFLAGS = "-lcipherbird_c";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.cipherbird.demo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -377,7 +377,7 @@
 					"/Users/crdzbird/CLionProjects/cryptolib/build/release",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_LDFLAGS = "-lcryptolib_c";
+				OTHER_LDFLAGS = "-lcipherbird_c";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.cipherbird.demo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

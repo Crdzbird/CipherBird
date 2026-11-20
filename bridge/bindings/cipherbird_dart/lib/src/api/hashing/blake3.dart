@@ -28,7 +28,7 @@ extension CipherBirdBlake3 on CipherBird {
             int,
             int,
           )
-        >('cryptolib_blake3_keyed')(pm, msg.length, pk, key.length, outLen),
+        >('cipherbird_blake3_keyed')(pm, msg.length, pk, key.length, outLen),
       );
     } finally {
       if (pm != nullptr) {
@@ -61,7 +61,7 @@ extension CipherBirdBlake3 on CipherBird {
             int,
             int,
           )
-        >('cryptolib_blake3_derive_key')(cc, pk, ikm.length, outLen),
+        >('cipherbird_blake3_derive_key')(cc, pk, ikm.length, outLen),
       );
     } finally {
       calloc.free(cc);
@@ -80,7 +80,7 @@ extension CipherBirdBlake3 on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int, int)
-        >('cryptolib_blake3')(pm, msg.length, outLen),
+        >('cipherbird_blake3')(pm, msg.length, outLen),
       );
     } finally {
       if (pm != nullptr) {

@@ -6,7 +6,7 @@ using namespace test;
 
 // Exercises the library concurrently from many threads. Passes normally; its
 // real purpose is to surface data races under ThreadSanitizer
-// (cmake -DCRYPTOLIB_TSAN=ON). Each thread does INDEPENDENT operations — any
+// (cmake -DCIPHERBIRD_TSAN=ON). Each thread does INDEPENDENT operations — any
 // race would be in shared/global state inside the library or its deps.
 
 static std::span<const uint8_t> sv(std::string_view s) {

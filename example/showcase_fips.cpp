@@ -1,12 +1,12 @@
 /**
- * FIPS profile showcase: builds only with CRYPTOLIB_PROFILE=fips and runs
+ * FIPS profile showcase: builds only with CIPHERBIRD_PROFILE=fips and runs
  * every approved operation the profile offers through the OpenSSL FIPS
- * Provider (certificate #4985). Point CRYPTOLIB_FIPS_MODULE_DIR at the
- * directory holding fips.dylib or fips.so and CRYPTOLIB_FIPS_CONFIG at the
+ * Provider (certificate #4985). Point CIPHERBIRD_FIPS_MODULE_DIR at the
+ * directory holding fips.dylib or fips.so and CIPHERBIRD_FIPS_CONFIG at the
  * OpenSSL config that includes fipsmodule.cnf, then run it. Exit status is
  * non-zero if the provider does not load or any check fails.
  */
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>

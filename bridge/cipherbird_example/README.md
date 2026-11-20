@@ -16,7 +16,7 @@ the engines and the whole API.
 The app expects the library where each platform loads it from, and none of
 these binaries are committed:
 
-- Android: `android/app/src/main/jniLibs/<abi>/libcryptolib_c.so`, built with
+- Android: `android/app/src/main/jniLibs/<abi>/libcipherbird_c.so`, built with
   `make android` from the repository root.
 - iOS: `ios/Frameworks/CipherBird.xcframework`, built with
   `./scripts/ios/build_all.sh`; the Runner project already references it and

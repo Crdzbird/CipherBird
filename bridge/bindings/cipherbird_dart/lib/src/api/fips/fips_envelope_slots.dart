@@ -6,7 +6,7 @@ extension CipherBirdFipsEnvelopeSlots on CipherBird {
       _lib.lookupFunction<
         CipherBirdResult Function(Pointer<Void>, Size),
         CipherBirdResult Function(Pointer<Void>, int)
-      >('cryptolib_fips_envelope_remove_slot')(h, index),
+      >('cipherbird_fips_envelope_remove_slot')(h, index),
     );
   }
 
@@ -14,7 +14,7 @@ extension CipherBirdFipsEnvelopeSlots on CipherBird {
     return _lib.lookupFunction<
       Size Function(Pointer<Void>),
       int Function(Pointer<Void>)
-    >('cryptolib_fips_envelope_slot_count')(h);
+    >('cipherbird_fips_envelope_slot_count')(h);
   }
 
   Uint8List _fipsEnvelopeSerialise(Pointer<Void> h) {
@@ -22,7 +22,7 @@ extension CipherBirdFipsEnvelopeSlots on CipherBird {
       _lib.lookupFunction<
         CipherBirdBufferResult Function(Pointer<Void>),
         CipherBirdBufferResult Function(Pointer<Void>)
-      >('cryptolib_fips_envelope_serialise')(h),
+      >('cipherbird_fips_envelope_serialise')(h),
     );
   }
 }

@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.cipherbird.cipherbird_example"
-        // libcryptolib_c was cross-compiled at Android API 24 (see
+        // libcipherbird_c was cross-compiled at Android API 24 (see
         // scripts/android/lib/common.sh). Anything lower would fail to
         // dlopen() the .so at runtime.
         minSdk = 24

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build the desktop (macOS arm64) libcryptolib_c.dylib from the same pinned,
+# Build the desktop (macOS arm64) libcipherbird_c.dylib from the same pinned,
 # hash-verified dependency set the iOS and Android engines use, so every
 # shipped slice carries one version of libsodium, OpenSSL (trimmed, no-dso),
-# liboqs (minimal), blst and libsecp256k1. Output: build/desktop/libcryptolib_c.dylib
+# liboqs (minimal), blst and libsecp256k1. Output: build/desktop/libcipherbird_c.dylib
 set -euo pipefail
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )/../ios/lib" && pwd )/common.sh"
 SLICE=macosx
@@ -15,21 +15,21 @@ for lib in libsodium libblake3 liboqs libcrypto libblst libsecp256k1; do
 done
 OUT="$REPO_ROOT/build/desktop"
 mkdir -p "$OUT"
-log "Linking libcryptolib_c.dylib against the pinned macosx dependency set"
+log "Linking libcipherbird_c.dylib against the pinned macosx dependency set"
 $(arch_clangxx "$SLICE" arm64) -std=c++20 -O2 -dynamiclib \
-    -DCRYPTOLIB_HAS_BLAKE3=1 -DCRYPTOLIB_HAS_PQ=1 -DCRYPTOLIB_HAS_SODIUM_CRYPTO=1 -DCRYPTOLIB_HAS_STEGO=1 -DCRYPTOLIB_HAS_MEDIA_ENTROPY=1 -DCRYPTOLIB_HAS_NATIVE_COMBINERS=1 -DCRYPTOLIB_HAS_BLS=1 \
-    -DCRYPTOLIB_HAS_OPENSSL=1 -DCRYPTOLIB_HAS_SECP256K1=1 -DCRYPTOLIB_BUILD_SHARED \
+    -DCIPHERBIRD_HAS_BLAKE3=1 -DCIPHERBIRD_HAS_PQ=1 -DCIPHERBIRD_HAS_SODIUM_CRYPTO=1 -DCIPHERBIRD_HAS_STEGO=1 -DCIPHERBIRD_HAS_MEDIA_ENTROPY=1 -DCIPHERBIRD_HAS_NATIVE_COMBINERS=1 -DCIPHERBIRD_HAS_BLS=1 \
+    -DCIPHERBIRD_HAS_OPENSSL=1 -DCIPHERBIRD_HAS_SECP256K1=1 -DCIPHERBIRD_BUILD_SHARED \
     -I "$REPO_ROOT/include" -I "$DEPS/include" \
-    -install_name "@rpath/libcryptolib_c.dylib" \
-    "$REPO_ROOT/bridge/cryptolib_c.cpp" \
+    -install_name "@rpath/libcipherbird_c.dylib" \
+    "$REPO_ROOT/bridge/cipherbird_c.cpp" \
     "$DEPS/lib/libsodium.a" "$DEPS/lib/libblake3.a" "$DEPS/lib/liboqs.a" \
     "$DEPS/lib/libcrypto.a" "$DEPS/lib/libblst.a" "$DEPS/lib/libsecp256k1.a" \
     -framework Security -framework Foundation \
-    -o "$OUT/libcryptolib_c.dylib" > "$OUT/link.log" 2>&1 \
+    -o "$OUT/libcipherbird_c.dylib" > "$OUT/link.log" 2>&1 \
     || { cat "$OUT/link.log"; die "desktop dylib link failed"; }
-EXTERNAL="$(otool -L "$OUT/libcryptolib_c.dylib" | tail -n +2 | grep -vE '/usr/lib/|/System/|@rpath/libcryptolib_c.dylib' || true)"
+EXTERNAL="$(otool -L "$OUT/libcipherbird_c.dylib" | tail -n +2 | grep -vE '/usr/lib/|/System/|@rpath/libcipherbird_c.dylib' || true)"
 [[ -z "$EXTERNAL" ]] || die "desktop dylib links external libraries: $EXTERNAL"
-SYMS="$(nm -gU "$OUT/libcryptolib_c.dylib" | grep -c ' T _cryptolib_')"
-HDR="$(grep '^CRYPTO_API' "$REPO_ROOT/bridge/cryptolib_c.h" | grep -vc _for_testing)"
+SYMS="$(nm -gU "$OUT/libcipherbird_c.dylib" | grep -c ' T _cipherbird_')"
+HDR="$(grep '^CRYPTO_API' "$REPO_ROOT/bridge/cipherbird_c.h" | grep -vc _for_testing)"
 [[ "$SYMS" == "$HDR" ]] || die "symbol count $SYMS does not match header $HDR"
-ok "Built $OUT/libcryptolib_c.dylib ($SYMS symbols, $(du -h "$OUT/libcryptolib_c.dylib" | cut -f1))"
+ok "Built $OUT/libcipherbird_c.dylib ($SYMS symbols, $(du -h "$OUT/libcipherbird_c.dylib" | cut -f1))"

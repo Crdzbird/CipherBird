@@ -2,7 +2,7 @@
 // against the RFC's Appendix A.1.1 test vectors + end-to-end oblivious flow.
 #include "test_framework.hpp"
 
-#include <cryptolib/oprf.hpp>
+#include <cipherbird/oprf.hpp>
 
 #include <cstdint>
 #include <string>

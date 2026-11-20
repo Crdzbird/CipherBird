@@ -10,7 +10,7 @@ extension CipherBirdOpaque on CipherBird {
           .lookupFunction<
             CipherBirdOprfBlind Function(Pointer<Uint8>, Size),
             CipherBirdOprfBlind Function(Pointer<Uint8>, int)
-          >('cryptolib_opaque_registration_request')(p, password.length);
+          >('cipherbird_opaque_registration_request')(p, password.length);
       return _oprfBlindOut(c);
     } finally {
       if (p != nullptr) calloc.free(p);
@@ -51,7 +51,7 @@ extension CipherBirdOpaque on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_opaque_registration_response')(
+        >('cipherbird_opaque_registration_response')(
           a,
           request.length,
           b,

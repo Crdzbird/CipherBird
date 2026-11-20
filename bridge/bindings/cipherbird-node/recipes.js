@@ -3,7 +3,7 @@
  *
  * The primitives are LEGO bricks; these recipes snap them together into
  * real-world flows. Run against the local build:
- * CRYPTOLIB_DYLIB=../../../build/release/libcryptolib_c.dylib node recipes.js
+ * CIPHERBIRD_LIBRARY=../../../build/release/libcipherbird_c.dylib node recipes.js
  */
 'use strict';
 const os = require('node:os');

@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry34 = {
-  'cryptolib_bbs_verify':
+  'cipherbird_bbs_verify':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -12,7 +12,7 @@ final Map<String, Function> _registry34 = {
         Pointer<NativeType> msgs,
         Pointer<NativeType> msgLens,
         int msgCount,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bbs_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_bbs_verify', [
         pk.address.toJS,
         pkLen.toJS,
         signature.address.toJS,
@@ -23,7 +23,7 @@ final Map<String, Function> _registry34 = {
         msgLens.address.toJS,
         msgCount.toJS,
       ]),
-  'cryptolib_bbs_proof_gen':
+  'cipherbird_bbs_proof_gen':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -39,7 +39,7 @@ final Map<String, Function> _registry34 = {
         Pointer<NativeType> disclosedIndexes,
         int disclosedCount,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_proof_gen',
+        '_cbw_cipherbird_bbs_proof_gen',
         [
           pk.address.toJS,
           pkLen.toJS,
@@ -58,7 +58,7 @@ final Map<String, Function> _registry34 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_proof_verify':
+  'cipherbird_bbs_proof_verify':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -73,7 +73,7 @@ final Map<String, Function> _registry34 = {
         int disclosedCount,
         Pointer<NativeType> disclosedIndexes,
         int indexesCount,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_bbs_proof_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_bbs_proof_verify', [
         pk.address.toJS,
         pkLen.toJS,
         proof.address.toJS,

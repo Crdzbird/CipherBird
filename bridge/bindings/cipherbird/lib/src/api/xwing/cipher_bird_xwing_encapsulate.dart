@@ -19,7 +19,7 @@ extension CipherBirdXWingEncapsulate on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_xwing_encapsulate')(pp, publicKey.length, errPtr);
+          >('cipherbird_xwing_encapsulate')(pp, publicKey.length, errPtr);
       if (errPtr.value != nullptr) {
         final m = errPtr.value.toDartString();
         _core.strFree(errPtr.value);

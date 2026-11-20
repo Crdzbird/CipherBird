@@ -36,7 +36,7 @@ extension CipherBirdStegoEncrypted on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_stego_embed_encrypted')(
+        >('cipherbird_stego_embed_encrypted')(
           cc,
           pp,
           plaintext.length,
@@ -67,7 +67,7 @@ extension CipherBirdStegoEncrypted on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Utf8>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Utf8>, Pointer<Uint8>, int)
-        >('cryptolib_stego_extract_decrypt')(sp, kk, masterKey.length),
+        >('cipherbird_stego_extract_decrypt')(sp, kk, masterKey.length),
       );
     } finally {
       calloc.free(sp);

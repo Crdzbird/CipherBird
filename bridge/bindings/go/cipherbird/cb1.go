@@ -1,17 +1,17 @@
 package cipherbird
 
 /*
-#cgo noescape cryptolib_cb1_local_encrypt
-#cgo nocallback cryptolib_cb1_local_encrypt
-#cgo noescape cryptolib_cb1_local_decrypt
-#cgo nocallback cryptolib_cb1_local_decrypt
-#cgo noescape cryptolib_cb1_public_sign
-#cgo nocallback cryptolib_cb1_public_sign
-#cgo noescape cryptolib_cb1_public_verify
-#cgo nocallback cryptolib_cb1_public_verify
-#cgo noescape cryptolib_blake2b_keyed_into
-#cgo nocallback cryptolib_blake2b_keyed_into
-#include "cryptolib_c.h"
+#cgo noescape cipherbird_cb1_local_encrypt
+#cgo nocallback cipherbird_cb1_local_encrypt
+#cgo noescape cipherbird_cb1_local_decrypt
+#cgo nocallback cipherbird_cb1_local_decrypt
+#cgo noescape cipherbird_cb1_public_sign
+#cgo nocallback cipherbird_cb1_public_sign
+#cgo noescape cipherbird_cb1_public_verify
+#cgo nocallback cipherbird_cb1_public_verify
+#cgo noescape cipherbird_blake2b_keyed_into
+#cgo nocallback cipherbird_blake2b_keyed_into
+#include "cipherbird_c.h"
 */
 import "C"
 import (
@@ -22,10 +22,10 @@ import (
 // Sizes of the cb1 token keys: the local key, and the Ed25519 + ML-DSA-65
 // hybrid pair of [HybridSigKeygen] for public tokens.
 const (
-	Cb1LocalKeyBytes  = C.CRYPTOLIB_CB1_LOCAL_KEY_BYTES
-	Cb1PublicKeyBytes = C.CRYPTOLIB_CB1_PUBLIC_KEY_BYTES
-	Cb1SecretKeyBytes = C.CRYPTOLIB_CB1_SECRET_KEY_BYTES
-	Cb1SignatureBytes = C.CRYPTOLIB_CB1_SIGNATURE_BYTES
+	Cb1LocalKeyBytes  = C.CIPHERBIRD_CB1_LOCAL_KEY_BYTES
+	Cb1PublicKeyBytes = C.CIPHERBIRD_CB1_PUBLIC_KEY_BYTES
+	Cb1SecretKeyBytes = C.CIPHERBIRD_CB1_SECRET_KEY_BYTES
+	Cb1SignatureBytes = C.CIPHERBIRD_CB1_SIGNATURE_BYTES
 	// Cb1MaxInputBytes is the largest message, footer or implicit assertion
 	// the cb1 functions accept.
 	Cb1MaxInputBytes = 1 << 26
@@ -44,7 +44,7 @@ var ErrPasetoUnavailable = errors.New("cipherbird: cb1 tokens are not available 
 // Cb1LocalEncryptLen returns the exact length of the token
 // [Cb1LocalEncrypt] produces for a msgLen-byte message and a footerLen-byte
 // footer, or 0 when either is negative or larger than [Cb1MaxInputBytes].
-// Computed in Go; equals cryptolib_cb1_local_encrypt_len.
+// Computed in Go; equals cipherbird_cb1_local_encrypt_len.
 func Cb1LocalEncryptLen(msgLen, footerLen int) int {
 	if msgLen < 0 || footerLen < 0 || msgLen > Cb1MaxInputBytes || footerLen > Cb1MaxInputBytes {
 		return 0
@@ -58,7 +58,7 @@ func Cb1LocalEncryptLen(msgLen, footerLen int) int {
 
 // Cb1LocalDecryptCap returns the output capacity [Cb1LocalDecryptTo]
 // requires for a token of tokenLen bytes, or 0 for a length no valid token
-// has. Computed in Go; equals cryptolib_cb1_local_decrypt_cap.
+// has. Computed in Go; equals cipherbird_cb1_local_decrypt_cap.
 func Cb1LocalDecryptCap(tokenLen int) int {
 	if tokenLen <= cb1LocalHeaderLen || tokenLen > Cb1LocalEncryptLen(Cb1MaxInputBytes, Cb1MaxInputBytes) {
 		return 0
@@ -68,7 +68,7 @@ func Cb1LocalDecryptCap(tokenLen int) int {
 
 // Cb1PublicSignLen returns the exact length of the token [Cb1PublicSign]
 // produces for a msgLen-byte message and a footerLen-byte footer, or 0 when
-// either is out of range. Computed in Go; equals cryptolib_cb1_public_sign_len.
+// either is out of range. Computed in Go; equals cipherbird_cb1_public_sign_len.
 func Cb1PublicSignLen(msgLen, footerLen int) int {
 	if msgLen < 0 || footerLen < 0 || msgLen > Cb1MaxInputBytes || footerLen > Cb1MaxInputBytes {
 		return 0
@@ -82,7 +82,7 @@ func Cb1PublicSignLen(msgLen, footerLen int) int {
 
 // Cb1PublicVerifyCap returns the output capacity [Cb1PublicVerifyTo]
 // requires for a token of tokenLen bytes, or 0 for a length no valid token
-// has. Computed in Go; equals cryptolib_cb1_public_verify_cap.
+// has. Computed in Go; equals cipherbird_cb1_public_verify_cap.
 func Cb1PublicVerifyCap(tokenLen int) int {
 	if tokenLen <= cb1PublicHeaderLen || tokenLen > Cb1PublicSignLen(Cb1MaxInputBytes, Cb1MaxInputBytes) {
 		return 0
@@ -108,13 +108,13 @@ func Cb1LocalEncrypt(key, message, footer, implicit []byte) (string, error) {
 	}
 	out := make([]byte, n)
 	var outLen C.size_t
-	rc := C.cryptolib_cb1_local_encrypt(
+	rc := C.cipherbird_cb1_local_encrypt(
 		u8(out), C.size_t(n), &outLen,
 		u8(key), C.size_t(len(key)),
 		u8(message), C.size_t(len(message)),
 		u8(footer), C.size_t(len(footer)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK || int(outLen) != n {
+	if rc != C.CIPHERBIRD_PASETO_OK || int(outLen) != n {
 		return "", pasetoErr(rc)
 	}
 	return unsafe.String(&out[0], n), nil
@@ -151,13 +151,13 @@ func Cb1LocalDecryptTo(out []byte, token string, key, expectedFooter, implicit [
 		return 0, ErrPasetoArgument
 	}
 	var outLen C.size_t
-	rc := C.cryptolib_cb1_local_decrypt(
+	rc := C.cipherbird_cb1_local_decrypt(
 		u8(out), C.size_t(capN), &outLen,
 		(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 		u8(key), C.size_t(len(key)),
 		u8(expectedFooter), C.size_t(len(expectedFooter)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK {
+	if rc != C.CIPHERBIRD_PASETO_OK {
 		return 0, pasetoErr(rc)
 	}
 	return int(outLen), nil
@@ -180,13 +180,13 @@ func Cb1PublicSign(secretKey, message, footer, implicit []byte) (string, error) 
 	}
 	out := make([]byte, n)
 	var outLen C.size_t
-	rc := C.cryptolib_cb1_public_sign(
+	rc := C.cipherbird_cb1_public_sign(
 		u8(out), C.size_t(n), &outLen,
 		u8(secretKey), C.size_t(len(secretKey)),
 		u8(message), C.size_t(len(message)),
 		u8(footer), C.size_t(len(footer)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK || int(outLen) != n {
+	if rc != C.CIPHERBIRD_PASETO_OK || int(outLen) != n {
 		return "", pasetoErr(rc)
 	}
 	return unsafe.String(&out[0], n), nil
@@ -220,13 +220,13 @@ func Cb1PublicVerifyTo(out []byte, token string, publicKey, expectedFooter, impl
 		return 0, ErrPasetoArgument
 	}
 	var outLen C.size_t
-	rc := C.cryptolib_cb1_public_verify(
+	rc := C.cipherbird_cb1_public_verify(
 		u8(out), C.size_t(capN), &outLen,
 		(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 		u8(publicKey), C.size_t(len(publicKey)),
 		u8(expectedFooter), C.size_t(len(expectedFooter)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_PASETO_OK {
+	if rc != C.CIPHERBIRD_PASETO_OK {
 		return 0, pasetoErr(rc)
 	}
 	return int(outLen), nil
@@ -240,11 +240,11 @@ func Blake2bKeyedInto(out, msg, key []byte) error {
 	if len(out) == 0 {
 		return ErrPasetoArgument
 	}
-	rc := C.cryptolib_blake2b_keyed_into(
+	rc := C.cipherbird_blake2b_keyed_into(
 		u8(out), C.size_t(len(out)),
 		u8(msg), C.size_t(len(msg)),
 		u8(key), C.size_t(len(key)))
-	if rc != C.CRYPTOLIB_PASETO_OK {
+	if rc != C.CIPHERBIRD_PASETO_OK {
 		return pasetoErr(rc)
 	}
 	return nil
@@ -264,17 +264,17 @@ func cb1Cap(capN, keyLen, wantKey int, expectedFooter, implicit []byte) (int, er
 }
 
 func nativeCb1LocalEncryptLen(msgLen, footerLen int) int {
-	return int(C.cryptolib_cb1_local_encrypt_len(C.size_t(msgLen), C.size_t(footerLen)))
+	return int(C.cipherbird_cb1_local_encrypt_len(C.size_t(msgLen), C.size_t(footerLen)))
 }
 
 func nativeCb1LocalDecryptCap(tokenLen int) int {
-	return int(C.cryptolib_cb1_local_decrypt_cap(C.size_t(tokenLen)))
+	return int(C.cipherbird_cb1_local_decrypt_cap(C.size_t(tokenLen)))
 }
 
 func nativeCb1PublicSignLen(msgLen, footerLen int) int {
-	return int(C.cryptolib_cb1_public_sign_len(C.size_t(msgLen), C.size_t(footerLen)))
+	return int(C.cipherbird_cb1_public_sign_len(C.size_t(msgLen), C.size_t(footerLen)))
 }
 
 func nativeCb1PublicVerifyCap(tokenLen int) int {
-	return int(C.cryptolib_cb1_public_verify_cap(C.size_t(tokenLen)))
+	return int(C.cipherbird_cb1_public_verify_cap(C.size_t(tokenLen)))
 }

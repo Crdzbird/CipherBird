@@ -35,7 +35,7 @@ extension CipherBirdTokens on CipherBird {
   /// Every format the engine knows, available in this build or not.
   List<TokenFormat> tokenFormats() {
     final f = _lib.lookupFunction<_TokenFormatsNative, _TokenFormats>(
-      'cryptolib_token_formats',
+      'cipherbird_token_formats',
     );
     final n = f(nullptr, 0);
     final out = calloc<Uint8>(n == 0 ? 1 : n);
@@ -56,7 +56,7 @@ extension CipherBirdTokens on CipherBird {
   /// engine's CSPRNG, or both halves of a public format's pair.
   TokenKeys tokenKeygen(String format) {
     final f = _lib.lookupFunction<_TokenKeygenNative, _TokenKeygen>(
-      'cryptolib_token_keygen',
+      'cipherbird_token_keygen',
     );
     const secretCap = 4096;
     const publicCap = 1984;

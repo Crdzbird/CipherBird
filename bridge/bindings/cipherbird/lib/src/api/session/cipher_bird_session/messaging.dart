@@ -39,5 +39,5 @@ extension CipherBirdSessionMessaging on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_session_free')(h);
+      >('cipherbird_session_free')(h);
 }

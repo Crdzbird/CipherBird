@@ -41,7 +41,7 @@ extension CipherBirdFrostAggregate on CipherBird {
             int,
             Pointer<Uint8>,
           )
-        >('cryptolib_frost_aggregate')(
+        >('cipherbird_frost_aggregate')(
           pg,
           groupPublicKey.length,
           pm,

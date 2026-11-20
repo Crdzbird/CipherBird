@@ -8,9 +8,9 @@ import Foundation
 enum BbsNymError: Error { case failed(String) }
 
 private func nymConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw BbsNymError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw BbsNymError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -18,7 +18,7 @@ private func nymConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
 // Copy an out-param CryptoBuffer's bytes, then free it.
 private func nymTake(_ cb: CryptoBuffer) -> [UInt8] {
     var buf = cb
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = cb.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: cb.len))
 }
@@ -54,7 +54,7 @@ enum BbsNym {
         try withMsgArrays(committed) { cm, cl, cn in
             try withMsgArrays(proverNyms) { pm, pl, pn in
                 var blind = CryptoBuffer()
-                let r = cryptolib_bbs_commit_with_nym(cm, cl, cn, pm, pl, pn, &blind)
+                let r = cipherbird_bbs_commit_with_nym(cm, cl, cn, pm, pl, pn, &blind)
                 let cwp = try nymConsume(r)
                 return (cwp, nymTake(blind))
             }
@@ -66,7 +66,7 @@ enum BbsNym {
                                  messages: [[UInt8]], signerNymEntropy: [UInt8], lengthNymVector: UInt64) throws -> [UInt8] {
         try withMsgArrays(messages) { mp, ml, n in
             try withPtrs([sk, pk, commitmentWithProof, header, signerNymEntropy]) { p in
-                try nymConsume(cryptolib_bbs_blind_sign_with_nym(p[0].0, p[0].1, p[1].0, p[1].1,
+                try nymConsume(cipherbird_bbs_blind_sign_with_nym(p[0].0, p[0].1, p[1].0, p[1].1,
                     p[2].0, p[2].1, p[3].0, p[3].1, mp, ml, n, p[4].0, p[4].1, lengthNymVector))
             }
         }
@@ -76,7 +76,7 @@ enum BbsNym {
     static func finalizeNymSecrets(proverNyms: [[UInt8]], signerNymEntropy: [UInt8]) throws -> [UInt8] {
         try withMsgArrays(proverNyms) { pm, pl, pn in
             try withPtrs([signerNymEntropy]) { p in
-                try nymConsume(cryptolib_bbs_finalize_nym_secrets(pm, pl, pn, p[0].0, p[0].1))
+                try nymConsume(cipherbird_bbs_finalize_nym_secrets(pm, pl, pn, p[0].0, p[0].1))
             }
         }
     }
@@ -85,7 +85,7 @@ enum BbsNym {
     static func calculatePseudonym(contextId: [UInt8], nymSecrets: [[UInt8]]) throws -> [UInt8] {
         try withMsgArrays(nymSecrets) { nm, nl, nn in
             try withPtrs([contextId]) { p in
-                try nymConsume(cryptolib_bbs_calculate_pseudonym(p[0].0, p[0].1, nm, nl, nn))
+                try nymConsume(cipherbird_bbs_calculate_pseudonym(p[0].0, p[0].1, nm, nl, nn))
             }
         }
     }
@@ -102,7 +102,7 @@ enum BbsNym {
                         try disclosedCommittedIndexes.withUnsafeBufferPointer { ci in
                             try withPtrs([pk, signature, header, ph, contextId, secretProverBlind]) { p in
                                 var nymOut = CryptoBuffer()
-                                let r = cryptolib_bbs_proof_gen_with_pseudonym(
+                                let r = cipherbird_bbs_proof_gen_with_pseudonym(
                                     p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1,
                                     sm, sl, sn, cm, cl, cn, p[5].0, p[5].1, nm, nl, nn,
                                     si.baseAddress, disclosedSignerIndexes.count,
@@ -125,7 +125,7 @@ enum BbsNym {
         withMsgArrays(disclosedMessages) { mp, ml, n in
             disclosedIndexes.withUnsafeBufferPointer { ip in
                 withPtrs([pk, proof, header, ph, contextId, pseudonym]) { p in
-                    cryptolib_bbs_proof_verify_with_pseudonym(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+                    cipherbird_bbs_proof_verify_with_pseudonym(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                         p[3].0, p[3].1, p[4].0, p[4].1, p[5].0, p[5].1, L, lengthNymVector,
                         mp, ml, n, ip.baseAddress, disclosedIndexes.count) == 1
                 }
@@ -141,7 +141,7 @@ enum BbsNym {
     static func blindCommit(committed: [[UInt8]]) throws -> (commitmentWithProof: [UInt8], secretProverBlind: [UInt8]) {
         try withMsgArrays(committed) { cm, cl, cn in
             var blind = CryptoBuffer()
-            let r = cryptolib_bbs_blind_commit(cm, cl, cn, &blind)
+            let r = cipherbird_bbs_blind_commit(cm, cl, cn, &blind)
             let cwp = try nymConsume(r)
             return (cwp, nymTake(blind))
         }
@@ -152,7 +152,7 @@ enum BbsNym {
                           messages: [[UInt8]]) throws -> [UInt8] {
         try withMsgArrays(messages) { mp, ml, n in
             try withPtrs([sk, pk, commitmentWithProof, header]) { p in
-                try nymConsume(cryptolib_bbs_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1,
+                try nymConsume(cipherbird_bbs_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1,
                     p[2].0, p[2].1, p[3].0, p[3].1, mp, ml, n))
             }
         }
@@ -164,7 +164,7 @@ enum BbsNym {
         withMsgArrays(messages) { mp, ml, mn in
             withMsgArrays(committed) { cm, cl, cn in
                 withPtrs([pk, signature, header, secretProverBlind]) { p in
-                    cryptolib_bbs_verify_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+                    cipherbird_bbs_verify_blind_sign(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                         mp, ml, mn, cm, cl, cn, p[3].0, p[3].1) == 1
                 }
             }
@@ -178,13 +178,13 @@ enum BbsNym {
     /// stable per-holder nym seed: nymSeed = hashToScalar(memberSecret, dst).
     static func hashToScalar(msg: [UInt8], dst: [UInt8]) throws -> [UInt8] {
         try withPtrs([msg, dst]) { p in
-            try nymConsume(cryptolib_bbs_hash_to_scalar(p[0].0, p[0].1, p[1].0, p[1].1))
+            try nymConsume(cipherbird_bbs_hash_to_scalar(p[0].0, p[0].1, p[1].0, p[1].1))
         }
     }
 
     /// A fresh cryptographically-random canonical scalar in [0, r) (32 bytes BE).
     static func randomScalar() throws -> [UInt8] {
-        try nymConsume(cryptolib_bbs_random_scalar())
+        try nymConsume(cipherbird_bbs_random_scalar())
     }
 }
 
@@ -195,8 +195,8 @@ func nymHexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — BBS pseudonyms + blind issuance (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — BBS pseudonyms + blind issuance (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

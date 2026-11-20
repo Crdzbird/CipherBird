@@ -2,9 +2,9 @@
 // Keccak-256 (original padding), RIPEMD-160, and secp256k1 ECDSA.
 #include "test_framework.hpp"
 
-#include <cryptolib/keccak.hpp>
-#include <cryptolib/ripemd160.hpp>
-#include <cryptolib/secp256k1.hpp>
+#include <cipherbird/keccak.hpp>
+#include <cipherbird/ripemd160.hpp>
+#include <cipherbird/secp256k1.hpp>
 
 #include <array>
 #include <cstdint>
@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
 // RIPEMD160() is deprecated in OpenSSL 3 but still exported; we use it only as
 // an independent reference oracle in the differential test below.
 #  pragma clang diagnostic push
@@ -84,7 +84,7 @@ TEST("btc/ripemd160/million-a-prefix") {
     CHECK(r.value().to_hex() == "0bdc9d2d256b3ee9daae347be6f4dc835a467ffe");
 }
 
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
 // Differential test: our standalone RIPEMD-160 must agree byte-for-byte with
 // OpenSSL's audited implementation across every length / block boundary. This
 // is far stronger than a couple of fixed KATs — it proves the padding, the
@@ -148,7 +148,7 @@ TEST("evm/keccak256/rate-boundary") {
     CHECK(h(136) == b);  // deterministic across the boundary
 }
 
-#ifdef CRYPTOLIB_HAS_SECP256K1
+#ifdef CIPHERBIRD_HAS_SECP256K1
 // ── secp256k1 ────────────────────────────────────────────────────────────────
 using crypto::ec::Secp256k1;
 
@@ -232,7 +232,7 @@ TEST("secp256k1/rejects-bad-lengths") {
     std::vector<uint8_t> bad_digest(31, 0);
     CHECK(Secp256k1::sign(bad_digest, sk).is_err());
 }
-#endif // CRYPTOLIB_HAS_SECP256K1
+#endif // CIPHERBIRD_HAS_SECP256K1
 
 void run_tests_evm_btc() {
     RUN("evm/keccak256/empty-KAT");
@@ -241,12 +241,12 @@ void run_tests_evm_btc() {
     RUN("btc/ripemd160/empty-KAT");
     RUN("btc/ripemd160/abc-KAT");
     RUN("btc/ripemd160/million-a-prefix");
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
     RUN("btc/ripemd160/differential-vs-openssl");
 #endif
     RUN("evm/keccak256/multi-length-KAT");
     RUN("evm/keccak256/rate-boundary");
-#ifdef CRYPTOLIB_HAS_SECP256K1
+#ifdef CIPHERBIRD_HAS_SECP256K1
     RUN("secp256k1/pubkey/generator-point-KAT");
     RUN("secp256k1/pubkey/compressed-prefix");
     RUN("secp256k1/sign-verify-roundtrip");

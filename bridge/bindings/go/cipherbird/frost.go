@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -87,13 +87,13 @@ func frostIDsPtr(ids []C.uint16_t) *C.uint16_t {
 
 // FrostKeygen splits a random group key into n shares, any t of which can sign.
 func FrostKeygen(n, t uint16) (*FrostKeyGen, error) {
-	kg := C.cryptolib_frost_keygen(C.uint16_t(n), C.uint16_t(t))
+	kg := C.cipherbird_frost_keygen(C.uint16_t(n), C.uint16_t(t))
 	if kg.error != nil {
 		msg := C.GoString(kg.error)
-		C.cryptolib_frost_keygen_free(&kg)
+		C.cipherbird_frost_keygen_free(&kg)
 		return nil, errors.New(msg)
 	}
-	defer C.cryptolib_frost_keygen_free(&kg)
+	defer C.cipherbird_frost_keygen_free(&kg)
 
 	count := int(kg.count)
 	out := &FrostKeyGen{GroupPublicKey: cbufBytes(kg.group_public_key)}
@@ -109,10 +109,10 @@ func FrostKeygen(n, t uint16) (*FrostKeyGen, error) {
 func frostCommitOut(c C.CryptoFrostCommit, identifier uint16) (FrostNonces, FrostCommitment, error) {
 	if c.error != nil {
 		msg := C.GoString(c.error)
-		C.cryptolib_frost_commit_free(&c)
+		C.cipherbird_frost_commit_free(&c)
 		return FrostNonces{}, FrostCommitment{}, errors.New(msg)
 	}
-	defer C.cryptolib_frost_commit_free(&c)
+	defer C.cipherbird_frost_commit_free(&c)
 	nonces := FrostNonces{Hiding: cbufBytes(c.hiding_nonce), Binding: cbufBytes(c.binding_nonce)}
 	commit := FrostCommitment{
 		Identifier: identifier,
@@ -125,13 +125,13 @@ func frostCommitOut(c C.CryptoFrostCommit, identifier uint16) (FrostNonces, Fros
 // FrostCommit generates a fresh random nonce pair + public commitment for a share.
 // Keep the returned nonces secret; publish the commitment.
 func FrostCommit(shareSecret []byte, identifier uint16) (FrostNonces, FrostCommitment, error) {
-	c := C.cryptolib_frost_commit(u8(shareSecret), C.size_t(len(shareSecret)), C.uint16_t(identifier))
+	c := C.cipherbird_frost_commit(u8(shareSecret), C.size_t(len(shareSecret)), C.uint16_t(identifier))
 	return frostCommitOut(c, identifier)
 }
 
 // FrostCommitWithNonces is the deterministic variant (test vectors / caller nonces).
 func FrostCommitWithNonces(identifier uint16, hiding, binding []byte) (FrostNonces, FrostCommitment, error) {
-	c := C.cryptolib_frost_commit_with_nonces(C.uint16_t(identifier),
+	c := C.cipherbird_frost_commit_with_nonces(C.uint16_t(identifier),
 		u8(hiding), C.size_t(len(hiding)), u8(binding), C.size_t(len(binding)))
 	return frostCommitOut(c, identifier)
 }
@@ -141,7 +141,7 @@ func FrostCommitWithNonces(identifier uint16, hiding, binding []byte) (FrostNonc
 func FrostSign(identifier uint16, shareSecret, groupPublicKey []byte,
 	nonces FrostNonces, msg []byte, commitments []FrostCommitment) ([]byte, error) {
 	ids, hid, bnd := frostCommitBufs(commitments)
-	return checkBufResult(C.cryptolib_frost_sign(
+	return checkBufResult(C.cipherbird_frost_sign(
 		C.uint16_t(identifier),
 		u8(shareSecret), C.size_t(len(shareSecret)),
 		u8(groupPublicKey), C.size_t(len(groupPublicKey)),
@@ -159,7 +159,7 @@ func FrostAggregate(groupPublicKey, msg []byte, commitments []FrostCommitment,
 	for i, s := range sigShares {
 		copy(flat[i*32:], s)
 	}
-	return checkBufResult(C.cryptolib_frost_aggregate(
+	return checkBufResult(C.cipherbird_frost_aggregate(
 		u8(groupPublicKey), C.size_t(len(groupPublicKey)),
 		u8(msg), C.size_t(len(msg)),
 		frostIDsPtr(ids), u8(hid), u8(bnd), C.size_t(len(commitments)),
@@ -168,7 +168,7 @@ func FrostAggregate(groupPublicKey, msg []byte, commitments []FrostCommitment,
 
 // FrostVerify verifies an aggregate signature with standard Ed25519.
 func FrostVerify(msg, sig, groupPublicKey []byte) bool {
-	return C.cryptolib_frost_verify(
+	return C.cipherbird_frost_verify(
 		u8(msg), C.size_t(len(msg)),
 		u8(sig), C.size_t(len(sig)),
 		u8(groupPublicKey), C.size_t(len(groupPublicKey))) == 1
@@ -180,7 +180,7 @@ func FrostVerifyShare(identifier uint16, publicShare, sigShare []byte,
 	commitment FrostCommitment, groupPublicKey, msg []byte,
 	commitments []FrostCommitment) bool {
 	ids, hid, bnd := frostCommitBufs(commitments)
-	return C.cryptolib_frost_verify_share(
+	return C.cipherbird_frost_verify_share(
 		C.uint16_t(identifier),
 		u8(publicShare), C.size_t(len(publicShare)),
 		u8(sigShare), C.size_t(len(sigShare)),

@@ -51,7 +51,7 @@ extension CipherBirdBbsProofGen on CipherBird {
             Pointer<Uint64>,
             int,
           )
-        >('cryptolib_bbs_proof_gen')(
+        >('cipherbird_bbs_proof_gen')(
           pk,
           publicKey.length,
           s,

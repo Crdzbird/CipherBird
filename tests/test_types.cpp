@@ -90,7 +90,7 @@ TEST("types/result/securebuffer-ok") {
     CHECK(r.value().size() == 8);
 }
 
-#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
 // ─── EncryptedPacket serialise / deserialise ──────────────────────────────────
 
 TEST("types/packet/round-trip") {
@@ -147,7 +147,7 @@ void run_tests_types() {
     RUN("types/result/void-ok");
     RUN("types/result/void-err");
     RUN("types/result/securebuffer-ok");
-#ifdef CRYPTOLIB_HAS_SODIUM_CRYPTO
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
     RUN("types/packet/round-trip");
     RUN("types/packet/truncated");
 #endif

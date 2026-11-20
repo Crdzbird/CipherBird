@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 using crypto::pq::TripleHybridKem;
 
@@ -102,10 +102,10 @@ TEST("triple/bad-lengths-rejected") {
     CHECK(TripleHybridKem::decapsulate(enc.value().ciphertext.span(), too_short).is_err());
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_triple_hybrid_kem() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     RUN("triple/keypair-sizes");
     RUN("triple/encaps-decaps-round-trip");
     RUN("triple/decapsulate-is-deterministic");

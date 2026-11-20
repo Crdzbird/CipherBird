@@ -9,7 +9,7 @@ extension CipherBirdAsyncHybrid on CipherBird {
     CipherBirdRunner runner = const CipherBirdIsolateRunner(),
   }) => runner.run(
     EngineCallJob(
-      symbol: 'cryptolib_hybrid_sig_sign',
+      symbol: 'cipherbird_hybrid_sig_sign',
       args: [JobArg.bytes(msg), JobArg.bytes(secretKey)],
       returns: JobReturn.buffer,
       cost: 1 << 16,

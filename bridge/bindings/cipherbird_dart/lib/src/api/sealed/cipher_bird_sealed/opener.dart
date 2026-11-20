@@ -49,7 +49,7 @@ extension CipherBirdSealedOpener on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_sealed_opener_begin')(
+          >('cipherbird_sealed_opener_begin')(
             tier.value,
             pp,
             preamble.length,

@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # bundle_native.sh — refresh every binding's BUNDLED native library from a single
 # self-contained build, so each package ships a current, self-contained
-# libcryptolib_c and installs from its registry with NO C++ source tree and no
+# libcipherbird_c and installs from its registry with NO C++ source tree and no
 # build step.
 #
 # HOST platform only (this machine's OS/arch). The cross-platform matrix
@@ -13,13 +13,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 B=bridge/bindings
-HDR=bridge/cryptolib_c.h
+HDR=bridge/cipherbird_c.h
 
 echo "== building the pinned desktop dylib + merged static archive =="
 bash scripts/macos/build_dylib.sh >/dev/null
 bash scripts/build_static_archive.sh >/dev/null
-DYLIB=build/desktop/libcryptolib_c.dylib
-STATIC=build/static/libcryptolib_c.a
+DYLIB=build/desktop/libcipherbird_c.dylib
+STATIC=build/static/libcipherbird_c.a
 
 # Host platform → the folder names each ecosystem expects.
 case "$(uname -s)" in Darwin) OS=darwin; EXT=dylib;; Linux) OS=linux; EXT=so;; *) OS=unknown; EXT=so;; esac
@@ -46,12 +46,12 @@ if [ "$OS" = darwin ]; then
 elif command -v patchelf >/dev/null 2>&1; then
   patchelf --set-soname libcipherbird.so "$RUST_LIB"
 else
-  echo "   patchelf not found: $RUST_LIB keeps the soname libcryptolib_c.so" >&2
+  echo "   patchelf not found: $RUST_LIB keeps the soname libcipherbird_c.so" >&2
 fi
 
 echo "== vendoring Go static archive + header (self-contained go get) =="
 copy "$B/go/cipherbird/native/libcipherbird.a" "$STATIC"
-copy "$B/go/cipherbird/native/cryptolib_c.h"    "$HDR"
+copy "$B/go/cipherbird/native/cipherbird_c.h"    "$HDR"
 
 # Refresh the macOS slice of any xcframework (Swift SPM / Flutter macOS). iOS and
 # Android slices are rebuilt by `make ios` / `make android` (need those SDKs).
@@ -60,9 +60,9 @@ if [ "$OS" = darwin ]; then
   while IFS= read -r merged; do
     [ -e "$merged" ] || continue
     cp "$STATIC" "$merged"
-    find "$(dirname "$merged")" -name cryptolib_c.h -exec cp "$HDR" {} \;
+    find "$(dirname "$merged")" -name cipherbird_c.h -exec cp "$HDR" {} \;
     echo "   → ${merged#"$ROOT"/}"
-  done < <(find "$B" -path '*node_modules*' -prune -o -path "*macos-$ARCH/*libcryptolib_c_merged.a" -print 2>/dev/null)
+  done < <(find "$B" -path '*node_modules*' -prune -o -path "*macos-$ARCH/*libcipherbird_c_merged.a" -print 2>/dev/null)
 fi
 
 # The JVM package is a JAR (a snapshot), so rebuild it to embed the refreshed

@@ -7,7 +7,7 @@ extension CipherBirdBls on CipherBird {
       CipherBirdKeyPair Function(),
       CipherBirdKeyPair Function()
     >(
-      'cryptolib_bls_keygen',
+      'cipherbird_bls_keygen',
     )(),
   );
 
@@ -28,7 +28,7 @@ extension CipherBirdBls on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_bls_sign')(mp, msg.length, sp, secretKey.length),
+        >('cipherbird_bls_sign')(mp, msg.length, sp, secretKey.length),
       );
     } finally {
       if (mp != nullptr) calloc.free(mp);
@@ -56,7 +56,7 @@ extension CipherBirdBls on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_bls_verify')(
+          >('cipherbird_bls_verify')(
             mp,
             msg.length,
             sgp,
@@ -86,7 +86,7 @@ extension CipherBirdBls on CipherBird {
         _lib.lookupFunction<
           CipherBirdKeyPair Function(Pointer<Uint8>, Size),
           CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cryptolib_bls_keygen_from_ikm')(ip, ikm.length),
+        >('cipherbird_bls_keygen_from_ikm')(ip, ikm.length),
       );
     } finally {
       if (ip != nullptr) calloc.free(ip);

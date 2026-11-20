@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -67,11 +67,11 @@ type Identity struct {
 
 // NewIdentity generates a fresh recipient + sender keypair for the given tier.
 func NewIdentity(tier SealedTier) (*Identity, error) {
-	r := C.cryptolib_sealed_generate_recipient(C.int(tier))
+	r := C.cipherbird_sealed_generate_recipient(C.int(tier))
 	if r.public_key.data == nil {
 		return nil, errors.New("cipherbird: recipient keygen failed")
 	}
-	s := C.cryptolib_sealed_generate_sender(C.int(tier))
+	s := C.cipherbird_sealed_generate_sender(C.int(tier))
 	if s.public_key.data == nil {
 		return nil, errors.New("cipherbird: sender keygen failed")
 	}
@@ -89,7 +89,7 @@ func NewIdentity(tier SealedTier) (*Identity, error) {
 // signature legs break; the recipient is bound so the message can't be re-forwarded.
 func (id *Identity) Seal(plaintext, recipientPublic []byte, opts *SealOpts) ([]byte, error) {
 	aad, purpose := opts.aad(), opts.purpose()
-	return checkBufResult(C.cryptolib_sealed_seal(C.int(id.Tier),
+	return checkBufResult(C.cipherbird_sealed_seal(C.int(id.Tier),
 		u8(plaintext), C.size_t(len(plaintext)),
 		u8(recipientPublic), C.size_t(len(recipientPublic)),
 		u8(id.SenderSecret), C.size_t(len(id.SenderSecret)),
@@ -100,7 +100,7 @@ func (id *Identity) Seal(plaintext, recipientPublic []byte, opts *SealOpts) ([]b
 // Returns an error — and no plaintext — if the signature or recipient binding fails.
 func (id *Identity) Open(envelope, senderPublic []byte, opts *SealOpts) ([]byte, error) {
 	aad, purpose := opts.aad(), opts.purpose()
-	return checkBufResult(C.cryptolib_sealed_open(C.int(id.Tier),
+	return checkBufResult(C.cipherbird_sealed_open(C.int(id.Tier),
 		u8(envelope), C.size_t(len(envelope)),
 		u8(id.RecipientSecret), C.size_t(len(id.RecipientSecret)),
 		u8(id.RecipientPublic), C.size_t(len(id.RecipientPublic)),
@@ -121,7 +121,7 @@ type SealedInfo struct {
 
 // SealedInspect reads an envelope's public header without any key or secret.
 func SealedInspect(envelope []byte) (*SealedInfo, error) {
-	info := C.cryptolib_sealed_inspect(u8(envelope), C.size_t(len(envelope)))
+	info := C.cipherbird_sealed_inspect(u8(envelope), C.size_t(len(envelope)))
 	if info.ok == 0 {
 		return nil, errors.New("cipherbird: unrecognizable sealed envelope")
 	}
@@ -140,7 +140,7 @@ func SealedInspect(envelope []byte) (*SealedInfo, error) {
 // SealedAddressedTo reports whether the envelope is addressed to recipientPublic
 // (fingerprint match) — routing/addressing without decrypting.
 func SealedAddressedTo(envelope, recipientPublic []byte) bool {
-	return C.cryptolib_sealed_addressed_to(u8(envelope), C.size_t(len(envelope)),
+	return C.cipherbird_sealed_addressed_to(u8(envelope), C.size_t(len(envelope)),
 		u8(recipientPublic), C.size_t(len(recipientPublic))) == 1
 }
 
@@ -154,13 +154,13 @@ type StreamSealer struct{ handle C.CryptoSealedSealer }
 func (id *Identity) NewStreamSealer(recipientPublic []byte, opts *SealOpts) (*StreamSealer, error) {
 	purpose := opts.purpose()
 	var cerr *C.char
-	h := C.cryptolib_sealed_sealer_begin(C.int(id.Tier),
+	h := C.cipherbird_sealed_sealer_begin(C.int(id.Tier),
 		u8(recipientPublic), C.size_t(len(recipientPublic)),
 		u8(id.SenderSecret), C.size_t(len(id.SenderSecret)),
 		u8(purpose), C.size_t(len(purpose)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	if h == nil {
@@ -174,13 +174,13 @@ func (id *Identity) NewStreamSealer(recipientPublic []byte, opts *SealOpts) (*St
 // Preamble returns the stream header to write/transmit first (KEM ciphertext etc.).
 func (s *StreamSealer) Preamble() ([]byte, error) {
 	defer runtime.KeepAlive(s)
-	return checkBufResult(C.cryptolib_sealed_sealer_preamble(s.handle))
+	return checkBufResult(C.cipherbird_sealed_sealer_preamble(s.handle))
 }
 
 // Push encrypts one interior chunk, returning its ciphertext.
 func (s *StreamSealer) Push(chunk []byte) ([]byte, error) {
 	defer runtime.KeepAlive(s)
-	return checkBufResult(C.cryptolib_sealed_sealer_push(s.handle, u8(chunk), C.size_t(len(chunk))))
+	return checkBufResult(C.cipherbird_sealed_sealer_push(s.handle, u8(chunk), C.size_t(len(chunk))))
 }
 
 // Finalize encrypts the final chunk (may be empty) and returns it plus the signed
@@ -188,7 +188,7 @@ func (s *StreamSealer) Push(chunk []byte) ([]byte, error) {
 func (s *StreamSealer) Finalize(last []byte) (ciphertext, trailer []byte, err error) {
 	defer runtime.KeepAlive(s)
 	var tr C.CryptoBuffer
-	ct, err := checkBufResult(C.cryptolib_sealed_sealer_finalize(s.handle, u8(last), C.size_t(len(last)), &tr))
+	ct, err := checkBufResult(C.cipherbird_sealed_sealer_finalize(s.handle, u8(last), C.size_t(len(last)), &tr))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -198,7 +198,7 @@ func (s *StreamSealer) Finalize(last []byte) (ciphertext, trailer []byte, err er
 // Close frees the native sealer. Safe to call more than once.
 func (s *StreamSealer) Close() {
 	if s.handle != nil {
-		C.cryptolib_sealed_sealer_free(s.handle)
+		C.cipherbird_sealed_sealer_free(s.handle)
 		s.handle = nil
 	}
 }
@@ -211,7 +211,7 @@ type StreamOpener struct{ handle C.CryptoSealedOpener }
 func (id *Identity) NewStreamOpener(preamble, senderPublic []byte, opts *SealOpts) (*StreamOpener, error) {
 	purpose := opts.purpose()
 	var cerr *C.char
-	h := C.cryptolib_sealed_opener_begin(C.int(id.Tier),
+	h := C.cipherbird_sealed_opener_begin(C.int(id.Tier),
 		u8(preamble), C.size_t(len(preamble)),
 		u8(id.RecipientSecret), C.size_t(len(id.RecipientSecret)),
 		u8(id.RecipientPublic), C.size_t(len(id.RecipientPublic)),
@@ -219,7 +219,7 @@ func (id *Identity) NewStreamOpener(preamble, senderPublic []byte, opts *SealOpt
 		u8(purpose), C.size_t(len(purpose)), &cerr)
 	if cerr != nil {
 		msg := C.GoString(cerr)
-		C.cryptolib_str_free(cerr)
+		C.cipherbird_str_free(cerr)
 		return nil, errors.New(msg)
 	}
 	if h == nil {
@@ -234,7 +234,7 @@ func (id *Identity) NewStreamOpener(preamble, senderPublic []byte, opts *SealOpt
 func (o *StreamOpener) Pull(ct []byte) (plaintext []byte, final bool, err error) {
 	defer runtime.KeepAlive(o)
 	var f C.int
-	pt, err := checkBufResult(C.cryptolib_sealed_opener_pull(o.handle, u8(ct), C.size_t(len(ct)), &f))
+	pt, err := checkBufResult(C.cipherbird_sealed_opener_pull(o.handle, u8(ct), C.size_t(len(ct)), &f))
 	if err != nil {
 		return nil, false, err
 	}
@@ -245,14 +245,14 @@ func (o *StreamOpener) Pull(ct []byte) (plaintext []byte, final bool, err error)
 // the final chunk has been pulled (guards against truncation).
 func (o *StreamOpener) Finalize(trailer []byte) error {
 	defer runtime.KeepAlive(o)
-	_, err := checkBufResult(C.cryptolib_sealed_opener_finalize(o.handle, u8(trailer), C.size_t(len(trailer))))
+	_, err := checkBufResult(C.cipherbird_sealed_opener_finalize(o.handle, u8(trailer), C.size_t(len(trailer))))
 	return err
 }
 
 // Close frees the native opener. Safe to call more than once.
 func (o *StreamOpener) Close() {
 	if o.handle != nil {
-		C.cryptolib_sealed_opener_free(o.handle)
+		C.cipherbird_sealed_opener_free(o.handle)
 		o.handle = nil
 	}
 }

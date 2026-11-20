@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry47 = {
-  'cryptolib_hpke_stego_open':
+  'cipherbird_hpke_stego_open':
       (
         Pointer<NativeType> skR,
         int skRLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry47 = {
         int infoLen,
         Pointer<NativeType> stegoPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_hpke_stego_open',
+        '_cbw_cipherbird_hpke_stego_open',
         [
           skR.address.toJS,
           skRLen.toJS,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry47 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_drbg_instantiate':
+  'cipherbird_drbg_instantiate':
       (
         Pointer<NativeType> entropy,
         int entropyLen,
@@ -38,7 +38,7 @@ final Map<String, Function> _registry47 = {
         int persoLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_drbg_instantiate', [
+        WebEngine.current.callInt('_cbw_cipherbird_drbg_instantiate', [
           entropy.address.toJS,
           entropyLen.toJS,
           nonce.address.toJS,
@@ -48,14 +48,14 @@ final Map<String, Function> _registry47 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_drbg_generate':
+  'cipherbird_drbg_generate':
       (
         Pointer<NativeType> h,
         int numBytes,
         Pointer<NativeType> additional,
         int additionalLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_drbg_generate',
+        '_cbw_cipherbird_drbg_generate',
         [
           h.address.toJS,
           numBytes.toJS,
@@ -65,7 +65,7 @@ final Map<String, Function> _registry47 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_drbg_reseed':
+  'cipherbird_drbg_reseed':
       (
         Pointer<NativeType> h,
         Pointer<NativeType> entropy,
@@ -73,7 +73,7 @@ final Map<String, Function> _registry47 = {
         Pointer<NativeType> additional,
         int additionalLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_drbg_reseed',
+        '_cbw_cipherbird_drbg_reseed',
         [
           h.address.toJS,
           entropy.address.toJS,
@@ -84,9 +84,9 @@ final Map<String, Function> _registry47 = {
         CipherBirdResult.size,
         CipherBirdResult._new,
       ),
-  'cryptolib_drbg_free': (Pointer<NativeType> h) =>
-      WebEngine.current.callVoid('_cbw_cryptolib_drbg_free', [h.address.toJS]),
-  'cryptolib_fortuna_new': () => Pointer<Void>._(
-    WebEngine.current.callInt('_cbw_cryptolib_fortuna_new', []),
+  'cipherbird_drbg_free': (Pointer<NativeType> h) =>
+      WebEngine.current.callVoid('_cbw_cipherbird_drbg_free', [h.address.toJS]),
+  'cipherbird_fortuna_new': () => Pointer<Void>._(
+    WebEngine.current.callInt('_cbw_cipherbird_fortuna_new', []),
   ),
 };

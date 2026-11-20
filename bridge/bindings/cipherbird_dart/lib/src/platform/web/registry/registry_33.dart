@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry33 = {
-  'cryptolib_ecvrf_verify':
+  'cipherbird_ecvrf_verify':
       (
         Pointer<NativeType> pk,
         int pkLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry33 = {
         Pointer<NativeType> pi,
         int piLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_ecvrf_verify',
+        '_cbw_cipherbird_ecvrf_verify',
         [
           pk.address.toJS,
           pkLen.toJS,
@@ -22,14 +22,14 @@ final Map<String, Function> _registry33 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_keygen':
+  'cipherbird_bbs_keygen':
       (
         Pointer<NativeType> keyMaterial,
         int kmLen,
         Pointer<NativeType> keyInfo,
         int kiLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_keygen',
+        '_cbw_cipherbird_bbs_keygen',
         [
           keyMaterial.address.toJS,
           kmLen.toJS,
@@ -39,14 +39,14 @@ final Map<String, Function> _registry33 = {
         CipherBirdKeyPair.size,
         CipherBirdKeyPair._new,
       ),
-  'cryptolib_bbs_sk_to_pk': (Pointer<NativeType> sk, int skLen) =>
+  'cipherbird_bbs_sk_to_pk': (Pointer<NativeType> sk, int skLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_sk_to_pk',
+        '_cbw_cipherbird_bbs_sk_to_pk',
         [sk.address.toJS, skLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_bbs_sign':
+  'cipherbird_bbs_sign':
       (
         Pointer<NativeType> sk,
         int skLen,
@@ -58,7 +58,7 @@ final Map<String, Function> _registry33 = {
         Pointer<NativeType> msgLens,
         int msgCount,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_bbs_sign',
+        '_cbw_cipherbird_bbs_sign',
         [
           sk.address.toJS,
           skLen.toJS,

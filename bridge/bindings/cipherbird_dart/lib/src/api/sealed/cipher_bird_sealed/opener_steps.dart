@@ -20,7 +20,7 @@ extension CipherBirdSealedOpenerSteps on CipherBird {
             int,
             Pointer<Int32>,
           )
-        >('cryptolib_sealed_opener_pull')(h, pc, ct.length, outFinal),
+        >('cipherbird_sealed_opener_pull')(h, pc, ct.length, outFinal),
       );
       return (pt, outFinal.value == 1);
     } finally {
@@ -36,7 +36,7 @@ extension CipherBirdSealedOpenerSteps on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Void>, Pointer<Uint8>, int)
-        >('cryptolib_sealed_opener_finalize')(h, pt, trailer.length),
+        >('cipherbird_sealed_opener_finalize')(h, pt, trailer.length),
       );
     } finally {
       if (pt != nullptr) calloc.free(pt);
@@ -47,5 +47,5 @@ extension CipherBirdSealedOpenerSteps on CipherBird {
       _lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_sealed_opener_free')(h);
+      >('cipherbird_sealed_opener_free')(h);
 }

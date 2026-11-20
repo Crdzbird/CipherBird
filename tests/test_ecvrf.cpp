@@ -2,7 +2,7 @@
 // the RFC's Appendix B.3 test vectors + end-to-end prove/verify properties.
 #include "test_framework.hpp"
 
-#include <cryptolib/ecvrf.hpp>
+#include <cipherbird/ecvrf.hpp>
 
 #include <cstdint>
 #include <string>

@@ -67,7 +67,7 @@ extension CipherBirdBbsProofVerifyWithPseudonym on CipherBird {
               Pointer<Uint64>,
               int,
             )
-          >('cryptolib_bbs_proof_verify_with_pseudonym')(
+          >('cipherbird_bbs_proof_verify_with_pseudonym')(
             pk,
             publicKey.length,
             pr,

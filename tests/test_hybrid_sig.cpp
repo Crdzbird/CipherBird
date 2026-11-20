@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 using crypto::pq::HybridSig;
 using crypto::pq::MlDsa;

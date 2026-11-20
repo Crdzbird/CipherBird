@@ -24,7 +24,7 @@ extension CipherBirdP256Sign on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_p256_sign')(sk, secretKey.length, msg, message.length),
+        >('cipherbird_p256_sign')(sk, secretKey.length, msg, message.length),
       );
     } finally {
       if (sk != nullptr) calloc.free(sk);
@@ -62,7 +62,7 @@ extension CipherBirdP256Sign on CipherBird {
               Pointer<Uint8>,
               int,
             )
-          >('cryptolib_p256_verify')(
+          >('cipherbird_p256_verify')(
             pk,
             publicKey.length,
             msg,

@@ -24,7 +24,7 @@ extension CipherBirdKeyringHardwareSlotsRead on CipherBird {
               Pointer<CipherBirdBuffer>,
               Pointer<CipherBirdBuffer>,
             )
-          >('cryptolib_keyring_hardware_slot')(kr, index, outId, outBlob) ==
+          >('cipherbird_keyring_hardware_slot')(kr, index, outId, outBlob) ==
           1;
       if (!ok) {
         throw StateError('cipherbird: slot $index is not a hardware slot');
@@ -59,7 +59,7 @@ extension CipherBirdKeyringHardwareSlotsRead on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_keyring_unlock_with_hardware')(
+        >('cipherbird_keyring_unlock_with_hardware')(
           kr,
           index,
           pf,

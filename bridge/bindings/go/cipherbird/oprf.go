@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -30,7 +30,7 @@ type OprfBlindResult struct {
 
 // OprfDeriveKeyPair derives an OPRF key pair from a seed (+ optional info).
 func OprfDeriveKeyPair(seed, info []byte) (KeyPair, error) {
-	kp := C.cryptolib_oprf_derive_keypair(u8(seed), C.size_t(len(seed)), u8(info), C.size_t(len(info)))
+	kp := C.cipherbird_oprf_derive_keypair(u8(seed), C.size_t(len(seed)), u8(info), C.size_t(len(info)))
 	pub, sec := goBytes(kp.public_key), goBytes(kp.secret_key)
 	if pub == nil || sec == nil {
 		return KeyPair{}, errors.New("cipherbird: oprf derive_keypair failed")
@@ -41,39 +41,39 @@ func OprfDeriveKeyPair(seed, info []byte) (KeyPair, error) {
 func oprfBlindOut(b C.CryptoOprfBlind) (OprfBlindResult, error) {
 	if b.error != nil {
 		msg := C.GoString(b.error)
-		C.cryptolib_oprf_blind_free(&b)
+		C.cipherbird_oprf_blind_free(&b)
 		return OprfBlindResult{}, errors.New(msg)
 	}
-	defer C.cryptolib_oprf_blind_free(&b)
+	defer C.cipherbird_oprf_blind_free(&b)
 	return OprfBlindResult{Blind: cbufBytes(b.blind), BlindedElement: cbufBytes(b.blinded_element)}, nil
 }
 
 // OprfBlindInput blinds an input with a fresh random scalar (client side).
 func OprfBlindInput(input []byte) (OprfBlindResult, error) {
-	return oprfBlindOut(C.cryptolib_oprf_blind(u8(input), C.size_t(len(input))))
+	return oprfBlindOut(C.cipherbird_oprf_blind(u8(input), C.size_t(len(input))))
 }
 
 // OprfBlindWithScalar is the deterministic variant (test vectors).
 func OprfBlindWithScalar(input, blind []byte) (OprfBlindResult, error) {
-	return oprfBlindOut(C.cryptolib_oprf_blind_with_scalar(
+	return oprfBlindOut(C.cipherbird_oprf_blind_with_scalar(
 		u8(input), C.size_t(len(input)), u8(blind), C.size_t(len(blind))))
 }
 
 // OprfBlindEvaluate evaluates a blinded element under the secret key (server side).
 func OprfBlindEvaluate(sk, blindedElement []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_oprf_blind_evaluate(
+	return checkBufResult(C.cipherbird_oprf_blind_evaluate(
 		u8(sk), C.size_t(len(sk)), u8(blindedElement), C.size_t(len(blindedElement))))
 }
 
 // OprfFinalize unblinds the evaluated element → 64-byte PRF output (client side).
 func OprfFinalize(input, blind, evaluatedElement []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_oprf_finalize(
+	return checkBufResult(C.cipherbird_oprf_finalize(
 		u8(input), C.size_t(len(input)), u8(blind), C.size_t(len(blind)),
 		u8(evaluatedElement), C.size_t(len(evaluatedElement))))
 }
 
 // OprfEvaluate computes the PRF output directly from the key + input (server one-shot).
 func OprfEvaluate(sk, input []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_oprf_evaluate(
+	return checkBufResult(C.cipherbird_oprf_evaluate(
 		u8(sk), C.size_t(len(sk)), u8(input), C.size_t(len(input))))
 }

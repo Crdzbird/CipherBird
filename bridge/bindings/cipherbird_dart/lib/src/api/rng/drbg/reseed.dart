@@ -22,7 +22,7 @@ extension DrbgReseed on Drbg {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_drbg_reseed')(
+        >('cipherbird_drbg_reseed')(
           _h,
           e,
           entropy.length,

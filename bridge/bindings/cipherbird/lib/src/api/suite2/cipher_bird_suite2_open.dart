@@ -42,7 +42,7 @@ extension CipherBirdSuite2Open on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_suite2_open')(
+        >('cipherbird_suite2_open')(
           envelopePtr,
           envelope.length,
           recipientKemSecretPtr,

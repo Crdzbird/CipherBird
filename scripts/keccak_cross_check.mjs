@@ -9,7 +9,7 @@
 //
 // Usage:
 //   npm i js-sha3 koffi          # in this script's working dir
-//   node scripts/keccak_cross_check.mjs [path-to-libcryptolib_c.dylib]
+//   node scripts/keccak_cross_check.mjs [path-to-libcipherbird_c.dylib]
 //
 // Exit 0 on full agreement, 1 on any mismatch or setup failure.
 
@@ -26,8 +26,8 @@ try {
 }
 
 const libPath = process.argv[2]
-  || process.env.CRYPTOLIB_DYLIB
-  || 'build/release/libcryptolib_c.dylib';
+  || process.env.CIPHERBIRD_LIBRARY
+  || 'build/release/libcipherbird_c.dylib';
 
 let lib;
 try {
@@ -39,19 +39,19 @@ try {
 
 const CryptoBuffer = koffi.struct('CryptoBuffer', { data: 'void *', len: 'size_t' });
 const CryptoBufferResult = koffi.struct('CryptoBufferResult', { buf: CryptoBuffer, error: 'void *' });
-const cryptolib_keccak256 = lib.func('CryptoBufferResult cryptolib_keccak256(uint8_t *msg, size_t len)');
-const cryptolib_buffer_free = lib.func('void cryptolib_buffer_free(CryptoBuffer *buf)');
-const cryptolib_str_free = lib.func('void cryptolib_str_free(void *s)');
+const cipherbird_keccak256 = lib.func('CryptoBufferResult cipherbird_keccak256(uint8_t *msg, size_t len)');
+const cipherbird_buffer_free = lib.func('void cipherbird_buffer_free(CryptoBuffer *buf)');
+const cipherbird_str_free = lib.func('void cipherbird_str_free(void *s)');
 
 function nativeKeccak(buf) {
-  const res = cryptolib_keccak256(buf, buf.length);
+  const res = cipherbird_keccak256(buf, buf.length);
   if (!res.buf.data || Number(res.buf.len) === 0) {
-    if (res.error) cryptolib_str_free(res.error);
+    if (res.error) cipherbird_str_free(res.error);
     throw new Error('native keccak256 returned empty');
   }
   const n = Number(res.buf.len);
   const out = Buffer.from(koffi.decode(res.buf.data, 'uint8_t', n)).toString('hex');
-  cryptolib_buffer_free(res.buf);
+  cipherbird_buffer_free(res.buf);
   return out;
 }
 

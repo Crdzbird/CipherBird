@@ -9,7 +9,7 @@ phase at a time and the state of the web build read off the headings.
 
 ## 1. Where the web build stands
 
-The engine is `bridge/cryptolib_c.cpp` compiled by Emscripten with every
+The engine is `bridge/cipherbird_c.cpp` compiled by Emscripten with every
 dependency built for wasm32 (libsodium, BLAKE3, secp256k1, blst, OpenSSL,
 liboqs with ML-KEM, ML-DSA, SLH-DSA and sntrup761), linked at -O3 with
 wasm exceptions, an 8 MB stack, memory growth to 4 GB, no SIMD and no

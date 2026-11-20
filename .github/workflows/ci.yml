@@ -22,14 +22,14 @@ jobs:
       - name: Configure + build tests
         run: |
           cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_EXAMPLE=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+            -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_EXAMPLE=ON -DCIPHERBIRD_BUILD_BRIDGE=ON
           cmake --build build/test
       - name: Run tests and the showcases
         run: |
-          ./build/test/cryptolib_tests
-          ./build/test/cryptolib_showcase "$RUNNER_TEMP/showcase" > "$RUNNER_TEMP/showcase.log"
+          ./build/test/cipherbird_tests
+          ./build/test/cipherbird_showcase "$RUNNER_TEMP/showcase" > "$RUNNER_TEMP/showcase.log"
           tail -3 "$RUNNER_TEMP/showcase.log"
-          ./build/test/cryptolib_showcase_bank
+          ./build/test/cipherbird_showcase_bank
 
   asan:
     runs-on: macos-15
@@ -41,10 +41,10 @@ jobs:
         run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run under ASan/UBSan
         run: |
-          cmake -S . -B build/asan -G Ninja -DCRYPTOLIB_SANITIZE=ON \
-            -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF
-          cmake --build build/asan --target cryptolib_tests
-          ASAN_OPTIONS=detect_leaks=0 ./build/asan/cryptolib_tests
+          cmake -S . -B build/asan -G Ninja -DCIPHERBIRD_SANITIZE=ON \
+            -DCIPHERBIRD_BUILD_BRIDGE=OFF -DCIPHERBIRD_BUILD_EXAMPLE=OFF
+          cmake --build build/asan --target cipherbird_tests
+          ASAN_OPTIONS=detect_leaks=0 ./build/asan/cipherbird_tests
 
   tsan:
     runs-on: macos-15
@@ -56,10 +56,10 @@ jobs:
         run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build + run under ThreadSanitizer
         run: |
-          cmake -S . -B build/tsan -G Ninja -DCRYPTOLIB_TSAN=ON \
-            -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_EXAMPLE=OFF
-          cmake --build build/tsan --target cryptolib_tests
-          TSAN_OPTIONS=halt_on_error=1 ./build/tsan/cryptolib_tests
+          cmake -S . -B build/tsan -G Ninja -DCIPHERBIRD_TSAN=ON \
+            -DCIPHERBIRD_BUILD_BRIDGE=OFF -DCIPHERBIRD_BUILD_EXAMPLE=OFF
+          cmake --build build/tsan --target cipherbird_tests
+          TSAN_OPTIONS=halt_on_error=1 ./build/tsan/cipherbird_tests
 
   # MSan is intentionally NOT a job here: it requires libsodium/liboqs/OpenSSL to
   # be rebuilt with MSan instrumentation (uninstrumented deps cause false
@@ -79,7 +79,7 @@ jobs:
           CC: /opt/homebrew/opt/llvm/bin/clang
           CXX: /opt/homebrew/opt/llvm/bin/clang++
         run: |
-          cmake -S . -B build/fuzz -G Ninja -DCRYPTOLIB_FUZZ=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF \
+          cmake -S . -B build/fuzz -G Ninja -DCIPHERBIRD_FUZZ=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF \
             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=/opt/homebrew/opt/lld/bin/ld64.lld
           cmake --build build/fuzz
           for fz in build/fuzz/fuzz_packet build/fuzz/fuzz_diff_aead; do
@@ -108,8 +108,8 @@ jobs:
       - name: Build the probe
         run: |
           cmake -S . -B build/ct -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCRYPTOLIB_CT_VALGRIND=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF -DCRYPTOLIB_BUILD_TESTS=OFF \
-            -DCRYPTOLIB_BUILD_EXAMPLE=OFF -DCRYPTOLIB_DEPS_ROOT="$PWD/third_party/linux/x86_64"
+            -DCIPHERBIRD_CT_VALGRIND=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF -DCIPHERBIRD_BUILD_TESTS=OFF \
+            -DCIPHERBIRD_BUILD_EXAMPLE=OFF -DCIPHERBIRD_DEPS_ROOT="$PWD/third_party/linux/x86_64"
           cmake --build build/ct --target ct_probe
       - name: Run under memcheck
         run: |
@@ -137,25 +137,25 @@ jobs:
         run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Configure + build the bank profile
         run: |
-          cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=bank \
-            -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+          cmake -S . -B build/bank -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_PROFILE=bank \
+            -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=ON
           cmake --build build/bank
       - name: Run tests and the bank showcase
         run: |
-          ./build/bank/cryptolib_tests
-          ./build/bank/cryptolib_showcase_bank
+          ./build/bank/cipherbird_tests
+          ./build/bank/cipherbird_showcase_bank
       - name: The bank library carries no steganography, media entropy or native combiner entry points
         run: |
-          nm -gU build/bank/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/bank/exports.txt
-          if grep -E '_cryptolib_(stego|entropy_from|hpke_stego|live_entropy|entropy_assess)' build/bank/exports.txt; then
+          nm -gU build/bank/libcipherbird_c.dylib | grep ' _cipherbird_' | awk '{print $3}' | sort > build/bank/exports.txt
+          if grep -E '_cipherbird_(stego|entropy_from|hpke_stego|live_entropy|entropy_assess)' build/bank/exports.txt; then
             echo "bank profile exports an excluded family" >&2; exit 1
           fi
           for excluded in suite_seal_pq molecular_seal session_initiate; do
-            grep -q "_cryptolib_$excluded" build/bank/exports.txt || { echo "stub $excluded missing" >&2; exit 1; }
+            grep -q "_cipherbird_$excluded" build/bank/exports.txt || { echo "stub $excluded missing" >&2; exit 1; }
           done
-          grep -q '_cryptolib_xwing_keygen' build/bank/exports.txt
-          grep -q '_cryptolib_suite2_seal' build/bank/exports.txt
-          grep -q '_cryptolib_session2_accept' build/bank/exports.txt
+          grep -q '_cipherbird_xwing_keygen' build/bank/exports.txt
+          grep -q '_cipherbird_suite2_seal' build/bank/exports.txt
+          grep -q '_cipherbird_session2_accept' build/bank/exports.txt
           echo "bank exports: $(wc -l < build/bank/exports.txt)"
       - name: Go binding links and passes against the bank library
         run: |
@@ -174,28 +174,28 @@ jobs:
       - name: Configure + build the fips profile
         run: |
           PKG_CONFIG_PATH="$HOME/openssl-fips/lib/pkgconfig" \
-            cmake -S . -B build/fips -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_PROFILE=fips \
-              -DCRYPTOLIB_BUILD_TESTS=ON -DCRYPTOLIB_BUILD_BRIDGE=ON
+            cmake -S . -B build/fips -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_PROFILE=fips \
+              -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=ON
           cmake --build build/fips
       - name: Run tests against the validated module in approved mode
         run: |
-          export CRYPTOLIB_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules"
-          export CRYPTOLIB_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf"
-          ./build/fips/cryptolib_tests
-          ./build/fips/cryptolib_showcase_fips
+          export CIPHERBIRD_FIPS_MODULE_DIR="$HOME/openssl-fips/lib/ossl-modules"
+          export CIPHERBIRD_FIPS_CONFIG="$HOME/openssl-fips/ssl/openssl-fips.cnf"
+          ./build/fips/cipherbird_tests
+          ./build/fips/cipherbird_showcase_fips
       - name: The fips library references no libsodium primitive and links the 3.1.2 libcrypto
         run: |
-          nm -u build/fips/libcryptolib_c.dylib | grep -E '_sodium_|_crypto_|_randombytes' | sort > build/fips/sodium_refs.txt
+          nm -u build/fips/libcipherbird_c.dylib | grep -E '_sodium_|_crypto_|_randombytes' | sort > build/fips/sodium_refs.txt
           cat build/fips/sodium_refs.txt
           if grep -vE '^_sodium_(init|memzero|mlock|munlock|memcmp)$' build/fips/sodium_refs.txt; then
             echo "fips profile references a libsodium primitive" >&2; exit 1
           fi
-          otool -L build/fips/libcryptolib_c.dylib | grep -q "openssl-fips/lib/libcrypto.3.dylib"
-          nm -gU build/fips/libcryptolib_c.dylib | grep ' _cryptolib_' | awk '{print $3}' | sort > build/fips/exports.txt
-          if grep -E '_cryptolib_(vault_|box_|ed25519|x25519|argon2|xchacha|keyring_|stego|entropy_from|live_entropy|entropy_assess)' build/fips/exports.txt; then
+          otool -L build/fips/libcipherbird_c.dylib | grep -q "openssl-fips/lib/libcrypto.3.dylib"
+          nm -gU build/fips/libcipherbird_c.dylib | grep ' _cipherbird_' | awk '{print $3}' | sort > build/fips/exports.txt
+          if grep -E '_cipherbird_(vault_|box_|ed25519|x25519|argon2|xchacha|keyring_|stego|entropy_from|live_entropy|entropy_assess)' build/fips/exports.txt; then
             echo "fips profile exports a libsodium-backed family" >&2; exit 1
           fi
-          grep -q '_cryptolib_fips_init' build/fips/exports.txt
+          grep -q '_cipherbird_fips_init' build/fips/exports.txt
           echo "fips exports: $(wc -l < build/fips/exports.txt)"
 
   bindings:
@@ -208,8 +208,8 @@ jobs:
         run: bash scripts/ci/install_blst.sh /opt/homebrew
       - name: Build the C ABI
         run: |
-          cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCRYPTOLIB_BUILD_TESTS=OFF
-          cmake --build build/release --target cryptolib_c
+          cmake -S . -B build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCIPHERBIRD_BUILD_TESTS=OFF
+          cmake --build build/release --target cipherbird_c
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
@@ -217,12 +217,12 @@ jobs:
         working-directory: bridge/bindings/cipherbird
         run: |
           flutter pub get
-          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" flutter test
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcipherbird_c.dylib" flutter test
       - name: cipherbird_dart native suite
         working-directory: bridge/bindings/cipherbird_dart
         run: |
           dart pub get
-          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" dart test
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcipherbird_c.dylib" dart test
       - name: Go binding
         working-directory: bridge/bindings/go
         run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cipherbird/
@@ -233,7 +233,7 @@ jobs:
         working-directory: bridge/bindings/cipherbird-node
         run: |
           npm ci
-          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" npm test
+          CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcipherbird_c.dylib" npm test
 
   web:
     runs-on: ubuntu-latest

@@ -4,8 +4,8 @@
 /// strict PKCS#8 import against keys the OpenSSL command line wrote.
 #include "test_framework.hpp"
 #include "json_lite.hpp"
-#include "cryptolib_c.h"
-#include <cryptolib/cryptolib.hpp>
+#include "cipherbird_c.h"
+#include <cipherbird/cipherbird.hpp>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -44,19 +44,19 @@ Out take(CryptoBufferResult r) {
     Out o{{}, {}, r.error == nullptr && r.buf.data != nullptr};
     if (r.buf.data) o.v.assign(r.buf.data, r.buf.data + r.buf.len);
     if (r.error) o.err = r.error;
-    cryptolib_buffer_free(&r.buf);
-    cryptolib_str_free(r.error);
+    cipherbird_buffer_free(&r.buf);
+    cipherbird_str_free(r.error);
     return o;
 }
 
-Out public_of(const Bytes& sk) { return take(cryptolib_p256_public_key(sk.data(), sk.size())); }
-Out sign(const Bytes& sk, const Bytes& m) { return take(cryptolib_p256_sign(sk.data(), sk.size(), m.data(), m.size())); }
+Out public_of(const Bytes& sk) { return take(cipherbird_p256_public_key(sk.data(), sk.size())); }
+Out sign(const Bytes& sk, const Bytes& m) { return take(cipherbird_p256_sign(sk.data(), sk.size(), m.data(), m.size())); }
 bool verify(const Bytes& pk, const Bytes& m, const Bytes& sig) {
-    return cryptolib_p256_verify(pk.data(), pk.size(), m.data(), m.size(), sig.data(), sig.size()) == 1;
+    return cipherbird_p256_verify(pk.data(), pk.size(), m.data(), m.size(), sig.data(), sig.size()) == 1;
 }
-Out import_der(const Bytes& der) { return take(cryptolib_p256_import_pkcs8_der(der.data(), der.size())); }
+Out import_der(const Bytes& der) { return take(cipherbird_p256_import_pkcs8_der(der.data(), der.size())); }
 Out import_pem(std::string_view pem) {
-    return take(cryptolib_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(pem.data()), pem.size()));
+    return take(cipherbird_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(pem.data()), pem.size()));
 }
 
 Bytes point(std::string_view qx, std::string_view qy) { return cat({{0x04}, unhex(qx), unhex(qy)}); }
@@ -167,7 +167,7 @@ bool has(const std::string& s, std::string_view needle) { return s.find(needle) 
 
 const Json& vectors() {
     static const Json root = [] {
-        const std::string path = std::string(CRYPTOLIB_SOURCE_DIR) + "/tests/vectors/p256/ecdsa_p256_sha256.json";
+        const std::string path = std::string(CIPHERBIRD_SOURCE_DIR) + "/tests/vectors/p256/ecdsa_p256_sha256.json";
         std::ifstream in(path, std::ios::binary);
         std::stringstream ss;
         ss << in.rdbuf();
@@ -194,15 +194,15 @@ bool flag(const Json& t, const char* name) {
 
 }
 
-#ifdef CRYPTOLIB_HAS_P256
+#ifdef CIPHERBIRD_HAS_P256
 
 TEST("p256/available-sizes-and-the-order-constant") {
-    REQUIRE(cryptolib_init() == 0);
-    CHECK(cryptolib_p256_available() == (crypto::ec::P256::DETERMINISTIC_NONCES ? 2 : 1));
-    CHECK(crypto::ec::P256::SECRET_KEY_BYTES == CRYPTOLIB_P256_SECRET_KEY_BYTES);
-    CHECK(crypto::ec::P256::PUBLIC_KEY_BYTES == CRYPTOLIB_P256_PUBLIC_KEY_BYTES);
-    CHECK(crypto::ec::P256::SIGNATURE_BYTES == CRYPTOLIB_P256_SIGNATURE_BYTES);
-    CHECK(crypto::ec::P256::MAX_PKCS8_BYTES == CRYPTOLIB_P256_MAX_PKCS8_BYTES);
+    REQUIRE(cipherbird_init() == 0);
+    CHECK(cipherbird_p256_available() == (crypto::ec::P256::DETERMINISTIC_NONCES ? 2 : 1));
+    CHECK(crypto::ec::P256::SECRET_KEY_BYTES == CIPHERBIRD_P256_SECRET_KEY_BYTES);
+    CHECK(crypto::ec::P256::PUBLIC_KEY_BYTES == CIPHERBIRD_P256_PUBLIC_KEY_BYTES);
+    CHECK(crypto::ec::P256::SIGNATURE_BYTES == CIPHERBIRD_P256_SIGNATURE_BYTES);
+    CHECK(crypto::ec::P256::MAX_PKCS8_BYTES == CIPHERBIRD_P256_MAX_PKCS8_BYTES);
     EC_GROUP* g = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
     REQUIRE(g != nullptr);
     uint8_t n[32];
@@ -214,13 +214,13 @@ TEST("p256/available-sizes-and-the-order-constant") {
 }
 
 TEST("p256/keygen-sign-verify-round-trip") {
-    CryptoKeyPair kp = cryptolib_p256_keygen();
+    CryptoKeyPair kp = cipherbird_p256_keygen();
     REQUIRE(kp.secret_key.data && kp.public_key.data);
     CHECK(kp.secret_key.len == 32);
     CHECK(kp.public_key.len == 65);
     const Bytes sk(kp.secret_key.data, kp.secret_key.data + kp.secret_key.len);
     const Bytes pk(kp.public_key.data, kp.public_key.data + kp.public_key.len);
-    cryptolib_keypair_free(&kp);
+    cipherbird_keypair_free(&kp);
     CHECK(pk[0] == 0x04);
     const auto derived = public_of(sk);
     CHECK(derived.ok && derived.v == pk);
@@ -240,11 +240,11 @@ TEST("p256/keygen-sign-verify-round-trip") {
             CHECK(!verify(pk, m, bad));
         }
     }
-    CryptoKeyPair second = cryptolib_p256_keygen();
+    CryptoKeyPair second = cipherbird_p256_keygen();
     REQUIRE(second.public_key.data);
     const Bytes pk2(second.public_key.data, second.public_key.data + second.public_key.len);
     const Bytes sk2(second.secret_key.data, second.secret_key.data + second.secret_key.len);
-    cryptolib_keypair_free(&second);
+    cipherbird_keypair_free(&second);
     CHECK(sk2 != sk);
     const auto s = sign(sk, bytes_of("m"));
     CHECK(!verify(pk2, bytes_of("m"), s.v));
@@ -269,10 +269,10 @@ TEST("p256/the-generator-and-the-edges-of-the-scalar-range") {
         const auto s = sign(bad, bytes_of("m"));
         CHECK(!s.ok && s.v.empty());
     }
-    CHECK(!take(cryptolib_p256_public_key(nullptr, 32)).ok);
-    CHECK(!take(cryptolib_p256_sign(nullptr, 32, one.data(), 1)).ok);
-    CHECK(!take(cryptolib_p256_sign(one.data(), 32, nullptr, 1)).ok);
-    CHECK(take(cryptolib_p256_sign(one.data(), 32, nullptr, 0)).ok);
+    CHECK(!take(cipherbird_p256_public_key(nullptr, 32)).ok);
+    CHECK(!take(cipherbird_p256_sign(nullptr, 32, one.data(), 1)).ok);
+    CHECK(!take(cipherbird_p256_sign(one.data(), 32, nullptr, 1)).ok);
+    CHECK(take(cipherbird_p256_sign(one.data(), 32, nullptr, 0)).ok);
 }
 
 TEST("p256/rfc6979-a25-deterministic-signatures") {
@@ -387,9 +387,9 @@ TEST("p256/verify-refuses-non-canonical-signatures-and-keys") {
         CHECK(!verify(bad, m, sig));
         CHECK(!crypto::ec::P256::valid_public_key(bad));
     }
-    CHECK(cryptolib_p256_verify(nullptr, 65, m.data(), m.size(), sig.data(), 64) == 0);
-    CHECK(cryptolib_p256_verify(q.data(), 65, m.data(), m.size(), nullptr, 64) == 0);
-    CHECK(cryptolib_p256_verify(q.data(), 65, nullptr, 3, sig.data(), 64) == 0);
+    CHECK(cipherbird_p256_verify(nullptr, 65, m.data(), m.size(), sig.data(), 64) == 0);
+    CHECK(cipherbird_p256_verify(q.data(), 65, m.data(), m.size(), nullptr, 64) == 0);
+    CHECK(cipherbird_p256_verify(q.data(), 65, nullptr, 3, sig.data(), 64) == 0);
 }
 
 TEST("p256/pkcs8-import-of-keys-openssl-wrote") {
@@ -533,8 +533,8 @@ TEST("p256/pkcs8-import-is-strict") {
     reject(cat({{0x30, 0x80}, Bytes(fixture.begin() + 3, fixture.end()), {0x00, 0x00}}), "PrivateKeyInfo");
     reject(Bytes(4097, 0x30), "size");
     reject(Bytes{}, "size");
-    CHECK(!take(cryptolib_p256_import_pkcs8_der(nullptr, 138)).ok);
-    CHECK(!take(cryptolib_p256_import_pkcs8_pem(nullptr, 241)).ok);
+    CHECK(!take(cipherbird_p256_import_pkcs8_der(nullptr, 138)).ok);
+    CHECK(!take(cipherbird_p256_import_pkcs8_pem(nullptr, 241)).ok);
 }
 
 TEST("p256/pem-import-is-strict") {
@@ -578,8 +578,8 @@ TEST("p256/pem-import-is-strict") {
 #else
 
 TEST("p256/reports-unavailable-without-libcrypto-ec") {
-    CHECK(cryptolib_p256_available() == 0);
-    CryptoKeyPair kp = cryptolib_p256_keygen();
+    CHECK(cipherbird_p256_available() == 0);
+    CryptoKeyPair kp = cipherbird_p256_keygen();
     CHECK(kp.secret_key.data == nullptr && kp.public_key.data == nullptr);
     const Bytes sk(32, 1);
     CHECK(has(public_of(sk).err, "not enabled"));
@@ -592,7 +592,7 @@ TEST("p256/reports-unavailable-without-libcrypto-ec") {
 #endif
 
 void run_tests_p256() {
-#ifdef CRYPTOLIB_HAS_P256
+#ifdef CIPHERBIRD_HAS_P256
     RUN("p256/available-sizes-and-the-order-constant");
     RUN("p256/keygen-sign-verify-round-trip");
     RUN("p256/the-generator-and-the-edges-of-the-scalar-range");

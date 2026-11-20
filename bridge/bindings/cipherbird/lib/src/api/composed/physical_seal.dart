@@ -41,7 +41,7 @@ extension CipherBirdComposedPhysicalSeal on CipherBird {
             Pointer<Utf8>,
             Pointer<Utf8>,
           )
-        >('cryptolib_physical_seal')(
+        >('cipherbird_physical_seal')(
           km,
           pt,
           plaintext.length,

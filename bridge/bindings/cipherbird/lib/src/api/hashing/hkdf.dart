@@ -24,7 +24,7 @@ extension CipherBirdHkdf on CipherBird {
             int,
             int,
           )
-        >('cryptolib_hkdf_expand')(
+        >('cipherbird_hkdf_expand')(
           pp,
           prk.length,
           pi,
@@ -62,7 +62,7 @@ extension CipherBirdHkdf on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length),
+        >('cipherbird_hkdf_extract')(ps, salt?.length ?? 0, pk, ikm.length),
       );
     } finally {
       if (ps != nullptr) {

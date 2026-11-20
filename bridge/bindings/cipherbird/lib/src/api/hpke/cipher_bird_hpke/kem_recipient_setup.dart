@@ -62,7 +62,7 @@ extension CipherBirdHpkeKemRecipientSetup on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_hpke_setup_r_kem')(
+          >('cipherbird_hpke_setup_r_kem')(
             kem.value,
             kdf.value,
             aead.value,

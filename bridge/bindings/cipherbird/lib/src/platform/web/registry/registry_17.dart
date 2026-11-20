@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry17 = {
-  'cryptolib_box_encrypt':
+  'cipherbird_box_encrypt':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry17 = {
         Pointer<NativeType> senderSec,
         int ssecLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_box_encrypt',
+        '_cbw_cipherbird_box_encrypt',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -22,7 +22,7 @@ final Map<String, Function> _registry17 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_box_decrypt':
+  'cipherbird_box_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -31,7 +31,7 @@ final Map<String, Function> _registry17 = {
         Pointer<NativeType> recipientSec,
         int rsecLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_box_decrypt',
+        '_cbw_cipherbird_box_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -43,14 +43,14 @@ final Map<String, Function> _registry17 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealedbox_encrypt':
+  'cipherbird_sealedbox_encrypt':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
         Pointer<NativeType> recipientPub,
         int rpubLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealedbox_encrypt',
+        '_cbw_cipherbird_sealedbox_encrypt',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -60,7 +60,7 @@ final Map<String, Function> _registry17 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealedbox_decrypt':
+  'cipherbird_sealedbox_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -69,7 +69,7 @@ final Map<String, Function> _registry17 = {
         Pointer<NativeType> recipientSec,
         int rsecLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealedbox_decrypt',
+        '_cbw_cipherbird_sealedbox_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -81,10 +81,10 @@ final Map<String, Function> _registry17 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_vault_create':
+  'cipherbird_vault_create':
       (Pointer<NativeType> masterKey, int mkLen, int kdfPreset) =>
           Pointer<Void>._(
-            WebEngine.current.callInt('_cbw_cryptolib_vault_create', [
+            WebEngine.current.callInt('_cbw_cipherbird_vault_create', [
               masterKey.address.toJS,
               mkLen.toJS,
               kdfPreset.toJS,

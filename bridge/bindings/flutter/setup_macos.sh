@@ -52,7 +52,7 @@ flutter pub get
 echo ""
 echo "Setup complete! You can now run the app with:"
 echo "  cd $SCRIPT_DIR"
-echo "  CRYPTOLIB_PATH=/path/to/libcryptolib_c.dylib flutter run -d macos"
+echo "  CIPHERBIRD_PATH=/path/to/libcipherbird_c.dylib flutter run -d macos"
 echo ""
 echo "Or for development with the default path:"
 echo "  flutter run -d macos"

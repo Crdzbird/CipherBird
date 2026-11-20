@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry51 = {
-  'cryptolib_suite2_seal':
+  'cipherbird_suite2_seal':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry51 = {
         int aadLen,
         int suite,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite2_seal',
+        '_cbw_cipherbird_suite2_seal',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry51 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite2_open':
+  'cipherbird_suite2_open':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -41,7 +41,7 @@ final Map<String, Function> _registry51 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite2_open',
+        '_cbw_cipherbird_suite2_open',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -57,27 +57,27 @@ final Map<String, Function> _registry51 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite2_suite_of': (Pointer<NativeType> envelope, int envLen) =>
-      WebEngine.current.callInt('_cbw_cryptolib_suite2_suite_of', [
+  'cipherbird_suite2_suite_of': (Pointer<NativeType> envelope, int envLen) =>
+      WebEngine.current.callInt('_cbw_cipherbird_suite2_suite_of', [
         envelope.address.toJS,
         envLen.toJS,
       ]),
-  'cryptolib_session2_generate_prekey':
+  'cipherbird_session2_generate_prekey':
       (Pointer<NativeType> responderSigSecret, int sskLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_session2_generate_prekey',
+            '_cbw_cipherbird_session2_generate_prekey',
             [responderSigSecret.address.toJS, sskLen.toJS],
             CipherBirdKeyPair.size,
             CipherBirdKeyPair._new,
           ),
-  'cryptolib_session2_verify_prekey':
+  'cipherbird_session2_verify_prekey':
       (
         Pointer<NativeType> bundle,
         int bundleLen,
         Pointer<NativeType> responderSigPublic,
         int rpkLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_session2_verify_prekey',
+        '_cbw_cipherbird_session2_verify_prekey',
         [
           bundle.address.toJS,
           bundleLen.toJS,

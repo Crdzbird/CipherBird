@@ -14,40 +14,40 @@ recommended end state: the whole PASETO v4.local construction runs natively
 behind four C functions, and the raw stream export is withdrawn.
 
 All of the following compile in the `full` and `bank` profiles (inside
-`CRYPTOLIB_HAS_SODIUM_CRYPTO`) and are absent from the `fips` profile like
+`CIPHERBIRD_HAS_SODIUM_CRYPTO`) and are absent from the `fips` profile like
 every other libsodium-backed function.
 
 ```c
-#define CRYPTOLIB_PASETO_OK            0
-#define CRYPTOLIB_PASETO_ERR_INVALID  (-1)
-#define CRYPTOLIB_PASETO_ERR_ARGUMENT (-2)
-#define CRYPTOLIB_PASETO_ERR_INTERNAL (-3)
-#define CRYPTOLIB_PASETO_V4_LOCAL_KEY_BYTES 32
-#define CRYPTOLIB_PASETO_V4_MAX_INPUT_BYTES ((size_t)1 << 26)
+#define CIPHERBIRD_PASETO_OK            0
+#define CIPHERBIRD_PASETO_ERR_INVALID  (-1)
+#define CIPHERBIRD_PASETO_ERR_ARGUMENT (-2)
+#define CIPHERBIRD_PASETO_ERR_INTERNAL (-3)
+#define CIPHERBIRD_PASETO_V4_LOCAL_KEY_BYTES 32
+#define CIPHERBIRD_PASETO_V4_MAX_INPUT_BYTES ((size_t)1 << 26)
 
-size_t cryptolib_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len);
-size_t cryptolib_paseto_v4_local_decrypt_cap(size_t token_len);
+size_t cipherbird_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len);
+size_t cipherbird_paseto_v4_local_decrypt_cap(size_t token_len);
 
-int cryptolib_paseto_v4_local_encrypt(
+int cipherbird_paseto_v4_local_encrypt(
     uint8_t* out, size_t out_cap, size_t* out_len,
     const uint8_t* key, size_t key_len,
     const uint8_t* msg, size_t msg_len,
     const uint8_t* footer, size_t footer_len,
     const uint8_t* implicit, size_t implicit_len);
 
-int cryptolib_paseto_v4_local_decrypt(
+int cipherbird_paseto_v4_local_decrypt(
     uint8_t* out, size_t out_cap, size_t* out_len,
     const uint8_t* token, size_t token_len,
     const uint8_t* key, size_t key_len,
     const uint8_t* expected_footer, size_t expected_footer_len,
     const uint8_t* implicit, size_t implicit_len);
 
-CryptoBufferResult cryptolib_blake2b_keyed(const uint8_t* msg, size_t msg_len,
+CryptoBufferResult cipherbird_blake2b_keyed(const uint8_t* msg, size_t msg_len,
                                            const uint8_t* key, size_t key_len,
                                            size_t out_len);
 ```
 
-`cryptolib_blake2b_keyed` stays because applications use it for keyed
+`cipherbird_blake2b_keyed` stays because applications use it for keyed
 digests and PASERK `k4.lid` identifiers; it no longer serves PASETO itself.
 It now hashes straight into the returned malloc'd buffer, without the
 intermediate locked `SecureBuffer` it used before.
@@ -55,21 +55,21 @@ intermediate locked `SecureBuffer` it used before.
 A fifth function exists only in test builds:
 
 ```c
-int cryptolib_paseto_v4_local_encrypt_with_nonce_for_testing(
+int cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
     ...same parameters as encrypt..., const uint8_t* nonce, size_t nonce_len);
 ```
 
-It is declared and compiled only under `CRYPTOLIB_PASETO_TEST_NONCE`, which
+It is declared and compiled only under `CIPHERBIRD_PASETO_TEST_NONCE`, which
 the CMake option of the same name sets. The option is OFF by default and
-configuring it with `CRYPTOLIB_PROFILE=bank` or `fips` is a fatal CMake
+configuring it with `CIPHERBIRD_PROFILE=bank` or `fips` is a fatal CMake
 error, so the bank export list cannot contain it.
 
 The C++ entry point is `crypto::paseto::V4Local` in the new header
-`include/cryptolib/paseto.hpp` (`seal`, `open`, `token_len`,
+`include/cipherbird/paseto.hpp` (`seal`, `open`, `token_len`,
 `open_capacity`, and `seal_with_nonce_for_testing` under the test macro),
 with the token-text codec in `crypto::paseto::codec` (`encoded_len`,
 `encode`, `decode`; see section 2),
-included from `cryptolib.hpp` next to `symmetric.hpp`. The
+included from `cipherbird.hpp` next to `symmetric.hpp`. The
 `XChaCha20Stream` class this branch had added to `symmetric.hpp` is
 removed; `symmetric.hpp` is unchanged from `main`.
 
@@ -81,18 +81,18 @@ Go allocation), the pure-Go length helpers `PasetoV4LocalEncryptLen` and
 `PasetoV4LocalDecryptCap` (equal to the C helpers, checked by a test, so
 every operation is exactly one cgo call), and the sentinel errors `ErrPasetoInvalid`,
 `ErrPasetoKey`, `ErrPasetoArgument` and `ErrPasetoInternal` in
-`bridge/bindings/go/cryptolib/paseto_v4.go`; `Blake2bKeyed` stays in
+`bridge/bindings/go/cipherbird/paseto_v4.go`; `Blake2bKeyed` stays in
 `paseto_primitives.go`; `XChaCha20StreamXOR` is removed. A test-only
 `PasetoV4LocalEncryptWithNonceForTesting` exists under the Go build tag
-`cryptolib_paseto_test_nonce` and links only against a test build.
+`cipherbird_paseto_test_nonce` and links only against a test build.
 
 Effect on the numbers in AUDIT_SCOPE.md: the bank library exports 275 C
-functions (270 before: `cryptolib_blake2b_keyed` and the four PASETO
+functions (270 before: `cipherbird_blake2b_keyed` and the four PASETO
 functions). The bank test binary runs 295 tests (274 before: 5 for keyed
 BLAKE2b in `tests/test_paseto_primitives.cpp`, 16 for v4.local in
 `tests/test_paseto_v4.cpp`); the full ASan baseline grows by the same 21.
 A libFuzzer target, `tests/fuzz/fuzz_paseto_v4.cpp`, joins the
-`CRYPTOLIB_FUZZ` build.
+`CIPHERBIRD_FUZZ` build.
 
 ## 2. The construction, as implemented
 
@@ -119,7 +119,7 @@ so only the canonical encoding is accepted), requires at least 64 decoded
 bytes, compares the footer with `memcmp`, recomputes the tag over the
 token's own footer and the implicit assertion, compares it with
 `crypto_verify_32`, and only then decrypts. Every token-dependent failure
-returns `CRYPTOLIB_PASETO_ERR_INVALID`. The footer check is strict: an
+returns `CIPHERBIRD_PASETO_ERR_INVALID`. The footer check is strict: an
 empty `expected_footer` means the token must carry none. A caller that
 selects a key by footer first reads the (untrusted) footer, then passes it
 back as the expected one.
@@ -197,7 +197,7 @@ which removes the three failure modes that only a caller could get right
 before (verify before decrypt, constant-time comparison, nonce freshness).
 What remains:
 
-- `cryptolib_blake2b_keyed` still accepts `out_len` down to 1 and an empty
+- `cipherbird_blake2b_keyed` still accepts `out_len` down to 1 and an empty
   key. It is documented as a keyed digest, not a MAC constructor, and
   PASETO no longer depends on it.
 - `encrypt_with_nonce_for_testing` reuses a keystream if a caller repeats
@@ -218,8 +218,8 @@ What remains:
   its hash differs, require exactly the 14 vectors `4-E-1` to `4-E-9` and
   `4-F-1` to `4-F-5` in order, decrypt all nine `4-E` vectors to their
   payloads (and rebuild each with the in-test reference), require
-  `CRYPTOLIB_PASETO_ERR_INVALID` for 4-F-2 to 4-F-5, and in a
-  `CRYPTOLIB_PASETO_TEST_NONCE` build require all nine to re-encrypt byte
+  `CIPHERBIRD_PASETO_ERR_INVALID` for 4-F-2 to 4-F-5, and in a
+  `CIPHERBIRD_PASETO_TEST_NONCE` build require all nine to re-encrypt byte
   for byte. 4-F-1 (a v4.public key used as a v4.local key) tests key
   typing, which a raw-byte ABI cannot see; the tests assert its shape and
   say so, and the EuroRail server tests it at its PASERK parser. Moving the

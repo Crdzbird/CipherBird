@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry41 = {
-  'cryptolib_opaque_server_respond':
+  'cipherbird_opaque_server_respond':
       (
         Pointer<NativeType> context,
         int contextLen,
@@ -22,7 +22,7 @@ final Map<String, Function> _registry41 = {
         Pointer<NativeType> clientIdentity,
         int cidLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_opaque_server_respond',
+        '_cbw_cipherbird_opaque_server_respond',
         [
           context.address.toJS,
           contextLen.toJS,
@@ -46,7 +46,7 @@ final Map<String, Function> _registry41 = {
         CipherBirdOpaqueKe2.size,
         CipherBirdOpaqueKe2._new,
       ),
-  'cryptolib_opaque_client_finish':
+  'cipherbird_opaque_client_finish':
       (
         Pointer<NativeType> clientState,
         int csLen,
@@ -59,7 +59,7 @@ final Map<String, Function> _registry41 = {
         Pointer<NativeType> clientIdentity,
         int cidLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_opaque_client_finish',
+        '_cbw_cipherbird_opaque_client_finish',
         [
           clientState.address.toJS,
           csLen.toJS,
@@ -75,14 +75,14 @@ final Map<String, Function> _registry41 = {
         CipherBirdOpaqueKe3.size,
         CipherBirdOpaqueKe3._new,
       ),
-  'cryptolib_opaque_server_finish':
+  'cipherbird_opaque_server_finish':
       (
         Pointer<NativeType> serverState,
         int ssLen,
         Pointer<NativeType> ke3,
         int ke3Len,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_opaque_server_finish',
+        '_cbw_cipherbird_opaque_server_finish',
         [serverState.address.toJS, ssLen.toJS, ke3.address.toJS, ke3Len.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,

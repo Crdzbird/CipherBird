@@ -32,7 +32,7 @@ extension CipherBirdBbsProofGenWithPseudonym on CipherBird {
     try {
       final proof = _checkBufResult(
         _lib.lookupFunction<_BbsProofGenWithNymC, _BbsProofGenWithNymDart>(
-          'cryptolib_bbs_proof_gen_with_pseudonym',
+          'cipherbird_bbs_proof_gen_with_pseudonym',
         )(
           pk,
           publicKey.length,

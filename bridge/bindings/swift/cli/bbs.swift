@@ -7,9 +7,9 @@ import Foundation
 enum BbsError: Error { case failed(String) }
 
 private func bbsConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
-    if let e = r.error { let m = String(cString: e); cryptolib_str_free(e); throw BbsError.failed(m) }
+    if let e = r.error { let m = String(cString: e); cipherbird_str_free(e); throw BbsError.failed(m) }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -42,22 +42,22 @@ private func withMsgArrays<R>(_ msgs: [[UInt8]],
 /// BBS (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256). Stateless.
 enum Bbs {
     static func keygen(keyMaterial: [UInt8], keyInfo: [UInt8]? = nil) throws -> (publicKey: [UInt8], secretKey: [UInt8]) {
-        var kp = withPtrs([keyMaterial, keyInfo]) { p in cryptolib_bbs_keygen(p[0].0, p[0].1, p[1].0, p[1].1) }
+        var kp = withPtrs([keyMaterial, keyInfo]) { p in cipherbird_bbs_keygen(p[0].0, p[0].1, p[1].0, p[1].1) }
         let pub = kp.public_key.data != nil ? Array(UnsafeBufferPointer(start: kp.public_key.data, count: kp.public_key.len)) : []
         let sec = kp.secret_key.data != nil ? Array(UnsafeBufferPointer(start: kp.secret_key.data, count: kp.secret_key.len)) : []
-        cryptolib_keypair_free(&kp)
+        cipherbird_keypair_free(&kp)
         if pub.isEmpty { throw BbsError.failed("bbs keygen failed (key material must be >= 32 bytes)") }
         return (pub, sec)
     }
 
     static func skToPk(_ sk: [UInt8]) throws -> [UInt8] {
-        try withPtrs([sk]) { p in try bbsConsume(cryptolib_bbs_sk_to_pk(p[0].0, p[0].1)) }
+        try withPtrs([sk]) { p in try bbsConsume(cipherbird_bbs_sk_to_pk(p[0].0, p[0].1)) }
     }
 
     static func sign(sk: [UInt8], pk: [UInt8], header: [UInt8], messages: [[UInt8]]) throws -> [UInt8] {
         try withMsgArrays(messages) { mp, ml, n in
             try withPtrs([sk, pk, header]) { p in
-                try bbsConsume(cryptolib_bbs_sign(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, mp, ml, n))
+                try bbsConsume(cipherbird_bbs_sign(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, mp, ml, n))
             }
         }
     }
@@ -65,7 +65,7 @@ enum Bbs {
     static func verify(pk: [UInt8], signature: [UInt8], header: [UInt8], messages: [[UInt8]]) -> Bool {
         withMsgArrays(messages) { mp, ml, n in
             withPtrs([pk, signature, header]) { p in
-                cryptolib_bbs_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, mp, ml, n) == 1
+                cipherbird_bbs_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, mp, ml, n) == 1
             }
         }
     }
@@ -75,7 +75,7 @@ enum Bbs {
         try withMsgArrays(messages) { mp, ml, n in
             try disclosedIndexes.withUnsafeBufferPointer { ip in
                 try withPtrs([pk, signature, header, ph]) { p in
-                    try bbsConsume(cryptolib_bbs_proof_gen(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+                    try bbsConsume(cipherbird_bbs_proof_gen(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                         p[3].0, p[3].1, mp, ml, n, ip.baseAddress, disclosedIndexes.count))
                 }
             }
@@ -87,7 +87,7 @@ enum Bbs {
         withMsgArrays(disclosedMessages) { mp, ml, n in
             disclosedIndexes.withUnsafeBufferPointer { ip in
                 withPtrs([pk, proof, header, ph]) { p in
-                    cryptolib_bbs_proof_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
+                    cipherbird_bbs_proof_verify(p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1,
                         p[3].0, p[3].1, mp, ml, n, ip.baseAddress, disclosedIndexes.count) == 1
                 }
             }
@@ -102,8 +102,8 @@ func hexToBytes(_ s: String) -> [UInt8] {
     return out
 }
 
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — BBS signatures (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — BBS signatures (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

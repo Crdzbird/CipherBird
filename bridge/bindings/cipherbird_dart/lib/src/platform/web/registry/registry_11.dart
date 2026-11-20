@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry11 = {
-  'cryptolib_suite_open_with_keyring_device':
+  'cipherbird_suite_open_with_keyring_device':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -11,7 +11,7 @@ final Map<String, Function> _registry11 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_keyring_device',
+        '_cbw_cipherbird_suite_open_with_keyring_device',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -24,7 +24,7 @@ final Map<String, Function> _registry11 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_with_keyring_passphrase':
+  'cipherbird_suite_seal_with_keyring_passphrase':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -33,7 +33,7 @@ final Map<String, Function> _registry11 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_with_keyring_passphrase',
+        '_cbw_cipherbird_suite_seal_with_keyring_passphrase',
         [
           pt.address.toJS,
           ptLen.toJS,
@@ -45,7 +45,7 @@ final Map<String, Function> _registry11 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_open_with_keyring_passphrase':
+  'cipherbird_suite_open_with_keyring_passphrase':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -54,7 +54,7 @@ final Map<String, Function> _registry11 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_with_keyring_passphrase',
+        '_cbw_cipherbird_suite_open_with_keyring_passphrase',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -66,7 +66,7 @@ final Map<String, Function> _registry11 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_seal_threshold':
+  'cipherbird_suite_seal_threshold':
       (
         Pointer<NativeType> pt,
         int ptLen,
@@ -76,7 +76,7 @@ final Map<String, Function> _registry11 = {
         int aadLen,
         Pointer<NativeType> outShares,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_seal_threshold',
+        '_cbw_cipherbird_suite_seal_threshold',
         [
           pt.address.toJS,
           ptLen.toJS,

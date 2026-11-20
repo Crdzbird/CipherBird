@@ -3,28 +3,28 @@ part of '../cipher_bird.dart';
 final class _NativeHashing {
   _NativeHashing(DynamicLibrary lib)
     : blake2b = lib.lookupFunction<_Blake2bC, _Blake2bDart>(
-        'cryptolib_blake2b',
+        'cipherbird_blake2b',
       ),
-      sha256 = lib.lookupFunction<_Sha256C, _Sha256Dart>('cryptolib_sha256'),
-      sha512 = lib.lookupFunction<_Sha512C, _Sha512Dart>('cryptolib_sha512'),
+      sha256 = lib.lookupFunction<_Sha256C, _Sha256Dart>('cipherbird_sha256'),
+      sha512 = lib.lookupFunction<_Sha512C, _Sha512Dart>('cipherbird_sha512'),
       hmacSha512 = lib.lookupFunction<_HmacSha512C, _HmacSha512Dart>(
-        'cryptolib_hmac_sha512',
+        'cipherbird_hmac_sha512',
       ),
       hmacSha512Verify = lib
           .lookupFunction<_HmacSha512VerifyC, _HmacSha512VerifyDart>(
-            'cryptolib_hmac_sha512_verify',
+            'cipherbird_hmac_sha512_verify',
           ),
       argon2idHashStr = lib
           .lookupFunction<_Argon2idHashStrC, _Argon2idHashStrDart>(
-            'cryptolib_argon2id_hash_str',
+            'cipherbird_argon2id_hash_str',
           ),
       argon2idVerifyStr = lib
           .lookupFunction<_Argon2idVerifyStrC, _Argon2idVerifyStrDart>(
-            'cryptolib_argon2id_verify_str',
+            'cipherbird_argon2id_verify_str',
           ),
       argon2idDerive = lib
           .lookupFunction<_Argon2idDeriveC, _Argon2idDeriveDart>(
-            'cryptolib_argon2id_derive',
+            'cipherbird_argon2id_derive',
           );
 
   final _Blake2bDart blake2b;

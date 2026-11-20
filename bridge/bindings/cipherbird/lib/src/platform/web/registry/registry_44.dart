@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry44 = {
-  'cryptolib_stego_embed_encrypted':
+  'cipherbird_stego_embed_encrypted':
       (
         Pointer<NativeType> coverPath,
         Pointer<NativeType> plaintext,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry44 = {
         Pointer<NativeType> masterKey,
         int keyLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_embed_encrypted',
+        '_cbw_cipherbird_stego_embed_encrypted',
         [
           coverPath.address.toJS,
           plaintext.address.toJS,
@@ -22,18 +22,18 @@ final Map<String, Function> _registry44 = {
         CipherBirdResult.size,
         CipherBirdResult._new,
       ),
-  'cryptolib_stego_extract_decrypt':
+  'cipherbird_stego_extract_decrypt':
       (
         Pointer<NativeType> stegoPath,
         Pointer<NativeType> masterKey,
         int keyLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_stego_extract_decrypt',
+        '_cbw_cipherbird_stego_extract_decrypt',
         [stegoPath.address.toJS, masterKey.address.toJS, keyLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_physical_seal':
+  'cipherbird_physical_seal':
       (
         Pointer<NativeType> keyMediaPath,
         Pointer<NativeType> plaintext,
@@ -43,7 +43,7 @@ final Map<String, Function> _registry44 = {
         Pointer<NativeType> coverPath,
         Pointer<NativeType> outputPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_physical_seal',
+        '_cbw_cipherbird_physical_seal',
         [
           keyMediaPath.address.toJS,
           plaintext.address.toJS,
@@ -56,14 +56,14 @@ final Map<String, Function> _registry44 = {
         CipherBirdResult.size,
         CipherBirdResult._new,
       ),
-  'cryptolib_physical_open':
+  'cipherbird_physical_open':
       (
         Pointer<NativeType> keyMediaPath,
         Pointer<NativeType> aad,
         int aadLen,
         Pointer<NativeType> stegoPath,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_physical_open',
+        '_cbw_cipherbird_physical_open',
         [
           keyMediaPath.address.toJS,
           aad.address.toJS,
@@ -73,17 +73,17 @@ final Map<String, Function> _registry44 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fec_encode': (Pointer<NativeType> data, int len, int scheme) =>
+  'cipherbird_fec_encode': (Pointer<NativeType> data, int len, int scheme) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_fec_encode',
+        '_cbw_cipherbird_fec_encode',
         [data.address.toJS, len.toJS, scheme.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fec_decode':
+  'cipherbird_fec_decode':
       (Pointer<NativeType> data, int len, int scheme, int originalLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_fec_decode',
+            '_cbw_cipherbird_fec_decode',
             [data.address.toJS, len.toJS, scheme.toJS, originalLen.toJS],
             CipherBirdBufferResult.size,
             CipherBirdBufferResult._new,

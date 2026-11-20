@@ -39,7 +39,7 @@ extension CipherBirdSession2Initiate on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_session2_initiate')(
+          >('cipherbird_session2_initiate')(
             bundlePtr,
             bundle.length,
             responderSigPublicPtr,

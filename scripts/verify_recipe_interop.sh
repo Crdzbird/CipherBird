@@ -5,7 +5,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-DY="$ROOT/build/release/libcryptolib_c.dylib"
+DY="$ROOT/build/release/libcipherbird_c.dylib"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 PASS=0; FAIL=0
@@ -14,11 +14,11 @@ seal() { # $1 = language, $2 = dir
   case "$1" in
     dart)  (cd bridge/bindings/cipherbird_dart && dart run bin/recipe_interop.dart seal "$2" "$DY") ;;
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop seal "$2") ;;
-    node)  (cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js seal "$2") ;;
+    node)  (cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY="$DY" node recipe_interop.js seal "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security seal "$2" ;;
     java)  (cd bridge/bindings/cipherbird-jvm && java --enable-native-access=ALL-UNNAMED -cp out cipherbird.RecipeVerify seal "$2") ;;
-    python) (cd bridge/bindings/cipherbird-python && CRYPTOLIB_DYLIB="$DY" python3 tests/test_recipe.py seal "$2") ;;
-    ruby)  (cd bridge/bindings/cipherbird-ruby && CRYPTOLIB_DYLIB="$DY" ruby -Ilib test/recipe.rb seal "$2") ;;
+    python) (cd bridge/bindings/cipherbird-python && CIPHERBIRD_LIBRARY="$DY" python3 tests/test_recipe.py seal "$2") ;;
+    ruby)  (cd bridge/bindings/cipherbird-ruby && CIPHERBIRD_LIBRARY="$DY" ruby -Ilib test/recipe.rb seal "$2") ;;
     rust)  (cd bridge/bindings/cipherbird-rust && DYLD_LIBRARY_PATH="$ROOT/build/release" cargo run --quiet --example recipe seal "$2") ;;
     dotnet) (cd bridge/bindings/cipherbird-dotnet && dotnet run --no-build -v q -- seal "$2") ;;
   esac
@@ -27,11 +27,11 @@ open_() {
   case "$1" in
     dart)  (cd bridge/bindings/cipherbird_dart && dart run bin/recipe_interop.dart open "$2" "$DY") ;;
     go)    (cd bridge/bindings/go && DYLD_LIBRARY_PATH="$ROOT/build/release" go run ./recipeinterop open "$2") ;;
-    node)  (cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB="$DY" node recipe_interop.js open "$2") ;;
+    node)  (cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY="$DY" node recipe_interop.js open "$2") ;;
     swift) DYLD_LIBRARY_PATH="$ROOT/build/release" ./build/swift_security open "$2" ;;
     java)  (cd bridge/bindings/cipherbird-jvm && java --enable-native-access=ALL-UNNAMED -cp out cipherbird.RecipeVerify open "$2") ;;
-    python) (cd bridge/bindings/cipherbird-python && CRYPTOLIB_DYLIB="$DY" python3 tests/test_recipe.py open "$2") ;;
-    ruby)  (cd bridge/bindings/cipherbird-ruby && CRYPTOLIB_DYLIB="$DY" ruby -Ilib test/recipe.rb open "$2") ;;
+    python) (cd bridge/bindings/cipherbird-python && CIPHERBIRD_LIBRARY="$DY" python3 tests/test_recipe.py open "$2") ;;
+    ruby)  (cd bridge/bindings/cipherbird-ruby && CIPHERBIRD_LIBRARY="$DY" ruby -Ilib test/recipe.rb open "$2") ;;
     rust)  (cd bridge/bindings/cipherbird-rust && DYLD_LIBRARY_PATH="$ROOT/build/release" cargo run --quiet --example recipe open "$2") ;;
     dotnet) (cd bridge/bindings/cipherbird-dotnet && dotnet run --no-build -v q -- open "$2") ;;
   esac

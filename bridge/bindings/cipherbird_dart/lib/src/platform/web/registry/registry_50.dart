@@ -1,15 +1,15 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry50 = {
-  'cryptolib_hpke_derive_keypair_kem':
+  'cipherbird_hpke_derive_keypair_kem':
       (int kem, Pointer<NativeType> ikm, int ikmLen) =>
           WebEngine.current.callStruct(
-            '_cbw_cryptolib_hpke_derive_keypair_kem',
+            '_cbw_cipherbird_hpke_derive_keypair_kem',
             [kem.toJS, ikm.address.toJS, ikmLen.toJS],
             CipherBirdKeyPair.size,
             CipherBirdKeyPair._new,
           ),
-  'cryptolib_hpke_setup_s_kem':
+  'cipherbird_hpke_setup_s_kem':
       (
         int kem,
         int kdf,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry50 = {
         Pointer<NativeType> outEnc,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_hpke_setup_s_kem', [
+        WebEngine.current.callInt('_cbw_cipherbird_hpke_setup_s_kem', [
           kem.toJS,
           kdf.toJS,
           aead.toJS,
@@ -47,7 +47,7 @@ final Map<String, Function> _registry50 = {
           outError.address.toJS,
         ]),
       ),
-  'cryptolib_hpke_setup_r_kem':
+  'cipherbird_hpke_setup_r_kem':
       (
         int kem,
         int kdf,
@@ -67,7 +67,7 @@ final Map<String, Function> _registry50 = {
         int pkSLen,
         Pointer<NativeType> outError,
       ) => Pointer<Void>._(
-        WebEngine.current.callInt('_cbw_cryptolib_hpke_setup_r_kem', [
+        WebEngine.current.callInt('_cbw_cipherbird_hpke_setup_r_kem', [
           kem.toJS,
           kdf.toJS,
           aead.toJS,

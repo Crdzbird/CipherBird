@@ -33,7 +33,7 @@ extension CipherBirdEntropyPolicy on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_entropy_from_file_with_policy')(
+          >('cipherbird_entropy_from_file_with_policy')(
             cp,
             deterministic ? 1 : 0,
             minBitsPerByte,

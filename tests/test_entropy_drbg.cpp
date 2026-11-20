@@ -74,7 +74,7 @@ TEST("drbg/generate/streaming-and-limits") {
     CHECK(d.value().generate(70000).is_err());
 }
 
-#if defined(CRYPTOLIB_HAS_MEDIA_ENTROPY) && defined(CRYPTOLIB_HAS_STEGO)
+#if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
 // MediaEntropy beacon: deterministic mode is fully reproducible from the media.
 TEST("drbg/media-beacon-reproducible") {
     const char* photo = "/tmp/test_drbg_media.ppm";
@@ -103,7 +103,7 @@ TEST("drbg/media-beacon-reproducible") {
 void run_tests_entropy_drbg() {
     RUN("drbg/kat/cavp-hmac-sha512");
     RUN("drbg/generate/streaming-and-limits");
-#if defined(CRYPTOLIB_HAS_MEDIA_ENTROPY) && defined(CRYPTOLIB_HAS_STEGO)
+#if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
     RUN("drbg/media-beacon-reproducible");
 #endif
 }

@@ -33,7 +33,7 @@ extension CipherBirdSessionAccept on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_session_accept')(
+          >('cipherbird_session_accept')(
             ph,
             handshake.length,
             pub,
@@ -69,6 +69,6 @@ extension CipherBirdSessionAccept on CipherBird {
     _lib.lookupFunction<
       CipherBirdBufferResult Function(Pointer<Void>),
       CipherBirdBufferResult Function(Pointer<Void>)
-    >('cryptolib_session_handshake')(h),
+    >('cipherbird_session_handshake')(h),
   );
 }

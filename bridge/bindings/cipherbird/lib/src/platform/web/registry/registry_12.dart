@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry12 = {
-  'cryptolib_suite_open_threshold':
+  'cipherbird_suite_open_threshold':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry12 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_open_threshold',
+        '_cbw_cipherbird_suite_open_threshold',
         [
           envelope.address.toJS,
           envLen.toJS,
@@ -22,28 +22,28 @@ final Map<String, Function> _registry12 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_suite_evm_address': (Pointer<NativeType> publicKey, int pkLen) =>
+  'cipherbird_suite_evm_address': (Pointer<NativeType> publicKey, int pkLen) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_suite_evm_address',
+        '_cbw_cipherbird_suite_evm_address',
         [publicKey.address.toJS, pkLen.toJS],
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_sealed_generate_recipient': (int tier) =>
+  'cipherbird_sealed_generate_recipient': (int tier) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_generate_recipient',
+        '_cbw_cipherbird_sealed_generate_recipient',
         [tier.toJS],
         CipherBirdKeyPair.size,
         CipherBirdKeyPair._new,
       ),
-  'cryptolib_sealed_generate_sender': (int tier) =>
+  'cipherbird_sealed_generate_sender': (int tier) =>
       WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_generate_sender',
+        '_cbw_cipherbird_sealed_generate_sender',
         [tier.toJS],
         CipherBirdKeyPair.size,
         CipherBirdKeyPair._new,
       ),
-  'cryptolib_sealed_seal':
+  'cipherbird_sealed_seal':
       (
         int tier,
         Pointer<NativeType> pt,
@@ -57,7 +57,7 @@ final Map<String, Function> _registry12 = {
         Pointer<NativeType> purpose,
         int purposeLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_sealed_seal',
+        '_cbw_cipherbird_sealed_seal',
         [
           tier.toJS,
           pt.address.toJS,

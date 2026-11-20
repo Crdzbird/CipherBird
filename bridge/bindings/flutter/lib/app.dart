@@ -101,7 +101,7 @@ class _CipherBirdAppState extends State<CipherBirdApp> {
               const SizedBox(height: 8),
               Text(isMobile
                   ? 'Loading the bundled native library…'
-                  : 'Enter the path to libcryptolib_c.dylib'),
+                  : 'Enter the path to libcipherbird_c.dylib'),
               const SizedBox(height: 24),
               if (!isMobile)
                 TextField(

@@ -15,7 +15,7 @@ final class SecretStreamDecryptor implements Finalizable {
     _lib._handleFinalizer(_free).attach(this, _handle, size: _stateBytes);
   }
 
-  static const _free = 'cryptolib_stream_dec_free';
+  static const _free = 'cipherbird_stream_dec_free';
   static const _stateBytes = 64;
 
   final CipherBird _lib;

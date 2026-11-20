@@ -30,7 +30,7 @@ extension CipherBirdFipsAesGcm on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_aes_gcm_encrypt')(
+        >('cipherbird_fips_aes_gcm_encrypt')(
           keyPtr,
           key.length,
           plaintextPtr,
@@ -70,7 +70,7 @@ extension CipherBirdFipsAesGcm on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_fips_aes_gcm_decrypt')(
+        >('cipherbird_fips_aes_gcm_decrypt')(
           keyPtr,
           key.length,
           wirePtr,

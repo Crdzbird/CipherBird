@@ -3,7 +3,7 @@
 # the maintainers listed here; add the second reviewer's account on the same
 # line once it exists so GitHub requires their approval.
 *                       @Crdzbird
-/include/cryptolib/     @Crdzbird
+/include/cipherbird/     @Crdzbird
 /bridge/                @Crdzbird
 /scripts/release/       @Crdzbird
 /.github/workflows/     @Crdzbird

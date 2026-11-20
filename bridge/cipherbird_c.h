@@ -1,0 +1,2463 @@
+/**
+ * CipherBird C FFI Bridge
+ *
+ * Flat C API wrapping the C++20 header-only cipherbird.
+ * Designed for consumption by Go (cgo), Flutter/Dart (dart:ffi),
+ * Python (ctypes/cffi), Rust, and any language with C FFI support.
+ *
+ * Memory contract:
+ *   - Functions returning CryptoBuffer allocate via malloc().
+ *   - The caller MUST call cipherbird_buffer_free() when done.
+ *   - Input data is borrowed (const pointers) — never freed by the library.
+ *   - Error messages are heap-allocated strings — free with cipherbird_str_free().
+ *
+ * Thread safety:
+ *   - All functions are safe to call from multiple threads after cipherbird_init().
+ *     cipherbird_init() also does libcrypto's first-use work once (outside the
+ *     fips profile), and every call that reaches libcrypto (P-256, AES-GCM,
+ *     GCM-SIV, SHA-3, HPKE, X-Wing and the post-quantum KEMs and signatures)
+ *     does it itself, so they are safe from many threads even before it, with
+ *     signals arriving. See docs/P256.md, "Threads".
+ *   - Handle objects (vault, entropy) are NOT thread-safe — use one per thread.
+ */
+
+#ifndef CIPHERBIRD_C_H
+#define CIPHERBIRD_C_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef _WIN32
+#  ifdef CIPHERBIRD_BUILD_SHARED
+#    define CRYPTO_API __declspec(dllexport)
+#  else
+#    define CRYPTO_API __declspec(dllimport)
+#  endif
+#else
+#  define CRYPTO_API __attribute__((visibility("default")))
+#endif
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Core types
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Heap-allocated byte buffer returned by library functions. */
+typedef struct {
+    uint8_t* data;   /**< Pointer to bytes (malloc'd). NULL on error. */
+    size_t   len;    /**< Byte count. 0 on error. */
+} CryptoBuffer;
+
+/** Result of operations that may fail. */
+typedef struct {
+    int   ok;        /**< 1 = success, 0 = failure */
+    char* error;     /**< Error message (heap-allocated). NULL on success. */
+} CryptoResult;
+
+/** Result carrying a buffer + possible error. */
+typedef struct {
+    CryptoBuffer buf;  /**< Output data. data=NULL on error. */
+    char*        error; /**< Error message. NULL on success. */
+} CryptoBufferResult;
+
+/** Opaque handle types (pointer-sized, passed by value). */
+typedef void* CryptoVaultHandle;
+typedef void* CryptoEntropyHandle;
+typedef void* CryptoStreamEncHandle;
+typedef void* CryptoStreamDecHandle;
+typedef void* CryptoKeyringHandle;
+typedef void* CryptoDrbgHandle;     /**< HMAC-DRBG (SP 800-90A) accumulator */
+typedef void* CryptoFortunaHandle;  /**< Fortuna-style entropy pool */
+typedef void* CryptoLiveEntropyHandle; /**< continuous source fed by a live stream */
+typedef void* CryptoBlake3Handle;   /**< Incremental BLAKE3 hasher */
+typedef void* CryptoNoiseHandle;    /**< Noise XX handshake / transport state */
+
+/** Key pair (two buffers). */
+typedef struct {
+    CryptoBuffer public_key;
+    CryptoBuffer secret_key;
+} CryptoKeyPair;
+
+/** Asymmetric key bundle (Box + Sign). */
+typedef struct {
+    CryptoBuffer box_public;   /**< X25519 public key  (32 B) */
+    CryptoBuffer box_secret;   /**< X25519 secret key  (32 B) */
+    CryptoBuffer sign_public;  /**< Ed25519 public key (32 B) */
+    CryptoBuffer sign_secret;  /**< Ed25519 secret key (64 B) */
+} CryptoAsymBundle;
+
+/** Encrypted packet (serialisable vault output). */
+typedef struct {
+    CryptoBuffer ciphertext;  /**< nonce + encrypted + MAC */
+    CryptoBuffer signature;   /**< Ed25519 signature (64 B) */
+    CryptoBuffer kdf_salt;    /**< Argon2id salt (16 B) */
+} CryptoPacket;
+
+/** Derived keys from media entropy. */
+typedef struct {
+    CryptoBuffer symmetric_key;     /**< 32 B — XChaCha20/AES-256 */
+    CryptoBuffer vault_master_key;  /**< 32 B — SecureVault master */
+    CryptoBuffer signing_seed;      /**< 32 B — Ed25519 seed */
+    CryptoBuffer box_seed;          /**< 32 B — X25519 seed */
+    CryptoBuffer stream_key;        /**< 32 B — SecretStream */
+    CryptoBuffer raw_entropy;       /**< 64 B — raw mixed entropy */
+} CryptoDerivedKeys;
+
+/** Media entropy info. */
+typedef struct {
+    char*    path;           /**< Source file path (heap-allocated) */
+    uint64_t file_size;      /**< Bytes */
+    uint64_t chunks_read;    /**< Number of read passes */
+    double   entropy_bits;   /**< Conservative estimate */
+} CryptoEntropyInfo;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Memory management — MUST call these to avoid leaks
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Free a CryptoBuffer (securely zeroises before freeing). */
+CRYPTO_API void cipherbird_buffer_free(CryptoBuffer* buf);
+
+/** Free a heap-allocated error string. */
+CRYPTO_API void cipherbird_str_free(char* str);
+
+/** Free a CryptoKeyPair. */
+CRYPTO_API void cipherbird_keypair_free(CryptoKeyPair* kp);
+
+/** Free a CryptoAsymBundle. */
+CRYPTO_API void cipherbird_bundle_free(CryptoAsymBundle* b);
+
+/** Free a CryptoPacket. */
+CRYPTO_API void cipherbird_packet_free(CryptoPacket* p);
+
+/** Free a CryptoDerivedKeys. */
+CRYPTO_API void cipherbird_derived_keys_free(CryptoDerivedKeys* dk);
+
+/** Free a CryptoEntropyInfo. */
+CRYPTO_API void cipherbird_entropy_info_free(CryptoEntropyInfo* info);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Initialisation & utilities
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Initialise libsodium. Call once at program start. Returns 0 on success. */
+CRYPTO_API int cipherbird_init(void);
+
+/** Generate n cryptographically secure random bytes. */
+CRYPTO_API CryptoBufferResult cipherbird_random_bytes(size_t n);
+
+/** Constant-time comparison. Returns 1 if equal, 0 if not. */
+CRYPTO_API int cipherbird_secure_equal(const uint8_t* a, size_t a_len,
+                                       const uint8_t* b, size_t b_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Hashing
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** BLAKE2b-512 hash. key/key_len may be NULL/0 for unkeyed. */
+CRYPTO_API CryptoBufferResult cipherbird_blake2b(const uint8_t* msg, size_t msg_len,
+                                                 const uint8_t* key, size_t key_len);
+
+/** BLAKE2b with a caller-chosen output length, computed natively at that
+ *  length (BLAKE2b's output length is a parameter, so this differs from a
+ *  truncated cipherbird_blake2b), for keyed digests and PASERK identifiers.
+ *  For PASETO tokens use cipherbird_paseto_v4_local_encrypt and _decrypt.
+ *  out_len: 1 to 64. key_len: 0 (unkeyed, key may be NULL) or 16 to 64.
+ *  msg may be NULL only when msg_len is 0. Any other length, or a NULL
+ *  pointer with a non-zero length, fails closed with an error and no buffer.
+ *  On success buf holds exactly out_len bytes, malloc'd by the library and
+ *  written in place (no intermediate copy, no page locking); the caller owns
+ *  it and must release it with cipherbird_buffer_free(), which wipes it. On
+ *  error free the message with cipherbird_str_free(). */
+CRYPTO_API CryptoBufferResult cipherbird_blake2b_keyed(const uint8_t* msg, size_t msg_len,
+                                                       const uint8_t* key, size_t key_len,
+                                                       size_t out_len);
+
+/** SHA-256 hash. */
+CRYPTO_API CryptoBufferResult cipherbird_sha256(const uint8_t* msg, size_t msg_len);
+
+/** SHA-512 hash. */
+CRYPTO_API CryptoBufferResult cipherbird_sha512(const uint8_t* msg, size_t msg_len);
+
+/** HMAC-SHA512. */
+CRYPTO_API CryptoBufferResult cipherbird_hmac_sha512(const uint8_t* msg, size_t msg_len,
+                                                     const uint8_t* key, size_t key_len);
+
+/** HMAC-SHA512 verify. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_hmac_sha512_verify(const uint8_t* msg, size_t msg_len,
+                                             const uint8_t* mac, size_t mac_len,
+                                             const uint8_t* key, size_t key_len);
+
+/* ─── Argon2id ────────────────────────────────────────────────────────────── */
+
+/** Hash a password to PHC string format (e.g. "$argon2id$v=19$..."). */
+CRYPTO_API CryptoBufferResult cipherbird_argon2id_hash_str(const char* password,
+                                                           uint64_t ops, size_t mem);
+
+/** Verify password against PHC string. Returns 1 if correct, 0 if not. */
+CRYPTO_API int cipherbird_argon2id_verify_str(const char* password, const char* phc_str);
+
+/** Derive a key from password + salt. */
+CRYPTO_API CryptoBufferResult cipherbird_argon2id_derive(const char* password,
+                                                         const uint8_t* salt, size_t salt_len,
+                                                         size_t key_len, uint64_t ops, size_t mem);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Symmetric encryption
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Generate a 32-byte random key. */
+CRYPTO_API CryptoBufferResult cipherbird_sym_keygen(void);
+
+/** XChaCha20-Poly1305 encrypt. Output: [nonce(24) | ciphertext | MAC(16)]. */
+CRYPTO_API CryptoBufferResult cipherbird_xchacha20_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** XChaCha20-Poly1305 decrypt. Input must include nonce prefix. */
+CRYPTO_API CryptoBufferResult cipherbird_xchacha20_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/* PASETO v4.local, natively. Return codes of the functions below. */
+#define CIPHERBIRD_PASETO_OK            0
+#define CIPHERBIRD_PASETO_ERR_INVALID  (-1)
+#define CIPHERBIRD_PASETO_ERR_ARGUMENT (-2)
+#define CIPHERBIRD_PASETO_ERR_INTERNAL (-3)
+#define CIPHERBIRD_PASETO_V4_LOCAL_KEY_BYTES 32
+#define CIPHERBIRD_PASETO_V4_MAX_INPUT_BYTES ((size_t)1 << 26)
+
+/** Exact length of the v4.local token cipherbird_paseto_v4_local_encrypt
+ *  writes for a msg_len-byte message and a footer_len-byte footer, or 0 when
+ *  either exceeds CIPHERBIRD_PASETO_V4_MAX_INPUT_BYTES. */
+CRYPTO_API size_t cipherbird_paseto_v4_local_encrypt_len(size_t msg_len, size_t footer_len);
+
+/** Output capacity cipherbird_paseto_v4_local_decrypt requires for a token of
+ *  token_len bytes. It depends only on the length (about 3/4 of it) and is 0
+ *  for a length no valid token has; decrypt then reports the token invalid. */
+CRYPTO_API size_t cipherbird_paseto_v4_local_decrypt_cap(size_t token_len);
+
+/** PASETO v4.local encrypt (PASETO v4 specification): a fresh 32-byte nonce
+ *  from libsodium's CSPRNG, Ek and n2 from 56-byte keyed BLAKE2b, Ak from
+ *  32-byte keyed BLAKE2b, XChaCha20, and a 32-byte keyed BLAKE2b tag over
+ *  PAE("v4.local.", n, c, footer, implicit). Writes the token text (ASCII,
+ *  not NUL-terminated) to out and its length to *out_len.
+ *  key_len must be 32. msg, footer and implicit may be NULL only with a zero
+ *  length and may each be up to CIPHERBIRD_PASETO_V4_MAX_INPUT_BYTES. out_cap
+ *  must be at least cipherbird_paseto_v4_local_encrypt_len(msg_len,
+ *  footer_len) and out must overlap no input. An empty footer is omitted
+ *  from the token; implicit is authenticated but never stored.
+ *  Returns CIPHERBIRD_PASETO_OK, CIPHERBIRD_PASETO_ERR_ARGUMENT or
+ *  CIPHERBIRD_PASETO_ERR_INTERNAL; *out_len is 0 on any failure. Allocates
+ *  nothing; derived keys are on the stack and wiped before return. */
+CRYPTO_API int cipherbird_paseto_v4_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** PASETO v4.local decrypt. Checks the "v4.local." header, decodes the body
+ *  and footer as canonical unpadded base64url only, requires the token's
+ *  footer to equal expected_footer exactly (an empty expected_footer means
+ *  the token must carry none), verifies the tag in constant time and only
+ *  then decrypts. Writes the message to out and its length to *out_len.
+ *  key_len must be 32. token, expected_footer and implicit may be NULL only
+ *  with a zero length; out may be NULL only when out_cap is 0. out_cap must
+ *  be at least cipherbird_paseto_v4_local_decrypt_cap(token_len) and out must
+ *  overlap no input.
+ *  Returns CIPHERBIRD_PASETO_OK; CIPHERBIRD_PASETO_ERR_INVALID for every
+ *  failure that depends on the token (format, header, encoding, footer,
+ *  length, tag), with no further detail; CIPHERBIRD_PASETO_ERR_ARGUMENT for a
+ *  caller error that does not (key length, pointers, out_cap, oversize
+ *  expected_footer or implicit); or CIPHERBIRD_PASETO_ERR_INTERNAL. On any
+ *  failure *out_len is 0 and the first decrypt_cap bytes of out are zero.
+ *  Allocates nothing; derived keys are on the stack and wiped. */
+CRYPTO_API int cipherbird_paseto_v4_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+/** Test builds only (CMake option CIPHERBIRD_PASETO_TEST_NONCE, refused in
+ *  the bank and fips profiles): cipherbird_paseto_v4_local_encrypt with a
+ *  caller-chosen 32-byte nonce, for the official test vectors. Reusing a
+ *  nonce under one key reuses the keystream. */
+CRYPTO_API int cipherbird_paseto_v4_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len);
+#endif
+
+/** cipherbird_blake2b_keyed written straight into out (out_len bytes, 1 to
+ *  64) with the same argument rules, so a short keyed digest costs one call
+ *  and no allocation. Returns CIPHERBIRD_PASETO_OK, CIPHERBIRD_PASETO_ERR_ARGUMENT
+ *  (a bad length or a NULL pointer with a non-zero length) or
+ *  CIPHERBIRD_PASETO_ERR_INTERNAL; out is zeroed on failure. */
+CRYPTO_API int cipherbird_blake2b_keyed_into(uint8_t* out, size_t out_len,
+                                            const uint8_t* msg, size_t msg_len,
+                                            const uint8_t* key, size_t key_len);
+
+/* cb1: CipherBird tokens, version 1. The PASETO v4 token shape carried by
+ * this library's primitives: cb1.local is v4.local with BLAKE3 in place of
+ * BLAKE2b (Ek || n2 and Ak from keyed BLAKE3 over "cb1-encryption-key" || n
+ * and "cb1-auth-key" || n, XChaCha20, a keyed BLAKE3 tag over
+ * PAE("cb1.local.", n, c, f, i)); cb1.public is v4.public with the
+ * Ed25519 + ML-DSA-65 hybrid signature (cipherbird_hybrid_sig_keygen) over
+ * PAE("cb1.public.", m, f, i) in place of Ed25519. The functions take and
+ * return exactly what the v4.local ones do, with the same return codes, and
+ * are library-native: they exist in every profile and report
+ * CIPHERBIRD_PASETO_ERR_UNAVAILABLE outside the full one. A cb1 token is
+ * rejected by every PASETO parser by its header and
+ * these functions reject PASETO tokens the same way. */
+#define CIPHERBIRD_PASETO_ERR_UNAVAILABLE (-4)
+#define CIPHERBIRD_CB1_LOCAL_KEY_BYTES 32
+#define CIPHERBIRD_CB1_PUBLIC_KEY_BYTES 1984
+#define CIPHERBIRD_CB1_SECRET_KEY_BYTES 4096
+#define CIPHERBIRD_CB1_SIGNATURE_BYTES 3373
+#define CIPHERBIRD_CB1_MAX_INPUT_BYTES ((size_t)1 << 26)
+
+/** Exact length of the cb1.local token for a msg_len-byte message and a
+ *  footer_len-byte footer, or 0 when either exceeds the maximum. */
+CRYPTO_API size_t cipherbird_cb1_local_encrypt_len(size_t msg_len, size_t footer_len);
+
+/** Output capacity cipherbird_cb1_local_decrypt requires for a token of
+ *  token_len bytes; 0 for a length no valid token has. */
+CRYPTO_API size_t cipherbird_cb1_local_decrypt_cap(size_t token_len);
+
+/** cb1.local encrypt; the contract of cipherbird_paseto_v4_local_encrypt. */
+CRYPTO_API int cipherbird_cb1_local_encrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** cb1.local decrypt; the contract of cipherbird_paseto_v4_local_decrypt:
+ *  header, canonical base64url, footer and tag (in constant time) are all
+ *  checked before anything is decrypted, every token-dependent failure is
+ *  CIPHERBIRD_PASETO_ERR_INVALID, and the output region is zero on failure. */
+CRYPTO_API int cipherbird_cb1_local_decrypt(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** Exact length of the cb1.public token for a msg_len-byte message and a
+ *  footer_len-byte footer, or 0 when either exceeds the maximum. */
+CRYPTO_API size_t cipherbird_cb1_public_sign_len(size_t msg_len, size_t footer_len);
+
+/** Output capacity cipherbird_cb1_public_verify requires for a token of
+ *  token_len bytes; 0 for a length no valid token has. */
+CRYPTO_API size_t cipherbird_cb1_public_verify_cap(size_t token_len);
+
+/** cb1.public sign with a 4096-byte hybrid secret key. Writes the token
+ *  text to out; out_cap must be at least cipherbird_cb1_public_sign_len.
+ *  The footer is appended in clear and signed; implicit is signed but never
+ *  stored. Returns CIPHERBIRD_PASETO_OK, CIPHERBIRD_PASETO_ERR_ARGUMENT or
+ *  CIPHERBIRD_PASETO_ERR_INTERNAL; *out_len is 0 on failure. */
+CRYPTO_API int cipherbird_cb1_public_sign(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* secret_key, size_t sk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+/** cb1.public verify with a 1984-byte hybrid public key. Checks the header,
+ *  the encoding and the footer, then both signature halves over
+ *  PAE("cb1.public.", m, expected_footer, implicit), and writes the message
+ *  to out only when everything verifies. Every token-dependent failure is
+ *  CIPHERBIRD_PASETO_ERR_INVALID; the output region is zero on failure. */
+CRYPTO_API int cipherbird_cb1_public_verify(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* token, size_t token_len,
+    const uint8_t* public_key, size_t pk_len,
+    const uint8_t* expected_footer, size_t expected_footer_len,
+    const uint8_t* implicit, size_t implicit_len);
+
+#ifdef CIPHERBIRD_PASETO_TEST_NONCE
+/** Test builds only: cipherbird_cb1_local_encrypt with a caller-chosen
+ *  32-byte nonce, for the pinned vectors. */
+CRYPTO_API int cipherbird_cb1_local_encrypt_with_nonce_for_testing(
+    uint8_t* out, size_t out_cap, size_t* out_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* footer, size_t footer_len,
+    const uint8_t* implicit, size_t implicit_len,
+    const uint8_t* nonce, size_t nonce_len);
+#endif
+
+/* Tokens: one API for every format (docs/TOKEN_API.md). A format is named
+ * by its token header without the trailing dot ("v4.local", "cb1.local",
+ * "cb1.public"); a ".local" format encrypts and decrypts under a shared key,
+ * a ".public" format signs with the secret half of a pair and verifies with
+ * the public half. These functions exist in every profile; a format that is
+ * not in the profile is listed as unavailable and its calls report
+ * CIPHERBIRD_TOKEN_ERR_UNAVAILABLE. The per-format functions above are the
+ * same calls with the format fixed and are kept for compatibility. */
+#define CIPHERBIRD_TOKEN_OK              CIPHERBIRD_PASETO_OK
+#define CIPHERBIRD_TOKEN_ERR_INVALID     CIPHERBIRD_PASETO_ERR_INVALID
+#define CIPHERBIRD_TOKEN_ERR_ARGUMENT    CIPHERBIRD_PASETO_ERR_ARGUMENT
+#define CIPHERBIRD_TOKEN_ERR_INTERNAL    CIPHERBIRD_PASETO_ERR_INTERNAL
+#define CIPHERBIRD_TOKEN_ERR_UNAVAILABLE CIPHERBIRD_PASETO_ERR_UNAVAILABLE
+#define CIPHERBIRD_TOKEN_ERR_FORMAT      (-5)
+
+/** The format table as a JSON array, one object per format with "format",
+ *  "purpose" ("local" or "public"), "standard" ("PASETO v4" or
+ *  "library-native"), "key_bytes", "public_key_bytes", "secret_key_bytes",
+ *  "signature_bytes", "max_input_bytes" and "available". Writes the text
+ *  (not NUL-terminated) to out when out_cap holds it and returns the length
+ *  the full text needs, so a call with out_cap 0 sizes the buffer. */
+CRYPTO_API size_t cipherbird_token_formats(char* out, size_t out_cap);
+
+/** Exact token length the format produces for a payload_len-byte payload
+ *  and a footer_len-byte footer; 0 for an unknown or unavailable format or
+ *  a length over the format's maximum. format is NUL-terminated ASCII. */
+CRYPTO_API size_t cipherbird_token_issue_len(const char* format, size_t payload_len, size_t footer_len);
+
+/** Output capacity cipherbird_token_accept requires for a token of token_len
+ *  bytes; 0 for an unknown or unavailable format or a length no valid token
+ *  of that format has. */
+CRYPTO_API size_t cipherbird_token_accept_cap(const char* format, size_t token_len);
+
+/** A fresh key for the format: a local format writes key_bytes of CSPRNG
+ *  output to secret and sets *pub_len to 0 (pub may be NULL with pub_cap 0,
+ *  pub_len may be NULL); a public format writes the secret half to secret
+ *  and the public half to pub. Capacities come from the table. Returns
+ *  CIPHERBIRD_TOKEN_OK, CIPHERBIRD_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  (a NULL with a non-zero capacity, a capacity below the key size) or
+ *  _INTERNAL; both lengths are 0 on any failure. */
+CRYPTO_API int cipherbird_token_keygen(const char* format,
+                                      uint8_t* secret, size_t secret_cap, size_t* secret_len,
+                                      uint8_t* pub, size_t pub_cap, size_t* pub_len);
+
+/** Issues a token: encrypts payload (local; key is the shared key) or signs
+ *  it (public; key is the secret half). Writes the token text (ASCII, not
+ *  NUL-terminated) to out and its length to *out_len. The argument rules are
+ *  those of cipherbird_paseto_v4_local_encrypt: NULL only with a zero length,
+ *  inputs up to the format's maximum, out_cap at least
+ *  cipherbird_token_issue_len, out overlapping no input, an empty footer
+ *  omitted, implicit authenticated but never stored. Returns
+ *  CIPHERBIRD_TOKEN_OK, CIPHERBIRD_TOKEN_ERR_FORMAT, _UNAVAILABLE, _ARGUMENT
+ *  or _INTERNAL; *out_len is 0 on any failure. */
+CRYPTO_API int cipherbird_token_issue(const char* format,
+                                     uint8_t* out, size_t out_cap, size_t* out_len,
+                                     const uint8_t* key, size_t key_len,
+                                     const uint8_t* payload, size_t payload_len,
+                                     const uint8_t* footer, size_t footer_len,
+                                     const uint8_t* implicit, size_t implicit_len);
+
+/** Accepts a token: decrypts it (local) or verifies it (public; key is the
+ *  public half) and writes the payload to out. The token's header must be
+ *  the named format; any other header is invalid, decided before the key is
+ *  used, so the header inside a token never chooses the algorithm. Returns
+ *  CIPHERBIRD_TOKEN_OK; CIPHERBIRD_TOKEN_ERR_INVALID for every token-dependent
+ *  failure (header, base64url, length, tag or signature, footer), with no
+ *  further detail; _FORMAT, _UNAVAILABLE, _ARGUMENT (a caller error that does
+ *  not depend on token content) or _INTERNAL. On any failure *out_len is 0
+ *  and out holds no plaintext. */
+CRYPTO_API int cipherbird_token_accept(const char* format,
+                                      uint8_t* out, size_t out_cap, size_t* out_len,
+                                      const uint8_t* token, size_t token_len,
+                                      const uint8_t* key, size_t key_len,
+                                      const uint8_t* expected_footer, size_t expected_footer_len,
+                                      const uint8_t* implicit, size_t implicit_len);
+
+/** The header of token as a format name ("cb1.local"), UNVERIFIED: writes it
+ *  (not NUL-terminated) to out when out_cap holds it and returns its length,
+ *  or 0 when the text does not start with <version>.<local|public>. The name
+ *  need not be a format this engine knows; nothing it says is trusted until
+ *  cipherbird_token_accept succeeds with that format. */
+CRYPTO_API size_t cipherbird_token_peek_format(const uint8_t* token, size_t token_len,
+                                              char* out, size_t out_cap);
+
+/** The decoded footer of token, UNVERIFIED, for choosing a key by its id.
+ *  Writes the bytes to out and the length to *out_len (0 when the token has
+ *  no footer). Returns CIPHERBIRD_TOKEN_OK; _INVALID when the text has no
+ *  header of the known shape or the footer is not base64url; _ARGUMENT when
+ *  out is too small (about 3/4 of the footer text). The footer accept
+ *  compares is the caller's expected_footer, never the one read here. */
+CRYPTO_API int cipherbird_token_peek_footer(const uint8_t* token, size_t token_len,
+                                           uint8_t* out, size_t out_cap, size_t* out_len);
+
+/** Committing AEAD (UtC) encrypt. Output: [commitment(32) | nonce | ct | MAC].
+ *  Commits to (key, AAD) — closes the partitioning-oracle / non-committal gap. */
+CRYPTO_API CryptoBufferResult cipherbird_committing_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Committing AEAD (UtC) decrypt. Fails closed on commitment OR auth mismatch. */
+CRYPTO_API CryptoBufferResult cipherbird_committing_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/* ── MolecularVault — max-assurance layered encryption ──────────────────────
+ * Cascade of XChaCha20-Poly1305 ∘ AES-256-GCM-SIV under a key-committing outer
+ * layer, keyed by Argon2id(passphrase) or a caller-supplied 32-byte master.
+ * Requires OpenSSL for the GCM-SIV layer. Self-describing versioned envelope. */
+
+/** Seal under a passphrase. ops/mem are Argon2id work factors; pass 0,0 for the
+ *  SENSITIVE preset. Higher mem (e.g. 1<<30 = 1 GiB) makes guessing far costlier. */
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len,
+    uint64_t ops, size_t mem);
+
+/** Open a passphrase-sealed envelope. AAD must match exactly; fails closed. */
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open(
+    const uint8_t* envelope, size_t env_len,
+    const char* passphrase,
+    const uint8_t* aad, size_t aad_len);
+
+/** Seal under a 32-byte full-entropy master key (e.g. from the hybrid KEM). */
+CRYPTO_API CryptoBufferResult cipherbird_molecular_seal_with_key(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Open a raw-key-sealed envelope. */
+CRYPTO_API CryptoBufferResult cipherbird_molecular_open_with_key(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* master_key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/* ── Suite — one-call advanced combinations ─────────────────────────────────
+ * High-level facade composing hybrid KEM, hybrid signatures, MolecularVault,
+ * media entropy, keyring, Shamir and Keccak into single calls. Every seal is
+ * authenticated and fails closed; PQ envelopes are self-describing (they carry
+ * the KEM ciphertext). Requires OpenSSL + PQ; without them these return an
+ * error (ABI-stable). */
+
+/** Post-quantum message: encapsulate to the recipient's hybrid KEM public key,
+ *  then MolecularVault-seal under the shared secret. Envelope carries the KEM ct. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len);
+/** Same, but with the X25519+sntrup761 hybrid KEM (a different lattice family).
+ *  open_pq below auto-detects which KEM from the envelope's suite id. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_pq_sntrup(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_pq(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t kem_sec_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Signed + PQ-sealed (flagship): PQ confidentiality + hybrid-signature
+ *  authenticity. open_* returns plaintext ONLY if the signature verifies. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* signer_sig_secret, size_t sig_sec_len,
+    const uint8_t* aad, size_t aad_len);
+/** Same, but with the X25519+sntrup761 hybrid KEM. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_signed_pq_sntrup(
+    const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t kem_pub_len,
+    const uint8_t* signer_sig_secret, size_t sig_sec_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_signed_pq(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t kem_sec_len,
+    const uint8_t* signer_sig_public, size_t sig_pub_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** File-as-key: deterministic media entropy from `path` derives the master. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_file(
+    const uint8_t* pt, size_t pt_len, const char* path,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_file(
+    const uint8_t* envelope, size_t env_len, const char* path,
+    const uint8_t* aad, size_t aad_len);
+
+/** Keyring-guarded: a Keyring slot unlock provides the MolecularVault master. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_device(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const uint8_t* factor_key, size_t factor_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_device(
+    const uint8_t* envelope, size_t env_len, CryptoKeyringHandle kr,
+    const uint8_t* factor_key, size_t factor_len,
+    const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_with_keyring_passphrase(
+    const uint8_t* pt, size_t pt_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_with_keyring_passphrase(
+    const uint8_t* envelope, size_t env_len, CryptoKeyringHandle kr,
+    const char* passphrase, const uint8_t* aad, size_t aad_len);
+
+/** Threshold (k-of-n): seal under a fresh master, split it into `n` Shamir
+ *  shares of which any `k` reconstruct. Returns the envelope; `out_shares`
+ *  receives the `n` shares concatenated, each framed [index(1)|ylen(4 LE)|y].
+ *  To open, concatenate any >= k of those share records and pass them below.
+ *  Free `out_shares` with cipherbird_buffer_free. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_seal_threshold(
+    const uint8_t* pt, size_t pt_len, uint8_t n, uint8_t k,
+    const uint8_t* aad, size_t aad_len, CryptoBuffer* out_shares);
+CRYPTO_API CryptoBufferResult cipherbird_suite_open_threshold(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* shares, size_t shares_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** EVM address (20 bytes) from a 65-byte uncompressed secp256k1 public key. */
+CRYPTO_API CryptoBufferResult cipherbird_suite_evm_address(
+    const uint8_t* public_key, size_t pk_len);
+
+/* ─── Flagship / Fortress — state-of-the-art sealed messaging ─────────────────
+ *   Two tiers of one construction: encapsulate → sign-then-encrypt inside a
+ *   key-committing cascade, RECIPIENT-BOUND, auth-first. tier: 0 = Flagship
+ *   (X25519+sntrup761 KEM, Ed25519+ML-DSA-65 sig); 1 = Fortress (+ML-KEM-768
+ *   triple KEM, +SLH-DSA triple sig). Requires OpenSSL + PQ. */
+
+/** Opaque streaming handles. Free with the matching *_free. */
+typedef void* CryptoSealedSealer;
+typedef void* CryptoSealedOpener;
+
+/** Public envelope metadata (no secrets). ok=0 if the envelope is unrecognizable. */
+typedef struct {
+    uint8_t ok;
+    uint8_t version;
+    uint8_t suite;          /**< 0x01 Flagship, 0x02 Fortress */
+    uint8_t streaming;      /**< 1 = stream preamble, 0 = one-shot */
+    uint8_t fingerprint[16];/**< BLAKE2b-128 of the recipient public key */
+    size_t  kem_ciphertext_len;
+} CryptoSealedInfo;
+
+/** Create a recipient (KEM) / sender (signature) keypair for the given tier. */
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_recipient(int tier);
+CRYPTO_API CryptoKeyPair cipherbird_sealed_generate_sender(int tier);
+
+/** One-shot seal (sign-then-encrypt, recipient-bound). purpose may be NULL. */
+CRYPTO_API CryptoBufferResult cipherbird_sealed_seal(
+    int tier, const uint8_t* pt, size_t pt_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_secret, size_t ssec_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len);
+/** One-shot open (auth-first). Needs the recipient's OWN public key for the binding. */
+CRYPTO_API CryptoBufferResult cipherbird_sealed_open(
+    int tier, const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_secret, size_t rsec_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_public, size_t spub_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* purpose, size_t purpose_len);
+
+/** Inspect public metadata (no secrets); addressed_to returns 1 on fingerprint match. */
+CRYPTO_API CryptoSealedInfo cipherbird_sealed_inspect(const uint8_t* envelope, size_t env_len);
+CRYPTO_API int cipherbird_sealed_addressed_to(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_public, size_t rpub_len);
+
+/* Streaming: begin → (preamble) → push* → finalize(+trailer) ; free when done. */
+CRYPTO_API CryptoSealedSealer cipherbird_sealed_sealer_begin(
+    int tier, const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_secret, size_t ssec_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error);
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_preamble(CryptoSealedSealer h);
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_push(
+    CryptoSealedSealer h, const uint8_t* chunk, size_t chunk_len);
+/** Final ciphertext returned; the signed trailer is written to out_trailer. */
+CRYPTO_API CryptoBufferResult cipherbird_sealed_sealer_finalize(
+    CryptoSealedSealer h, const uint8_t* last_chunk, size_t last_len, CryptoBuffer* out_trailer);
+CRYPTO_API void cipherbird_sealed_sealer_free(CryptoSealedSealer h);
+
+/* Streaming open: begin → pull* (out_final=1 on the last chunk) → finalize(trailer). */
+CRYPTO_API CryptoSealedOpener cipherbird_sealed_opener_begin(
+    int tier, const uint8_t* preamble, size_t pre_len,
+    const uint8_t* recipient_secret, size_t rsec_len,
+    const uint8_t* recipient_public, size_t rpub_len,
+    const uint8_t* sender_public, size_t spub_len,
+    const uint8_t* purpose, size_t purpose_len, char** out_error);
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_pull(
+    CryptoSealedOpener h, const uint8_t* ct, size_t ct_len, int* out_final);
+/** Verify the sender signature over the whole stream. Empty buf + no error = OK. */
+CRYPTO_API CryptoBufferResult cipherbird_sealed_opener_finalize(
+    CryptoSealedOpener h, const uint8_t* trailer, size_t trailer_len);
+CRYPTO_API void cipherbird_sealed_opener_free(CryptoSealedOpener h);
+
+/** AES-256-GCM encrypt. Output: [nonce(12) | ciphertext | MAC(16)]. */
+CRYPTO_API CryptoBufferResult cipherbird_aes256gcm_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** AES-256-GCM decrypt. */
+CRYPTO_API CryptoBufferResult cipherbird_aes256gcm_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* key, size_t key_len,
+    const uint8_t* aad, size_t aad_len);
+
+/** Check if AES-256-GCM is available on this CPU. */
+CRYPTO_API int cipherbird_aes256gcm_available(void);
+
+/* ─── SecretStream (chunked streaming AEAD) ───────────────────────────────── */
+
+/** Create an encryptor. Returns handle. key must be 32 bytes. */
+CRYPTO_API CryptoStreamEncHandle cipherbird_stream_enc_create(const uint8_t* key);
+
+/** Get the stream header (24 bytes). Must be sent to the decryptor. */
+CRYPTO_API CryptoBufferResult cipherbird_stream_enc_header(CryptoStreamEncHandle h);
+
+/** Push a chunk. tag: 0=MESSAGE, 3=FINAL. */
+CRYPTO_API CryptoBufferResult cipherbird_stream_enc_push(
+    CryptoStreamEncHandle h,
+    const uint8_t* plaintext, size_t pt_len, uint8_t tag);
+
+/** Destroy encryptor handle. */
+CRYPTO_API void cipherbird_stream_enc_free(CryptoStreamEncHandle h);
+
+/** Create a decryptor. key=32B, header=24B. */
+CRYPTO_API CryptoStreamDecHandle cipherbird_stream_dec_create(
+    const uint8_t* key, const uint8_t* header);
+
+/** Pull a chunk. Returns plaintext. Sets *out_tag to the tag byte. */
+CRYPTO_API CryptoBufferResult cipherbird_stream_dec_pull(
+    CryptoStreamDecHandle h,
+    const uint8_t* ciphertext, size_t ct_len, uint8_t* out_tag);
+
+/** Destroy decryptor handle. */
+CRYPTO_API void cipherbird_stream_dec_free(CryptoStreamDecHandle h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Asymmetric cryptography
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Ed25519 ─────────────────────────────────────────────────────────────── */
+
+/** Generate an Ed25519 signing keypair. */
+CRYPTO_API CryptoKeyPair cipherbird_ed25519_keygen(void);
+
+/** Generate Ed25519 keypair from a 32-byte seed (deterministic). */
+CRYPTO_API CryptoKeyPair cipherbird_ed25519_keygen_from_seed(const uint8_t* seed, size_t seed_len);
+
+/** Sign a message. Returns 64-byte detached signature. */
+CRYPTO_API CryptoBufferResult cipherbird_ed25519_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len);
+
+/** Verify a detached signature. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_ed25519_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len);
+
+/* ─── X25519 ──────────────────────────────────────────────────────────────── */
+
+/** Generate an X25519 key agreement keypair. */
+CRYPTO_API CryptoKeyPair cipherbird_x25519_keygen(void);
+
+/** Compute X25519 shared secret (32 bytes). */
+CRYPTO_API CryptoBufferResult cipherbird_x25519_shared_secret(
+    const uint8_t* our_secret, size_t our_len,
+    const uint8_t* their_public, size_t their_len);
+
+/* ─── Box (authenticated encryption) ──────────────────────────────────────── */
+
+/** Generate a Box keypair (X25519). */
+CRYPTO_API CryptoKeyPair cipherbird_box_keygen(void);
+
+/** Box encrypt: sender→recipient authenticated encryption. */
+CRYPTO_API CryptoBufferResult cipherbird_box_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_pub, size_t rpub_len,
+    const uint8_t* sender_sec, size_t ssec_len);
+
+/** Box decrypt. */
+CRYPTO_API CryptoBufferResult cipherbird_box_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* sender_pub, size_t spub_len,
+    const uint8_t* recipient_sec, size_t rsec_len);
+
+/* ─── SealedBox (anonymous sender) ────────────────────────────────────────── */
+
+/** SealedBox encrypt (anonymous sender). */
+CRYPTO_API CryptoBufferResult cipherbird_sealedbox_encrypt(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_pub, size_t rpub_len);
+
+/** SealedBox decrypt. */
+CRYPTO_API CryptoBufferResult cipherbird_sealedbox_decrypt(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* recipient_pub, size_t rpub_len,
+    const uint8_t* recipient_sec, size_t rsec_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Vault — 4-layer pipeline (Argon2id → BLAKE2b → XChaCha20 → Ed25519)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Create a vault from a 32-byte master key. kdf: 0=interactive, 1=sensitive. */
+CRYPTO_API CryptoVaultHandle cipherbird_vault_create(
+    const uint8_t* master_key, size_t mk_len, int kdf_preset);
+
+/** Create a vault from a media entropy handle (file = key). */
+CRYPTO_API CryptoVaultHandle cipherbird_vault_from_entropy(
+    CryptoEntropyHandle entropy, int kdf_preset);
+
+/** Seal plaintext through the vault pipeline. Returns a packet. */
+CRYPTO_API CryptoPacket cipherbird_vault_seal(
+    CryptoVaultHandle vault,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, char** out_error);
+
+/** Seal with entropy boost (two-factor: master key + media file). */
+CRYPTO_API CryptoPacket cipherbird_vault_seal_boosted(
+    CryptoVaultHandle vault,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, CryptoEntropyHandle boost, char** out_error);
+
+/** Open a vault packet. */
+CRYPTO_API CryptoBufferResult cipherbird_vault_open(
+    CryptoVaultHandle vault,
+    const CryptoPacket* packet, const char* aad);
+
+/** Open with entropy boost. */
+CRYPTO_API CryptoBufferResult cipherbird_vault_open_boosted(
+    CryptoVaultHandle vault,
+    const CryptoPacket* packet, const char* aad,
+    CryptoEntropyHandle boost);
+
+/** Get the vault's Ed25519 public key. Caller must free the buffer. */
+CRYPTO_API CryptoBufferResult cipherbird_vault_public_key(CryptoVaultHandle vault);
+
+/** Serialise a packet to flat bytes. */
+CRYPTO_API CryptoBufferResult cipherbird_packet_serialise(const CryptoPacket* packet);
+
+/** Deserialise flat bytes to a packet. */
+CRYPTO_API CryptoPacket cipherbird_packet_deserialise(
+    const uint8_t* data, size_t len, char** out_error);
+
+/** Destroy a vault handle. */
+CRYPTO_API void cipherbird_vault_free(CryptoVaultHandle vault);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Asymmetric Vault — Alice→Bob authenticated encryption
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Generate a full asymmetric key bundle (X25519 + Ed25519). */
+CRYPTO_API CryptoAsymBundle cipherbird_asym_bundle_generate(void);
+
+/** Seal: sender encrypts for recipient with signature. */
+CRYPTO_API CryptoPacket cipherbird_asym_vault_seal(
+    const CryptoAsymBundle* sender,
+    const uint8_t* recipient_box_pub, size_t rpub_len,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* aad, char** out_error);
+
+/** Open: recipient decrypts and verifies sender's signature. */
+CRYPTO_API CryptoBufferResult cipherbird_asym_vault_open(
+    const CryptoPacket* packet,
+    const CryptoAsymBundle* recipient,
+    const uint8_t* sender_sign_pub, size_t spub_len,
+    const char* aad);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Media Entropy — LavaRand-inspired key derivation from files
+ *
+ * The core concept: any media file (photo, audio, video) becomes
+ * a cryptographic key source. Pixel noise, thermal noise, sensor
+ * jitter — all contain physical entropy no algorithm can predict.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Harvest entropy from a file (LavaRand mode).
+ * Mixes system entropy — different keys every call.
+ * Best for session keys.
+ */
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file(
+    const char* path, char** out_error);
+
+/**
+ * Harvest entropy from a file (deterministic mode).
+ * Same file always produces same keys — cross-process reproducible.
+ * Best for key agreement: "we both have the same photo."
+ */
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file_deterministic(
+    const char* path, char** out_error);
+
+/** Harvest with an explicit source policy. deterministic != 0 skips the
+ *  system-entropy mix. min_bits_per_byte is the SP 800-90B min-entropy
+ *  floor (the default harvest uses 1.0; 0 accepts any file) and
+ *  require_rct != 0 refuses a file that fails the repetition-count test.
+ *  The adaptive-proportion test is always reported, never required here. */
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_file_with_policy(
+    const char* path, int deterministic, double min_bits_per_byte, int require_rct, char** out_error);
+
+/**
+ * Harvest entropy from multiple files (LavaRand mode).
+ * Combined entropy exceeds any single source.
+ */
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_files(
+    const char** paths, size_t count, char** out_error);
+
+/**
+ * Harvest entropy from multiple files (deterministic mode).
+ */
+CRYPTO_API CryptoEntropyHandle cipherbird_entropy_from_files_deterministic(
+    const char** paths, size_t count, char** out_error);
+
+/** Get all 6 domain-separated keys at once. */
+CRYPTO_API CryptoDerivedKeys cipherbird_entropy_derive_all(CryptoEntropyHandle h);
+
+/** Get a single 32-byte symmetric key. */
+CRYPTO_API CryptoBufferResult cipherbird_entropy_symmetric_key(CryptoEntropyHandle h);
+
+/** Get the 64-byte raw mixed entropy. */
+CRYPTO_API CryptoBufferResult cipherbird_entropy_raw(CryptoEntropyHandle h);
+
+/** Get the 32-byte entropy boost key (for two-factor vault). */
+CRYPTO_API CryptoBufferResult cipherbird_entropy_boost(CryptoEntropyHandle h);
+
+/** Get entropy info (file path, size, bits). */
+CRYPTO_API CryptoEntropyInfo cipherbird_entropy_info(CryptoEntropyHandle h);
+
+/** Get a full asymmetric bundle (X25519 + Ed25519) from entropy. */
+CRYPTO_API CryptoAsymBundle cipherbird_entropy_asym_bundle(
+    CryptoEntropyHandle h, char** out_error);
+
+/** Refresh system entropy in-place (for long-lived sessions). */
+CRYPTO_API void cipherbird_entropy_refresh(CryptoEntropyHandle h);
+
+/** Destroy an entropy handle. */
+CRYPTO_API void cipherbird_entropy_free(CryptoEntropyHandle h);
+
+/* ─── Entropy convenience functions (no handle needed) ────────────────────── */
+
+/** One-liner: get a 32-byte key from a file. */
+CRYPTO_API CryptoBufferResult cipherbird_key_from_file(const char* path);
+
+/**
+ * One-liner: encrypt plaintext using a file as the key.
+ * Uses deterministic mode internally so the same file can decrypt.
+ */
+CRYPTO_API CryptoPacket cipherbird_seal_from_file(
+    const char* path, const char* plaintext, const char* aad, char** out_error);
+
+/** One-liner: decrypt a packet using a file as the key. */
+CRYPTO_API CryptoBufferResult cipherbird_open_from_file(
+    const char* path, const CryptoPacket* packet, const char* aad);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BLAKE3 — fast parallelizable hash (requires libblake3, -DCIPHERBIRD_BLAKE3=ON)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** BLAKE3 hash. out_len=0 defaults to 32 bytes. Extendable output. */
+CRYPTO_API CryptoBufferResult cipherbird_blake3(const uint8_t* msg, size_t msg_len,
+                                                size_t out_len);
+
+/** BLAKE3 keyed MAC. key must be exactly 32 bytes. */
+CRYPTO_API CryptoBufferResult cipherbird_blake3_keyed(const uint8_t* msg, size_t msg_len,
+                                                      const uint8_t* key, size_t key_len,
+                                                      size_t out_len);
+
+/** BLAKE3 key derivation. context is a domain string. */
+CRYPTO_API CryptoBufferResult cipherbird_blake3_derive_key(const char* context,
+                                                           const uint8_t* ikm, size_t ikm_len,
+                                                           size_t out_len);
+
+/** Create an incremental BLAKE3 hasher. Pass key=NULL (key_len ignored) for
+ *  plain hashing, or a 32-byte key for keyed (MAC) mode. Returns NULL when
+ *  BLAKE3 is not enabled or the key length is wrong. Not thread-safe — one
+ *  handle per thread. Free with cipherbird_blake3_hasher_free(). */
+CRYPTO_API CryptoBlake3Handle cipherbird_blake3_hasher_create(const uint8_t* key,
+                                                              size_t key_len);
+
+/** Feed bytes into the hasher. Returns 1 on success; 0 on a NULL handle or
+ *  after finalize. */
+CRYPTO_API int cipherbird_blake3_hasher_update(CryptoBlake3Handle h,
+                                               const uint8_t* data, size_t len);
+
+/** Produce the digest. out_len=0 defaults to 32 bytes (extendable output).
+ *  The handle accepts no further updates but must still be freed. Calling
+ *  finalize twice is an error. */
+CRYPTO_API CryptoBufferResult cipherbird_blake3_hasher_finalize(
+    CryptoBlake3Handle h, size_t out_len);
+
+/** Free an incremental hasher. Safe on NULL. */
+CRYPTO_API void cipherbird_blake3_hasher_free(CryptoBlake3Handle h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Noise XX — Noise_XX_25519_ChaChaPoly_SHA256 secure channel
+ *
+ * Handshake: the initiator writes message 0, the responder message 1, the
+ * initiator message 2 (each write_message on one side pairs with a
+ * read_message on the other). Once cipherbird_noise_handshake_finished()
+ * returns 1, call cipherbird_noise_split() and use encrypt/decrypt. Records
+ * are ordered per direction (sequential nonces) — deliver them in order.
+ * Handles are NOT thread-safe.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Create a Noise XX state. initiator: 1 = initiator, 0 = responder.
+ *  static_* is the local X25519 keypair (32-byte public, 32-byte secret;
+ *  see cipherbird_x25519_keygen). prologue may be NULL/0 — both sides must
+ *  use identical bytes. Returns NULL on bad key lengths. Free with
+ *  cipherbird_noise_free(). */
+CRYPTO_API CryptoNoiseHandle cipherbird_noise_create(
+    int initiator,
+    const uint8_t* static_public, size_t static_public_len,
+    const uint8_t* static_secret, size_t static_secret_len,
+    const uint8_t* prologue, size_t prologue_len);
+
+/** Produce the next handshake message (this side's turn), embedding an
+ *  optional payload. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_write_message(
+    CryptoNoiseHandle h, const uint8_t* payload, size_t payload_len);
+
+/** Consume the peer's handshake message; returns its embedded payload. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_read_message(
+    CryptoNoiseHandle h, const uint8_t* message, size_t message_len);
+
+/** 1 once all three handshake messages are processed. */
+CRYPTO_API int cipherbird_noise_handshake_finished(CryptoNoiseHandle h);
+
+/** The 32-byte handshake hash (channel binding). Valid any time; both
+ *  sides agree on it after the handshake completes. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_handshake_hash(CryptoNoiseHandle h);
+
+/** The peer's static X25519 public key learned during the handshake
+ *  (32 bytes). Pin/verify it to prevent MITM. Errors before it is known. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_remote_static(CryptoNoiseHandle h);
+
+/** Derive the transport cipher states (Noise Split). Returns 1 on success,
+ *  0 if the handshake is not finished or split was already called. */
+CRYPTO_API int cipherbird_noise_split(CryptoNoiseHandle h);
+
+/** Encrypt one transport record (after split). Output = ciphertext|tag. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_encrypt(
+    CryptoNoiseHandle h, const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Decrypt one transport record (after split). */
+CRYPTO_API CryptoBufferResult cipherbird_noise_decrypt(
+    CryptoNoiseHandle h, const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Decrypt the transport record that was sent at `nonce_counter`, without
+ *  advancing the session's own counter.
+ *
+ *  Records are sealed under (key, counter), so once a receiver knows a
+ *  record's counter it can open that record on its own. This exists so a
+ *  receiver can open several records at once: `cipherbird_noise_decrypt`
+ *  is serial only because it owns the counter.
+ *
+ *  Re-entrant — safe to call concurrently on ONE handle, because it does
+ *  not mutate the session.
+ *
+ *  CALLER'S DUTY, and the library cannot check any of it:
+ *   - Assign each record the counter its sender used, counting from 0 in
+ *     arrival order for that direction.
+ *   - Open each counter at most once and reassemble plaintexts in order.
+ *     Statelessly, a replayed record is indistinguishable from a fresh
+ *     one; ordering and single-use are the caller's to enforce.
+ *   - Do NOT mix this with `cipherbird_noise_encrypt`/`_decrypt` on the
+ *     same handle concurrently: those mutate the session, and a
+ *     concurrent mutation alongside this is a data race.
+ *
+ *  There is deliberately no explicit-nonce ENCRYPT counterpart. Sealing
+ *  twice under one (key, counter) leaks the XOR of both plaintexts and
+ *  the Poly1305 one-time key, which yields forgery; nonce choice stays
+ *  inside the library where it cannot repeat. Opening carries no such
+ *  risk — the tag binds the counter, so a record only authenticates
+ *  under the counter its sender actually used. */
+CRYPTO_API CryptoBufferResult cipherbird_noise_decrypt_at(
+    CryptoNoiseHandle h, uint64_t nonce_counter,
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* ad, size_t ad_len);
+
+/** Free a Noise state. Safe on NULL. */
+CRYPTO_API void cipherbird_noise_free(CryptoNoiseHandle h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HMAC-SHA256 & HKDF-SHA256
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** HMAC-SHA256 compute. Key must be >= 32 bytes. */
+CRYPTO_API CryptoBufferResult cipherbird_hmac_sha256(const uint8_t* msg, size_t msg_len,
+                                                     const uint8_t* key, size_t key_len);
+
+/** HMAC-SHA256 verify. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_hmac_sha256_verify(const uint8_t* msg, size_t msg_len,
+                                             const uint8_t* mac, size_t mac_len,
+                                             const uint8_t* key, size_t key_len);
+
+/** HKDF-SHA256 extract: PRK = HMAC(salt, IKM). salt may be NULL for default. */
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_extract(const uint8_t* salt, size_t salt_len,
+                                                      const uint8_t* ikm, size_t ikm_len);
+
+/** HKDF-SHA256 expand: OKM from PRK + info. */
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_expand(const uint8_t* prk, size_t prk_len,
+                                                     const uint8_t* info, size_t info_len,
+                                                     size_t out_len);
+
+/** HKDF-SHA256 one-shot: extract + expand. */
+CRYPTO_API CryptoBufferResult cipherbird_hkdf_derive(const uint8_t* ikm, size_t ikm_len,
+                                                     const uint8_t* salt, size_t salt_len,
+                                                     const uint8_t* info, size_t info_len,
+                                                     size_t out_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Post-Quantum — ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205)
+ *   Requires liboqs, -DCIPHERBIRD_PQ=ON
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** KEM encapsulation result (ciphertext + shared secret). */
+typedef struct {
+    CryptoBuffer ciphertext;
+    CryptoBuffer shared_secret;
+} CryptoKemEncapsResult;
+
+/** Free a CryptoKemEncapsResult. */
+CRYPTO_API void cipherbird_kem_encaps_free(CryptoKemEncapsResult* r);
+
+/* ─── ML-KEM (FIPS 203) ──────────────────────────────────────────────────── */
+
+/** ML-KEM keygen. level: 0=512, 1=768, 2=1024. */
+CRYPTO_API CryptoKeyPair cipherbird_ml_kem_keygen(int level);
+
+/** ML-KEM encapsulate. Produces ciphertext + shared_secret. */
+CRYPTO_API CryptoKemEncapsResult cipherbird_ml_kem_encapsulate(
+    const uint8_t* public_key, size_t pk_len, int level, char** out_error);
+
+/** ML-KEM decapsulate. Returns shared_secret (32 bytes). */
+CRYPTO_API CryptoBufferResult cipherbird_ml_kem_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len, int level);
+
+/* ─── Hybrid KEM (X25519 + ML-KEM-768) ───────────────────────────────────────
+ *   One shared secret from both a classical (X25519) and a post-quantum
+ *   (ML-KEM-768) KEM; secure while either remains unbroken. Keys/ciphertexts
+ *   are concatenated: x25519_part(32) || ml_kem_768_part. No level argument —
+ *   the pairing is fixed to NIST L3. NOT wire-compatible with TLS/X-Wing. */
+
+/** Hybrid KEM keygen → public_key/secret_key (concatenated layout). */
+CRYPTO_API CryptoKeyPair cipherbird_hybrid_kem_keygen(void);
+
+/** Hybrid KEM encapsulate. Produces ciphertext + 32-byte shared_secret. */
+CRYPTO_API CryptoKemEncapsResult cipherbird_hybrid_kem_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error);
+
+/** Hybrid KEM decapsulate. Returns shared_secret (32 bytes). */
+CRYPTO_API CryptoBufferResult cipherbird_hybrid_kem_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len);
+
+/* ─── Hybrid KEM (X25519 + sntrup761) ────────────────────────────────────────
+ *   A SECOND hybrid, using Streamlined NTRU Prime 761 (a different lattice
+ *   family than ML-KEM) for defense-in-diversity. Same concatenated layout:
+ *   x25519_part(32) || sntrup761_part. Always liboqs-backed. NOT wire-compatible
+ *   with OpenSSH's sntrup761x25519-sha512. */
+
+/** sntrup761 hybrid keygen → public_key/secret_key (concatenated layout). */
+CRYPTO_API CryptoKeyPair cipherbird_sntrup_x25519_keygen(void);
+
+/** sntrup761 hybrid encapsulate. Produces ciphertext + 32-byte shared_secret. */
+CRYPTO_API CryptoKemEncapsResult cipherbird_sntrup_x25519_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error);
+
+/** sntrup761 hybrid decapsulate. Returns shared_secret (32 bytes). */
+CRYPTO_API CryptoBufferResult cipherbird_sntrup_x25519_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* secret_key, size_t sk_len);
+
+/* ─── Session — PQ forward-secret ratchet (hybrid KEM Double Ratchet) ─────────
+ *   A live channel with forward secrecy + post-compromise security, all
+ *   post-quantum. Stateful — a CryptoSession is an opaque handle; free it with
+ *   cipherbird_session_free. Handshake: the responder publishes a prekey (a
+ *   hybrid-KEM keypair); the initiator encapsulates to it. Requires PQ. */
+
+/** Opaque ratchet session handle. */
+typedef void* CryptoSession;
+
+/** Responder: generate a prekey (hybrid-KEM keypair). Publish public_key. */
+CRYPTO_API CryptoKeyPair cipherbird_session_generate_prekey(void);
+
+/** Initiator: start a session to responder_prekey_public. The returned handle's
+ *  cipherbird_session_handshake() is the message to send to the responder. */
+CRYPTO_API CryptoSession cipherbird_session_initiate(
+    const uint8_t* responder_prekey_public, size_t pk_len, char** out_error);
+
+/** The handshake message an initiator session must send (empty on a responder). */
+CRYPTO_API CryptoBufferResult cipherbird_session_handshake(CryptoSession h);
+
+/** Responder: accept an incoming handshake with your prekey (public + secret). */
+CRYPTO_API CryptoSession cipherbird_session_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* prekey_public, size_t pk_len,
+    const uint8_t* prekey_secret, size_t sk_len, char** out_error);
+
+/** Encrypt the next outgoing message (advances the sending ratchet). */
+CRYPTO_API CryptoBufferResult cipherbird_session_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+
+/** Decrypt an incoming message (handles ratchet turns + out-of-order; transactional). */
+CRYPTO_API CryptoBufferResult cipherbird_session_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len);
+
+/** Free a session handle. */
+CRYPTO_API void cipherbird_session_free(CryptoSession h);
+
+/* ─── ML-DSA (FIPS 204) ──────────────────────────────────────────────────── */
+
+/** ML-DSA keygen. level: 0=44, 1=65, 2=87. */
+CRYPTO_API CryptoKeyPair cipherbird_ml_dsa_keygen(int level);
+
+/** ML-DSA sign. Returns detached signature. */
+CRYPTO_API CryptoBufferResult cipherbird_ml_dsa_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len, int level);
+
+/** ML-DSA verify. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_ml_dsa_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len, int level);
+
+/* ─── Hybrid signature (Ed25519 + ML-DSA-65) ──────────────────────────────────
+ *   Both must verify. Keys/sig concatenated: ed25519_part || ml_dsa_part. */
+CRYPTO_API CryptoKeyPair cipherbird_hybrid_sig_keygen(void);
+CRYPTO_API CryptoBufferResult cipherbird_hybrid_sig_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len);
+CRYPTO_API int cipherbird_hybrid_sig_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len);
+
+/* ─── SLH-DSA (FIPS 205) ─────────────────────────────────────────────────── */
+
+/** SLH-DSA keygen. level: 0=128s,1=128f,2=192s,3=192f,4=256s,5=256f. hash: 0=SHA2,1=SHAKE. */
+CRYPTO_API CryptoKeyPair cipherbird_slh_dsa_keygen(int level, int hash_family);
+
+/** SLH-DSA sign. Returns signature. */
+CRYPTO_API CryptoBufferResult cipherbird_slh_dsa_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len, int level, int hash_family);
+
+/** SLH-DSA verify. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_slh_dsa_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len, int level, int hash_family);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BLS12-381 — Aggregate signatures (requires blst, -DCIPHERBIRD_BLS=ON)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** BLS keygen (random). sk=32B, pk=48B. */
+CRYPTO_API CryptoKeyPair cipherbird_bls_keygen(void);
+
+/** BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. */
+CRYPTO_API CryptoKeyPair cipherbird_bls_keygen_from_ikm(const uint8_t* ikm, size_t ikm_len);
+
+/** BLS sign. Returns 96-byte compressed G2 signature. */
+CRYPTO_API CryptoBufferResult cipherbird_bls_sign(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* secret_key, size_t sk_len);
+
+/** BLS verify. Returns 1 if valid, 0 if not. */
+CRYPTO_API int cipherbird_bls_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len);
+
+/** BLS aggregate N signatures into 1. sigs = array of 96-byte signatures. */
+CRYPTO_API CryptoBufferResult cipherbird_bls_aggregate(
+    const uint8_t* const* sigs, const size_t* sig_lens, size_t count);
+
+/** BLS aggregate verify. msgs/pks = arrays of messages/public keys. */
+CRYPTO_API int cipherbird_bls_aggregate_verify(
+    const uint8_t* const* msgs, const size_t* msg_lens,
+    const uint8_t* const* pks,  const size_t* pk_lens,
+    size_t count,
+    const uint8_t* agg_sig, size_t agg_sig_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FROST(Ed25519, SHA-512) — t-of-n threshold Schnorr signatures (RFC 9591)
+ *   Output is a standard 64-byte Ed25519 signature; verifiers need not know
+ *   the threshold setup. libsodium only — no extra deps, no build guard.
+ *
+ *   A round's commitments are passed as three parallel arrays of length
+ *   `count`: identifiers[i] (uint16), hiding_commits[i*32 ..], and
+ *   binding_commits[i*32 ..].  Signature shares are `count` contiguous
+ *   32-byte scalars.  All scalars/points are 32 bytes; a signature is 64.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Trusted-dealer keygen output. Share k (0-based) has identifier k+1. */
+typedef struct {
+    CryptoBuffer group_public_key;  /**< 32 B */
+    CryptoBuffer secret_shares;     /**< count * 32 B — secret scalars sk_i */
+    CryptoBuffer public_shares;     /**< count * 32 B — points PK_i (verify_share) */
+    size_t       count;             /**< number of participants (n) */
+    char*        error;             /**< heap-allocated; NULL on success */
+} CryptoFrostKeyGen;
+
+/** Free a CryptoFrostKeyGen (zeroises secret shares). */
+CRYPTO_API void cipherbird_frost_keygen_free(CryptoFrostKeyGen* kg);
+
+/** Round-1 commit output: two secret nonces + their public commitments. */
+typedef struct {
+    CryptoBuffer hiding_nonce;    /**< 32 B secret scalar */
+    CryptoBuffer binding_nonce;   /**< 32 B secret scalar */
+    CryptoBuffer hiding_commit;   /**< 32 B point (share to coordinator) */
+    CryptoBuffer binding_commit;  /**< 32 B point (share to coordinator) */
+    char*        error;           /**< heap-allocated; NULL on success */
+} CryptoFrostCommit;
+
+/** Free a CryptoFrostCommit (zeroises nonces). */
+CRYPTO_API void cipherbird_frost_commit_free(CryptoFrostCommit* c);
+
+/** keygen(n,t): split a random group key into n shares, any t of which sign. */
+CRYPTO_API CryptoFrostKeyGen cipherbird_frost_keygen(uint16_t n, uint16_t t);
+
+/** Round 1: fresh random nonce pair + public commitment for a share. */
+CRYPTO_API CryptoFrostCommit cipherbird_frost_commit(
+    const uint8_t* share_secret, size_t sk_len, uint16_t identifier);
+
+/** Deterministic round-1 commit from caller-supplied nonces (test vectors). */
+CRYPTO_API CryptoFrostCommit cipherbird_frost_commit_with_nonces(
+    uint16_t identifier,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len);
+
+/** Round 2: this participant's 32-byte signature share. */
+CRYPTO_API CryptoBufferResult cipherbird_frost_sign(
+    uint16_t identifier,
+    const uint8_t* share_secret, size_t sk_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* hiding_nonce, size_t hn_len,
+    const uint8_t* binding_nonce, size_t bn_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count);
+
+/** Aggregate `count` signature shares → one 64-byte Ed25519 signature. */
+CRYPTO_API CryptoBufferResult cipherbird_frost_aggregate(
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count,
+    const uint8_t* sig_shares /* count * 32 B */);
+
+/** Verify an aggregate signature with standard Ed25519. Returns 1/0. */
+CRYPTO_API int cipherbird_frost_verify(
+    const uint8_t* msg, size_t msg_len,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* group_public_key, size_t gpk_len);
+
+/** Verify one participant's signature share. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cipherbird_frost_verify_share(
+    uint16_t identifier,
+    const uint8_t* public_share, size_t ps_len,
+    const uint8_t* sig_share, size_t ss_len,
+    const uint8_t* commit_hiding, size_t ch_len,
+    const uint8_t* commit_binding, size_t cb_len,
+    const uint8_t* group_public_key, size_t gpk_len,
+    const uint8_t* msg, size_t msg_len,
+    const uint16_t* ids,
+    const uint8_t* hiding_commits,
+    const uint8_t* binding_commits,
+    size_t count);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * HPKE — Hybrid Public Key Encryption (RFC 9180)
+ *   KEM = DHKEM(X25519, HKDF-SHA256). Wire-standard; interoperates with any
+ *   conformant HPKE (TLS ECH, MLS, Oblivious HTTP).
+ *
+ *   Selector ints:
+ *     kdf  : 1 = HKDF-SHA256, 3 = HKDF-SHA512
+ *     aead : 1 = AES-128-GCM, 2 = AES-256-GCM, 3 = ChaCha20Poly1305,
+ *            65535 = export-only   (AES-GCM needs the OpenSSL-enabled build)
+ *     mode : 0 = base, 1 = psk, 2 = auth, 3 = auth+psk
+ *   Unused byte-string args (psk/psk_id/skS/pkS for modes that don't need them)
+ *   may be passed as NULL/0.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Opaque one-directional HPKE context (holds AEAD key + sequence + exporter). */
+typedef void* CryptoHpkeContext;
+
+/** Random X25519 key pair (pk 32 B, sk 32 B) for HPKE. */
+CRYPTO_API CryptoKeyPair cipherbird_hpke_keygen(void);
+
+/** Deterministic DHKEM(X25519).DeriveKeyPair from input keying material. */
+CRYPTO_API CryptoKeyPair cipherbird_hpke_derive_keypair(const uint8_t* ikm, size_t ikm_len);
+
+/** Sender setup. On success returns a context handle and writes the KEM
+ *  encapsulation to *out_enc (free with cipherbird_buffer_free). On failure
+ *  returns NULL and sets *out_error (free with cipherbird_str_free). */
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_s(
+    int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error);
+
+/** Receiver setup. Returns a context handle, or NULL + *out_error on failure. */
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_r(
+    int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error);
+
+/** Sender: AEAD-seal the next message (advances the context sequence). */
+CRYPTO_API CryptoBufferResult cipherbird_hpke_seal(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len);
+
+/** Receiver: AEAD-open the next message (advances the context sequence). */
+CRYPTO_API CryptoBufferResult cipherbird_hpke_open(
+    CryptoHpkeContext h, const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len);
+
+/** Derive a `length`-byte secret bound to this context (RFC 9180 §5.3). */
+CRYPTO_API CryptoBufferResult cipherbird_hpke_export(
+    CryptoHpkeContext h, const uint8_t* exporter_context, size_t ctx_len, size_t length);
+
+/** Release an HPKE context (zeroises its key material). */
+CRYPTO_API void cipherbird_hpke_context_free(CryptoHpkeContext h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * ECVRF — Verifiable Random Function (RFC 9381)
+ *   ECVRF-EDWARDS25519-SHA512-TAI. A public-key PRF: the secret-key holder maps
+ *   an input to a unique, unpredictable 64-byte output plus an 80-byte proof
+ *   anyone can verify with the public key. libsodium only — no build guard.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Fresh Ed25519-style key pair (pk 32 B, sk = 32-byte seed). */
+CRYPTO_API CryptoKeyPair cipherbird_ecvrf_keygen(void);
+
+/** Derive the public key Y = x·B from a 32-byte secret seed. */
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_public_key(const uint8_t* sk, size_t sk_len);
+
+/** Prove: returns the 80-byte proof pi for (sk, alpha). */
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_prove(
+    const uint8_t* sk, size_t sk_len, const uint8_t* alpha, size_t alpha_len);
+
+/** proof_to_hash: returns the 64-byte VRF output beta for a proof. */
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_proof_to_hash(const uint8_t* pi, size_t pi_len);
+
+/** Verify: returns the 64-byte beta on success, or an error if the proof is
+ *  invalid (check .error). */
+CRYPTO_API CryptoBufferResult cipherbird_ecvrf_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* alpha, size_t alpha_len,
+    const uint8_t* pi, size_t pi_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * BBS Signatures — multi-message signatures + zero-knowledge selective
+ *   disclosure (draft-irtf-cfrg-bbs-signatures, BLS12-381-SHA-256).
+ *   The privacy primitive for anonymous credentials: sign a vector of messages,
+ *   then derive a proof revealing only a chosen subset. Requires blst.
+ *
+ *   Messages cross as parallel arrays: msgs[i] (pointer) + msg_lens[i] (length),
+ *   msg_count entries. Disclosed indexes are `disclosed_count` uint64 positions
+ *   into the message vector (0-based). Sizes: sk 32 B, pk 96 B, signature 80 B.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** BBS KeyGen from key material (>= 32 B) + optional key info. pk 96 B, sk 32 B.
+ *  Returns an empty key pair (data=NULL) on failure. */
+CRYPTO_API CryptoKeyPair cipherbird_bbs_keygen(
+    const uint8_t* key_material, size_t km_len, const uint8_t* key_info, size_t ki_len);
+
+/** Derive the 96-byte public key from a 32-byte secret key. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_sk_to_pk(const uint8_t* sk, size_t sk_len);
+
+/** Sign a vector of messages → 80-byte signature. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/** Verify a signature over a vector of messages. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cipherbird_bbs_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/** Derive a selective-disclosure proof. `msgs` is the FULL signed vector;
+ *  `disclosed_indexes` (uint64, 0-based) selects which to reveal. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint64_t* disclosed_indexes, size_t disclosed_count);
+
+/** Verify a selective-disclosure proof. `disclosed_msgs` are the revealed
+ *  messages, aligned with `disclosed_indexes`. Returns 1 valid, 0 invalid. */
+CRYPTO_API int cipherbird_bbs_proof_verify(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count);
+
+/* ── BBS per-verifier pseudonyms + blind issuance ───────────────────────────
+ * draft-irtf-cfrg-bbs-per-verifier-linkability-02 (coupled with blind issuance).
+ * Pseudonym-suite api_id is applied internally. Scalars (prover_nyms,
+ * nym_secrets, secret_prover_blind, signer_nym_entropy) are 32-byte big-endian.
+ * All require blst; without it the buffer fns return an error and verify → 0. */
+
+/** Holder: commit to committed_messages + prover_nyms (scalars the issuer must
+ *  not learn). Returns commitment_with_proof; secret_prover_blind (32 B) via the
+ *  out-param — the holder keeps it to finalize/prove later. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_commit_with_nym(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    CryptoBuffer* secret_prover_blind);
+
+/** Issuer: blind-sign over the commitment + own messages, adding
+ *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign_with_nym(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len, uint64_t length_nym_vector);
+
+/** Holder: nym_secrets = prover_nyms with the last element += signer_nym_entropy.
+ *  Returns the concatenated 32-byte scalars. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_finalize_nym_secrets(
+    const uint8_t* const* prover_nyms, const size_t* nym_lens, size_t nym_count,
+    const uint8_t* signer_nym_entropy, size_t entropy_len);
+
+/** Deterministic pseudonym for a context from the nym_secrets. Returns a
+ *  compressed G1 point (48 B). */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_calculate_pseudonym(
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count);
+
+/** Holder: generate a pseudonym-bound selective-disclosure proof. Returns the
+ *  proof; the pseudonym (48 B) via the out-param. disclosed_*_indexes select the
+ *  revealed signer / committed messages (each list 0-based into its own vector). */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len,
+    const uint8_t* const* signer_msgs, const size_t* signer_lens, size_t signer_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len,
+    const uint8_t* const* nym_secrets, const size_t* nym_lens, size_t nym_count,
+    const uint64_t* disclosed_signer_indexes, size_t disclosed_signer_count,
+    const uint64_t* disclosed_committed_indexes, size_t disclosed_committed_count,
+    CryptoBuffer* pseudonym_out);
+
+/** Verifier: check a pseudonym-bound proof. `disclosed_msgs`/`disclosed_indexes`
+ *  are the COMBINED signer+committed disclosures (committed index j passed as
+ *  j + L + 1). Returns 1 valid, 0 invalid. */
+CRYPTO_API int cipherbird_bbs_proof_verify_with_pseudonym(
+    const uint8_t* pk, size_t pk_len, const uint8_t* proof, size_t proof_len,
+    const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
+    const uint8_t* context_id, size_t ctx_len, const uint8_t* pseudonym, size_t nym_len,
+    uint64_t L, uint64_t length_nym_vector,
+    const uint8_t* const* disclosed_msgs, const size_t* disclosed_lens, size_t disclosed_count,
+    const uint64_t* disclosed_indexes, size_t indexes_count);
+
+/* Standalone blind issuance (draft-irtf-cfrg-bbs-blind-signatures-02, no
+ * pseudonyms). The blind-interface ciphersuite is applied internally. The holder
+ * commits to committed_msgs (which the signer never learns), the signer blind-
+ * signs over the commitment + its own messages, and the holder verifies with the
+ * secret_prover_blind it kept. secret_prover_blind is a 32-byte big-endian
+ * scalar. */
+
+/* Commit to committed_msgs → commitment_with_proof (return value) +
+ * secret_prover_blind (out-param, 32 bytes). */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_commit(
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    CryptoBuffer* secret_prover_blind);
+
+/* Blind-sign over the commitment_with_proof + signer messages → 80-byte
+ * signature. No pseudonym / nym entropy. */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign(
+    const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
+    const uint8_t* commitment_with_proof, size_t commit_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
+
+/* Verify a blind signature over signer messages + committed_msgs using the
+ * secret_prover_blind. Returns 1 (VALID) / 0 (INVALID). */
+CRYPTO_API int cipherbird_bbs_verify_blind_sign(
+    const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
+    const uint8_t* header, size_t header_len,
+    const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count,
+    const uint8_t* const* committed_msgs, const size_t* committed_lens, size_t committed_count,
+    const uint8_t* secret_prover_blind, size_t spb_len);
+
+/* Canonical BLS12-381 scalar helpers for the pseudonym / blind-issuance API.
+ * Both return a 32-byte big-endian value strictly less than the scalar-field
+ * order r — feed them directly as prover_nyms / signer_nym_entropy / nym_secrets
+ * (a raw 32-byte value exceeds r ~55% of the time and silently breaks the
+ * round-trip). Same conventions as the rest of cipherbird_bbs_*: malloc'd, freed
+ * via cipherbird_buffer_free, error string on failure, require blst. */
+
+/* Deterministically map (msg, dst) to a canonical scalar in [0, r) — the BBS
+ * hash_to_scalar primitive. Suitable for a stable per-holder nym seed
+ * (nym_seed = hash_to_scalar(member_secret, dst)). */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_hash_to_scalar(
+    const uint8_t* msg, size_t msg_len, const uint8_t* dst, size_t dst_len);
+
+/* A fresh cryptographically-random canonical scalar in [0, r). */
+CRYPTO_API CryptoBufferResult cipherbird_bbs_random_scalar(void);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OPRF — Oblivious Pseudorandom Function (RFC 9497, ristretto255-SHA-512)
+ *   A two-party PRF: the client blinds its input, the server evaluates under
+ *   its key without seeing the input, the client unblinds to the PRF output.
+ *   Building block for Privacy Pass, PSI, password hardening, OPAQUE.
+ *   Elements/scalars are 32 B; the PRF output is 64 B. libsodium only.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** OPRF key pair from a seed (+ optional info). pk 32 B, sk 32 B. Empty on error. */
+CRYPTO_API CryptoKeyPair cipherbird_oprf_derive_keypair(
+    const uint8_t* seed, size_t seed_len, const uint8_t* info, size_t info_len);
+
+/** Client Blind output: the secret blind + the blinded element to send. */
+typedef struct {
+    CryptoBuffer blind;            /**< 32 B secret scalar (keep for finalize) */
+    CryptoBuffer blinded_element;  /**< 32 B — send to the server */
+    char*        error;            /**< heap-allocated; NULL on success */
+} CryptoOprfBlind;
+
+/** Free a CryptoOprfBlind (zeroises the blind). */
+CRYPTO_API void cipherbird_oprf_blind_free(CryptoOprfBlind* b);
+
+/** Client: blind an input with a fresh random scalar. */
+CRYPTO_API CryptoOprfBlind cipherbird_oprf_blind(const uint8_t* input, size_t input_len);
+
+/** Deterministic blind with a caller-supplied 32-byte scalar (test vectors). */
+CRYPTO_API CryptoOprfBlind cipherbird_oprf_blind_with_scalar(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len);
+
+/** Server: evaluate a blinded element under the secret key → evaluated element. */
+CRYPTO_API CryptoBufferResult cipherbird_oprf_blind_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* blinded_element, size_t be_len);
+
+/** Client: unblind the evaluated element → 64-byte PRF output. */
+CRYPTO_API CryptoBufferResult cipherbird_oprf_finalize(
+    const uint8_t* input, size_t input_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* evaluated_element, size_t ee_len);
+
+/** Server one-shot: compute the PRF output directly from the key + input. */
+CRYPTO_API CryptoBufferResult cipherbird_oprf_evaluate(
+    const uint8_t* sk, size_t sk_len, const uint8_t* input, size_t input_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * OPAQUE — asymmetric PAKE (draft-irtf-cfrg-opaque, OPAQUE-3DH,
+ *   ristretto255-SHA-512). A client and server agree on a session key from a
+ *   password that never leaves the client and is never stored server-side.
+ *   Two phases: registration, then a 3DH login. Optional identity strings pass
+ *   NULL/0 to default to the public keys. libsodium only. Uses the OPRF above.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Registration record (upload to server) + export_key. */
+typedef struct {
+    CryptoBuffer record;      /**< 192 B — store on the server */
+    CryptoBuffer export_key;  /**< 64 B — client-side derived key */
+    char*        error;
+} CryptoOpaqueRecord;
+CRYPTO_API void cipherbird_opaque_record_free(CryptoOpaqueRecord* r);
+
+/** Client login message 1 + opaque client state (feed to client_finish). */
+typedef struct {
+    CryptoBuffer ke1;          /**< 96 B — send to server */
+    CryptoBuffer client_state; /**< opaque; keep for client_finish */
+    char*        error;
+} CryptoOpaqueKe1;
+CRYPTO_API void cipherbird_opaque_ke1_free(CryptoOpaqueKe1* k);
+
+/** Server login message 2 + opaque server state (feed to server_finish). */
+typedef struct {
+    CryptoBuffer ke2;          /**< 320 B — send to client */
+    CryptoBuffer server_state; /**< opaque; keep for server_finish */
+    char*        error;
+} CryptoOpaqueKe2;
+CRYPTO_API void cipherbird_opaque_ke2_free(CryptoOpaqueKe2* k);
+
+/** Client login message 3 + the agreed session key + export_key. */
+typedef struct {
+    CryptoBuffer ke3;          /**< 64 B — send to server */
+    CryptoBuffer session_key;  /**< 64 B — the shared session key */
+    CryptoBuffer export_key;   /**< 64 B */
+    char*        error;        /**< set on wrong password / server auth failure */
+} CryptoOpaqueKe3;
+CRYPTO_API void cipherbird_opaque_ke3_free(CryptoOpaqueKe3* k);
+
+/** Client registration step 1: blind the password. Returns {blind, request}
+ *  in a CryptoOprfBlind (send blinded_element as the request; keep blind). */
+CRYPTO_API CryptoOprfBlind cipherbird_opaque_registration_request(
+    const uint8_t* password, size_t password_len);
+
+/** Server registration step: → 64-byte registration response. */
+CRYPTO_API CryptoBufferResult cipherbird_opaque_registration_response(
+    const uint8_t* request, size_t request_len, const uint8_t* server_public_key, size_t spk_len,
+    const uint8_t* credential_identifier, size_t ci_len, const uint8_t* oprf_seed, size_t seed_len);
+
+/** Client registration step 2: → record + export_key. */
+CRYPTO_API CryptoOpaqueRecord cipherbird_opaque_finalize_request(
+    const uint8_t* password, size_t password_len, const uint8_t* blind, size_t blind_len,
+    const uint8_t* response, size_t response_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Client login step 1: → KE1 + client_state. */
+CRYPTO_API CryptoOpaqueKe1 cipherbird_opaque_client_init(const uint8_t* password, size_t password_len);
+
+/** Server login step 1: → KE2 + server_state. */
+CRYPTO_API CryptoOpaqueKe2 cipherbird_opaque_server_respond(
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_private_key, size_t sk_len, const uint8_t* server_public_key, size_t pk_len,
+    const uint8_t* record, size_t record_len, const uint8_t* credential_identifier, size_t ci_len,
+    const uint8_t* oprf_seed, size_t seed_len, const uint8_t* ke1, size_t ke1_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Client login step 2: authenticate the server → KE3 + session_key + export_key. */
+CRYPTO_API CryptoOpaqueKe3 cipherbird_opaque_client_finish(
+    const uint8_t* client_state, size_t cs_len, const uint8_t* ke2, size_t ke2_len,
+    const uint8_t* context, size_t context_len,
+    const uint8_t* server_identity, size_t sid_len, const uint8_t* client_identity, size_t cid_len);
+
+/** Server login step 2: verify KE3 → the session key (error on auth failure). */
+CRYPTO_API CryptoBufferResult cipherbird_opaque_server_finish(
+    const uint8_t* server_state, size_t ss_len, const uint8_t* ke3, size_t ke3_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * EVM / Bitcoin interop — Keccak-256, RIPEMD-160, secp256k1 ECDSA
+ *   secp256k1 functions require CIPHERBIRD_HAS_SECP256K1 (libsecp256k1 w/
+ *   recovery module). When disabled they return an error result / 0 rather
+ *   than vanishing from the ABI.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Keccak-256 — ORIGINAL Keccak padding (Ethereum). 32-byte output.
+ *  NOT NIST SHA3-256 (different padding → different digest). */
+CRYPTO_API CryptoBufferResult cipherbird_keccak256(const uint8_t* msg, size_t msg_len);
+
+/** RIPEMD-160. 20-byte output. Bitcoin HASH160(x) = ripemd160(sha256(x)). */
+CRYPTO_API CryptoBufferResult cipherbird_ripemd160(const uint8_t* msg, size_t msg_len);
+
+/** secp256k1 keypair. sk = 32 bytes; pk = 65 bytes uncompressed (0x04 ‖ X ‖ Y). */
+CRYPTO_API CryptoKeyPair cipherbird_secp256k1_keygen(void);
+
+/** Derive the public key from a 32-byte secret key.
+ *  compressed: 1 → 33 bytes (0x02/0x03 ‖ X), 0 → 65 bytes (0x04 ‖ X ‖ Y). */
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_pubkey(
+    const uint8_t* secret_key, size_t sk_len, int compressed);
+
+/** Sign a 32-byte digest. RFC6979 deterministic nonce, low-S normalized.
+ *  Returns 65 bytes: r(32) ‖ s(32) ‖ recovery_id(1, value 0..3). */
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_sign(
+    const uint8_t* digest32, const uint8_t* secret_key, size_t sk_len);
+
+/** Verify. sig is 64 bytes (r ‖ s); pk is 33 or 65 bytes. Low-S enforced.
+ *  Returns 1 if valid, 0 otherwise. */
+CRYPTO_API int cipherbird_secp256k1_verify(
+    const uint8_t* digest32,
+    const uint8_t* sig, size_t sig_len,
+    const uint8_t* public_key, size_t pk_len);
+
+/** Recover the public key (65-byte uncompressed) from a 32-byte digest and a
+ *  65-byte recoverable signature (r ‖ s ‖ recovery_id). Ethereum ecrecover. */
+CRYPTO_API CryptoBufferResult cipherbird_secp256k1_recover(
+    const uint8_t* digest32, const uint8_t* sig65);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * P-256 (secp256r1) ECDSA with SHA-256: ES256
+ *   The JWS ES256 signature (RFC 7518), the one Apple push authenticates a
+ *   provider with. Present in the full and bank profiles; every curve
+ *   operation runs in OpenSSL libcrypto. The functions never vanish from
+ *   the ABI: where libcrypto is absent or was configured without EC (the
+ *   trimmed libcrypto of the mobile and web engines), cipherbird_p256_available
+ *   returns 0 and each call reports the feature as not enabled. The fips
+ *   profile keeps its own cipherbird_fips_p256_* functions (DER signatures,
+ *   inside the validated module) and does not carry these.
+ *
+ *   secret key  32 bytes, the scalar d big-endian, 1 <= d < n
+ *   public key  65 bytes, the uncompressed point 0x04 || X || Y
+ *   signature   64 bytes, r || s big-endian (IEEE P1363, the JWS form)
+ *
+ *   Nonces are deterministic (RFC 6979) with OpenSSL 3.2 and later, so
+ *   signing draws no randomness; cipherbird_p256_available returns 2 in that
+ *   case and 1 when the nonce is libcrypto's hedged random one. High-s
+ *   signatures are produced and accepted, as FIPS 186-5 and JWS allow: a
+ *   signature is malleable and must not serve as a unique identifier.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+#define CIPHERBIRD_P256_SECRET_KEY_BYTES 32
+#define CIPHERBIRD_P256_PUBLIC_KEY_BYTES 65
+#define CIPHERBIRD_P256_SIGNATURE_BYTES  64
+#define CIPHERBIRD_P256_MAX_PKCS8_BYTES  4096
+
+/** 0 when P-256 is not in this build, 1 when it is, 2 when it is and nonces
+ *  are deterministic (RFC 6979). */
+CRYPTO_API int cipherbird_p256_available(void);
+
+/** A fresh key pair: secret_key 32 bytes, public_key 65 bytes. Both buffers
+ *  are NULL when P-256 is not in this build. */
+CRYPTO_API CryptoKeyPair cipherbird_p256_keygen(void);
+
+/** The 65-byte public key of a 32-byte secret key; an error for a length
+ *  other than 32 or a scalar outside 1..n-1. */
+CRYPTO_API CryptoBufferResult cipherbird_p256_public_key(const uint8_t* secret_key, size_t sk_len);
+
+/** ECDSA over SHA-256(message): 64 bytes, r || s. message may be NULL only
+ *  with a zero length. */
+CRYPTO_API CryptoBufferResult cipherbird_p256_sign(
+    const uint8_t* secret_key, size_t sk_len, const uint8_t* message, size_t msg_len);
+
+/** 1 when signature (64 bytes, r || s, each in 1..n-1) verifies over
+ *  SHA-256(message) under public_key (65 bytes, uncompressed, on the
+ *  curve); 0 for anything else, a wrong length included. */
+CRYPTO_API int cipherbird_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len);
+
+/** Imports an unencrypted PKCS#8 private key (RFC 5208 PrivateKeyInfo around
+ *  an RFC 5915 ECPrivateKey), DER. Returns 97 bytes: the secret key (32)
+ *  followed by its public key (65), which is derived from the scalar. The
+ *  parse is strict: trailing bytes, a version other than 0, an algorithm
+ *  other than id-ecPublicKey, a curve other than prime256v1, attributes, an
+ *  encrypted PKCS#8, a scalar not exactly 32 bytes or outside 1..n-1, an
+ *  embedded public key that is not the uncompressed point of that scalar,
+ *  and any indefinite or non-minimal length are all errors. Input is capped
+ *  at CIPHERBIRD_P256_MAX_PKCS8_BYTES. Wipe the result when done. */
+CRYPTO_API CryptoBufferResult cipherbird_p256_import_pkcs8_der(const uint8_t* der, size_t der_len);
+
+/** cipherbird_p256_import_pkcs8_der on one PEM block labelled PRIVATE KEY
+ *  (the .p8 file Apple issues). Only whitespace may surround the block and
+ *  the body is padded base64; ENCRYPTED PRIVATE KEY and EC PRIVATE KEY
+ *  blocks are refused by name. pem need not be NUL-terminated. */
+CRYPTO_API CryptoBufferResult cipherbird_p256_import_pkcs8_pem(const uint8_t* pem, size_t pem_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Steganography — hide data inside media files
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Embed raw bytes into a media file. Format auto-detected from extension. */
+CRYPTO_API CryptoResult cipherbird_stego_embed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path);
+
+/** Extract raw bytes from a stego media file. */
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract(const char* stego_path);
+
+/** Get the steganographic capacity of a cover file (in bytes). */
+CRYPTO_API size_t cipherbird_stego_capacity(const char* cover_path);
+
+/* ── Keyed steganography (whitened, no 'CSTG' signature) ────────────────────
+ * A non-empty key whitens the embedded stream for EVERY carrier format and, for
+ * the .ppm/DCT path, additionally permutes carrier slots. The SAME key must be
+ * supplied to extract. The payload should still be encrypted — the key governs
+ * concealment, not confidentiality. */
+
+/** Embed with key-derived whitening (+ permutation on .ppm). */
+CRYPTO_API CryptoResult cipherbird_stego_embed_keyed(
+    const char* cover_path,
+    const uint8_t* payload, size_t payload_len,
+    const char* output_path,
+    const uint8_t* key, size_t key_len);
+
+/** Extract a keyed-embedded payload. Wrong key → error (CRC fast-fail). */
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract_keyed(
+    const char* stego_path,
+    const uint8_t* key, size_t key_len);
+
+/* ── Always-encrypt stego (AEAD-then-hide) ──────────────────────────────────
+ * One master key → domain-separated XChaCha20-Poly1305 (confidentiality +
+ * integrity) + whitening + permutation. The payload is never placed in the
+ * carrier as cleartext. .ppm carrier. */
+
+/** AEAD-seal then hide the ciphertext. */
+CRYPTO_API CryptoResult cipherbird_stego_embed_encrypted(
+    const char* cover_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const char* output_path,
+    const uint8_t* master_key, size_t key_len);
+
+/** Extract + AEAD-open. Wrong key or tamper → error. */
+CRYPTO_API CryptoBufferResult cipherbird_stego_extract_decrypt(
+    const char* stego_path,
+    const uint8_t* master_key, size_t key_len);
+
+/* ── PhysicalSeal — two-factor "the photo is the key" ───────────────────────
+ * A key-media file (conditioned via deterministic MediaEntropy) seeds an AEAD
+ * key and a stego key; the plaintext is sealed and hidden in a SEPARATE cover
+ * carrier. Both files are required to recover the message. */
+
+/** Seal `plaintext` (binds `aad`) using `key_media`, hiding it in `cover`. */
+CRYPTO_API CryptoResult cipherbird_physical_seal(
+    const char* key_media_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path,
+    const char* output_path);
+
+/** Recover: reconstruct keys from `key_media`, extract from `stego`, open. */
+CRYPTO_API CryptoBufferResult cipherbird_physical_open(
+    const char* key_media_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path);
+
+/* ── Forward error correction (stego robustness knob) ───────────────────────
+ * scheme: 0 = None, 1 = Repetition-3, 2 = Repetition-5, 3 = Hamming(7,4).
+ * Trades capacity for recovery from bounded bit errors. Classic codes. */
+
+/** FEC-encode `data` under `scheme`. */
+CRYPTO_API CryptoBufferResult cipherbird_fec_encode(
+    const uint8_t* data, size_t len, int scheme);
+
+/** FEC-decode `original_len` bytes from `data`, correcting within the scheme's
+ *  bound. Errs if `data` is too short. */
+CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
+    const uint8_t* data, size_t len, int scheme, size_t original_len);
+
+/* ── Carrier analysis — validity, tamper, hidden-data (heuristic) ────────────
+ * Honest probes; NONE is a proof. See the notes below and the C++ header. */
+
+/** File-validity / format inspection. `format` is the MediaFormat inferred from
+ *  CONTENT (magic bytes), 0xFF = unknown; `ext_matches`=1 iff it matches the
+ *  file extension. On error, `error` is set (free with cipherbird_str_free). */
+typedef struct {
+    int      parses;       /**< 1 = recognised, structurally plausible carrier */
+    uint8_t  format;       /**< MediaFormat from content (0xFF unknown) */
+    int      ext_matches;  /**< 1 = content format == extension format */
+    uint64_t width;        /**< images only (0 otherwise) */
+    uint64_t height;
+    uint64_t file_size;
+    char*    detail;       /**< human summary (heap-allocated) — free with cipherbird_str_free */
+    char*    error;        /**< NULL on success */
+} CryptoFileInspection;
+
+/** Heuristic hidden-data report. `cipherbird_payload`=1 is definitive (an UNKEYED
+ *  cipherbird payload was recovered); `lsb_embedding_likelihood` is a 0..1
+ *  heuristic (Westfeld–Pfitzmann LSB attack) — NOT proof, false-positives on
+ *  high-entropy carriers, blind to keyed/whitened & DCT payloads. `note` states
+ *  the limits. Free `note`/`error` with cipherbird_str_free. */
+typedef struct {
+    int      cipherbird_payload;         /**< 1 = an unkeyed cipherbird payload is recoverable */
+    double   lsb_chi_square;            /**< raw statistic */
+    double   lsb_embedding_likelihood;  /**< 0..1 heuristic */
+    uint64_t samples_analysed;
+    char*    note;                      /**< honesty caveat (heap-allocated) */
+    char*    error;                     /**< NULL on success */
+} CryptoHiddenDataReport;
+
+/** Inspect a media file's structural validity + format. */
+CRYPTO_API CryptoFileInspection cipherbird_stego_inspect(const char* path);
+
+/** 32-byte BLAKE2b digest of the whole file — store it, recompute later, and
+ *  compare with cipherbird_secure_equal to detect ANY change (reference-based
+ *  tamper detection). */
+CRYPTO_API CryptoBufferResult cipherbird_stego_content_digest(const char* path);
+
+/** Heuristic hidden-data probe (see caveats above). */
+CRYPTO_API CryptoHiddenDataReport cipherbird_stego_detect_hidden(const char* path);
+
+/** NIST SP 800-90B source-health report for a media file (A1). `min_entropy_per_byte`
+ *  is the Most-Common-Value lower bound (0..8); `rct_passed`/`apt_passed` are the
+ *  Repetition-Count / Adaptive-Proportion local tests. A source is "healthy" when
+ *  min_entropy_per_byte >= your threshold AND both tests passed. On error, `error`
+ *  is set (free with cipherbird_str_free). */
+typedef struct {
+    double   min_entropy_per_byte;
+    uint64_t longest_run;
+    uint64_t max_window_count;
+    int      rct_passed;   /**< 1 = passed */
+    int      apt_passed;   /**< 1 = passed */
+    char*    error;        /**< NULL on success */
+} CryptoHealthReport;
+
+/** Assess a media file against the SP 800-90B health tests. `max_bytes` caps the
+ *  sample size; pass 0 for the default (1 MiB). Use BEFORE trusting a file as a
+ *  deterministic key source. */
+CRYPTO_API CryptoHealthReport cipherbird_entropy_assess_file_health(
+    const char* path, size_t max_bytes);
+
+/** The full SP 800-90B verdict with every number behind it. `floor_bits_per_byte`
+ *  is the min-entropy the caller intends to claim (the plain harvests use 1.0);
+ *  the two cutoffs are calibrated against it, so `rct_cutoff` = 1 + ceil(30 /
+ *  floor) and a run that long fails the repetition-count test. `summary` is a
+ *  human-readable explanation, one line per signal. Free `summary` and `error`
+ *  with cipherbird_str_free. */
+typedef struct {
+    double   min_entropy_per_byte; /**< min of the two estimates, 0..8 */
+    double   mcv_bits_per_byte;    /**< Most-Common-Value estimate (6.3.1) */
+    double   markov_bits_per_byte; /**< Markov estimate over the bit expansion (6.3.3) */
+    double   floor_bits_per_byte;  /**< the claim the cutoffs are calibrated for */
+    uint64_t sample_bytes;         /**< bytes the estimates and tests looked at */
+    uint64_t longest_run;          /**< longest run of one identical byte */
+    uint64_t rct_cutoff;           /**< a run this long fails the repetition-count test */
+    uint64_t max_window_count;     /**< peak same-value count in any window */
+    uint64_t apt_cutoff;           /**< a count this high fails the adaptive-proportion test */
+    uint64_t apt_window;           /**< window size, 512 */
+    int      rct_passed;           /**< 1 = passed */
+    int      apt_passed;           /**< 1 = passed */
+    char*    summary;              /**< one line per signal; NULL on error */
+    char*    error;                /**< NULL on success */
+} CryptoHealthReport2;
+
+/** Assess a media file under a floor; `max_bytes` 0 means 1 MiB. */
+CRYPTO_API CryptoHealthReport2 cipherbird_entropy_assess_file_health_v2(
+    const char* path, size_t max_bytes, double floor_bits_per_byte);
+
+/* ── LiveEntropy — a continuous source fed by a live stream ─────────────────
+ * Feed chunks as they arrive (camera frames, audio buffers, packets). Each
+ * chunk is assessed under the policy with the repetition-count run carried
+ * across chunks; a chunk that passes is credited min_entropy_per_byte * size
+ * bits, one that fails is mixed in but credited nothing and the report says
+ * why. Output is an SP 800-90A HMAC-DRBG seeded once `min_credited_bits`
+ * (256 by default) have been earned, with an operating-system nonce, and
+ * reseeded every time that much credit arrives again. Generate fails closed
+ * before the first seed. Not thread-safe. */
+
+/** What one feed did. Free `reason` and `error` with cipherbird_str_free. */
+typedef struct {
+    int      accepted;             /**< 1 = credited under the policy */
+    double   credited_bits;        /**< this chunk's credit */
+    double   credited_bits_total;  /**< since the handle was created */
+    int      ready;                /**< 1 = generate would succeed */
+    double   min_entropy_per_byte; /**< this chunk's estimate */
+    uint64_t longest_run;          /**< including the run carried from the previous chunk */
+    uint64_t rct_cutoff;
+    int      rct_passed;
+    int      apt_passed;
+    char*    reason;               /**< why the chunk was not credited; NULL when accepted */
+    char*    error;                /**< NULL on success */
+} CryptoLiveFeedReport;
+
+/** Where the source stands. Free `last_reason` and `error` with cipherbird_str_free. */
+typedef struct {
+    uint64_t chunks_fed;
+    uint64_t chunks_accepted;
+    uint64_t chunks_rejected;
+    uint64_t bytes_fed;
+    uint64_t reseeds;                    /**< DRBG seedings so far */
+    double   credited_bits_total;
+    double   credited_bits_since_reseed;
+    double   min_credited_bits;
+    int      ready;
+    double   last_min_entropy_per_byte;
+    uint64_t last_longest_run;
+    uint64_t last_rct_cutoff;
+    char*    last_reason;                /**< NULL when the last chunk was credited */
+    char*    error;                      /**< NULL on success */
+} CryptoLiveStatus;
+
+/** Create a source under a policy (floor in bits per byte, whether the
+ *  repetition-count test refuses) that seeds after `min_credited_bits`
+ *  (0 means 256). Free with cipherbird_live_entropy_free. */
+CRYPTO_API CryptoLiveEntropyHandle cipherbird_live_entropy_new(
+    double min_bits_per_byte, int require_rct, double min_credited_bits, char** out_error);
+
+/** Feed one chunk from logical source `source_id`. */
+CRYPTO_API CryptoLiveFeedReport cipherbird_live_entropy_feed(
+    CryptoLiveEntropyHandle h, const uint8_t* data, size_t len, uint8_t source_id);
+
+/** Draw `num_bytes` (at most 65536); errs until the first seed is earned. */
+CRYPTO_API CryptoBufferResult cipherbird_live_entropy_generate(
+    CryptoLiveEntropyHandle h, size_t num_bytes);
+
+CRYPTO_API CryptoLiveStatus cipherbird_live_entropy_status(CryptoLiveEntropyHandle h);
+
+CRYPTO_API void cipherbird_live_entropy_free(CryptoLiveEntropyHandle h);
+
+/* ── ImageFactorSeal — a shared reference image as an OPRF-gated 2nd factor ──
+ * Two factors to open: the OPRF secret (know) AND the exact reference image
+ * (have). Local one-shot mode (the oblivious remote mode stays C++-only). */
+
+/** Seal `plaintext` (binds `aad`) under OPRF(oprf_secret_seed, reference_image),
+ *  hiding the ciphertext in `cover`. */
+CRYPTO_API CryptoResult cipherbird_image_factor_seal(
+    const uint8_t* oprf_secret_seed, size_t seed_len,
+    const char* reference_image_path,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const char* cover_path, const char* output_path);
+
+/** Recover: re-derive the keys from the OPRF secret + reference image, extract,
+ *  AEAD-open. Wrong secret / wrong image / tamper → error. */
+CRYPTO_API CryptoBufferResult cipherbird_image_factor_open(
+    const uint8_t* oprf_secret_seed, size_t seed_len,
+    const char* reference_image_path,
+    const uint8_t* aad, size_t aad_len,
+    const char* stego_path);
+
+/* ── HpkeStegoSeal — keyed stego bound to an HPKE session (RFC 9180) ─────────
+ * One HPKE session (DHKEM-X25519 + HKDF-SHA256 + ChaCha20-Poly1305) governs both
+ * the AEAD ciphertext and the stego key (via the exporter). Get pkR/skR from
+ * cipherbird_hpke_keygen / cipherbird_hpke_derive_keypair. */
+
+/** Seal `plaintext` to recipient public key `pkR`, hiding the ciphertext in
+ *  `cover`. Returns the PUBLIC KEM encapsulation `enc` — transmit it alongside
+ *  the carrier (the receiver needs it). */
+CRYPTO_API CryptoBufferResult cipherbird_hpke_stego_seal(
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* info, size_t info_len,
+    const char* cover_path, const char* output_path);
+
+/** Recover: rebuild the session from `enc` + recipient secret `skR`, extract,
+ *  AEAD-open. Only the holder of skR can. */
+CRYPTO_API CryptoBufferResult cipherbird_hpke_stego_open(
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* info, size_t info_len,
+    const char* stego_path);
+
+/* ── HMAC-DRBG (SP 800-90A) — stateful accumulator/beacon ───────────────────
+ * Instantiate once from >= 32 bytes of entropy, then pull a forward-secure
+ * keystream. Free the handle with cipherbird_drbg_free. */
+
+/** Instantiate from entropy (>=32 B) + optional nonce + optional personalization.
+ *  Returns NULL on failure (out_error set; free with cipherbird_str_free). */
+CRYPTO_API CryptoDrbgHandle cipherbird_drbg_instantiate(
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* nonce, size_t nonce_len,
+    const uint8_t* personalization, size_t perso_len,
+    char** out_error);
+
+/** Generate `num_bytes` (<= 65536) pseudo-random bytes, optional additional input. */
+CRYPTO_API CryptoBufferResult cipherbird_drbg_generate(
+    CryptoDrbgHandle h, size_t num_bytes,
+    const uint8_t* additional, size_t additional_len);
+
+/** Reseed with fresh entropy + optional additional input. */
+CRYPTO_API CryptoResult cipherbird_drbg_reseed(
+    CryptoDrbgHandle h,
+    const uint8_t* entropy, size_t entropy_len,
+    const uint8_t* additional, size_t additional_len);
+
+/** Free a DRBG handle. */
+CRYPTO_API void cipherbird_drbg_free(CryptoDrbgHandle h);
+
+/* ── Fortuna-style entropy pool — stateful accumulator ──────────────────────
+ * Add entropy events from many sources; generate() reseeds automatically once
+ * pool 0 fills, then yields a forward-secret ChaCha20 keystream. */
+
+/** Create a new (unseeded) pool. Free with cipherbird_fortuna_free. */
+CRYPTO_API CryptoFortunaHandle cipherbird_fortuna_new(void);
+
+/** Add an entropy event from logical source `source_id`. */
+CRYPTO_API void cipherbird_fortuna_add_entropy(
+    CryptoFortunaHandle h, uint8_t source_id, const uint8_t* data, size_t len);
+
+/** Generate `num_bytes`. Errors if the pool has never been seeded. */
+CRYPTO_API CryptoBufferResult cipherbird_fortuna_generate(
+    CryptoFortunaHandle h, size_t num_bytes);
+
+/** Force a reseed now (folds in the catch-up-scheduled pools). */
+CRYPTO_API void cipherbird_fortuna_reseed(CryptoFortunaHandle h);
+
+/** Number of reseeds so far (0 = never seeded). */
+CRYPTO_API uint64_t cipherbird_fortuna_reseed_count(CryptoFortunaHandle h);
+
+/** Free a Fortuna handle. */
+CRYPTO_API void cipherbird_fortuna_free(CryptoFortunaHandle h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Keyring — envelope encryption with key-slots
+ *
+ * One random master key (which you then use with the vault) is wrapped in one
+ * or more slots. Each slot unlocks the master key via a different factor:
+ *   - device slot:     a 32-byte key from secure hardware (Enclave/Keystore)
+ *   - passphrase slot: an Argon2id-hardened passphrase (cross-device path)
+ * Default = 1 device slot; add a passphrase slot to enable cross-device.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Create a keyring with a fresh random master key (unlocked, no slots). */
+CRYPTO_API CryptoKeyringHandle cipherbird_keyring_create(void);
+
+/** Add a device slot from a >=32-byte hardware factor key. Returns 1 on success. */
+CRYPTO_API int cipherbird_keyring_add_device_slot(
+    CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len);
+
+/** Add a passphrase slot. kdf_preset: 0=interactive, 1=sensitive. Returns 1 on success. */
+CRYPTO_API int cipherbird_keyring_add_passphrase_slot(
+    CryptoKeyringHandle kr, const char* passphrase, int kdf_preset);
+
+/** Number of slots. */
+CRYPTO_API size_t cipherbird_keyring_slot_count(CryptoKeyringHandle kr);
+
+/** Revoke a slot by index. Returns 1 on success. */
+CRYPTO_API int cipherbird_keyring_remove_slot(CryptoKeyringHandle kr, size_t index);
+
+/** Serialise the envelope blob (no plaintext key). Caller frees the buffer. */
+CRYPTO_API CryptoBufferResult cipherbird_keyring_serialise(CryptoKeyringHandle kr);
+
+/** Parse an envelope blob into a new (locked) handle. NULL on error. */
+CRYPTO_API CryptoKeyringHandle cipherbird_keyring_deserialise(
+    const uint8_t* blob, size_t len, char** out_error);
+
+/** Unlock with a device factor key. Returns the 32-byte master key (caller frees). */
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_device(
+    CryptoKeyringHandle kr, const uint8_t* factor_key, size_t len);
+
+/** Hardware slots: a platform key module (Secure Enclave, Android Keystore)
+ *  wraps the slot's 32-byte factor; the keyring never sees the module key.
+ *  Add: call add_hardware_slot with the module key's identifier, hand the
+ *  returned factor to the module to wrap, store the result with
+ *  set_hardware_blob, then free the factor. Unlock: read the slot with
+ *  hardware_slot, have the module unwrap the blob, pass the factor to
+ *  unlock_with_hardware. Envelopes with a hardware slot carry version 2;
+ *  older parsers refuse them. */
+
+/** Add a hardware slot named by `key_id` (1..255 bytes). Returns the fresh
+ *  32-byte factor for the module to wrap (caller frees, which wipes it). */
+CRYPTO_API CryptoBufferResult cipherbird_keyring_add_hardware_slot(
+    CryptoKeyringHandle kr, const uint8_t* key_id, size_t key_id_len);
+
+/** Store the module-wrapped factor (1..4096 bytes) for the hardware slot at
+ *  `index`. Returns 1 on success. */
+CRYPTO_API int cipherbird_keyring_set_hardware_blob(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* blob, size_t blob_len);
+
+/** Slot type at `index`: 0 passphrase, 1 device, 2 hardware; -1 for a bad index. */
+CRYPTO_API int cipherbird_keyring_slot_type(CryptoKeyringHandle kr, size_t index);
+
+/** Key id and module-wrapped factor of the hardware slot at `index`. Both
+ *  outputs are caller-freed buffers. Returns 1 on success. */
+CRYPTO_API int cipherbird_keyring_hardware_slot(
+    CryptoKeyringHandle kr, size_t index, CryptoBuffer* out_key_id, CryptoBuffer* out_blob);
+
+/** Unlock the hardware slot at `index` with the factor the module unwrapped.
+ *  Returns the 32-byte master key (caller frees). */
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_hardware(
+    CryptoKeyringHandle kr, size_t index, const uint8_t* factor, size_t factor_len);
+
+/** Unlock with a passphrase. Returns the 32-byte master key (caller frees). */
+CRYPTO_API CryptoBufferResult cipherbird_keyring_unlock_with_passphrase(
+    CryptoKeyringHandle kr, const char* passphrase);
+
+/** Destroy a keyring handle. */
+CRYPTO_API void cipherbird_keyring_free(CryptoKeyringHandle kr);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Standards-track KEMs and the v2 envelopes (assessment r2: M4, M5, M6)
+ *   Available in the full and bank profiles. In the fips profile every call
+ *   here fails with "not available in this build profile".
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* X-Wing (draft-connolly-cfrg-xwing-kem-11): ML-KEM-768 + X25519 with the
+ * draft's combiner. Public key 1216 B, secret key 32 B (the seed),
+ * ciphertext 1120 B, shared secret 32 B. */
+CRYPTO_API CryptoKeyPair cipherbird_xwing_keygen(void);
+CRYPTO_API CryptoKeyPair cipherbird_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len);
+CRYPTO_API CryptoKemEncapsResult cipherbird_xwing_encapsulate(
+    const uint8_t* public_key, size_t pk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cipherbird_xwing_decapsulate(
+    const uint8_t* ciphertext, size_t ct_len, const uint8_t* secret_key, size_t sk_len);
+
+/* HPKE with a selectable KEM. kem is the IANA HPKE KEM id:
+ *   0x0020 DHKEM(X25519, HKDF-SHA256)   pk 32, sk 32, enc 32, all four modes
+ *   0x0041 ML-KEM-768                   pk 1184, sk 64 (seed), enc 1088, base and psk
+ *   0x647A X-Wing                       pk 1216, sk 32 (seed), enc 1120, base and psk
+ * The kdf, aead, mode and remaining arguments follow cipherbird_hpke_setup_s /
+ * cipherbird_hpke_setup_r; the returned context works with cipherbird_hpke_seal,
+ * cipherbird_hpke_open, cipherbird_hpke_export and cipherbird_hpke_context_free. */
+CRYPTO_API int cipherbird_hpke_kem_available(int kem);
+CRYPTO_API CryptoKeyPair cipherbird_hpke_keygen_kem(int kem);
+CRYPTO_API CryptoKeyPair cipherbird_hpke_derive_keypair_kem(int kem, const uint8_t* ikm, size_t ikm_len);
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_s_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* pkR, size_t pkR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* skS, size_t skS_len,
+    CryptoBuffer* out_enc, char** out_error);
+CRYPTO_API CryptoHpkeContext cipherbird_hpke_setup_r_kem(
+    int kem, int kdf, int aead, int mode,
+    const uint8_t* enc, size_t enc_len,
+    const uint8_t* skR, size_t skR_len,
+    const uint8_t* info, size_t info_len,
+    const uint8_t* psk, size_t psk_len,
+    const uint8_t* psk_id, size_t psk_id_len,
+    const uint8_t* pkS, size_t pkS_len,
+    char** out_error);
+
+/* Suite v2 ("CSV2"): signed sealed envelopes whose Ed25519 + ML-DSA-65
+ * signature binds the recipient KEM public key, the KEM ciphertext and the
+ * AAD together with the plaintext, so a signed message cannot be re-sealed to
+ * another recipient. Suite ids: */
+#define CIPHERBIRD_SUITE2_XWING_SIG  0x11  /* X-Wing (default, every profile) */
+#define CIPHERBIRD_SUITE2_HYBRID_SIG 0x12  /* library-native X25519 + ML-KEM-768 combiner, full profile only */
+CRYPTO_API CryptoBufferResult cipherbird_suite2_seal(
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_secret, size_t ssk_len,
+    const uint8_t* aad, size_t aad_len, int suite);
+CRYPTO_API CryptoBufferResult cipherbird_suite2_open(
+    const uint8_t* envelope, size_t env_len,
+    const uint8_t* recipient_kem_secret, size_t rsk_len,
+    const uint8_t* recipient_kem_public, size_t rpk_len,
+    const uint8_t* signer_sig_public, size_t spk_len,
+    const uint8_t* aad, size_t aad_len);
+/** The suite id of a v2 envelope, or 0 when it is not one. */
+CRYPTO_API int cipherbird_suite2_suite_of(const uint8_t* envelope, size_t env_len);
+
+/* Session v2 ("RTC2"): the forward-secret ratchet over X-Wing with an
+ * authenticated handshake. The responder's prekey is signed by its identity
+ * (Ed25519 + ML-DSA-65, cipherbird_hybrid_sig_keygen); the initiator proves its
+ * own identity in the handshake and the responder accepts only the identity
+ * it expects. Pin that identity through a directory, a certificate or a prior
+ * session; the library verifies, it does not decide who to trust. */
+/** Responder: public_key is the signed prekey bundle to publish, secret_key
+ *  the 32-byte X-Wing seed to keep until the handshake arrives. */
+CRYPTO_API CryptoKeyPair cipherbird_session2_generate_prekey(
+    const uint8_t* responder_sig_secret, size_t ssk_len);
+/** The X-Wing public key inside a bundle, after its signature verified. */
+CRYPTO_API CryptoBufferResult cipherbird_session2_verify_prekey(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len);
+/** Initiator: verify the bundle, key to it, and sign the handshake. The
+ *  returned handle's cipherbird_session2_handshake() goes to the responder. */
+CRYPTO_API CryptoSession cipherbird_session2_initiate(
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* initiator_sig_public, size_t ipk_len,
+    const uint8_t* initiator_sig_secret, size_t isk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cipherbird_session2_handshake(CryptoSession h);
+/** The initiator identity a handshake claims, before any verification. Use it
+ *  to look up the expected identity, never to trust it. */
+CRYPTO_API CryptoBufferResult cipherbird_session2_claimed_initiator(
+    const uint8_t* handshake, size_t hs_len);
+/** Responder: accept a handshake only from expected_initiator_sig_public. */
+CRYPTO_API CryptoSession cipherbird_session2_accept(
+    const uint8_t* handshake, size_t hs_len,
+    const uint8_t* bundle, size_t bundle_len,
+    const uint8_t* prekey_secret, size_t psk_len,
+    const uint8_t* responder_sig_public, size_t rpk_len,
+    const uint8_t* responder_sig_secret, size_t rsk_len,
+    const uint8_t* expected_initiator_sig_public, size_t ipk_len, char** out_error);
+CRYPTO_API CryptoBufferResult cipherbird_session2_encrypt(
+    CryptoSession h, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_session2_decrypt(
+    CryptoSession h, const uint8_t* msg, size_t msg_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API void cipherbird_session2_free(CryptoSession h);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * FIPS profile (assessment r2: C3)
+ *   Built with -DCIPHERBIRD_PROFILE=fips, every operation below runs inside the
+ *   OpenSSL FIPS Provider (CMVP certificate #4985, OpenSSL 3.1.2) fetched with
+ *   "fips=yes"; nothing libsodium-backed is compiled in. In the other profiles
+ *   cipherbird_fips_available() returns 0 and every call fails. The provider
+ *   must be initialised once with cipherbird_fips_init before any other call.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    int   loaded;              /**< the fips provider is loaded */
+    int   self_tests_passed;   /**< its power-up self tests ran and passed */
+    int   approved_mode;       /**< default fetches are restricted to fips=yes */
+    char* provider_name;       /**< heap strings; free with cipherbird_fips_status_free */
+    char* provider_version;
+    char* module_directory;
+    char* config_file;
+} CryptoFipsStatus;
+
+/** 1 when this library was built in the fips profile. */
+CRYPTO_API int cipherbird_fips_available(void);
+/** Load the validated module from module_dir (fips.so / fips.dylib) using the
+ *  OpenSSL config file that includes its fipsmodule.cnf, run the self tests
+ *  and enter approved mode. NULL arguments fall back to the environment
+ *  variables CIPHERBIRD_FIPS_MODULE_DIR and CIPHERBIRD_FIPS_CONFIG. */
+CRYPTO_API CryptoResult cipherbird_fips_init(const char* module_dir, const char* config_file);
+CRYPTO_API CryptoFipsStatus cipherbird_fips_status(void);
+CRYPTO_API void cipherbird_fips_status_free(CryptoFipsStatus* s);
+
+/* hash: 0 SHA-256, 1 SHA-384, 2 SHA-512, 3 SHA3-256. */
+CRYPTO_API CryptoBufferResult cipherbird_fips_digest(int hash, const uint8_t* data, size_t len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_hmac(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len);
+CRYPTO_API int cipherbird_fips_hmac_verify(int hash,
+    const uint8_t* key, size_t key_len, const uint8_t* data, size_t len, const uint8_t* tag, size_t tag_len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_hkdf(int hash,
+    const uint8_t* ikm, size_t ikm_len, const uint8_t* salt, size_t salt_len,
+    const uint8_t* info, size_t info_len, size_t out_len);
+/** PBKDF2 (SP 800-132): salt at least 16 B, iterations at least 1000, output at least 14 B. */
+CRYPTO_API CryptoBufferResult cipherbird_fips_pbkdf2(int hash,
+    const uint8_t* password, size_t password_len, const uint8_t* salt, size_t salt_len,
+    unsigned iterations, size_t out_len);
+/** Bytes from the module's CTR_DRBG. */
+CRYPTO_API CryptoBufferResult cipherbird_fips_random(size_t n);
+/** AES-256-GCM with the IV constructed inside the module: wire = iv(12) | ct | tag(16). */
+CRYPTO_API CryptoBufferResult cipherbird_fips_aes_gcm_encrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* pt, size_t pt_len, const uint8_t* aad, size_t aad_len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_aes_gcm_decrypt(
+    const uint8_t* key, size_t key_len, const uint8_t* wire, size_t wire_len, const uint8_t* aad, size_t aad_len);
+/** P-256: public key 65 B uncompressed, private key 32 B; ECDH shared secret
+ *  32 B; ECDSA with SHA-256, DER signatures. */
+CRYPTO_API CryptoKeyPair cipherbird_fips_p256_keygen(void);
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_ecdh(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* peer_public, size_t pk_len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_sign(
+    const uint8_t* private_key, size_t sk_len, const uint8_t* message, size_t msg_len);
+CRYPTO_API int cipherbird_fips_p256_verify(
+    const uint8_t* public_key, size_t pk_len, const uint8_t* message, size_t msg_len,
+    const uint8_t* signature, size_t sig_len);
+/** The public point of a private scalar, computed by libcrypto outside the
+ *  module boundary; keep the public key the module exported instead when
+ *  the deployment forbids that. */
+CRYPTO_API CryptoBufferResult cipherbird_fips_p256_public_key(const uint8_t* private_key, size_t sk_len);
+
+/** Key envelope ("FKR1"): a 32-byte master secret wrapped by up to 16 slots
+ *  (PBKDF2-SHA256 passphrases or HKDF-SHA256 key factors), AES-256-GCM.
+ *  Opaque handle; free with cipherbird_fips_envelope_free. */
+typedef void* CryptoFipsEnvelope;
+CRYPTO_API CryptoFipsEnvelope cipherbird_fips_envelope_create(char** out_error);
+CRYPTO_API CryptoFipsEnvelope cipherbird_fips_envelope_deserialise(
+    const uint8_t* blob, size_t blob_len, char** out_error);
+/** Adding a slot needs an unlocked envelope (freshly created, or unlocked). */
+CRYPTO_API CryptoResult cipherbird_fips_envelope_add_passphrase_slot(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len, unsigned iterations);
+CRYPTO_API CryptoResult cipherbird_fips_envelope_add_key_slot(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_unlock_with_passphrase(
+    CryptoFipsEnvelope h, const uint8_t* passphrase, size_t len);
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_unlock_with_key(
+    CryptoFipsEnvelope h, const uint8_t* factor, size_t len);
+CRYPTO_API CryptoResult cipherbird_fips_envelope_remove_slot(CryptoFipsEnvelope h, size_t index);
+CRYPTO_API size_t cipherbird_fips_envelope_slot_count(CryptoFipsEnvelope h);
+CRYPTO_API CryptoBufferResult cipherbird_fips_envelope_serialise(CryptoFipsEnvelope h);
+CRYPTO_API void cipherbird_fips_envelope_free(CryptoFipsEnvelope h);
+
+/** HPKE (RFC 9180) base mode, DHKEM(P-256, HKDF-SHA256) + HKDF-SHA256 +
+ *  AES-256-GCM, one shot. seal writes the 65-byte enc to *out_enc. */
+CRYPTO_API CryptoBufferResult cipherbird_fips_hpke_p256_seal(
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* pt, size_t pt_len, CryptoBuffer* out_enc);
+CRYPTO_API CryptoBufferResult cipherbird_fips_hpke_p256_open(
+    const uint8_t* enc, size_t enc_len, const uint8_t* skR, size_t skR_len,
+    const uint8_t* pkR, size_t pkR_len, const uint8_t* info, size_t info_len,
+    const uint8_t* aad, size_t aad_len, const uint8_t* ct, size_t ct_len);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Version
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Returns version string. Do NOT free. */
+CRYPTO_API const char* cipherbird_version(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* CIPHERBIRD_C_H */

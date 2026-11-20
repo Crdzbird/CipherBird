@@ -4,7 +4,7 @@
 // (+ AES-128/256-GCM when built with OpenSSL), plus end-to-end round trips.
 #include "test_framework.hpp"
 
-#include <cryptolib/hpke.hpp>
+#include <cipherbird/hpke.hpp>
 
 #include <cstdint>
 #include <string>
@@ -199,7 +199,7 @@ TEST("hpke/kat/auth-psk-chacha20") {
     CHECK(vec(o0.value()) == pt);
 }
 
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
 // ── AES-GCM AEADs (OpenSSL) — base mode ──────────────────────────────────────
 TEST("hpke/kat/base-aes128gcm") {
     auto info = unhex("4f6465206f6e2061204772656369616e2055726e");
@@ -306,7 +306,7 @@ TEST("hpke/e2e/auth-multi-message") {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
 TEST("hpke/pq/ml-kem-768-and-x-wing-round-trip") {
     for (auto kem : { Hpke::Kem::MlKem768, Hpke::Kem::XWing }) {
         auto bob = Hpke::generate_keypair(kem);
@@ -359,13 +359,13 @@ void run_tests_hpke() {
     RUN("hpke/kat/psk-chacha20");
     RUN("hpke/kat/auth-chacha20");
     RUN("hpke/kat/auth-psk-chacha20");
-#ifdef CRYPTOLIB_HAS_OPENSSL
+#ifdef CIPHERBIRD_HAS_OPENSSL
     RUN("hpke/kat/base-aes128gcm");
     RUN("hpke/kat/base-aes256gcm");
 #endif
     RUN("hpke/e2e/base-single-shot");
     RUN("hpke/e2e/auth-multi-message");
-#if defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_OPENSSL)
+#if defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
     RUN("hpke/pq/ml-kem-768-and-x-wing-round-trip");
     RUN("hpke/pq/derive-keypair-deterministic-and-kem-ids-distinct");
 #endif

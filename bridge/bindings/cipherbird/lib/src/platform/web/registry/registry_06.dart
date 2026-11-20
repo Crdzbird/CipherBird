@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry06 = {
-  'cryptolib_token_issue':
+  'cipherbird_token_issue':
       (
         Pointer<NativeType> format,
         Pointer<NativeType> out,
@@ -15,7 +15,7 @@ final Map<String, Function> _registry06 = {
         int footerLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_token_issue', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_token_issue', [
         format.address.toJS,
         out.address.toJS,
         outCap.toJS,
@@ -29,7 +29,7 @@ final Map<String, Function> _registry06 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_token_accept':
+  'cipherbird_token_accept':
       (
         Pointer<NativeType> format,
         Pointer<NativeType> out,
@@ -43,7 +43,7 @@ final Map<String, Function> _registry06 = {
         int expectedFooterLen,
         Pointer<NativeType> implicit,
         int implicitLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_token_accept', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_token_accept', [
         format.address.toJS,
         out.address.toJS,
         outCap.toJS,
@@ -57,26 +57,26 @@ final Map<String, Function> _registry06 = {
         implicit.address.toJS,
         implicitLen.toJS,
       ]),
-  'cryptolib_token_peek_format':
+  'cipherbird_token_peek_format':
       (
         Pointer<NativeType> token,
         int tokenLen,
         Pointer<NativeType> out,
         int outCap,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_token_peek_format', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_token_peek_format', [
         token.address.toJS,
         tokenLen.toJS,
         out.address.toJS,
         outCap.toJS,
       ]),
-  'cryptolib_token_peek_footer':
+  'cipherbird_token_peek_footer':
       (
         Pointer<NativeType> token,
         int tokenLen,
         Pointer<NativeType> out,
         int outCap,
         Pointer<NativeType> outLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_token_peek_footer', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_token_peek_footer', [
         token.address.toJS,
         tokenLen.toJS,
         out.address.toJS,

@@ -54,7 +54,7 @@ extension CipherBirdFrostSign on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_frost_sign')(
+        >('cipherbird_frost_sign')(
           identifier,
           ps,
           shareSecret.length,

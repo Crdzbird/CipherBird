@@ -9,9 +9,9 @@
 /// as a child (--p256-cold-start) and fails if the child does not finish.
 ///
 /// The other tests hammer a warm library and are meant to be run under
-/// ThreadSanitizer as well (cmake -DCRYPTOLIB_TSAN=ON).
+/// ThreadSanitizer as well (cmake -DCIPHERBIRD_TSAN=ON).
 #include "test_framework.hpp"
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -60,8 +60,8 @@ const char* g_self = nullptr;
 bool take(CryptoBufferResult r, Bytes& out) {
     const bool ok = r.error == nullptr && r.buf.data != nullptr;
     if (ok) out.assign(r.buf.data, r.buf.data + r.buf.len);
-    cryptolib_buffer_free(&r.buf);
-    cryptolib_str_free(r.error);
+    cipherbird_buffer_free(&r.buf);
+    cipherbird_str_free(r.error);
     return ok;
 }
 
@@ -71,37 +71,37 @@ int one_round(uint8_t tag) {
     int bad = 0;
     const Bytes message = {'h', 'e', 'a', 'd', 'e', 'r', '.', 'c', 'l', 'a', 'i', 'm', 's', tag};
     Bytes pair;
-    if (!take(cryptolib_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(kPem), std::strlen(kPem)), pair) ||
+    if (!take(cipherbird_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(kPem), std::strlen(kPem)), pair) ||
         pair.size() != 97)
         return 1;
     const Bytes sk(pair.begin(), pair.begin() + 32);
     const Bytes pk(pair.begin() + 32, pair.end());
     Bytes sig;
-    if (!take(cryptolib_p256_sign(sk.data(), sk.size(), message.data(), message.size()), sig) || sig.size() != 64)
+    if (!take(cipherbird_p256_sign(sk.data(), sk.size(), message.data(), message.size()), sig) || sig.size() != 64)
         ++bad;
-    else if (cryptolib_p256_verify(pk.data(), pk.size(), message.data(), message.size(), sig.data(), sig.size()) != 1)
+    else if (cipherbird_p256_verify(pk.data(), pk.size(), message.data(), message.size(), sig.data(), sig.size()) != 1)
         ++bad;
     Bytes derived;
-    if (!take(cryptolib_p256_public_key(sk.data(), sk.size()), derived) || derived != pk) ++bad;
-    CryptoKeyPair kp = cryptolib_p256_keygen();
+    if (!take(cipherbird_p256_public_key(sk.data(), sk.size()), derived) || derived != pk) ++bad;
+    CryptoKeyPair kp = cipherbird_p256_keygen();
     if (kp.public_key.len != 65 || kp.secret_key.len != 32) {
         ++bad;
     } else {
         Bytes fresh;
-        if (!take(cryptolib_p256_sign(kp.secret_key.data, kp.secret_key.len, message.data(), message.size()),
+        if (!take(cipherbird_p256_sign(kp.secret_key.data, kp.secret_key.len, message.data(), message.size()),
                   fresh) ||
-            cryptolib_p256_verify(kp.public_key.data, kp.public_key.len, message.data(), message.size(),
+            cipherbird_p256_verify(kp.public_key.data, kp.public_key.len, message.data(), message.size(),
                                   fresh.data(), fresh.size()) != 1)
             ++bad;
     }
-    cryptolib_keypair_free(&kp);
+    cipherbird_keypair_free(&kp);
     return bad;
 }
 
 int worker(int id) {
     int bad = 0;
     for (int round = 0; round < kRounds; ++round) {
-        if (cryptolib_p256_available() == 0) ++bad;
+        if (cipherbird_p256_available() == 0) ++bad;
         bad += one_round(static_cast<uint8_t>(id));
     }
     return bad;
@@ -112,7 +112,7 @@ void on_signal(int, siginfo_t*, void*) {}
 /// The child: kChildThreads threads make the process's first P-256 calls
 /// together while the main thread keeps signalling them, then the signals
 /// stop and the threads have kChildGrace to finish. with_init calls
-/// cryptolib_init() first; otherwise only libsodium is initialised and
+/// cipherbird_init() first; otherwise only libsodium is initialised and
 /// libcrypto is first touched by the P-256 calls themselves. The threads
 /// stay alive until the end, so no signal lands on a thread that is
 /// exiting. Exit status 0 when every call finished with the right answer,
@@ -123,7 +123,7 @@ int cold_child(bool with_init) {
     sa.sa_sigaction = on_signal;
     sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
     sigaction(SIGURG, &sa, nullptr);
-    if (with_init ? cryptolib_init() != 0 : sodium_init() < 0) return 1;
+    if (with_init ? cipherbird_init() != 0 : sodium_init() < 0) return 1;
     std::atomic<int> ready{0}, finished{0}, bad{0};
     std::atomic<bool> go{false}, release{false};
     std::vector<pthread_t> ids(kChildThreads);
@@ -195,7 +195,7 @@ int p256_threads_cold_child(int argc, char** argv) {
 }
 
 TEST("p256-threads/cold-start-under-signals") {
-    if (cryptolib_p256_available() == 0) {
+    if (cipherbird_p256_available() == 0) {
         std::printf("      (P-256 not in this build)\n");
         return;
     }
@@ -208,7 +208,7 @@ TEST("p256-threads/cold-start-under-signals") {
 }
 
 TEST("p256-threads/mixed-calls-finish-and-agree") {
-    if (cryptolib_p256_available() == 0) {
+    if (cipherbird_p256_available() == 0) {
         std::printf("      (P-256 not in this build)\n");
         return;
     }
@@ -245,23 +245,23 @@ TEST("p256-threads/mixed-calls-finish-and-agree") {
 }
 
 TEST("p256-threads/same-key-same-signature") {
-    if (cryptolib_p256_available() != 2) {
+    if (cipherbird_p256_available() != 2) {
         std::printf("      (deterministic nonces not in this build)\n");
         return;
     }
     Bytes pair;
-    REQUIRE(take(cryptolib_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(kPem), std::strlen(kPem)), pair));
+    REQUIRE(take(cipherbird_p256_import_pkcs8_pem(reinterpret_cast<const uint8_t*>(kPem), std::strlen(kPem)), pair));
     const Bytes sk(pair.begin(), pair.begin() + 32);
     const Bytes message = {'s', 'a', 'm', 'e'};
     Bytes expected;
-    REQUIRE(take(cryptolib_p256_sign(sk.data(), sk.size(), message.data(), message.size()), expected));
+    REQUIRE(take(cipherbird_p256_sign(sk.data(), sk.size(), message.data(), message.size()), expected));
     std::atomic<int> differ{0};
     std::vector<std::thread> pool;
     for (int t = 0; t < kThreads; ++t) {
         pool.emplace_back([&] {
             for (int round = 0; round < kRounds; ++round) {
                 Bytes sig;
-                if (!take(cryptolib_p256_sign(sk.data(), sk.size(), message.data(), message.size()), sig) ||
+                if (!take(cipherbird_p256_sign(sk.data(), sk.size(), message.data(), message.size()), sig) ||
                     sig != expected)
                     differ.fetch_add(1);
             }

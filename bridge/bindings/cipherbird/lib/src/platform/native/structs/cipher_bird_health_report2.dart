@@ -1,7 +1,7 @@
 part of '../native_platform.dart';
 
 /// The full SP 800-90B verdict with every number behind it
-/// (`cryptolib_entropy_assess_file_health_v2`).
+/// (`cipherbird_entropy_assess_file_health_v2`).
 final class CipherBirdHealthReport2 extends Struct {
   @Double()
   external double minEntropyPerByte;

@@ -42,7 +42,7 @@ extension CipherBirdSuiteOpenThreshold on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_suite_open_threshold')(
+        >('cipherbird_suite_open_threshold')(
           pe,
           envelope.length,
           ps,

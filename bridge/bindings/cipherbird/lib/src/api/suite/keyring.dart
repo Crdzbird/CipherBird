@@ -16,7 +16,7 @@ extension CipherBirdSuiteKeyring on CipherBird {
     Uint8List factorKey, {
     Uint8List? aad,
   }) => _suiteKeyringFactor(
-    'cryptolib_suite_seal_with_keyring_device',
+    'cipherbird_suite_seal_with_keyring_device',
     plaintext,
     keyring,
     factorKey,
@@ -29,7 +29,7 @@ extension CipherBirdSuiteKeyring on CipherBird {
     Uint8List factorKey, {
     Uint8List? aad,
   }) => _suiteKeyringFactor(
-    'cryptolib_suite_open_with_keyring_device',
+    'cipherbird_suite_open_with_keyring_device',
     envelope,
     keyring,
     factorKey,
@@ -43,7 +43,7 @@ extension CipherBirdSuiteKeyring on CipherBird {
     String passphrase, {
     Uint8List? aad,
   }) => _suiteKeyringPass(
-    'cryptolib_suite_seal_with_keyring_passphrase',
+    'cipherbird_suite_seal_with_keyring_passphrase',
     plaintext,
     keyring,
     passphrase,
@@ -56,7 +56,7 @@ extension CipherBirdSuiteKeyring on CipherBird {
     String passphrase, {
     Uint8List? aad,
   }) => _suiteKeyringPass(
-    'cryptolib_suite_open_with_keyring_passphrase',
+    'cipherbird_suite_open_with_keyring_passphrase',
     envelope,
     keyring,
     passphrase,
@@ -71,7 +71,7 @@ extension CipherBirdSuiteKeyring on CipherBird {
         _lib.lookupFunction<
           CipherBirdBufferResult Function(Pointer<Uint8>, Size),
           CipherBirdBufferResult Function(Pointer<Uint8>, int)
-        >('cryptolib_suite_evm_address')(pk, secp256k1PublicKey.length),
+        >('cipherbird_suite_evm_address')(pk, secp256k1PublicKey.length),
       );
     } finally {
       if (pk != nullptr) {

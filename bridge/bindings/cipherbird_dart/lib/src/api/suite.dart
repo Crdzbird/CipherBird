@@ -16,7 +16,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List recipientKemPublic, {
     Uint8List? aad,
   }) =>
-      _suiteBuf('cryptolib_suite_seal_pq', plaintext, recipientKemPublic, aad);
+      _suiteBuf('cipherbird_suite_seal_pq', plaintext, recipientKemPublic, aad);
 
   /// Like [suiteSealPq] but with the X25519+sntrup761 hybrid KEM (a different
   /// lattice family). [suiteOpenPq] auto-detects the KEM from the envelope.
@@ -25,7 +25,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List recipientKemPublic, {
     Uint8List? aad,
   }) => _suiteBuf(
-    'cryptolib_suite_seal_pq_sntrup',
+    'cipherbird_suite_seal_pq_sntrup',
     plaintext,
     recipientKemPublic,
     aad,
@@ -37,7 +37,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List envelope,
     Uint8List recipientKemSecret, {
     Uint8List? aad,
-  }) => _suiteBuf('cryptolib_suite_open_pq', envelope, recipientKemSecret, aad);
+  }) => _suiteBuf('cipherbird_suite_open_pq', envelope, recipientKemSecret, aad);
 
   /// Flagship: post-quantum confidentiality (hybrid KEM) + post-quantum
   /// authenticity (Ed25519+ML-DSA-65). [suiteOpenSignedPq] returns plaintext
@@ -48,7 +48,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List signerSigSecret, {
     Uint8List? aad,
   }) => _suiteBuf3(
-    'cryptolib_suite_seal_signed_pq',
+    'cipherbird_suite_seal_signed_pq',
     plaintext,
     recipientKemPublic,
     signerSigSecret,
@@ -62,7 +62,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List signerSigSecret, {
     Uint8List? aad,
   }) => _suiteBuf3(
-    'cryptolib_suite_seal_signed_pq_sntrup',
+    'cipherbird_suite_seal_signed_pq_sntrup',
     plaintext,
     recipientKemPublic,
     signerSigSecret,
@@ -76,7 +76,7 @@ extension CipherBirdSuite on CipherBird {
     Uint8List signerSigPublic, {
     Uint8List? aad,
   }) => _suiteBuf3(
-    'cryptolib_suite_open_signed_pq',
+    'cipherbird_suite_open_signed_pq',
     envelope,
     recipientKemSecret,
     signerSigPublic,
@@ -88,12 +88,12 @@ extension CipherBirdSuite on CipherBird {
     Uint8List plaintext,
     String path, {
     Uint8List? aad,
-  }) => _suiteFile('cryptolib_suite_seal_with_file', plaintext, path, aad);
+  }) => _suiteFile('cipherbird_suite_seal_with_file', plaintext, path, aad);
 
   /// Re-derive from the same file and open the envelope.
   Uint8List suiteOpenWithFile(
     Uint8List envelope,
     String path, {
     Uint8List? aad,
-  }) => _suiteFile('cryptolib_suite_open_with_file', envelope, path, aad);
+  }) => _suiteFile('cipherbird_suite_open_with_file', envelope, path, aad);
 }

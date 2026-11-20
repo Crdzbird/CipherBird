@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry57 = {
-  'cryptolib_fips_hpke_p256_seal':
+  'cipherbird_fips_hpke_p256_seal':
       (
         Pointer<NativeType> pkR,
         int pkRLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry57 = {
         int ptLen,
         Pointer<NativeType> outEnc,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_hpke_p256_seal',
+        '_cbw_cipherbird_fips_hpke_p256_seal',
         [
           pkR.address.toJS,
           pkRLen.toJS,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry57 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_hpke_p256_open':
+  'cipherbird_fips_hpke_p256_open':
       (
         Pointer<NativeType> enc,
         int encLen,
@@ -43,7 +43,7 @@ final Map<String, Function> _registry57 = {
         Pointer<NativeType> ct,
         int ctLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_hpke_p256_open',
+        '_cbw_cipherbird_fips_hpke_p256_open',
         [
           enc.address.toJS,
           encLen.toJS,
@@ -61,6 +61,6 @@ final Map<String, Function> _registry57 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_version': () =>
-      Pointer<Utf8>._(WebEngine.current.callInt('_cbw_cryptolib_version', [])),
+  'cipherbird_version': () =>
+      Pointer<Utf8>._(WebEngine.current.callInt('_cbw_cipherbird_version', [])),
 };

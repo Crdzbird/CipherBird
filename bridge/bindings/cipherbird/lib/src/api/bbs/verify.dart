@@ -37,7 +37,7 @@ extension CipherBirdBbsVerify on CipherBird {
               Pointer<Size>,
               int,
             )
-          >('cryptolib_bbs_verify')(
+          >('cipherbird_bbs_verify')(
             pk,
             publicKey.length,
             s,

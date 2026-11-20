@@ -1,23 +1,23 @@
 package cipherbird
 
 /*
-#cgo noescape cryptolib_token_formats
-#cgo nocallback cryptolib_token_formats
-#cgo noescape cryptolib_token_issue_len
-#cgo nocallback cryptolib_token_issue_len
-#cgo noescape cryptolib_token_accept_cap
-#cgo nocallback cryptolib_token_accept_cap
-#cgo noescape cryptolib_token_keygen
-#cgo nocallback cryptolib_token_keygen
-#cgo noescape cryptolib_token_issue
-#cgo nocallback cryptolib_token_issue
-#cgo noescape cryptolib_token_accept
-#cgo nocallback cryptolib_token_accept
-#cgo noescape cryptolib_token_peek_format
-#cgo nocallback cryptolib_token_peek_format
-#cgo noescape cryptolib_token_peek_footer
-#cgo nocallback cryptolib_token_peek_footer
-#include "cryptolib_c.h"
+#cgo noescape cipherbird_token_formats
+#cgo nocallback cipherbird_token_formats
+#cgo noescape cipherbird_token_issue_len
+#cgo nocallback cipherbird_token_issue_len
+#cgo noescape cipherbird_token_accept_cap
+#cgo nocallback cipherbird_token_accept_cap
+#cgo noescape cipherbird_token_keygen
+#cgo nocallback cipherbird_token_keygen
+#cgo noescape cipherbird_token_issue
+#cgo nocallback cipherbird_token_issue
+#cgo noescape cipherbird_token_accept
+#cgo nocallback cipherbird_token_accept
+#cgo noescape cipherbird_token_peek_format
+#cgo nocallback cipherbird_token_peek_format
+#cgo noescape cipherbird_token_peek_footer
+#cgo nocallback cipherbird_token_peek_footer
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -60,12 +60,12 @@ type TokenKeys struct {
 // TokenFormats returns every token format the engine knows, available or
 // not, as the engine describes them.
 func TokenFormats() ([]TokenFormat, error) {
-	n := C.cryptolib_token_formats(nil, 0)
+	n := C.cipherbird_token_formats(nil, 0)
 	if n == 0 {
 		return nil, ErrPasetoInternal
 	}
 	buf := make([]byte, int(n))
-	if C.cryptolib_token_formats((*C.char)(unsafe.Pointer(&buf[0])), n) != n {
+	if C.cipherbird_token_formats((*C.char)(unsafe.Pointer(&buf[0])), n) != n {
 		return nil, ErrPasetoInternal
 	}
 	var out []TokenFormat
@@ -88,7 +88,7 @@ func TokenIssueLen(format string, payloadLen, footerLen int) int {
 	}
 	cf := cFormat(format)
 	defer C.free(unsafe.Pointer(cf))
-	return int(C.cryptolib_token_issue_len(cf, C.size_t(payloadLen), C.size_t(footerLen)))
+	return int(C.cipherbird_token_issue_len(cf, C.size_t(payloadLen), C.size_t(footerLen)))
 }
 
 // TokenAcceptCap returns the output capacity [TokenAcceptTo] requires for a
@@ -100,7 +100,7 @@ func TokenAcceptCap(format string, tokenLen int) int {
 	}
 	cf := cFormat(format)
 	defer C.free(unsafe.Pointer(cf))
-	return int(C.cryptolib_token_accept_cap(cf, C.size_t(tokenLen)))
+	return int(C.cipherbird_token_accept_cap(cf, C.size_t(tokenLen)))
 }
 
 // TokenKeygen returns a fresh key for format: the shared key of a local
@@ -111,10 +111,10 @@ func TokenKeygen(format string) (TokenKeys, error) {
 	secret := make([]byte, 4096)
 	public := make([]byte, 1984)
 	var secretLen, publicLen C.size_t
-	rc := C.cryptolib_token_keygen(cf,
+	rc := C.cipherbird_token_keygen(cf,
 		u8(secret), C.size_t(len(secret)), &secretLen,
 		u8(public), C.size_t(len(public)), &publicLen)
-	if rc != C.CRYPTOLIB_TOKEN_OK {
+	if rc != C.CIPHERBIRD_TOKEN_OK {
 		return TokenKeys{}, pasetoErr(rc)
 	}
 	k := TokenKeys{Secret: secret[:int(secretLen):int(secretLen)]}
@@ -135,26 +135,26 @@ func TokenIssue(format string, key, payload, footer, implicit []byte) (string, e
 	}
 	cf := cFormat(format)
 	defer C.free(unsafe.Pointer(cf))
-	n := int(C.cryptolib_token_issue_len(cf, C.size_t(len(payload)), C.size_t(len(footer))))
+	n := int(C.cipherbird_token_issue_len(cf, C.size_t(len(payload)), C.size_t(len(footer))))
 	if n == 0 {
 		out := make([]byte, 1)
 		var outLen C.size_t
-		rc := C.cryptolib_token_issue(cf, u8(out), 1, &outLen, u8(key), C.size_t(len(key)),
+		rc := C.cipherbird_token_issue(cf, u8(out), 1, &outLen, u8(key), C.size_t(len(key)),
 			u8(payload), C.size_t(len(payload)), u8(footer), C.size_t(len(footer)), u8(implicit), C.size_t(len(implicit)))
-		if rc == C.CRYPTOLIB_TOKEN_OK {
+		if rc == C.CIPHERBIRD_TOKEN_OK {
 			return "", ErrPasetoInternal
 		}
 		return "", pasetoErr(rc)
 	}
 	out := make([]byte, n)
 	var outLen C.size_t
-	rc := C.cryptolib_token_issue(cf,
+	rc := C.cipherbird_token_issue(cf,
 		u8(out), C.size_t(n), &outLen,
 		u8(key), C.size_t(len(key)),
 		u8(payload), C.size_t(len(payload)),
 		u8(footer), C.size_t(len(footer)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_TOKEN_OK || int(outLen) != n {
+	if rc != C.CIPHERBIRD_TOKEN_OK || int(outLen) != n {
 		return "", pasetoErr(rc)
 	}
 	return unsafe.String(&out[0], n), nil
@@ -174,11 +174,11 @@ func TokenAccept(format, token string, key, expectedFooter, implicit []byte) ([]
 		cf := cFormat(format)
 		defer C.free(unsafe.Pointer(cf))
 		var outLen C.size_t
-		rc := C.cryptolib_token_accept(cf, nil, 0, &outLen,
+		rc := C.cipherbird_token_accept(cf, nil, 0, &outLen,
 			(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 			u8(key), C.size_t(len(key)), u8(expectedFooter), C.size_t(len(expectedFooter)),
 			u8(implicit), C.size_t(len(implicit)))
-		if rc == C.CRYPTOLIB_TOKEN_OK {
+		if rc == C.CIPHERBIRD_TOKEN_OK {
 			return nil, ErrPasetoInvalid
 		}
 		return nil, pasetoErr(rc)
@@ -202,29 +202,29 @@ func TokenAcceptTo(out []byte, format, token string, key, expectedFooter, implic
 	}
 	cf := cFormat(format)
 	defer C.free(unsafe.Pointer(cf))
-	capN := int(C.cryptolib_token_accept_cap(cf, C.size_t(len(token))))
+	capN := int(C.cipherbird_token_accept_cap(cf, C.size_t(len(token))))
 	if capN == 0 || len(out) < capN {
 		if capN != 0 {
 			return 0, ErrPasetoArgument
 		}
 		var outLen C.size_t
-		rc := C.cryptolib_token_accept(cf, nil, 0, &outLen,
+		rc := C.cipherbird_token_accept(cf, nil, 0, &outLen,
 			(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 			u8(key), C.size_t(len(key)), u8(expectedFooter), C.size_t(len(expectedFooter)),
 			u8(implicit), C.size_t(len(implicit)))
-		if rc == C.CRYPTOLIB_TOKEN_OK {
+		if rc == C.CIPHERBIRD_TOKEN_OK {
 			return 0, ErrPasetoInvalid
 		}
 		return 0, pasetoErr(rc)
 	}
 	var outLen C.size_t
-	rc := C.cryptolib_token_accept(cf,
+	rc := C.cipherbird_token_accept(cf,
 		u8(out), C.size_t(capN), &outLen,
 		(*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token))), C.size_t(len(token)),
 		u8(key), C.size_t(len(key)),
 		u8(expectedFooter), C.size_t(len(expectedFooter)),
 		u8(implicit), C.size_t(len(implicit)))
-	if rc != C.CRYPTOLIB_TOKEN_OK {
+	if rc != C.CIPHERBIRD_TOKEN_OK {
 		return 0, pasetoErr(rc)
 	}
 	return int(outLen), nil
@@ -240,12 +240,12 @@ func TokenPeekFormat(token string) string {
 		return ""
 	}
 	t := (*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token)))
-	n := C.cryptolib_token_peek_format(t, C.size_t(len(token)), nil, 0)
+	n := C.cipherbird_token_peek_format(t, C.size_t(len(token)), nil, 0)
 	if n == 0 {
 		return ""
 	}
 	out := make([]byte, int(n))
-	if C.cryptolib_token_peek_format(t, C.size_t(len(token)), (*C.char)(unsafe.Pointer(&out[0])), n) != n {
+	if C.cipherbird_token_peek_format(t, C.size_t(len(token)), (*C.char)(unsafe.Pointer(&out[0])), n) != n {
 		return ""
 	}
 	return string(out)
@@ -263,8 +263,8 @@ func TokenPeekFooter(token string) ([]byte, error) {
 	t := (*C.uint8_t)(unsafe.Pointer(unsafe.StringData(token)))
 	out := make([]byte, len(token))
 	var outLen C.size_t
-	rc := C.cryptolib_token_peek_footer(t, C.size_t(len(token)), u8(out), C.size_t(len(out)), &outLen)
-	if rc != C.CRYPTOLIB_TOKEN_OK {
+	rc := C.cipherbird_token_peek_footer(t, C.size_t(len(token)), u8(out), C.size_t(len(out)), &outLen)
+	if rc != C.CIPHERBIRD_TOKEN_OK {
 		return nil, pasetoErr(rc)
 	}
 	if outLen == 0 {

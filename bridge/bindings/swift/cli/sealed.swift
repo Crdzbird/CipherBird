@@ -2,7 +2,7 @@
 //
 // Two assurance tiers of one construction (encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first). A self-contained,
-// drop-in messaging layer over the cryptolib_sealed_* C ABI. Build the smoke with
+// drop-in messaging layer over the cipherbird_sealed_* C ABI. Build the smoke with
 // the Makefile target `swift-sealed`.
 import Foundation
 
@@ -15,10 +15,10 @@ enum SealedTier: Int32 { case flagship = 0, fortress = 1 }
 // ── result plumbing (fileprivate to avoid clashing with other CLI files) ──────
 private func sealedConsume(_ r: CryptoBufferResult) throws -> [UInt8] {
     if let e = r.error {
-        let m = String(cString: e); cryptolib_str_free(e); throw SealedError.failed(m)
+        let m = String(cString: e); cipherbird_str_free(e); throw SealedError.failed(m)
     }
     var buf = r.buf
-    defer { cryptolib_buffer_free(&buf) }
+    defer { cipherbird_buffer_free(&buf) }
     guard let d = buf.data else { return [] }
     return Array(UnsafeBufferPointer(start: d, count: buf.len))
 }
@@ -49,7 +49,7 @@ struct SealedInfo {
 enum Sealed {
     static func inspect(_ envelope: [UInt8]) -> SealedInfo? {
         envelope.withUnsafeBufferPointer { e in
-            let info = cryptolib_sealed_inspect(e.baseAddress, e.count)
+            let info = cipherbird_sealed_inspect(e.baseAddress, e.count)
             guard info.ok == 1 else { return nil }
             let fp = withUnsafeBytes(of: info.fingerprint) { Array($0) }
             return SealedInfo(version: info.version, suite: info.suite,
@@ -59,7 +59,7 @@ enum Sealed {
     }
     static func addressedTo(_ envelope: [UInt8], recipientPublic: [UInt8]) -> Bool {
         withPtrs([envelope, recipientPublic]) { p in
-            cryptolib_sealed_addressed_to(p[0].0, p[0].1, p[1].0, p[1].1) == 1
+            cipherbird_sealed_addressed_to(p[0].0, p[0].1, p[1].0, p[1].1) == 1
         }
     }
 }
@@ -77,11 +77,11 @@ struct SealedIdentity {
         func kp(_ raw: CryptoKeyPair) -> ([UInt8], [UInt8]) {
             var k = raw
             let pub = sealedTake(k.public_key), sec = sealedTake(k.secret_key)
-            cryptolib_keypair_free(&k)
+            cipherbird_keypair_free(&k)
             return (pub, sec)
         }
-        let (rpub, rsec) = kp(cryptolib_sealed_generate_recipient(tier.rawValue))
-        let (spub, ssec) = kp(cryptolib_sealed_generate_sender(tier.rawValue))
+        let (rpub, rsec) = kp(cipherbird_sealed_generate_recipient(tier.rawValue))
+        let (spub, ssec) = kp(cipherbird_sealed_generate_sender(tier.rawValue))
         return SealedIdentity(tier: tier, recipientPublic: rpub, recipientSecret: rsec,
                               senderPublic: spub, senderSecret: ssec)
     }
@@ -89,7 +89,7 @@ struct SealedIdentity {
     func seal(_ plaintext: [UInt8], to recipientPublic: [UInt8],
               aad: [UInt8]? = nil, purpose: [UInt8]? = nil) throws -> [UInt8] {
         try withPtrs([plaintext, recipientPublic, senderSecret, aad, purpose]) { p in
-            try sealedConsume(cryptolib_sealed_seal(tier.rawValue, p[0].0, p[0].1,
+            try sealedConsume(cipherbird_sealed_seal(tier.rawValue, p[0].0, p[0].1,
                 p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1))
         }
     }
@@ -97,7 +97,7 @@ struct SealedIdentity {
     func open(_ envelope: [UInt8], from senderPublic: [UInt8],
               aad: [UInt8]? = nil, purpose: [UInt8]? = nil) throws -> [UInt8] {
         try withPtrs([envelope, recipientSecret, recipientPublic, senderPublic, aad, purpose]) { p in
-            try sealedConsume(cryptolib_sealed_open(tier.rawValue, p[0].0, p[0].1,
+            try sealedConsume(cipherbird_sealed_open(tier.rawValue, p[0].0, p[0].1,
                 p[1].0, p[1].1, p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1, p[5].0, p[5].1))
         }
     }
@@ -119,24 +119,24 @@ final class SealedStreamSealer {
     init(tier: SealedTier, recipientPublic: [UInt8], senderSecret: [UInt8], purpose: [UInt8]?) throws {
         var err: UnsafeMutablePointer<CChar>? = nil
         handle = withPtrs([recipientPublic, senderSecret, purpose]) { p in
-            cryptolib_sealed_sealer_begin(tier.rawValue, p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, &err)
+            cipherbird_sealed_sealer_begin(tier.rawValue, p[0].0, p[0].1, p[1].0, p[1].1, p[2].0, p[2].1, &err)
         }
-        if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw SealedError.failed(m) }
+        if let e = err { let m = String(cString: e); cipherbird_str_free(e); throw SealedError.failed(m) }
         guard handle != nil else { throw SealedError.failed("sealer begin failed") }
     }
-    func preamble() throws -> [UInt8] { try sealedConsume(cryptolib_sealed_sealer_preamble(handle)) }
+    func preamble() throws -> [UInt8] { try sealedConsume(cipherbird_sealed_sealer_preamble(handle)) }
     func push(_ chunk: [UInt8]) throws -> [UInt8] {
-        try withPtrs([chunk]) { p in try sealedConsume(cryptolib_sealed_sealer_push(handle, p[0].0, p[0].1)) }
+        try withPtrs([chunk]) { p in try sealedConsume(cipherbird_sealed_sealer_push(handle, p[0].0, p[0].1)) }
     }
     func finalize(_ last: [UInt8]? = nil) throws -> (ciphertext: [UInt8], trailer: [UInt8]) {
         var trailer = CryptoBuffer()
         let ct = try withPtrs([last]) { p in
-            try sealedConsume(cryptolib_sealed_sealer_finalize(handle, p[0].0, p[0].1, &trailer))
+            try sealedConsume(cipherbird_sealed_sealer_finalize(handle, p[0].0, p[0].1, &trailer))
         }
-        let tr = sealedTake(trailer); cryptolib_buffer_free(&trailer)
+        let tr = sealedTake(trailer); cipherbird_buffer_free(&trailer)
         return (ct, tr)
     }
-    func close() { if let h = handle { cryptolib_sealed_sealer_free(h); handle = nil } }
+    func close() { if let h = handle { cipherbird_sealed_sealer_free(h); handle = nil } }
     deinit { close() }
 }
 
@@ -148,31 +148,31 @@ final class SealedStreamOpener {
          recipientPublic: [UInt8], senderPublic: [UInt8], purpose: [UInt8]?) throws {
         var err: UnsafeMutablePointer<CChar>? = nil
         handle = withPtrs([preamble, recipientSecret, recipientPublic, senderPublic, purpose]) { p in
-            cryptolib_sealed_opener_begin(tier.rawValue, p[0].0, p[0].1, p[1].0, p[1].1,
+            cipherbird_sealed_opener_begin(tier.rawValue, p[0].0, p[0].1, p[1].0, p[1].1,
                 p[2].0, p[2].1, p[3].0, p[3].1, p[4].0, p[4].1, &err)
         }
-        if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw SealedError.failed(m) }
+        if let e = err { let m = String(cString: e); cipherbird_str_free(e); throw SealedError.failed(m) }
         guard handle != nil else { throw SealedError.failed("opener begin failed") }
     }
     func pull(_ ct: [UInt8]) throws -> (plaintext: [UInt8], isFinal: Bool) {
         var isFinal: Int32 = 0
         let pt = try withPtrs([ct]) { p in
-            try sealedConsume(cryptolib_sealed_opener_pull(handle, p[0].0, p[0].1, &isFinal))
+            try sealedConsume(cipherbird_sealed_opener_pull(handle, p[0].0, p[0].1, &isFinal))
         }
         return (pt, isFinal == 1)
     }
     func finalize(_ trailer: [UInt8]) throws {
         _ = try withPtrs([trailer]) { p in
-            try sealedConsume(cryptolib_sealed_opener_finalize(handle, p[0].0, p[0].1))
+            try sealedConsume(cipherbird_sealed_opener_finalize(handle, p[0].0, p[0].1))
         }
     }
-    func close() { if let h = handle { cryptolib_sealed_opener_free(h); handle = nil } }
+    func close() { if let h = handle { cipherbird_sealed_opener_free(h); handle = nil } }
     deinit { close() }
 }
 
 // ── smoke (compiled/run by `make swift-sealed`) ──────────────────────────────
-guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CipherBird \(String(cString: cryptolib_version())) — Flagship/Fortress (Swift)")
+guard cipherbird_init() == 0 else { fatalError("init failed") }
+print("CipherBird \(String(cString: cipherbird_version())) — Flagship/Fortress (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

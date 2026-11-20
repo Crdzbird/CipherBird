@@ -3,7 +3,7 @@
 package cipherbird
 
 // This file compiles only when cgo is DISABLED (CGO_ENABLED=0). CipherBird's Go
-// binding links the native libcryptolib_c library through cgo and cannot work
+// binding links the native libcipherbird_c library through cgo and cannot work
 // without it, so the reference below deliberately fails the build with a
 // descriptive identifier — far clearer than the wall of "undefined: C.xxx"
 // errors you would otherwise get.

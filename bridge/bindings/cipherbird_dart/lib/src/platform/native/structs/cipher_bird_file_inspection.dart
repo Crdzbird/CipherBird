@@ -1,6 +1,6 @@
 part of '../native_platform.dart';
 
-/// Structural validity + detected format of a media file (`cryptolib_stego_inspect`).
+/// Structural validity + detected format of a media file (`cipherbird_stego_inspect`).
 final class CipherBirdFileInspection extends Struct {
   @Int32()
   external int parses;

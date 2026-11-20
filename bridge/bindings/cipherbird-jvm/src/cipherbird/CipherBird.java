@@ -73,47 +73,47 @@ public final class CipherBird implements AutoCloseable {
 
     public CipherBird() {
         lib = SymbolLookup.libraryLookup(NativeLoader.extract(), arena);
-        init    = h("cryptolib_init", FunctionDescriptor.of(JAVA_INT));
-        version = h("cryptolib_version", FunctionDescriptor.of(ADDRESS));
-        random  = h("cryptolib_random_bytes", FunctionDescriptor.of(RES, JAVA_LONG));
-        sha256  = h("cryptolib_sha256", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG));
-        hyKg    = h("cryptolib_hybrid_kem_keygen", FunctionDescriptor.of(KP));
-        hyEn    = h("cryptolib_hybrid_kem_encapsulate", FunctionDescriptor.of(KEM, ADDRESS, JAVA_LONG, ADDRESS));
-        hyDe    = h("cryptolib_hybrid_kem_decapsulate", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        bufFree = h("cryptolib_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
-        kpFree  = h("cryptolib_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
-        kemFree = h("cryptolib_kem_encaps_free", FunctionDescriptor.ofVoid(ADDRESS));
-        strFree = h("cryptolib_str_free", FunctionDescriptor.ofVoid(ADDRESS));
+        init    = h("cipherbird_init", FunctionDescriptor.of(JAVA_INT));
+        version = h("cipherbird_version", FunctionDescriptor.of(ADDRESS));
+        random  = h("cipherbird_random_bytes", FunctionDescriptor.of(RES, JAVA_LONG));
+        sha256  = h("cipherbird_sha256", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG));
+        hyKg    = h("cipherbird_hybrid_kem_keygen", FunctionDescriptor.of(KP));
+        hyEn    = h("cipherbird_hybrid_kem_encapsulate", FunctionDescriptor.of(KEM, ADDRESS, JAVA_LONG, ADDRESS));
+        hyDe    = h("cipherbird_hybrid_kem_decapsulate", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        bufFree = h("cipherbird_buffer_free", FunctionDescriptor.ofVoid(ADDRESS));
+        kpFree  = h("cipherbird_keypair_free", FunctionDescriptor.ofVoid(ADDRESS));
+        kemFree = h("cipherbird_kem_encaps_free", FunctionDescriptor.ofVoid(ADDRESS));
+        strFree = h("cipherbird_str_free", FunctionDescriptor.ofVoid(ADDRESS));
 
-        argon2idDerive = h("cryptolib_argon2id_derive",
+        argon2idDerive = h("cipherbird_argon2id_derive",
                 FunctionDescriptor.of(RES, ADDRESS, ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG));
-        hkdfDerive = h("cryptolib_hkdf_derive",
+        hkdfDerive = h("cipherbird_hkdf_derive",
                 FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_LONG));
         FunctionDescriptor aead = FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG);
-        xEnc = h("cryptolib_xchacha20_encrypt", aead);
-        xDec = h("cryptolib_xchacha20_decrypt", aead);
-        aesEnc = h("cryptolib_aes256gcm_encrypt", aead);
-        aesDec = h("cryptolib_aes256gcm_decrypt", aead);
-        cmtEnc = h("cryptolib_committing_encrypt", aead);
-        cmtDec = h("cryptolib_committing_decrypt", aead);
-        molSeal = h("cryptolib_molecular_seal_with_key", aead);
-        molOpen = h("cryptolib_molecular_open_with_key", aead);
-        edKg = h("cryptolib_ed25519_keygen", FunctionDescriptor.of(KP));
-        edKgSeed = h("cryptolib_ed25519_keygen_from_seed", FunctionDescriptor.of(KP, ADDRESS, JAVA_LONG));
-        edSign = h("cryptolib_ed25519_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        edVerify = h("cryptolib_ed25519_verify",
+        xEnc = h("cipherbird_xchacha20_encrypt", aead);
+        xDec = h("cipherbird_xchacha20_decrypt", aead);
+        aesEnc = h("cipherbird_aes256gcm_encrypt", aead);
+        aesDec = h("cipherbird_aes256gcm_decrypt", aead);
+        cmtEnc = h("cipherbird_committing_encrypt", aead);
+        cmtDec = h("cipherbird_committing_decrypt", aead);
+        molSeal = h("cipherbird_molecular_seal_with_key", aead);
+        molOpen = h("cipherbird_molecular_open_with_key", aead);
+        edKg = h("cipherbird_ed25519_keygen", FunctionDescriptor.of(KP));
+        edKgSeed = h("cipherbird_ed25519_keygen_from_seed", FunctionDescriptor.of(KP, ADDRESS, JAVA_LONG));
+        edSign = h("cipherbird_ed25519_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        edVerify = h("cipherbird_ed25519_verify",
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hySigKg = h("cryptolib_hybrid_sig_keygen", FunctionDescriptor.of(KP));
-        hySigSign = h("cryptolib_hybrid_sig_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        hySigVerify = h("cryptolib_hybrid_sig_verify",
+        hySigKg = h("cipherbird_hybrid_sig_keygen", FunctionDescriptor.of(KP));
+        hySigSign = h("cipherbird_hybrid_sig_sign", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
+        hySigVerify = h("cipherbird_hybrid_sig_verify",
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG));
-        entFromFileDet = h("cryptolib_entropy_from_file_deterministic", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
-        entSymKey = h("cryptolib_entropy_symmetric_key", FunctionDescriptor.of(RES, ADDRESS));
-        entFree = h("cryptolib_entropy_free", FunctionDescriptor.ofVoid(ADDRESS));
-        stegoEmbed = h("cryptolib_stego_embed", FunctionDescriptor.of(CRES, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
-        stegoExtract = h("cryptolib_stego_extract", FunctionDescriptor.of(RES, ADDRESS));
-        fecEnc = h("cryptolib_fec_encode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT));
-        fecDec = h("cryptolib_fec_decode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG));
+        entFromFileDet = h("cipherbird_entropy_from_file_deterministic", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+        entSymKey = h("cipherbird_entropy_symmetric_key", FunctionDescriptor.of(RES, ADDRESS));
+        entFree = h("cipherbird_entropy_free", FunctionDescriptor.ofVoid(ADDRESS));
+        stegoEmbed = h("cipherbird_stego_embed", FunctionDescriptor.of(CRES, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+        stegoExtract = h("cipherbird_stego_extract", FunctionDescriptor.of(RES, ADDRESS));
+        fecEnc = h("cipherbird_fec_encode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT));
+        fecDec = h("cipherbird_fec_decode", FunctionDescriptor.of(RES, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_LONG));
     }
 
     // ── Primitives used by Recipe ─────────────────────────────────────────────

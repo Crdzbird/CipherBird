@@ -20,7 +20,7 @@ extension CipherBirdOprfBlindWithScalar on CipherBird {
               int,
             )
           >(
-            'cryptolib_oprf_blind_with_scalar',
+            'cipherbird_oprf_blind_with_scalar',
           )(p, input.length, b, blind.length);
       return _oprfBlindOut(c);
     } finally {

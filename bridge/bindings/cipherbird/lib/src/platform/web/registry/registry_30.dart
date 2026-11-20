@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry30 = {
-  'cryptolib_frost_aggregate':
+  'cipherbird_frost_aggregate':
       (
         Pointer<NativeType> groupPublicKey,
         int gpkLen,
@@ -13,7 +13,7 @@ final Map<String, Function> _registry30 = {
         int count,
         Pointer<NativeType> sigShares,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_frost_aggregate',
+        '_cbw_cipherbird_frost_aggregate',
         [
           groupPublicKey.address.toJS,
           gpkLen.toJS,
@@ -28,7 +28,7 @@ final Map<String, Function> _registry30 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_frost_verify':
+  'cipherbird_frost_verify':
       (
         Pointer<NativeType> msg,
         int msgLen,
@@ -36,7 +36,7 @@ final Map<String, Function> _registry30 = {
         int sigLen,
         Pointer<NativeType> groupPublicKey,
         int gpkLen,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_frost_verify', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_frost_verify', [
         msg.address.toJS,
         msgLen.toJS,
         sig.address.toJS,
@@ -44,7 +44,7 @@ final Map<String, Function> _registry30 = {
         groupPublicKey.address.toJS,
         gpkLen.toJS,
       ]),
-  'cryptolib_frost_verify_share':
+  'cipherbird_frost_verify_share':
       (
         int identifier,
         Pointer<NativeType> publicShare,
@@ -63,7 +63,7 @@ final Map<String, Function> _registry30 = {
         Pointer<NativeType> hidingCommits,
         Pointer<NativeType> bindingCommits,
         int count,
-      ) => WebEngine.current.callInt('_cbw_cryptolib_frost_verify_share', [
+      ) => WebEngine.current.callInt('_cbw_cipherbird_frost_verify_share', [
         identifier.toJS,
         publicShare.address.toJS,
         psLen.toJS,
@@ -82,8 +82,8 @@ final Map<String, Function> _registry30 = {
         bindingCommits.address.toJS,
         count.toJS,
       ]),
-  'cryptolib_hpke_keygen': () => WebEngine.current.callStruct(
-    '_cbw_cryptolib_hpke_keygen',
+  'cipherbird_hpke_keygen': () => WebEngine.current.callStruct(
+    '_cbw_cipherbird_hpke_keygen',
     [],
     CipherBirdKeyPair.size,
     CipherBirdKeyPair._new,

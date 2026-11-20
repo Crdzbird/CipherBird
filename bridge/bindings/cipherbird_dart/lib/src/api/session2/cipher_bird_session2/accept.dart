@@ -51,7 +51,7 @@ extension CipherBirdSession2Accept on CipherBird {
               int,
               Pointer<Pointer<Utf8>>,
             )
-          >('cryptolib_session2_accept')(
+          >('cipherbird_session2_accept')(
             handshakePtr,
             handshake.length,
             bundlePtr,

@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry54 = {
-  'cryptolib_fips_hkdf':
+  'cipherbird_fips_hkdf':
       (
         int hash,
         Pointer<NativeType> ikm,
@@ -12,7 +12,7 @@ final Map<String, Function> _registry54 = {
         int infoLen,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_hkdf',
+        '_cbw_cipherbird_fips_hkdf',
         [
           hash.toJS,
           ikm.address.toJS,
@@ -26,7 +26,7 @@ final Map<String, Function> _registry54 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_pbkdf2':
+  'cipherbird_fips_pbkdf2':
       (
         int hash,
         Pointer<NativeType> password,
@@ -36,7 +36,7 @@ final Map<String, Function> _registry54 = {
         int iterations,
         int outLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_pbkdf2',
+        '_cbw_cipherbird_fips_pbkdf2',
         [
           hash.toJS,
           password.address.toJS,
@@ -49,13 +49,13 @@ final Map<String, Function> _registry54 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_fips_random': (int n) => WebEngine.current.callStruct(
-    '_cbw_cryptolib_fips_random',
+  'cipherbird_fips_random': (int n) => WebEngine.current.callStruct(
+    '_cbw_cipherbird_fips_random',
     [n.toJS],
     CipherBirdBufferResult.size,
     CipherBirdBufferResult._new,
   ),
-  'cryptolib_fips_aes_gcm_encrypt':
+  'cipherbird_fips_aes_gcm_encrypt':
       (
         Pointer<NativeType> key,
         int keyLen,
@@ -64,7 +64,7 @@ final Map<String, Function> _registry54 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_fips_aes_gcm_encrypt',
+        '_cbw_cipherbird_fips_aes_gcm_encrypt',
         [
           key.address.toJS,
           keyLen.toJS,

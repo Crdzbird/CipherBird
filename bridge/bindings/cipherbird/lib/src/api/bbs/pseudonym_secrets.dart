@@ -27,7 +27,7 @@ extension CipherBirdBbsPseudonymSecrets on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_bbs_finalize_nym_secrets')(
+        >('cipherbird_bbs_finalize_nym_secrets')(
           pm,
           pl,
           proverNyms.length,
@@ -68,7 +68,7 @@ extension CipherBirdBbsPseudonymSecrets on CipherBird {
             Pointer<Size>,
             int,
           )
-        >('cryptolib_bbs_calculate_pseudonym')(
+        >('cipherbird_bbs_calculate_pseudonym')(
           c,
           contextId.length,
           nm,

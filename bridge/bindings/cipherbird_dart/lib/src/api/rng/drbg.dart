@@ -31,7 +31,7 @@ final class Drbg {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_drbg_generate')(
+        >('cipherbird_drbg_generate')(
           _h,
           numBytes,
           add,
@@ -52,7 +52,7 @@ final class Drbg {
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
       >(
-        'cryptolib_drbg_free',
+        'cipherbird_drbg_free',
       )(_h);
       _h = nullptr;
     }

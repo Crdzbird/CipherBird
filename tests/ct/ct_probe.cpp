@@ -6,7 +6,7 @@
  * "Conditional jump or move depends on uninitialised value(s)". A CLEAN run
  * means the exercised secret-dependent paths are constant-time.
  *
- *   cmake -S . -B build/ct -DCRYPTOLIB_CT_VALGRIND=ON -DCRYPTOLIB_BUILD_BRIDGE=OFF
+ *   cmake -S . -B build/ct -DCIPHERBIRD_CT_VALGRIND=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF
  *   cmake --build build/ct --target ct_probe
  *   valgrind --tool=memcheck --error-exitcode=1 ./build/ct/ct_probe
  *
@@ -26,7 +26,7 @@
 #  define CT_SECRET(p, n) ((void)(p), (void)(n))
 #endif
 
-#include <cryptolib/cryptolib.hpp>
+#include <cipherbird/cipherbird.hpp>
 #include <span>
 #include <string_view>
 
@@ -52,7 +52,7 @@ int main() {
         (void)d;
     }
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     /* 3. ML-KEM decapsulate: secret-key-dependent path. */
     {
         auto kp = crypto::pq::MlKem::generate_keypair();

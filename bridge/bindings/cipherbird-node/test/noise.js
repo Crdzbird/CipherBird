@@ -1,6 +1,6 @@
 /*
  * Incremental BLAKE3 + Noise XX through the C ABI.
- * CRYPTOLIB_DYLIB=<path> node test/noise.js
+ * CIPHERBIRD_LIBRARY=<path> node test/noise.js
  */
 const c = require('..');
 let pass = 0, fail = 0;

@@ -31,7 +31,7 @@ extension CipherBirdSlhDsaVerify on CipherBird {
               int,
               int,
             )
-          >('cryptolib_slh_dsa_verify')(
+          >('cipherbird_slh_dsa_verify')(
             mp,
             msg.length,
             sgp,

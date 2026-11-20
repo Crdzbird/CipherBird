@@ -36,7 +36,7 @@ extension CipherBirdFipsKdf on CipherBird {
             int,
             int,
           )
-        >('cryptolib_fips_hkdf')(
+        >('cipherbird_fips_hkdf')(
           hash.value,
           ikmPtr,
           ikm.length,

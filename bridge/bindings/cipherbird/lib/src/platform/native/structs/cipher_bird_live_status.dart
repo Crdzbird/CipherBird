@@ -1,6 +1,6 @@
 part of '../native_platform.dart';
 
-/// Where a live entropy source stands (`cryptolib_live_entropy_status`).
+/// Where a live entropy source stands (`cipherbird_live_entropy_status`).
 final class CipherBirdLiveStatus extends Struct {
   @Uint64()
   external int chunksFed;

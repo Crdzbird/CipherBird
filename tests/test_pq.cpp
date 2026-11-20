@@ -1,7 +1,7 @@
 #include "test_framework.hpp"
 using namespace test;
 
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
 
 // ─── ML-KEM (FIPS 203) tests ────────────────────────────────────────────────
 
@@ -276,10 +276,10 @@ TEST("pq/slh-dsa/sizes-query") {
     CHECK(s.value().signature == 17088);
 }
 
-#endif // CRYPTOLIB_HAS_PQ
+#endif // CIPHERBIRD_HAS_PQ
 
 void run_tests_pq() {
-#ifdef CRYPTOLIB_HAS_PQ
+#ifdef CIPHERBIRD_HAS_PQ
     // ML-KEM
     RUN("pq/ml-kem/keypair-512");
     RUN("pq/ml-kem/keypair-768");

@@ -1,7 +1,7 @@
 part of '../web_platform.dart';
 
 final Map<String, Function> _registry07 = {
-  'cryptolib_committing_encrypt':
+  'cipherbird_committing_encrypt':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
@@ -10,7 +10,7 @@ final Map<String, Function> _registry07 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_committing_encrypt',
+        '_cbw_cipherbird_committing_encrypt',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -22,7 +22,7 @@ final Map<String, Function> _registry07 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_committing_decrypt':
+  'cipherbird_committing_decrypt':
       (
         Pointer<NativeType> ciphertext,
         int ctLen,
@@ -31,7 +31,7 @@ final Map<String, Function> _registry07 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_committing_decrypt',
+        '_cbw_cipherbird_committing_decrypt',
         [
           ciphertext.address.toJS,
           ctLen.toJS,
@@ -43,7 +43,7 @@ final Map<String, Function> _registry07 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_molecular_seal':
+  'cipherbird_molecular_seal':
       (
         Pointer<NativeType> plaintext,
         int ptLen,
@@ -53,7 +53,7 @@ final Map<String, Function> _registry07 = {
         int ops,
         int mem,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_molecular_seal',
+        '_cbw_cipherbird_molecular_seal',
         [
           plaintext.address.toJS,
           ptLen.toJS,
@@ -67,7 +67,7 @@ final Map<String, Function> _registry07 = {
         CipherBirdBufferResult.size,
         CipherBirdBufferResult._new,
       ),
-  'cryptolib_molecular_open':
+  'cipherbird_molecular_open':
       (
         Pointer<NativeType> envelope,
         int envLen,
@@ -75,7 +75,7 @@ final Map<String, Function> _registry07 = {
         Pointer<NativeType> aad,
         int aadLen,
       ) => WebEngine.current.callStruct(
-        '_cbw_cryptolib_molecular_open',
+        '_cbw_cipherbird_molecular_open',
         [
           envelope.address.toJS,
           envLen.toJS,

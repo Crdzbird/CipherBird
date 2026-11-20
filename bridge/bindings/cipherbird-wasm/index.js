@@ -56,7 +56,7 @@ module.exports = async function () {
   const x_sh_c   = Module.cwrap('cl_wasm_x25519_shared', 'number',
                                 ['number', 'number', 'number']);
 
-  if (init() !== 0) throw new Error('cryptolib_init failed');
+  if (init() !== 0) throw new Error('cipherbird_init failed');
 
   return {
     version,

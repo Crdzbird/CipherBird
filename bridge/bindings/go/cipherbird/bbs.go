@@ -1,7 +1,7 @@
 package cipherbird
 
 /*
-#include "cryptolib_c.h"
+#include "cipherbird_c.h"
 #include <stdlib.h>
 */
 import "C"
@@ -39,7 +39,7 @@ func idxSlice(idx []uint64) (*C.uint64_t, []C.uint64_t) {
 
 // BbsKeygen derives a key pair from key material (>= 32 bytes) + optional key info.
 func BbsKeygen(keyMaterial, keyInfo []byte) (KeyPair, error) {
-	kp := C.cryptolib_bbs_keygen(u8(keyMaterial), C.size_t(len(keyMaterial)), u8(keyInfo), C.size_t(len(keyInfo)))
+	kp := C.cipherbird_bbs_keygen(u8(keyMaterial), C.size_t(len(keyMaterial)), u8(keyInfo), C.size_t(len(keyInfo)))
 	pub, sec := goBytes(kp.public_key), goBytes(kp.secret_key)
 	if pub == nil || sec == nil {
 		return KeyPair{}, errors.New("cipherbird: bbs keygen failed (key material must be >= 32 bytes)")
@@ -49,14 +49,14 @@ func BbsKeygen(keyMaterial, keyInfo []byte) (KeyPair, error) {
 
 // BbsSkToPk derives the 96-byte public key from a 32-byte secret key.
 func BbsSkToPk(sk []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_bbs_sk_to_pk(u8(sk), C.size_t(len(sk))))
+	return checkBufResult(C.cipherbird_bbs_sk_to_pk(u8(sk), C.size_t(len(sk))))
 }
 
 // BbsSign signs a vector of messages → 80-byte signature.
 func BbsSign(sk, pk, header []byte, messages [][]byte) ([]byte, error) {
 	mp, ml, free := cByteSlices(messages)
 	defer free()
-	return checkBufResult(C.cryptolib_bbs_sign(
+	return checkBufResult(C.cipherbird_bbs_sign(
 		u8(sk), C.size_t(len(sk)), u8(pk), C.size_t(len(pk)), u8(header), C.size_t(len(header)),
 		mp, ml, C.size_t(len(messages))))
 }
@@ -65,7 +65,7 @@ func BbsSign(sk, pk, header []byte, messages [][]byte) ([]byte, error) {
 func BbsVerify(pk, signature, header []byte, messages [][]byte) bool {
 	mp, ml, free := cByteSlices(messages)
 	defer free()
-	return C.cryptolib_bbs_verify(
+	return C.cipherbird_bbs_verify(
 		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)), u8(header), C.size_t(len(header)),
 		mp, ml, C.size_t(len(messages))) == 1
 }
@@ -77,7 +77,7 @@ func BbsProofGen(pk, signature, header, ph []byte, messages [][]byte, disclosedI
 	defer free()
 	ip, keep := idxSlice(disclosedIndexes)
 	_ = keep
-	return checkBufResult(C.cryptolib_bbs_proof_gen(
+	return checkBufResult(C.cipherbird_bbs_proof_gen(
 		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)),
 		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
 		mp, ml, C.size_t(len(messages)), ip, C.size_t(len(disclosedIndexes))))
@@ -90,7 +90,7 @@ func BbsProofVerify(pk, proof, header, ph []byte, disclosedMessages [][]byte, di
 	defer free()
 	ip, keep := idxSlice(disclosedIndexes)
 	_ = keep
-	return C.cryptolib_bbs_proof_verify(
+	return C.cipherbird_bbs_proof_verify(
 		u8(pk), C.size_t(len(pk)), u8(proof), C.size_t(len(proof)),
 		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
 		mp, ml, C.size_t(len(disclosedMessages)), ip, C.size_t(len(disclosedIndexes))) == 1
@@ -109,10 +109,10 @@ func BbsCommitWithNym(committedMsgs, proverNyms [][]byte) ([]byte, []byte, error
 	pm, pl, freeP := cByteSlices(proverNyms)
 	defer freeP()
 	var spb C.CryptoBuffer
-	cwp, err := checkBufResult(C.cryptolib_bbs_commit_with_nym(
+	cwp, err := checkBufResult(C.cipherbird_bbs_commit_with_nym(
 		cm, cl, C.size_t(len(committedMsgs)), pm, pl, C.size_t(len(proverNyms)), &spb))
 	if err != nil {
-		C.cryptolib_buffer_free(&spb)
+		C.cipherbird_buffer_free(&spb)
 		return nil, nil, err
 	}
 	// goBytes frees spb internally — do not free it again.
@@ -125,7 +125,7 @@ func BbsBlindSignWithNym(sk, pk, commitmentWithProof, header []byte, messages []
 	signerNymEntropy []byte, lengthNymVector uint64) ([]byte, error) {
 	mp, ml, free := cByteSlices(messages)
 	defer free()
-	return checkBufResult(C.cryptolib_bbs_blind_sign_with_nym(
+	return checkBufResult(C.cipherbird_bbs_blind_sign_with_nym(
 		u8(sk), C.size_t(len(sk)), u8(pk), C.size_t(len(pk)),
 		u8(commitmentWithProof), C.size_t(len(commitmentWithProof)),
 		u8(header), C.size_t(len(header)),
@@ -138,7 +138,7 @@ func BbsBlindSignWithNym(sk, pk, commitmentWithProof, header []byte, messages []
 func BbsFinalizeNymSecrets(proverNyms [][]byte, signerNymEntropy []byte) ([]byte, error) {
 	pm, pl, free := cByteSlices(proverNyms)
 	defer free()
-	return checkBufResult(C.cryptolib_bbs_finalize_nym_secrets(
+	return checkBufResult(C.cipherbird_bbs_finalize_nym_secrets(
 		pm, pl, C.size_t(len(proverNyms)), u8(signerNymEntropy), C.size_t(len(signerNymEntropy))))
 }
 
@@ -147,7 +147,7 @@ func BbsFinalizeNymSecrets(proverNyms [][]byte, signerNymEntropy []byte) ([]byte
 func BbsCalculatePseudonym(contextID []byte, nymSecrets [][]byte) ([]byte, error) {
 	nm, nl, free := cByteSlices(nymSecrets)
 	defer free()
-	return checkBufResult(C.cryptolib_bbs_calculate_pseudonym(
+	return checkBufResult(C.cipherbird_bbs_calculate_pseudonym(
 		u8(contextID), C.size_t(len(contextID)), nm, nl, C.size_t(len(nymSecrets))))
 }
 
@@ -167,7 +167,7 @@ func BbsProofGenWithPseudonym(pk, signature, header, ph, contextID []byte,
 	ci, keepC := idxSlice(disclosedCommittedIndexes)
 	_, _ = keepS, keepC
 	var nymOut C.CryptoBuffer
-	proof, err := checkBufResult(C.cryptolib_bbs_proof_gen_with_pseudonym(
+	proof, err := checkBufResult(C.cipherbird_bbs_proof_gen_with_pseudonym(
 		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)),
 		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
 		u8(contextID), C.size_t(len(contextID)),
@@ -176,7 +176,7 @@ func BbsProofGenWithPseudonym(pk, signature, header, ph, contextID []byte,
 		nm, nl, C.size_t(len(nymSecrets)),
 		si, C.size_t(len(disclosedSignerIndexes)), ci, C.size_t(len(disclosedCommittedIndexes)), &nymOut))
 	if err != nil {
-		C.cryptolib_buffer_free(&nymOut)
+		C.cipherbird_buffer_free(&nymOut)
 		return nil, nil, err
 	}
 	// goBytes frees nymOut internally — do not free it again.
@@ -192,7 +192,7 @@ func BbsProofVerifyWithPseudonym(pk, proof, header, ph, contextID, pseudonym []b
 	defer free()
 	ip, keep := idxSlice(disclosedIndexes)
 	_ = keep
-	return C.cryptolib_bbs_proof_verify_with_pseudonym(
+	return C.cipherbird_bbs_proof_verify_with_pseudonym(
 		u8(pk), C.size_t(len(pk)), u8(proof), C.size_t(len(proof)),
 		u8(header), C.size_t(len(header)), u8(ph), C.size_t(len(ph)),
 		u8(contextID), C.size_t(len(contextID)), u8(pseudonym), C.size_t(len(pseudonym)),
@@ -210,9 +210,9 @@ func BbsBlindCommit(committedMsgs [][]byte) ([]byte, []byte, error) {
 	cm, cl, free := cByteSlices(committedMsgs)
 	defer free()
 	var spb C.CryptoBuffer
-	cwp, err := checkBufResult(C.cryptolib_bbs_blind_commit(cm, cl, C.size_t(len(committedMsgs)), &spb))
+	cwp, err := checkBufResult(C.cipherbird_bbs_blind_commit(cm, cl, C.size_t(len(committedMsgs)), &spb))
 	if err != nil {
-		C.cryptolib_buffer_free(&spb)
+		C.cipherbird_buffer_free(&spb)
 		return nil, nil, err
 	}
 	// goBytes frees spb internally — do not free it again.
@@ -223,7 +223,7 @@ func BbsBlindCommit(committedMsgs [][]byte) ([]byte, []byte, error) {
 func BbsBlindSign(sk, pk, commitmentWithProof, header []byte, messages [][]byte) ([]byte, error) {
 	mp, ml, free := cByteSlices(messages)
 	defer free()
-	return checkBufResult(C.cryptolib_bbs_blind_sign(
+	return checkBufResult(C.cipherbird_bbs_blind_sign(
 		u8(sk), C.size_t(len(sk)), u8(pk), C.size_t(len(pk)),
 		u8(commitmentWithProof), C.size_t(len(commitmentWithProof)),
 		u8(header), C.size_t(len(header)),
@@ -237,7 +237,7 @@ func BbsVerifyBlindSign(pk, signature, header []byte, signerMsgs, committedMsgs 
 	defer freeS()
 	cm, cl, freeC := cByteSlices(committedMsgs)
 	defer freeC()
-	return C.cryptolib_bbs_verify_blind_sign(
+	return C.cipherbird_bbs_verify_blind_sign(
 		u8(pk), C.size_t(len(pk)), u8(signature), C.size_t(len(signature)),
 		u8(header), C.size_t(len(header)),
 		sm, sl, C.size_t(len(signerMsgs)), cm, cl, C.size_t(len(committedMsgs)),
@@ -251,12 +251,12 @@ func BbsVerifyBlindSign(pk, signature, header []byte, signerMsgs, committedMsgs 
 // [0, r) — the BBS hash_to_scalar primitive. Use for a stable per-holder nym
 // seed: nymSeed = BbsHashToScalar(memberSecret, dst).
 func BbsHashToScalar(msg, dst []byte) ([]byte, error) {
-	return checkBufResult(C.cryptolib_bbs_hash_to_scalar(
+	return checkBufResult(C.cipherbird_bbs_hash_to_scalar(
 		u8(msg), C.size_t(len(msg)), u8(dst), C.size_t(len(dst))))
 }
 
 // BbsRandomScalar returns a fresh cryptographically-random canonical scalar in
 // [0, r) as 32 big-endian bytes.
 func BbsRandomScalar() ([]byte, error) {
-	return checkBufResult(C.cryptolib_bbs_random_scalar())
+	return checkBufResult(C.cipherbird_bbs_random_scalar())
 }

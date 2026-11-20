@@ -13,9 +13,9 @@
 
 #include "test_framework.hpp"
 
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ) && defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
-#include <cryptolib/flagship.hpp>
-#include <cryptolib/suite.hpp>
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
+#include <cipherbird/flagship.hpp>
+#include <cipherbird/suite.hpp>
 #endif
 
 #include <cstdint>
@@ -58,7 +58,7 @@ TEST("hardening/packet/round-trip-still-works") {
     CHECK(back.value().kdf_salt.size() == 16);
 }
 
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
 // ── BLS aggregate_verify must reject duplicate messages (rogue-key defence) ──
 TEST("hardening/bls/duplicate-message-rejected") {
     using BLS = crypto::bls::Bls12381;
@@ -114,7 +114,7 @@ TEST("hardening/bls/distinct-messages-still-verify") {
         agg.value().span());
     CHECK(r.is_ok());
 }
-#endif // CRYPTOLIB_HAS_BLS
+#endif // CIPHERBIRD_HAS_BLS
 
 // ── AsymmetricVault: tampering the transported box public key is rejected ────
 TEST("hardening/asym-vault/tampered-box-public-rejected") {
@@ -195,7 +195,7 @@ TEST("hardening/asym-vault/short-recipient-key-rejected-by-seal") {
     CHECK(r.is_err());
 }
 
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ)
 namespace {
 void put_u32_le(std::vector<uint8_t>& v, uint32_t x) {
     for (int i = 0; i < 4; ++i) v.push_back(static_cast<uint8_t>(x >> (8 * i)));
@@ -210,7 +210,7 @@ std::vector<uint8_t> huge_sig_inner() {
 }
 
 // Suite signed envelope: sig_len near 2^32 must not wrap the bounds check.
-#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
+#if defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
 TEST("hardening/suite/huge-sig-len-rejected") {
     auto rk = crypto::pq::HybridKem::generate_keypair();
     auto sk = crypto::pq::HybridSig::generate_keypair();
@@ -292,18 +292,18 @@ void run_tests_hardening() {
     RUN("hardening/asym-vault/short-signature-rejected-by-open");
     RUN("hardening/asym-vault/short-sender-box-key-rejected-by-open");
     RUN("hardening/asym-vault/short-recipient-key-rejected-by-seal");
-#if defined(CRYPTOLIB_HAS_OPENSSL) && defined(CRYPTOLIB_HAS_PQ)
-#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
+#if defined(CIPHERBIRD_HAS_OPENSSL) && defined(CIPHERBIRD_HAS_PQ)
+#if defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
     RUN("hardening/suite/huge-sig-len-rejected");
 #endif
-#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
+#if defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
     RUN("hardening/suite/huge-kem-ct-len-rejected");
 #endif
-#if defined(CRYPTOLIB_HAS_NATIVE_COMBINERS) && defined(CRYPTOLIB_HAS_MEDIA_ENTROPY)
+#if defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
     RUN("hardening/flagship/huge-sig-len-rejected");
 #endif
 #endif
-#ifdef CRYPTOLIB_HAS_BLS
+#ifdef CIPHERBIRD_HAS_BLS
     RUN("hardening/bls/duplicate-message-rejected");
     RUN("hardening/bls/distinct-messages-still-verify");
 #endif

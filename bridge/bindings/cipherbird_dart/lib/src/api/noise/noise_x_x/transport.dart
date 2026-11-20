@@ -14,7 +14,7 @@ extension NoiseXXTransport on NoiseXX {
         .lookupFunction<
           Int32 Function(Pointer<Void>),
           int Function(Pointer<Void>)
-        >('cryptolib_noise_split')(_h);
+        >('cipherbird_noise_split')(_h);
     if (ok != 1) {
       throw Exception(
         'cipherbird: noise split failed (handshake unfinished or already split)',
@@ -24,11 +24,11 @@ extension NoiseXXTransport on NoiseXX {
 
   /// Seal one transport record (after [split]).
   Uint8List encrypt(Uint8List plaintext, [Uint8List? ad]) =>
-      _withBuf('cryptolib_noise_encrypt', plaintext, ad);
+      _withBuf('cipherbird_noise_encrypt', plaintext, ad);
 
   /// Open the next record in sequence (after [split]).
   Uint8List decrypt(Uint8List ciphertext, [Uint8List? ad]) =>
-      _withBuf('cryptolib_noise_decrypt', ciphertext, ad);
+      _withBuf('cipherbird_noise_decrypt', ciphertext, ad);
 
   /// Open the record sent at [nonceCounter] WITHOUT advancing the session
   /// counter, so several records can be opened at once.
@@ -59,7 +59,7 @@ extension NoiseXXTransport on NoiseXX {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_noise_decrypt_at')(
+        >('cipherbird_noise_decrypt_at')(
           _h,
           nonceCounter,
           pc,
@@ -84,7 +84,7 @@ extension NoiseXXTransport on NoiseXX {
       _lib._lib.lookupFunction<
         Void Function(Pointer<Void>),
         void Function(Pointer<Void>)
-      >('cryptolib_noise_free')(_h);
+      >('cipherbird_noise_free')(_h);
       _h = nullptr;
     }
   }

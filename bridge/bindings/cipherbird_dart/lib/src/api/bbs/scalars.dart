@@ -22,7 +22,7 @@ extension CipherBirdBbsScalars on CipherBird {
             Pointer<Uint8>,
             int,
           )
-        >('cryptolib_bbs_hash_to_scalar')(m, msg.length, d, dst.length),
+        >('cipherbird_bbs_hash_to_scalar')(m, msg.length, d, dst.length),
       );
     } finally {
       if (m != nullptr) {
@@ -40,7 +40,7 @@ extension CipherBirdBbsScalars on CipherBird {
       _lib.lookupFunction<
         CipherBirdBufferResult Function(),
         CipherBirdBufferResult Function()
-      >('cryptolib_bbs_random_scalar')(),
+      >('cipherbird_bbs_random_scalar')(),
     );
   }
 }
