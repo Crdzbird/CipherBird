@@ -13,6 +13,18 @@
  *   Hamming(7,4)         — every 4 data bits → 7-bit codeword; corrects exactly
  *                          one flip per 7-bit block via syndrome decoding. 1.75×.
  *
+ * NO ERROR DETECTION PAST THE BOUND. Both codes are perfect codes: every
+ * possible received group lies within the correction radius of exactly one
+ * codeword (Hamming(7,4): 16 codewords x 8 words within distance 1 = all 128
+ * seven-bit words; Repetition-N: every N-bit group has a strict majority). So
+ * when a group takes more flips than the code corrects, it lands inside a
+ * DIFFERENT codeword's radius and decode() returns ok with wrong bytes. No
+ * decoder for these codes can tell, because the received word is
+ * indistinguishable from a correctable error on another codeword. decode() is
+ * therefore never an integrity check: put a MAC or AEAD tag (or at least a CRC)
+ * inside the payload and verify it after decoding, as an AEAD-sealed payload
+ * already does with its tag.
+ *
  * All operations are bit-exact and deterministic, so correction capability is
  * validated by injecting known bit-error patterns (see test_stego_fec.cpp) — the
  * honest analogue of a KAT for an error-correcting code.
@@ -114,7 +126,9 @@ inline void hamming_encode_nibble(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4
 }
 
 /// Decode exactly `original_len` bytes from `encoded` under `scheme`, correcting
-/// bit errors within each scheme's capability. Errs if `encoded` is too short.
+/// bit errors within each scheme's capability. Errs only if `encoded` is too
+/// short. Past the bound it returns ok with WRONG bytes, silently: these codes
+/// cannot detect it (see the header note), so verify a MAC or AEAD tag after.
 [[nodiscard]] inline Result<Bytes>
 decode(std::span<const uint8_t> encoded, Scheme scheme, std::size_t original_len) {
     using namespace detail;

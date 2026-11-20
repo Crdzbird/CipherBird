@@ -42,6 +42,7 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace crypto::stego {
@@ -84,6 +85,16 @@ public:
         std::size_t max_stream = DctQimEngine::capacity(w, h) + StegoHeader::SIZE;
         Bytes raw = DctQimEngine::extract_bits(pixels, w, h, max_stream, Q);
         return parse_embed_stream(std::span<const uint8_t>(raw), key);
+    }
+
+    /// Width and height of a PNG whose chunks fit the file and whose image
+    /// data decodes in full.
+    [[nodiscard]] static Result<std::pair<std::size_t, std::size_t>>
+    dimensions(const std::string& path) {
+        using Dims = std::pair<std::size_t, std::size_t>;
+        auto img = load_image(path);
+        if (img.is_err()) return Result<Dims>::err(img.error().message);
+        return Result<Dims>::ok({ img.value().w, img.value().h });
     }
 
     [[nodiscard]] static std::size_t capacity(std::size_t w, std::size_t h) noexcept {

@@ -262,7 +262,7 @@ export default {
     {
       id: 'drbg',
       title: 'HMAC-DRBG: a reproducible stream',
-      statement: 'An SP 800-90A HMAC-DRBG turns a seed into a keystream. The same seed always gives the same stream, which suits beacons and tests, and a reseed sends it somewhere new.',
+      statement: 'An SP 800-90A HMAC-DRBG turns a seed into a keystream. The same seed always gives the same stream, which suits beacons and tests, and a reseed sends it somewhere new. Both the seed and every reseed must carry at least 32 bytes.',
       inputs: [
         { name: 'seed', label: 'Seed text (hashed to 32 bytes)', kind: 'text', value: 'beacon round 1024' },
         { name: 'label', label: 'Personalization', kind: 'text', value: 'demo/drbg' },
@@ -293,6 +293,7 @@ export default {
             row.check('A reseed separates the twins', !same(a3, b3), 'different'),
             row.bytes('Twin B with additional input', mixed),
             refused('A seed shorter than 32 bytes is refused', () => cb.call('drbg_instantiate', entropy.subarray(0, 16), null, null)),
+            refused('A reseed shorter than 32 bytes is refused', () => cb.call('drbg_reseed', b, entropy.subarray(0, 8), null)),
             refused('More than 65536 bytes per request is refused', () => cb.call('drbg_generate', b, 65537, null)),
           ];
         } finally {

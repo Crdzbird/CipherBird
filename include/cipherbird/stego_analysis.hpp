@@ -33,12 +33,22 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
 namespace crypto::stego {
 
+/// `parses` is true only when the content is a recognised format AND the
+/// engine's reader for that format accepts the whole file: for PPM, BMP, PNG
+/// and GIF every pixel the header declares must be present, for WAV the data
+/// chunk must fit the file, for CRVF every frame, and JPEG and MP3 must pass
+/// the same parse the embed path runs. FLAC, AVI and MP4 are recognised by
+/// their magic bytes only; `detail` says so. A file whose header is
+/// recognised but whose body is missing keeps its `format`, reports
+/// `parses` = false and width/height 0, and `detail` names the problem.
 struct FileInspection {
     bool        parses      = false;                 // recognised, structurally plausible carrier
     MediaFormat format      = MediaFormat::UNKNOWN;  // format inferred from CONTENT (not extension)
@@ -72,10 +82,14 @@ public:
         f.clear(); f.seekg(0, std::ios::end);
         r.file_size = static_cast<std::size_t>(f.tellg());
         r.format    = sniff(head);
-        r.parses    = (r.format != MediaFormat::UNKNOWN);
         r.ext_matches = (r.format == StegoEngine::detect_format(path));
-        if (r.format == MediaFormat::PPM_IMAGE) parse_ppm_dims(path, r.width, r.height);
-        r.detail = describe(r);
+        std::string problem;
+        if (r.format != MediaFormat::UNKNOWN) {
+            problem = body_problem(path, r.format, r.width, r.height);
+            r.parses = problem.empty();
+            if (!r.parses) { r.width = 0; r.height = 0; }
+        }
+        r.detail = describe(r, problem);
         return Result<FileInspection>::ok(std::move(r));
     }
 
@@ -155,17 +169,67 @@ private:
         return MediaFormat::UNKNOWN;
     }
 
-    static void parse_ppm_dims(const std::string& path, std::size_t& w, std::size_t& h) {
-        std::ifstream f(path);
-        std::string magic; f >> magic;
-        if (magic != "P6") return;
-        // Skip comments, read width/height.
-        auto skip_ws = [&]() { int c; while ((c = f.peek()) != EOF) {
-            if (c == '#') { std::string s; std::getline(f, s); }
-            else if (std::isspace(c)) f.get();
-            else break; } };
-        skip_ws(); f >> w; skip_ws(); f >> h;
-        if (!f) { w = 0; h = 0; }
+    /// Run the engine's reader for `fmt` over the whole file. Returns an empty
+    /// string when the body holds what the header promises, otherwise the
+    /// reason. Fills width/height for the image formats that report them.
+    [[nodiscard]] static std::string body_problem(const std::string& path, MediaFormat fmt,
+                                                  std::size_t& w, std::size_t& h) {
+        auto dims = [&](auto res) -> std::string {
+            if (res.is_err()) return res.error().message;
+            w = res.value().first;
+            h = res.value().second;
+            return {};
+        };
+        auto accepted = [](auto res) -> std::string {
+            return res.is_err() ? res.error().message : std::string{};
+        };
+        switch (fmt) {
+        case MediaFormat::PPM_IMAGE: {
+            auto img = ImageSteganographer::read_ppm(path);
+            if (img.is_err()) return img.error().message;
+            w = img.value().w;
+            h = img.value().h;
+            return {};
+        }
+        case MediaFormat::BMP_IMAGE:  return dims(BmpSteganographer::dimensions(path));
+        case MediaFormat::PNG_IMAGE:  return dims(PngSteganographer::dimensions(path));
+        case MediaFormat::GIF_IMAGE:  return dims(GifSteganographer::dimensions(path));
+        case MediaFormat::JPEG_IMAGE: return accepted(JpegSteganographer::capacity_from_file(path));
+        case MediaFormat::MP3_AUDIO:  return accepted(Mp3Steganographer::capacity_from_file(path));
+        case MediaFormat::CRVF_VIDEO: return accepted(VideoSteganographer::read_crvf(path));
+        case MediaFormat::WAV_AUDIO:  return wav_problem(path);
+        default:                      return {};
+        }
+    }
+
+    /// A WAV must hold a fmt chunk and a data chunk whose declared length fits
+    /// the bytes that follow it. The embed path clamps a short data chunk, so
+    /// this check is stricter than embed on purpose.
+    [[nodiscard]] static std::string wav_problem(const std::string& path) {
+        std::ifstream f(path, std::ios::binary);
+        if (!f) return "WAV: cannot open '" + path + "'";
+        std::vector<uint8_t> b((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        auto le32 = [&](std::size_t at) {
+            return std::size_t(b[at]) | std::size_t(b[at + 1]) << 8
+                 | std::size_t(b[at + 2]) << 16 | std::size_t(b[at + 3]) << 24;
+        };
+        if (b.size() < 12) return "WAV: truncated RIFF header";
+        std::size_t pos = 12;
+        bool fmt = false;
+        while (pos + 8 <= b.size()) {
+            const std::size_t len = le32(pos + 4);
+            const bool is_fmt = std::memcmp(b.data() + pos, "fmt ", 4) == 0;
+            const bool is_data = std::memcmp(b.data() + pos, "data", 4) == 0;
+            const std::size_t left = b.size() - pos - 8;
+            if (is_data && len > left)
+                return "WAV: data chunk declares " + std::to_string(len) + " bytes but "
+                    + std::to_string(left) + " remain";
+            if (len > left) return "WAV: a chunk runs past the end of the file";
+            if (is_data) return fmt ? std::string{} : std::string("WAV: data chunk before fmt chunk");
+            if (is_fmt) fmt = true;
+            pos += 8 + len + (len & 1);
+        }
+        return "WAV: no data chunk";
     }
 
     // Skip a header so the chi-square runs over payload-carrying bytes. For known
@@ -228,10 +292,19 @@ private:
         return 1.0 - std::exp(-x + a * std::log(x) - gln) * h;
     }
 
-    [[nodiscard]] static std::string describe(const FileInspection& r) {
-        if (!r.parses) return "unrecognised / not a supported media carrier";
-        std::string s = "valid " + fmt_name(r.format) + " (" + std::to_string(r.file_size) + " bytes)";
-        if (r.width && r.height) s += ", " + std::to_string(r.width) + "x" + std::to_string(r.height);
+    [[nodiscard]] static std::string describe(const FileInspection& r, const std::string& problem) {
+        if (r.format == MediaFormat::UNKNOWN) return "unrecognised / not a supported media carrier";
+        std::string s;
+        if (!r.parses) {
+            s = fmt_name(r.format) + " magic bytes, but not a usable carrier ("
+                + std::to_string(r.file_size) + " bytes): " + problem;
+        } else {
+            s = "valid " + fmt_name(r.format) + " (" + std::to_string(r.file_size) + " bytes)";
+            if (r.width && r.height) s += ", " + std::to_string(r.width) + "x" + std::to_string(r.height);
+            if (r.format == MediaFormat::FLAC_AUDIO || r.format == MediaFormat::AVI_VIDEO
+                || r.format == MediaFormat::MP4_VIDEO)
+                s += " [magic bytes only; contents not checked]";
+        }
         if (!r.ext_matches) s += " [WARNING: content does not match file extension]";
         return s;
     }

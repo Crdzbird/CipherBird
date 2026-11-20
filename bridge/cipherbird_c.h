@@ -1866,7 +1866,10 @@ CRYPTO_API CryptoResult cipherbird_stego_embed(
 /** Extract raw bytes from a stego media file. */
 CRYPTO_API CryptoBufferResult cipherbird_stego_extract(const char* stego_path);
 
-/** Get the steganographic capacity of a cover file (in bytes). */
+/** Get the steganographic capacity of a cover file (in bytes): the largest
+ *  payload cipherbird_stego_embed accepts for it. Reported for PPM, BMP, PNG,
+ *  GIF, JPEG, WAV, MP3 and CRVF, and a nominal figure for MP4; 0 for FLAC and
+ *  AVI, and 0 when the file cannot be read (missing, truncated or malformed). */
 CRYPTO_API size_t cipherbird_stego_capacity(const char* cover_path);
 
 /* ── Keyed steganography (whitened, no 'CSTG' signature) ────────────────────
@@ -1932,7 +1935,15 @@ CRYPTO_API CryptoBufferResult cipherbird_fec_encode(
     const uint8_t* data, size_t len, int scheme);
 
 /** FEC-decode `original_len` bytes from `data`, correcting within the scheme's
- *  bound. Errs if `data` is too short. */
+ *  bound (Repetition-3: 1 flip per 3-bit group, Repetition-5: 2 per 5-bit
+ *  group, Hamming(7,4): 1 per 7-bit block). Errs only if `data` is too short.
+ *
+ *  WARNING: past the bound this returns success with WRONG bytes and no error.
+ *  These are perfect codes: every received group decodes to some codeword, so
+ *  too many flips are indistinguishable from a correctable error on another
+ *  codeword and cannot be detected by any decoder. Never treat a successful
+ *  decode as proof the bytes are right; carry a MAC or AEAD tag inside the
+ *  payload and verify it after decoding. */
 CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
     const uint8_t* data, size_t len, int scheme, size_t original_len);
 
@@ -1942,8 +1953,15 @@ CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
 /** File-validity / format inspection. `format` is the MediaFormat inferred from
  *  CONTENT (magic bytes), 0xFF = unknown; `ext_matches`=1 iff it matches the
  *  file extension. On error, `error` is set (free with cipherbird_str_free). */
+/*  `parses` = 1 only when the content is a recognised format AND the engine's
+ *  reader accepts the whole file: PPM, BMP, PNG and GIF must hold every pixel
+ *  their header declares, WAV a data chunk that fits, CRVF every frame, and
+ *  JPEG and MP3 must pass the embed path's parse. FLAC, AVI and MP4 are checked
+ *  by magic bytes only (`detail` says so). A recognised header over a missing
+ *  body keeps `format`, reports parses = 0 and width/height 0, and `detail`
+ *  names the problem. */
 typedef struct {
-    int      parses;       /**< 1 = recognised, structurally plausible carrier */
+    int      parses;       /**< 1 = recognised carrier whose body the engine can read */
     uint8_t  format;       /**< MediaFormat from content (0xFF unknown) */
     int      ext_matches;  /**< 1 = content format == extension format */
     uint64_t width;        /**< images only (0 otherwise) */
@@ -2148,7 +2166,8 @@ CRYPTO_API CryptoBufferResult cipherbird_drbg_generate(
     CryptoDrbgHandle h, size_t num_bytes,
     const uint8_t* additional, size_t additional_len);
 
-/** Reseed with fresh entropy + optional additional input. */
+/** Reseed with fresh entropy (>= 32 B, the same floor as instantiate) + optional
+ *  additional input. Shorter entropy is refused and the state is left unchanged. */
 CRYPTO_API CryptoResult cipherbird_drbg_reseed(
     CryptoDrbgHandle h,
     const uint8_t* entropy, size_t entropy_len,

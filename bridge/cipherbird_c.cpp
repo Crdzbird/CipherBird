@@ -3576,9 +3576,10 @@ CRYPTO_API CryptoResult cipherbird_drbg_reseed(
     const uint8_t* additional, size_t additional_len) try
 {
     if (!h) return { 0, dup_str("DRBG: null handle") };
-    static_cast<DrbgImpl*>(h)->d.reseed(
-        sp(entropy, entropy_len),
+    auto r = static_cast<DrbgImpl*>(h)->d.reseed(
+        entropy ? sp(entropy, entropy_len) : std::span<const uint8_t>{},
         additional ? sp(additional, additional_len) : std::span<const uint8_t>{});
+    if (r.is_err()) return { 0, dup_str(r.error().message) };
     return { 1, nullptr };
 } CL_FAIL_RESULT
 

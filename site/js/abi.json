@@ -7857,7 +7857,7 @@
     }
    ],
    "section": "Steganography",
-   "doc": "Get the steganographic capacity of a cover file (in bytes)."
+   "doc": "Get the steganographic capacity of a cover file (in bytes): the largest payload cipherbird_stego_embed accepts for it. Reported for PPM, BMP, PNG, GIF, JPEG, WAV, MP3 and CRVF, and a nominal figure for MP4; 0 for FLAC and AVI, and 0 when the file cannot be read (missing, truncated or malformed)."
   },
   {
    "name": "cipherbird_stego_embed_keyed",
@@ -8109,7 +8109,7 @@
     }
    ],
    "section": "Steganography",
-   "doc": "FEC-decode `original_len` bytes from `data`, correcting within the scheme's bound. Errs if `data` is too short."
+   "doc": "FEC-decode `original_len` bytes from `data`, correcting within the scheme's bound (Repetition-3: 1 flip per 3-bit group, Repetition-5: 2 per 5-bit group, Hamming(7,4): 1 per 7-bit block). Errs only if `data` is too short. WARNING: past the bound this returns success with WRONG bytes and no error. These are perfect codes: every received group decodes to some codeword, so too many flips are indistinguishable from a correctable error on another codeword and cannot be detected by any decoder. Never treat a successful decode as proof the bytes are right; carry a MAC or AEAD tag inside the payload and verify it after decoding."
   },
   {
    "name": "cipherbird_stego_inspect",
@@ -8612,7 +8612,7 @@
     }
    ],
    "section": "Steganography",
-   "doc": "Reseed with fresh entropy + optional additional input."
+   "doc": "Reseed with fresh entropy (>= 32 B, the same floor as instantiate) + optional additional input. Shorter entropy is refused and the state is left unchanged."
   },
   {
    "name": "cipherbird_drbg_free",

@@ -4,6 +4,7 @@
 // the LSB heuristic is checked only for the direction it can honestly claim
 // (a smooth image LSB-embedded scores higher than the same image clean).
 #include "test_framework.hpp"
+#include "cipherbird_c.h"
 #include <sodium.h>
 #include <filesystem>
 #include <fstream>
@@ -42,6 +43,17 @@ void lsb_stuff_ppm(const std::string& path) {
         f.seekp(off); f.put(c);
     }
 }
+
+std::string cut_copy(const std::string& src, const std::string& dst, std::size_t n) {
+    std::ifstream in(src, std::ios::binary);
+    std::vector<char> b((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (n < b.size()) b.resize(n);
+    std::ofstream out(dst, std::ios::binary);
+    out.write(b.data(), static_cast<std::streamsize>(b.size()));
+    return dst;
+}
+
+std::size_t file_size(const std::string& p) { return static_cast<std::size_t>(std::filesystem::file_size(p)); }
 }
 
 TEST("analysis/inspect-valid-and-mismatch") {
@@ -136,10 +148,93 @@ TEST("analysis/lsb-heuristic-direction") {
     std::filesystem::remove(clean); std::filesystem::remove(dirty);
 }
 
+TEST("analysis/inspect-rejects-truncated-carriers") {
+    using MG = crypto::stego::MediaGenerator;
+    const std::string dir = "/tmp/test_an_trunc";
+    std::filesystem::create_directories(dir);
+    REQUIRE(MG::generate_ppm(dir + "/c.ppm", 64, 48).is_ok());
+    REQUIRE(MG::generate_bmp(dir + "/c.bmp", 64, 48).is_ok());
+    REQUIRE(MG::generate_png(dir + "/c.png", 64, 48).is_ok());
+    REQUIRE(MG::generate_gif(dir + "/c.gif", 64, 48).is_ok());
+    for (const char* ext : { ".ppm", ".bmp", ".png", ".gif" }) {
+        const std::string full = dir + "/c" + ext;
+        auto ok = StegoAnalyzer::inspect(full);
+        REQUIRE(ok.is_ok());
+        CHECK(ok.value().parses);
+        CHECK(ok.value().width == 64);
+        CHECK(ok.value().height == 48);
+        const std::size_t size = file_size(full);
+        for (std::size_t n : { std::size_t{10}, std::size_t{40}, size / 2, size - 2 }) {
+            const std::string cut = cut_copy(full, dir + "/cut" + std::to_string(n) + ext, n);
+            auto r = StegoAnalyzer::inspect(cut);
+            REQUIRE(r.is_ok());
+            CHECK(!r.value().parses);
+            CHECK(r.value().width == 0);
+            CHECK(r.value().height == 0);
+            CHECK(r.value().detail.find("not a usable carrier") != std::string::npos);
+        }
+    }
+
+    REQUIRE(MG::generate_wav(dir + "/c.wav", 8000, 1, 0.5).is_ok());
+    REQUIRE(MG::generate_crvf(dir + "/c.crvf", 64, 48, 10, 3).is_ok());
+    for (const char* ext : { ".wav", ".crvf" }) {
+        const std::string full = dir + "/c" + ext;
+        auto ok = StegoAnalyzer::inspect(full);
+        REQUIRE(ok.is_ok());
+        CHECK(ok.value().parses);
+        const std::string cut = cut_copy(full, dir + "/half" + ext, file_size(full) / 2);
+        auto r = StegoAnalyzer::inspect(cut);
+        REQUIRE(r.is_ok());
+        CHECK(!r.value().parses);
+    }
+
+    const std::string bmp10 = cut_copy(dir + "/c.bmp", dir + "/abi10.bmp", 10);
+    CryptoFileInspection abi = cipherbird_stego_inspect(bmp10.c_str());
+    CHECK(abi.error == nullptr);
+    CHECK(abi.parses == 0);
+    CHECK(abi.format == static_cast<uint8_t>(crypto::stego::MediaFormat::BMP_IMAGE));
+    cipherbird_str_free(abi.detail);
+    cipherbird_str_free(abi.error);
+    std::filesystem::remove_all(dir);
+}
+
+TEST("analysis/capacity-bmp-png-gif") {
+    using MG = crypto::stego::MediaGenerator;
+    const std::string dir = "/tmp/test_an_cap";
+    std::filesystem::create_directories(dir);
+    REQUIRE(MG::generate_bmp(dir + "/c.bmp", 128, 96).is_ok());
+    REQUIRE(MG::generate_png(dir + "/c.png", 128, 96).is_ok());
+    REQUIRE(MG::generate_gif(dir + "/c.gif", 128, 96).is_ok());
+    const std::size_t dct = crypto::stego::DctQimEngine::capacity(128, 96);
+    const std::size_t lsb = crypto::stego::GifSteganographer::capacity(128, 96);
+    struct Case { const char* ext; std::size_t want; };
+    for (Case c : { Case{".bmp", dct}, Case{".png", dct}, Case{".gif", lsb} }) {
+        const std::string cover = dir + "/c" + c.ext;
+        const std::string out = dir + "/out" + c.ext;
+        auto cap = SE::capacity(cover);
+        REQUIRE(cap.is_ok());
+        CHECK(c.want > 0);
+        CHECK(cap.value().max_payload_bytes == c.want);
+        CHECK(cipherbird_stego_capacity(cover.c_str()) == c.want);
+        std::vector<uint8_t> full(c.want, 0x5A);
+        REQUIRE(SE::embed(cover, sp(full), out).is_ok());
+        auto back = SE::extract(out);
+        REQUIRE(back.is_ok());
+        CHECK(back.value() == full);
+        full.push_back(0);
+        CHECK(SE::embed(cover, sp(full), out).is_err());
+        const std::string cut = cut_copy(cover, dir + "/cut" + c.ext, file_size(cover) / 2);
+        CHECK(cipherbird_stego_capacity(cut.c_str()) == 0);
+    }
+    std::filesystem::remove_all(dir);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_stego_analysis() {
     RUN("analysis/inspect-valid-and-mismatch");
     RUN("analysis/content-digest-tamper");
     RUN("analysis/detect-cipherbird-payload");
     RUN("analysis/lsb-heuristic-direction");
+    RUN("analysis/inspect-rejects-truncated-carriers");
+    RUN("analysis/capacity-bmp-png-gif");
 }

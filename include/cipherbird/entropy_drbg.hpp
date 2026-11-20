@@ -84,13 +84,19 @@ public:
         return Result<SecureBuffer>::ok(std::move(out));
     }
 
-    /// Reseed with fresh entropy (SP 800-90A §10.1.2.4).
-    void reseed(std::span<const uint8_t> entropy, std::span<const uint8_t> additional = {}) {
+    /// Reseed with fresh entropy (SP 800-90A section 10.1.2.4). The entropy input must
+    /// carry the same 256-bit strength as instantiate(), so fewer than 32 bytes
+    /// is refused and leaves the state untouched.
+    [[nodiscard]] Result<void>
+    reseed(std::span<const uint8_t> entropy, std::span<const uint8_t> additional = {}) {
+        if (entropy.size() < MIN_ENTROPY_BYTES)
+            return Result<void>::err("HMAC-DRBG: reseed entropy input must be >= 32 bytes");
         std::vector<uint8_t> seed(entropy.begin(), entropy.end());
         seed.insert(seed.end(), additional.begin(), additional.end());
         update({ seed.data(), seed.size() });
         sodium_memzero(seed.data(), seed.size());
         reseed_counter_ = 1;
+        return Result<void>::ok();
     }
 
 #ifdef CIPHERBIRD_TESTING

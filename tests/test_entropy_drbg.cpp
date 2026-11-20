@@ -2,6 +2,7 @@
 // a NIST CAVP vector (drbgvectors_no_reseed, SHA-512, PR=False), plus the
 // MediaEntropy beacon.
 #include "test_framework.hpp"
+#include "cipherbird_c.h"
 #include <filesystem>
 #include <cstring>
 using namespace test;
@@ -74,6 +75,38 @@ TEST("drbg/generate/streaming-and-limits") {
     CHECK(d.value().generate(70000).is_err());
 }
 
+TEST("drbg/reseed-requires-32-bytes") {
+    std::vector<uint8_t> seed(32, 0x07);
+    std::vector<uint8_t> fresh(32, 0x09);
+    auto d = HmacDrbg::instantiate(sp(seed));
+    REQUIRE(d.is_ok());
+    auto& drbg = d.value();
+    const auto v0 = vec(drbg.v_state());
+    const auto k0 = vec(drbg.key_state());
+    for (std::size_t n : { std::size_t{0}, std::size_t{8}, std::size_t{31} }) {
+        CHECK(drbg.reseed({ fresh.data(), n }).is_err());
+        CHECK(vec(drbg.v_state()) == v0);
+        CHECK(vec(drbg.key_state()) == k0);
+    }
+    CHECK(drbg.reseed(sp(fresh)).is_ok());
+    CHECK(vec(drbg.v_state()) != v0);
+
+    char* err = nullptr;
+    CryptoDrbgHandle h = cipherbird_drbg_instantiate(seed.data(), seed.size(), nullptr, 0, nullptr, 0, &err);
+    REQUIRE(h != nullptr);
+    CryptoResult shortr = cipherbird_drbg_reseed(h, fresh.data(), 8, nullptr, 0);
+    CHECK(shortr.ok == 0);
+    CHECK(shortr.error != nullptr);
+    cipherbird_str_free(shortr.error);
+    CryptoResult nullr = cipherbird_drbg_reseed(h, nullptr, 0, nullptr, 0);
+    CHECK(nullr.ok == 0);
+    cipherbird_str_free(nullr.error);
+    CryptoResult okr = cipherbird_drbg_reseed(h, fresh.data(), fresh.size(), nullptr, 0);
+    CHECK(okr.ok == 1);
+    CHECK(okr.error == nullptr);
+    cipherbird_drbg_free(h);
+}
+
 #if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
 // MediaEntropy beacon: deterministic mode is fully reproducible from the media.
 TEST("drbg/media-beacon-reproducible") {
@@ -103,6 +136,7 @@ TEST("drbg/media-beacon-reproducible") {
 void run_tests_entropy_drbg() {
     RUN("drbg/kat/cavp-hmac-sha512");
     RUN("drbg/generate/streaming-and-limits");
+    RUN("drbg/reseed-requires-32-bytes");
 #if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
     RUN("drbg/media-beacon-reproducible");
 #endif

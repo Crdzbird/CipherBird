@@ -3,6 +3,7 @@
 // for an error-correcting code): each scheme must recover within its bound and
 // (for the repetition codes) fail beyond it.
 #include "test_framework.hpp"
+#include "cipherbird_c.h"
 using namespace test;
 
 namespace fec = crypto::stego::fec;
@@ -77,6 +78,40 @@ TEST("fec/hamming74-single-error-every-position") {
     }
 }
 
+TEST("fec/perfect-codes-cannot-detect-overflow") {
+    std::vector<uint8_t> words[16];
+    for (int n = 0; n < 16; ++n) {
+        std::vector<uint8_t> byte = { static_cast<uint8_t>(n << 4) };
+        words[n] = fec::encode(sp(byte), fec::Scheme::Hamming74);
+    }
+    auto bit = [](const std::vector<uint8_t>& v, int i) { return (v[i / 8] >> (7 - i % 8)) & 1; };
+    for (int word = 0; word < 128; ++word) {
+        int nearest = -1, within_one = 0;
+        for (int n = 0; n < 16; ++n) {
+            int d = 0;
+            for (int i = 0; i < 7; ++i) d += ((word >> (6 - i)) & 1) != bit(words[n], i);
+            if (d <= 1) { ++within_one; nearest = n; }
+        }
+        CHECK(within_one == 1);
+        std::vector<uint8_t> received = { static_cast<uint8_t>(word << 1), 0 };
+        auto dec = fec::decode(sp(received), fec::Scheme::Hamming74, 1);
+        REQUIRE(dec.is_ok());
+        CHECK((dec.value()[0] >> 4) == nearest);
+    }
+
+    auto data = msg();
+    struct Case { int scheme; std::size_t group; std::size_t flips; };
+    for (Case c : { Case{1, 3, 2}, Case{2, 5, 3}, Case{3, 7, 2} }) {
+        auto enc = fec::encode(sp(data), static_cast<fec::Scheme>(c.scheme));
+        for (std::size_t k = 0; k < c.flips; ++k) flip(enc, k);
+        CryptoBufferResult r = cipherbird_fec_decode(enc.data(), enc.size(), c.scheme, data.size());
+        CHECK(r.error == nullptr);
+        REQUIRE(r.buf.data != nullptr);
+        CHECK(std::vector<uint8_t>(r.buf.data, r.buf.data + r.buf.len) != data);
+        cipherbird_buffer_free(&r.buf);
+    }
+}
+
 TEST("fec/overhead-and-short-buffer") {
     CHECK(fec::overhead(fec::Scheme::Repetition3) == 3.0);
     CHECK(fec::overhead(fec::Scheme::Hamming74)   == 7.0 / 4.0);
@@ -95,4 +130,5 @@ void run_tests_stego_fec() {
     RUN("fec/hamming74-corrects-one-flip-per-block");
     RUN("fec/hamming74-single-error-every-position");
     RUN("fec/overhead-and-short-buffer");
+    RUN("fec/perfect-codes-cannot-detect-overflow");
 }
