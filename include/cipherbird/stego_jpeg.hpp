@@ -188,12 +188,13 @@ private:
         std::array<uint8_t, 256>  encode_len{};
     };
 
-    static void build_huff_table(HuffTable& ht, const uint8_t* bits, const uint8_t* values) {
+    [[nodiscard]] static bool build_huff_table(HuffTable& ht, const uint8_t* bits, const uint8_t* values) {
         int offset = 0;
         for (int i = 1; i <= 16; ++i) {
             ht.offsets[i] = offset;
             offset += bits[i - 1];
         }
+        if (offset > static_cast<int>(ht.symbols.size())) return false;
         ht.total_symbols = offset;
 
         for (int i = 0; i < offset; ++i)
@@ -212,9 +213,11 @@ private:
                     code++;
                 }
                 ht.maxcode[i] = code - 1;
+                if (code > (1 << i)) return false;
             }
             code <<= 1;
         }
+        return true;
     }
 
     // ── Bitstream reader/writer ──────────────────────────────────────────────
@@ -411,10 +414,10 @@ private:
                         bits[i] = jpeg[dht_pos++]; total += bits[i];
                     }
                     if (dht_pos + static_cast<std::size_t>(total) > dht_end) break;
-                    if (table_class == 0)
-                        build_huff_table(info.dc_tables[table_id], bits, &jpeg[dht_pos]);
-                    else
-                        build_huff_table(info.ac_tables[table_id], bits, &jpeg[dht_pos]);
+                    HuffTable& table = table_class == 0 ? info.dc_tables[table_id]
+                                                        : info.ac_tables[table_id];
+                    if (!build_huff_table(table, bits, &jpeg[dht_pos]))
+                        return Result<JpegScanInfo>::err("JPEG: malformed DHT segment");
                     dht_pos += total;
                 }
             }
@@ -568,6 +571,7 @@ private:
                             continue;
                         }
 
+                        if (ac_size == 0) { done = true; break; }
                         int ac_val = br.read_bits(ac_size);
                         if (ac_val < 0) { done = true; break; }
 
@@ -676,6 +680,7 @@ private:
 
                         int run = (ac_sym >> 4) & 0x0F;
                         int sz  = ac_sym & 0x0F;
+                        if (sz == 0) { done = true; break; }
                         int ac_val = br.read_bits(sz);
                         if (ac_val < 0) { done = true; break; }
 
@@ -748,6 +753,7 @@ private:
                         if (ac_sym == 0xF0) { k += 16; continue; }
                         int run = (ac_sym >> 4) & 0x0F;
                         int sz  = ac_sym & 0x0F;
+                        if (sz == 0) { done = true; break; }
                         int ac_val = br.read_bits(sz);
                         if (ac_val < 0) { done = true; break; }
                         int coeff;

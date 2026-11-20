@@ -414,6 +414,66 @@ TEST("stego-fuzz/jpeg/zero-components-and-zero-sampling-rejected") {
     std::filesystem::remove(path);
 }
 
+namespace {
+
+std::vector<uint8_t> jpeg_with_tables(std::vector<uint8_t> dc_bits, std::vector<uint8_t> dc_vals,
+                                      std::vector<uint8_t> ac_bits, std::vector<uint8_t> ac_vals) {
+    std::vector<uint8_t> v = {0xFF, 0xD8,
+        0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x08, 0x00, 0x08, 0x01, 0x01, 0x11, 0x00};
+    auto dht = [&](uint8_t cls, const std::vector<uint8_t>& bits, const std::vector<uint8_t>& vals) {
+        std::size_t len = 2 + 1 + 16 + vals.size();
+        v.insert(v.end(), {0xFF, 0xC4, uint8_t(len >> 8), uint8_t(len), cls});
+        v.insert(v.end(), bits.begin(), bits.end());
+        v.insert(v.end(), vals.begin(), vals.end());
+    };
+    dht(0x00, dc_bits, dc_vals);
+    dht(0x10, ac_bits, ac_vals);
+    v.insert(v.end(), {0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00});
+    v.insert(v.end(), 64, 0x00);
+    v.insert(v.end(), {0xFF, 0xD9});
+    return v;
+}
+
+std::vector<uint8_t> counts(std::initializer_list<std::pair<int, uint8_t>> at) {
+    std::vector<uint8_t> bits(16, 0);
+    for (auto [len, n] : at) bits[static_cast<std::size_t>(len - 1)] = n;
+    return bits;
+}
+
+} // namespace
+
+TEST("stego-fuzz/jpeg/huffman-table-over-256-symbols-rejected") {
+    auto path = tmp_path("cstg_fuzz_dht_big.jpg");
+    std::vector<uint8_t> many(510, 0x01);
+    write_bytes(path, jpeg_with_tables(counts({{15, 255}, {16, 255}}), many,
+                                       counts({{1, 1}}), {0x00}));
+    auto r = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(r.is_err());
+    CHECK(r.is_err() && r.error().message.find("DHT") != std::string::npos);
+    std::filesystem::remove(path);
+}
+
+TEST("stego-fuzz/jpeg/huffman-table-over-full-rejected") {
+    auto path = tmp_path("cstg_fuzz_dht_kraft.jpg");
+    write_bytes(path, jpeg_with_tables(counts({{1, 3}}), {0x00, 0x01, 0x02},
+                                       counts({{1, 1}}), {0x00}));
+    auto r = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(r.is_err());
+    CHECK(r.is_err() && r.error().message.find("DHT") != std::string::npos);
+    std::filesystem::remove(path);
+}
+
+TEST("stego-fuzz/jpeg/zero-size-ac-symbol-stops-the-scan") {
+    auto path = tmp_path("cstg_fuzz_ac_size0.jpg");
+    write_bytes(path, jpeg_with_tables(counts({{1, 1}}), {0x00},
+                                       counts({{1, 1}}), {0x10}));
+    auto r = crypto::stego::JpegSteganographer::extract(path);
+    CHECK(r.is_err());
+    auto cap = crypto::stego::JpegSteganographer::capacity_from_file(path);
+    CHECK(cap.is_err() || cap.value() == 0);
+    std::filesystem::remove(path);
+}
+
 // ── AVI: a strf height of INT32_MIN must not negate a signed minimum ─────────
 TEST("stego-fuzz/avi/int-min-height-rejected") {
     auto path = tmp_path("cstg_fuzz_intmin.avi");
@@ -452,6 +512,9 @@ void run_tests_stego_fuzz() {
     RUN("stego-fuzz/wav/bad-phase-params-rejected");
     RUN("stego-fuzz/jpeg/empty-scan-terminates");
     RUN("stego-fuzz/jpeg/zero-components-and-zero-sampling-rejected");
+    RUN("stego-fuzz/jpeg/huffman-table-over-256-symbols-rejected");
+    RUN("stego-fuzz/jpeg/huffman-table-over-full-rejected");
+    RUN("stego-fuzz/jpeg/zero-size-ac-symbol-stops-the-scan");
     RUN("stego-fuzz/avi/int-min-height-rejected");
 }
 
