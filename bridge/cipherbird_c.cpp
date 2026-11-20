@@ -1174,6 +1174,7 @@ CRYPTO_API CryptoBufferResult cipherbird_sealedbox_decrypt(
 CRYPTO_API CryptoVaultHandle cipherbird_vault_create(
     const uint8_t* master_key, size_t mk_len, int kdf_preset) try
 {
+    if (!master_key || mk_len < 32) return nullptr;
     auto params = kdf_preset == 1
         ? crypto::KdfParams::sensitive()
         : crypto::KdfParams::interactive();
@@ -2769,6 +2770,7 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign_with_nym(
         sp(commitment_with_proof, commit_len), sp(header, header_len),
         bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_PSEUDONYM,
         sp(signer_nym_entropy, entropy_len), length_nym_vector);
+    if (sig.empty()) return err_buf("BBS: invalid key, entropy or commitment");
     return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
 #else
     (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;(void)header;(void)header_len;
@@ -2888,6 +2890,7 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign(
     auto sig = crypto::Bbs::blind_sign(sp(sk, sk_len), sp(pk, pk_len),
         sp(commitment_with_proof, commit_len), sp(header, header_len),
         bbs_msgs(msgs, msg_lens, msg_count), crypto::Bbs::API_ID_BLIND);
+    if (sig.empty()) return err_buf("BBS: invalid key, entropy or commitment");
     return { to_cbuf(std::span<const uint8_t>(sig)), nullptr };
 #else
     (void)sk;(void)sk_len;(void)pk;(void)pk_len;(void)commitment_with_proof;(void)commit_len;

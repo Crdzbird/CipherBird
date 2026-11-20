@@ -802,7 +802,8 @@ CRYPTO_API CryptoBufferResult cipherbird_sealedbox_decrypt(
  * Vault — 4-layer pipeline (Argon2id → BLAKE2b → XChaCha20 → Ed25519)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Create a vault from a 32-byte master key. kdf: 0=interactive, 1=sensitive. */
+/** Create a vault from a master key of at least 32 bytes. kdf: 0=interactive,
+ *  1=sensitive. Returns NULL for a null or shorter key. */
 CRYPTO_API CryptoVaultHandle cipherbird_vault_create(
     const uint8_t* master_key, size_t mk_len, int kdf_preset);
 
@@ -1262,7 +1263,9 @@ CRYPTO_API int cipherbird_slh_dsa_verify(
 /** BLS keygen (random). sk=32B, pk=48B. */
 CRYPTO_API CryptoKeyPair cipherbird_bls_keygen(void);
 
-/** BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. */
+/** BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. A shorter or
+ *  null ikm returns an empty pair (both buffers NULL, length 0) with no error
+ *  text; callers must check the lengths. */
 CRYPTO_API CryptoKeyPair cipherbird_bls_keygen_from_ikm(const uint8_t* ikm, size_t ikm_len);
 
 /** BLS sign. Returns 96-byte compressed G2 signature. */
@@ -1527,7 +1530,10 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_commit_with_nym(
     CryptoBuffer* secret_prover_blind);
 
 /** Issuer: blind-sign over the commitment + own messages, adding
- *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature. */
+ *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature.
+ *  The commitment's proof of knowledge is verified first; a malformed or
+ *  forged commitment, a key of the wrong size or entropy that is not 32 bytes
+ *  returns an error and signs nothing. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign_with_nym(
     const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
     const uint8_t* commitment_with_proof, size_t commit_len,
@@ -1587,7 +1593,9 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_commit(
     CryptoBuffer* secret_prover_blind);
 
 /* Blind-sign over the commitment_with_proof + signer messages → 80-byte
- * signature. No pseudonym / nym entropy. */
+ * signature. No pseudonym / nym entropy. The commitment's proof of knowledge
+ * is verified first; a malformed or forged commitment, or a key of the wrong
+ * size, returns an error and signs nothing. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign(
     const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
     const uint8_t* commitment_with_proof, size_t commit_len,
@@ -2197,7 +2205,13 @@ CRYPTO_API int cipherbird_keyring_add_passphrase_slot(
 /** Number of slots. */
 CRYPTO_API size_t cipherbird_keyring_slot_count(CryptoKeyringHandle kr);
 
-/** Revoke a slot by index. Returns 1 on success. */
+/** Revoke a slot by index. Returns 1 on success, 0 for a bad index.
+ *  Works on a locked keyring with no unlock factor, by design: the envelope is
+ *  an unsigned list of independently sealed slots, so anyone who can write the
+ *  stored blob can drop a slot anyway. Removal never reveals the master key or
+ *  adds a way in; removing the last slot makes the master key unrecoverable.
+ *  Protect the stored envelope (and unlock first in your own flow) when
+ *  revocation must be an authorised act. */
 CRYPTO_API int cipherbird_keyring_remove_slot(CryptoKeyringHandle kr, size_t index);
 
 /** Serialise the envelope blob (no plaintext key). Caller frees the buffer. */
@@ -2260,6 +2274,9 @@ CRYPTO_API void cipherbird_keyring_free(CryptoKeyringHandle kr);
  * draft's combiner. Public key 1216 B, secret key 32 B (the seed),
  * ciphertext 1120 B, shared secret 32 B. */
 CRYPTO_API CryptoKeyPair cipherbird_xwing_keygen(void);
+/** Deterministic X-Wing key pair from a 32-byte seed. Any other seed length
+ *  returns an empty pair (both buffers NULL, length 0) with no error text;
+ *  callers must check the lengths. */
 CRYPTO_API CryptoKeyPair cipherbird_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len);
 CRYPTO_API CryptoKemEncapsResult cipherbird_xwing_encapsulate(
     const uint8_t* public_key, size_t pk_len, char** out_error);

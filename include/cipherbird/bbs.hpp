@@ -612,6 +612,37 @@ public:
         return hash_to_scalar(sv(c), sv(concat(api_id, "H2S_")));
     }
 
+    /// deserialize_and_validate_commit and CoreCommitVerify (blind draft-02):
+    /// C must decode to a non-identity point of G1, every scalar must lie in
+    /// [1, r), and the proof of knowledge of C's opening over the blind
+    /// generators [Q_2, J_1..J_M] must verify. Without this check a holder can
+    /// send C = H_k * delta and obtain a signature in which signer message k is
+    /// replaced by a value of the holder's choice.
+    static bool validate_commitment(std::span<const uint8_t> cwp,
+                                    const std::vector<blst_p1>& blind_gens,
+                                    std::string_view api_id, blst_p1& C) {
+        const std::size_t M = blind_gens.size() - 1;
+        if (cwp.size() != G1_BYTES + (M + 2) * SCALAR_BYTES) return false;
+        blst_p1_affine ca;
+        if (blst_p1_uncompress(&ca, cwp.data()) != BLST_SUCCESS) return false;
+        if (blst_p1_affine_is_inf(&ca) || !blst_p1_affine_in_g1(&ca)) return false;
+        blst_p1_from_affine(&C, &ca);
+        std::vector<blst_scalar> sc(M + 2);
+        for (std::size_t i = 0; i < M + 2; ++i) {
+            blst_scalar_from_bendian(&sc[i], cwp.data() + G1_BYTES + i * SCALAR_BYTES);
+            if (!blst_sk_check(&sc[i])) return false;
+        }
+        const blst_scalar& cp = sc[M + 1];
+        blst_p1 Cbar = p1_mult(blind_gens[0], sc[0]);
+        for (std::size_t i = 0; i < M; ++i) Cbar = p1_add(Cbar, p1_mult(blind_gens[i + 1], sc[i + 1]));
+        Cbar = p1_sub(Cbar, p1_mult(C, cp));
+        blst_scalar cv = calculate_blind_challenge(C, Cbar, blind_gens, api_id);
+        std::array<uint8_t, SCALAR_BYTES> a{}, b{};
+        blst_bendian_from_scalar(a.data(), &cp);
+        blst_bendian_from_scalar(b.data(), &cv);
+        return a == b;
+    }
+
     // CoreCommit (§4.3.1). blind_gens = [Q_2, J_1..J_M];
     // rnd = (secret_prover_blind, s~, m~_1..m~_M) (count M+2).
     // Returns commitment_with_proof = compress(C) || s^ || m^_1..m^_M || challenge.
@@ -1078,14 +1109,26 @@ public:
     // Σ H_i·msg_i + commitment — the prose B_calculate is shorthand). Produces the
     // 80-byte (A, e) signature. With signer_nym_entropy set, this is pvl §6.1.2
     // BlindSignWithNym: B += J_M·entropy and header ||= I2OSP(length_nym_vector,8).
+    /// Returns an empty vector, and signs nothing, when sk is not a valid
+    /// 32-byte scalar, pk is not 96 bytes, signer_nym_entropy is neither empty
+    /// nor 32 bytes, or a non-empty commitment_with_proof is malformed or its
+    /// proof of knowledge does not verify (validate_commitment). An empty
+    /// commitment_with_proof means no committed messages.
     [[nodiscard]] static std::vector<uint8_t>
     blind_sign(std::span<const uint8_t> sk, std::span<const uint8_t> pk,
                std::span<const uint8_t> commitment_with_proof, std::span<const uint8_t> header,
                const std::vector<std::span<const uint8_t>>& messages, std::string_view api_id,
                std::span<const uint8_t> signer_nym_entropy = {}, uint64_t length_nym_vector = 0) {
         const std::size_t L = messages.size();
-        const bool have_C = commitment_with_proof.size() >= G1_BYTES;
-        const std::size_t M = commitment_with_proof.size() >= (G1_BYTES + 2 * SCALAR_BYTES)
+        if (sk.size() != SK_BYTES || pk.size() != G2_BYTES) return {};
+        if (!signer_nym_entropy.empty() && signer_nym_entropy.size() != SCALAR_BYTES) return {};
+        blst_scalar sk_s; blst_scalar_from_bendian(&sk_s, sk.data());
+        if (!blst_sk_check(&sk_s)) return {};
+        const bool have_C = !commitment_with_proof.empty();
+        if (have_C && (commitment_with_proof.size() < G1_BYTES + 2 * SCALAR_BYTES
+                       || (commitment_with_proof.size() - G1_BYTES) % SCALAR_BYTES != 0))
+            return {};
+        const std::size_t M = have_C
             ? (commitment_with_proof.size() - G1_BYTES - 2 * SCALAR_BYTES) / SCALAR_BYTES : 0;
 
         auto base_gens = create_generators(L + 1, api_id);          // [Q_1, H_1..H_L]
@@ -1098,6 +1141,9 @@ public:
         std::vector<blst_p1> dom_gens = base_gens;
         for (const auto& bg : blind_gens) dom_gens.push_back(bg);
 
+        blst_p1 C{};
+        if (have_C && !validate_commitment(commitment_with_proof, blind_gens, api_id, C)) return {};
+
         // combined_header = header || I2OSP(length_nym_vector, 8) in nym mode.
         std::vector<uint8_t> hdr(header.begin(), header.end());
         if (!signer_nym_entropy.empty()) put_u64(hdr, length_nym_vector);
@@ -1105,11 +1151,7 @@ public:
 
         auto msg_scalars = messages_to_scalars(messages, api_id);
         blst_p1 B = compute_B(base_gens, domain, msg_scalars);       // P1 + Q_1·domain + Σ H_i·msg
-        if (have_C) {
-            blst_p1_affine ca; blst_p1_uncompress(&ca, commitment_with_proof.data());
-            blst_p1 C; blst_p1_from_affine(&C, &ca);
-            B = p1_add(B, C);
-        }
+        if (have_C) B = p1_add(B, C);
         if (!signer_nym_entropy.empty()) {
             blst_scalar ent; blst_scalar_from_bendian(&ent, signer_nym_entropy.data());
             B = p1_add(B, p1_mult(blind_gens.back(), ent));
@@ -1121,7 +1163,6 @@ public:
         std::vector<uint8_t> e_in(sk.begin(), sk.begin() + SCALAR_BYTES);
         put_g1(e_in, B);
         blst_scalar e = hash_to_scalar(sv(e_in), sv(concat(api_id, "H2S_")));
-        blst_scalar sk_s; blst_scalar_from_bendian(&sk_s, sk.data());
         blst_p1 A = p1_mult(B, sc_inv(sc_add(sk_s, e)));
         std::vector<uint8_t> sig;
         put_g1(sig, A);

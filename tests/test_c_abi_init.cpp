@@ -226,12 +226,31 @@ TEST("c-abi/fips/unavailable-outside-the-fips-profile") {
 }
 #endif
 
+#ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
+TEST("c-abi/vault/create-rejects-short-master-key") {
+    REQUIRE(cipherbird_init() == 0);
+    std::vector<uint8_t> key(32, 0x42);
+    CHECK(cipherbird_vault_create(nullptr, 32, 0) == nullptr);
+    CHECK(cipherbird_vault_create(key.data(), 0, 0) == nullptr);
+    CHECK(cipherbird_vault_create(key.data(), 5, 0) == nullptr);
+    CHECK(cipherbird_vault_create(key.data(), 31, 0) == nullptr);
+    auto v = cipherbird_vault_create(key.data(), 32, 0);
+    CHECK(v != nullptr);
+    if (v) cipherbird_vault_free(v);
+    key.resize(64, 0x24);
+    auto w = cipherbird_vault_create(key.data(), key.size(), 0);
+    CHECK(w != nullptr);
+    if (w) cipherbird_vault_free(w);
+}
+#endif
+
 void run_tests_c_abi_init() {
 #if defined(CIPHERBIRD_HAS_NATIVE_COMBINERS) && defined(CIPHERBIRD_HAS_MEDIA_ENTROPY)
     RUN("c-abi/threshold/share-length-near-u32-max-rejected");
 #endif
 #ifdef CIPHERBIRD_HAS_SODIUM_CRYPTO
     RUN("c-abi/keyring/hardware-slot-functions");
+    RUN("c-abi/vault/create-rejects-short-master-key");
 #endif
     RUN("c-abi/init/success-returns-zero");
 #if defined(CIPHERBIRD_HAS_SODIUM_CRYPTO) && defined(CIPHERBIRD_HAS_PQ) && defined(CIPHERBIRD_HAS_OPENSSL)
