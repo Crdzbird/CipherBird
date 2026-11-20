@@ -288,6 +288,57 @@ TEST("bbs_pseudonym/roundtrip/gen-verify") {
     CHECK(ok);
 }
 
+// ProofGenWithPseudonym refuses inputs it would otherwise read past: a short
+// prover blind, no or short nym secrets, bad disclosed indexes, a bad signature.
+TEST("bbs_pseudonym/proof-gen/rejects-malformed-inputs") {
+    auto sk = unhex("60e55110f76883a13d030b2f6bd11883422d5abde717569fc0731f51237169fc");
+    auto pk = unhex("a820f230f6ae38503b86c70dc50b61c58a77e45c39ab25c0652bbaa8fa136f28"
+                    "51bd4781c9dcde39fc9d1d52c9e60268061e7d7632171d91aa8d460acee0e96f"
+                    "1e7c4cfb12d3ff9ab5d5dc91c277db75c845d649ef3c4f63aebc364cd55ded0c");
+    auto header = unhex("11223344556677889900aabbccddeeff");
+    auto ph  = unhex("bed231d880675ed101ead304512e043ade9958dd0241ea70b4b3957fba941501");
+    auto ctx = unhex("bbb4750cdce6d2122bb4c4f039b6ad5a79f028eb448013a38636a95d63af360a");
+    auto entropy = unhex("3d40961fce6c09eec24a371322732932503b458d7a4cf7891bdaa765b30027c5");
+    auto prover_nym = unhex("1234000000000000000000000000000000000000000000000000000000000000");
+    constexpr std::string_view MOCK_DST =
+        "BBS_BLS12381G1_XMD:SHA-256_SSWU_RO_H2G_HM2S_COMMIT_MOCK_RANDOM_SCALARS_DST_";
+    const auto API = Bbs::API_ID_PSEUDONYM;
+    auto sm0 = unhex("aa"), sm1 = unhex("bbbb");
+    auto cm0 = unhex("cccccc");
+    std::vector<std::span<const uint8_t>> signer = {{sm0.data(), sm0.size()}, {sm1.data(), sm1.size()}};
+    std::vector<std::span<const uint8_t>> committed = {{cm0.data(), cm0.size()}};
+    std::vector<std::span<const uint8_t>> nyms = {{prover_nym.data(), prover_nym.size()}};
+    auto commit = Bbs::commit_with_nym_for_test(committed, nyms, API, "3.141592653589793238462643383279", MOCK_DST);
+    auto sig = Bbs::blind_sign({sk.data(), sk.size()}, {pk.data(), pk.size()},
+                               {commit.commitment_with_proof.data(), commit.commitment_with_proof.size()},
+                               {header.data(), header.size()}, signer, API,
+                               {entropy.data(), entropy.size()}, 1);
+    REQUIRE(!sig.empty());
+    auto secrets = Bbs::finalize_nym_secrets(nyms, {entropy.data(), entropy.size()});
+    std::vector<std::span<const uint8_t>> nym_secrets = {{secrets[0].data(), secrets[0].size()}};
+    std::span<const uint8_t> blind{commit.secret_prover_blind.data(), commit.secret_prover_blind.size()};
+
+    auto gen = [&](std::span<const uint8_t> s, std::span<const uint8_t> b,
+                   const std::vector<std::span<const uint8_t>>& ns,
+                   std::vector<std::size_t> ds, std::vector<std::size_t> dc) {
+        return Bbs::proof_gen_with_pseudonym({pk.data(), pk.size()}, s, {header.data(), header.size()},
+            {ph.data(), ph.size()}, {ctx.data(), ctx.size()}, signer, committed, b, ns, ds, dc, API);
+    };
+    std::span<const uint8_t> good{sig.data(), sig.size()};
+    CHECK(gen(good, blind, nym_secrets, {0}, {0}).is_ok());
+    CHECK(gen(good, blind.first(31), nym_secrets, {0}, {0}).is_err());
+    CHECK(gen(good, {}, nym_secrets, {0}, {0}).is_err());
+    CHECK(gen(good, blind, {}, {0}, {0}).is_err());
+    std::vector<std::span<const uint8_t>> short_nym = {nym_secrets[0].first(16)};
+    CHECK(gen(good, blind, short_nym, {0}, {0}).is_err());
+    CHECK(gen(good, blind, nym_secrets, {2}, {}).is_err());
+    CHECK(gen(good, blind, nym_secrets, {0, 0}, {}).is_err());
+    CHECK(gen(good, blind, nym_secrets, {}, {1}).is_err());
+    std::vector<uint8_t> bad(sig.begin(), sig.end());
+    bad[0] ^= 0x1F;
+    CHECK(gen({bad.data(), bad.size()}, blind, nym_secrets, {0}, {0}).is_err());
+}
+
 // draft §9.1.4.4 — standalone blind flow (no pseudonyms): multiple signer AND
 // prover-committed messages. Byte-exact anchor for blind_sign-with-messages and
 // VerifyBlindSign. 10 signer messages (trailing empty), 5 committed (trailing
@@ -519,4 +570,5 @@ void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/random-scalar/canonical-usable");
     RUN("bbs_pseudonym/blind-sign/verifies-the-commitment-proof");
     RUN("bbs_pseudonym/blind-sign/rejects-bad-key-and-entropy-sizes");
+    RUN("bbs_pseudonym/proof-gen/rejects-malformed-inputs");
 }

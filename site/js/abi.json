@@ -3156,7 +3156,7 @@
     }
    ],
    "section": "Vault",
-   "doc": "Create a vault from a 32-byte master key. kdf: 0=interactive, 1=sensitive."
+   "doc": "Create a vault from a master key of at least 32 bytes. kdf: 0=interactive, 1=sensitive. Returns NULL for a null or shorter key."
   },
   {
    "name": "cipherbird_vault_from_entropy",
@@ -5051,7 +5051,7 @@
     }
    ],
    "section": "BLS12-381",
-   "doc": "BLS keygen from IKM (deterministic). ikm must be >= 32 bytes."
+   "doc": "BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. A shorter or null ikm returns an empty pair (both buffers NULL, length 0) with no error text; callers must check the lengths."
   },
   {
    "name": "cipherbird_bls_sign",
@@ -6218,7 +6218,7 @@
     }
    ],
    "section": "BBS Signatures",
-   "doc": "Derive a selective-disclosure proof. `msgs` is the FULL signed vector; `disclosed_indexes` (uint64, 0-based) selects which to reveal."
+   "doc": "Derive a selective-disclosure proof. `msgs` is the FULL signed vector; `disclosed_indexes` (uint64, 0-based) selects which to reveal. An index out of range, a repeated index or a signature that does not decode is an error."
   },
   {
    "name": "cipherbird_bbs_proof_verify",
@@ -6415,7 +6415,7 @@
     }
    ],
    "section": "BBS Signatures",
-   "doc": "Issuer: blind-sign over the commitment + own messages, adding signer_nym_entropy to the last nym slot. Returns an 80-byte signature."
+   "doc": "Issuer: blind-sign over the commitment + own messages, adding signer_nym_entropy to the last nym slot. Returns an 80-byte signature. The commitment's proof of knowledge is verified first; a malformed or forged commitment, a key of the wrong size or entropy that is not 32 bytes returns an error and signs nothing."
   },
   {
    "name": "cipherbird_bbs_finalize_nym_secrets",
@@ -6622,7 +6622,7 @@
     }
    ],
    "section": "BBS Signatures",
-   "doc": "Holder: generate a pseudonym-bound selective-disclosure proof. Returns the proof; the pseudonym (48 B) via the out-param. disclosed_ _indexes select the revealed signer / committed messages (each list 0-based into its own vector)."
+   "doc": "Holder: generate a pseudonym-bound selective-disclosure proof. Returns the proof; the pseudonym (48 B) via the out-param. disclosed_ _indexes select the revealed signer / committed messages (each list 0-based into its own vector). The secret prover blind and every nym secret must be 32 bytes, at least one nym secret is required, and an index out of range, a repeated index or a signature that does not decode is an error."
   },
   {
    "name": "cipherbird_bbs_proof_verify_with_pseudonym",
@@ -8813,7 +8813,7 @@
     }
    ],
    "section": "Keyring",
-   "doc": "Revoke a slot by index. Returns 1 on success."
+   "doc": "Revoke a slot by index. Returns 1 on success, 0 for a bad index. Works on a locked keyring with no unlock factor, by design: the envelope is an unsigned list of independently sealed slots, so anyone who can write the stored blob can drop a slot anyway. Removal never reveals the master key or adds a way in; removing the last slot makes the master key unrecoverable. Protect the stored envelope (and unlock first in your own flow) when revocation must be an authorised act."
   },
   {
    "name": "cipherbird_keyring_serialise",
@@ -9065,7 +9065,7 @@
     }
    ],
    "section": "Standards-track KEMs and the v2 envelopes",
-   "doc": ""
+   "doc": "Deterministic X-Wing key pair from a 32-byte seed. Any other seed length returns an empty pair (both buffers NULL, length 0) with no error text; callers must check the lengths."
   },
   {
    "name": "cipherbird_xwing_encapsulate",

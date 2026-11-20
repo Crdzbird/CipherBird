@@ -5,6 +5,7 @@
 
 #include <cipherbird/bbs.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -120,6 +121,31 @@ TEST("bbs/kat/proof") {
     CHECK(Bbs::proof_verify(sp(pk), proof.value().span(), sp(header), sp(ph), m1.spans, disclosed));
 }
 
+// ProofGen refuses disclosed indexes that are out of range or repeated, and a
+// signature that does not decode, instead of reading past its vectors.
+TEST("bbs/proof-gen/rejects-bad-indexes-and-signature") {
+    auto km = unhex("746869732d49532d6a7573742d616e2d546573742d494b4d2d746f2d67656e65726174652d246528724074232d6b6579");
+    auto kp = Bbs::keygen(sp(km));
+    REQUIRE(kp.is_ok());
+    auto header = unhex(HEADER);
+    auto ph = unhex("aabbcc");
+    auto m3 = messages(3);
+    auto sig = Bbs::sign(kp.value().secret_key.span(), kp.value().public_key.span(), sp(header), m3.spans);
+    REQUIRE(sig.is_ok());
+    auto pk = kp.value().public_key.span();
+    auto good = sig.value().span();
+    CHECK(Bbs::proof_gen(pk, good, sp(header), sp(ph), m3.spans, {0, 2}).is_ok());
+    CHECK(Bbs::proof_gen(pk, good, sp(header), sp(ph), m3.spans, {3}).is_err());
+    CHECK(Bbs::proof_gen(pk, good, sp(header), sp(ph), m3.spans, {1, 1}).is_err());
+    CHECK(Bbs::proof_gen(pk, good, sp(header), sp(ph), m3.spans, {0, 1, 1}).is_err());
+    std::vector<uint8_t> bad_point(good.begin(), good.end());
+    bad_point[0] ^= 0x1F;
+    CHECK(Bbs::proof_gen(pk, sp(bad_point), sp(header), sp(ph), m3.spans, {0}).is_err());
+    std::vector<uint8_t> bad_scalar(good.begin(), good.end());
+    std::fill(bad_scalar.end() - 32, bad_scalar.end(), uint8_t{0xFF});
+    CHECK(Bbs::proof_gen(pk, sp(bad_scalar), sp(header), sp(ph), m3.spans, {0}).is_err());
+}
+
 // End-to-end selective disclosure with fresh randomness.
 TEST("bbs/e2e/selective-disclosure") {
     auto km = unhex("746869732d49532d6a7573742d616e2d546573742d494b4d2d746f2d67656e65726174652d246528724074232d6b6579");
@@ -154,4 +180,5 @@ void run_tests_bbs() {
     RUN("bbs/kat/sign-verify");
     RUN("bbs/kat/proof");
     RUN("bbs/e2e/selective-disclosure");
+    RUN("bbs/proof-gen/rejects-bad-indexes-and-signature");
 }

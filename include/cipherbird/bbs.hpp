@@ -340,6 +340,24 @@ private:
         return out;
     }
 
+    static bool indexes_valid(const std::vector<std::size_t>& idx, std::size_t L) {
+        std::vector<char> seen(L, 0);
+        for (auto i : idx) {
+            if (i >= L || seen[i]) return false;
+            seen[i] = 1;
+        }
+        return true;
+    }
+
+    static bool decode_signature(std::span<const uint8_t> signature, blst_p1& A, blst_scalar& e) {
+        blst_p1_affine A_aff;
+        if (blst_p1_uncompress(&A_aff, signature.data()) != BLST_SUCCESS) return false;
+        if (!blst_p1_affine_in_g1(&A_aff) || blst_p1_affine_is_inf(&A_aff)) return false;
+        blst_p1_from_affine(&A, &A_aff);
+        blst_scalar_from_bendian(&e, signature.data() + G1_BYTES);
+        return blst_scalar_fr_check(&e);
+    }
+
     static blst_scalar random_scalar() {
         uint8_t r[EXPAND_LEN];
         randombytes_buf(r, EXPAND_LEN);
@@ -375,17 +393,16 @@ private:
                    std::vector<blst_scalar> random_scalars) {
         if (pk.size() != G2_BYTES || signature.size() != SIGNATURE_BYTES)
             return Result<SecureBuffer>::err("BBS: bad key/signature length");
-        blst_p1_affine A_aff;
-        if (blst_p1_uncompress(&A_aff, signature.data()) != BLST_SUCCESS)
-            return Result<SecureBuffer>::err("BBS: invalid signature point");
         blst_p1 A;
-        blst_p1_from_affine(&A, &A_aff);
         blst_scalar e;
-        blst_scalar_from_bendian(&e, signature.data() + G1_BYTES);
+        if (!decode_signature(signature, A, e))
+            return Result<SecureBuffer>::err("BBS: invalid signature");
 
         const std::size_t L = messages.size();
         const std::size_t R = disclosed_indexes.size();
         if (R > L) return Result<SecureBuffer>::err("BBS: too many disclosed indexes");
+        if (!indexes_valid(disclosed_indexes, L))
+            return Result<SecureBuffer>::err("BBS: disclosed indexes must be distinct and in range");
         const std::size_t U = L - R;
         auto undisclosed = complement_indexes(disclosed_indexes, L);
 
@@ -738,6 +755,16 @@ public:
         const std::size_t Mc = committed_messages.size();
         const std::size_t Nnym = nym_secrets.size();
         const std::size_t total = L + 1 + Mc + Nnym;
+        if (secret_prover_blind.size() != SCALAR_BYTES)
+            return Result<Ret>::err("BBS: secret prover blind must be 32 bytes");
+        if (Nnym == 0) return Result<Ret>::err("BBS: at least one nym secret is required");
+        for (const auto& ns : nym_secrets)
+            if (ns.size() != SCALAR_BYTES) return Result<Ret>::err("BBS: nym secrets must be 32 bytes");
+        if (!indexes_valid(disclosed_signer_indexes, L) || !indexes_valid(disclosed_committed_indexes, Mc))
+            return Result<Ret>::err("BBS: disclosed indexes must be distinct and in range");
+        blst_p1 A;
+        blst_scalar e;
+        if (!decode_signature(signature, A, e)) return Result<Ret>::err("BBS: invalid signature");
 
         // Full message scalar vector: signer ++ secret_prover_blind ++ committed ++ nym.
         std::vector<blst_scalar> msg_scalars = messages_to_scalars(signer_messages, api_id);
@@ -765,9 +792,6 @@ public:
             for (std::size_t i = 0; i < 5 + U; ++i) random_scalars.push_back(random_scalar());
         if (random_scalars.size() != 5 + U) return Result<Ret>::err("BBS: expected 5+U random scalars");
 
-        blst_p1_affine A_aff; blst_p1_uncompress(&A_aff, signature.data());
-        blst_p1 A; blst_p1_from_affine(&A, &A_aff);
-        blst_scalar e; blst_scalar_from_bendian(&e, signature.data() + G1_BYTES);
         const blst_scalar& r1 = random_scalars[0]; const blst_scalar& r2 = random_scalars[1];
         const blst_scalar& e_t = random_scalars[2]; const blst_scalar& r1_t = random_scalars[3];
         const blst_scalar& r3_t = random_scalars[4];
@@ -795,7 +819,9 @@ public:
         for (std::size_t i = 1; i < Nnym; ++i) { poly = sc_add(poly, sc_mul(random_scalars[5 + nb + i], zn)); zn = sc_mul(zn, z); }
         blst_p1 Ut = p1_mult(OP, poly);
         auto pseudonym = calculate_pseudonym(context_id, nym_secrets, api_id);
-        blst_p1_affine ny_a; blst_p1_uncompress(&ny_a, pseudonym.data());
+        blst_p1_affine ny_a;
+        if (blst_p1_uncompress(&ny_a, pseudonym.data()) != BLST_SUCCESS)
+            return Result<Ret>::err("BBS: pseudonym encoding failed");
         blst_p1 nym_pt; blst_p1_from_affine(&nym_pt, &ny_a);
 
         std::vector<blst_scalar> disclosed_scalars;
