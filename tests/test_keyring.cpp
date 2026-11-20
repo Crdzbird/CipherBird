@@ -299,6 +299,69 @@ TEST("keyring/malformed-rejected") {
     CHECK(crypto::Keyring::deserialise(badsalt).is_err());
 }
 
+namespace {
+constexpr std::size_t FIRST_SLOT_KDF_OFFSET = 4 + 1 + 16 + 1 + 1 + 1 + 16;
+
+std::vector<uint8_t> one_device_slot_blob(const crypto::SecureBuffer& factor) {
+    auto kr = crypto::Keyring::create();
+    if (kr.add_device_slot(factor.span()).is_err()) return {};
+    return bytes(kr.serialise());
+}
+}
+
+TEST("keyring/device/every-kdf-field-byte-is-canonical") {
+    auto factor = crypto::random_bytes(32);
+    auto blob = one_device_slot_blob(factor);
+    REQUIRE(blob.size() > FIRST_SLOT_KDF_OFFSET + 16);
+    for (std::size_t i = 0; i < 16; ++i) {
+        REQUIRE(blob[FIRST_SLOT_KDF_OFFSET + i] == 0);
+        for (uint8_t bit : { uint8_t(0x01), uint8_t(0x80) }) {
+            auto forged = blob;
+            forged[FIRST_SLOT_KDF_OFFSET + i] ^= bit;
+            auto r = crypto::Keyring::deserialise(forged);
+            CHECK_ERR(r);
+            if (r.is_ok()) CHECK(r.value().unlock_with_device(factor.span()).is_err());
+        }
+    }
+    auto good = crypto::Keyring::deserialise(blob);
+    REQUIRE(good.is_ok());
+    CHECK(good.value().unlock_with_device(factor.span()).is_ok());
+}
+
+TEST("keyring/hardware/kdf-fields-must-be-zero") {
+    auto kr = crypto::Keyring::create();
+    std::vector<uint8_t> key_id = { 'k', '1' };
+    auto factor = kr.add_hardware_slot(key_id);
+    REQUIRE(factor.is_ok());
+    std::vector<uint8_t> blob_bytes = { 1, 2, 3 };
+    REQUIRE(kr.set_hardware_blob(0, blob_bytes).is_ok());
+    auto blob = bytes(kr.serialise());
+    REQUIRE(crypto::Keyring::deserialise(blob).is_ok());
+    for (std::size_t i : { std::size_t(5), std::size_t(8 + 4), std::size_t(8 + 7) }) {
+        auto forged = blob;
+        forged[FIRST_SLOT_KDF_OFFSET + i] ^= 0x01;
+        CHECK_ERR(crypto::Keyring::deserialise(forged));
+    }
+}
+
+TEST("keyring/remove-slot/works-locked-by-design") {
+    auto factor = crypto::random_bytes(32);
+    auto kr = crypto::Keyring::create();
+    REQUIRE(kr.add_device_slot(factor.span()).is_ok());
+    REQUIRE(kr.add_passphrase_slot("pw", crypto::KdfParams::interactive()).is_ok());
+    auto blob = bytes(kr.serialise());
+    auto locked = crypto::Keyring::deserialise(blob);
+    REQUIRE(locked.is_ok());
+    CHECK(locked.value().remove_slot(1).is_ok());
+    CHECK(locked.value().slot_count() == 1);
+    CHECK(locked.value().remove_slot(5).is_err());
+    auto master = locked.value().unlock_with_device(factor.span());
+    REQUIRE(master.is_ok());
+    auto original = crypto::Keyring::deserialise(blob);
+    REQUIRE(original.is_ok());
+    CHECK(bytes(original.value().unlock_with_passphrase("pw").value()) == bytes(master.value()));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void run_tests_keyring() {
     RUN("keyring/deserialise/kdf-params-outside-policy-rejected");
@@ -313,4 +376,7 @@ void run_tests_keyring() {
     RUN("keyring/tamper-ciphertext-rejected");
     RUN("keyring/param-downgrade-rejected");
     RUN("keyring/malformed-rejected");
+    RUN("keyring/device/every-kdf-field-byte-is-canonical");
+    RUN("keyring/hardware/kdf-fields-must-be-zero");
+    RUN("keyring/remove-slot/works-locked-by-design");
 }

@@ -135,6 +135,38 @@ TEST("molecular/rejects-truncated-envelope") {
     CHECK_ERR(MolecularVault::open(tiny, "p", {}));
 }
 
+TEST("molecular/rejects-non-kib-memory-cost") {
+    MolecularVault::KdfParams p{2, (1u << 20) + 1};
+    auto bad = MolecularVault::seal(bytes("x"), "p", {}, p);
+    CHECK_ERR(bad);
+    CHECK(bad.error().message.find("multiple of 1024") != std::string::npos);
+    auto env = MolecularVault::seal(bytes("one encoding only"), "p", {}, fast());
+    REQUIRE(env.is_ok());
+    auto good = vec(env.value());
+    for (uint8_t delta : { uint8_t(1), uint8_t(0xff) }) {
+        auto forged = good;
+        forged[14] = static_cast<uint8_t>(forged[14] + delta);
+        auto r = MolecularVault::open(forged, "p", {});
+        CHECK_ERR(r);
+    }
+    CHECK_OK(MolecularVault::open(good, "p", {}));
+}
+
+TEST("molecular/rawkey/header-must-be-the-zero-marker") {
+    std::array<uint8_t, 32> key{};
+    for (std::size_t i = 0; i < key.size(); ++i) key[i] = static_cast<uint8_t>(i + 3);
+    auto env = MolecularVault::seal_with_key(bytes("raw"), key, bytes("h"));
+    REQUIRE(env.is_ok());
+    auto good = vec(env.value());
+    for (std::size_t off = 6; off < 6 + 8 + 8 + MolecularVault::SALT_BYTES; ++off) {
+        auto forged = good;
+        forged[off] ^= 0x01;
+        auto r = MolecularVault::open_with_key(forged, key, bytes("h"));
+        CHECK_ERR(r);
+    }
+    CHECK_OK(MolecularVault::open_with_key(good, key, bytes("h")));
+}
+
 void run_tests_molecular_vault() {
     // AES-256-GCM-SIV needs OpenSSL; skip the whole suite if unavailable.
     if (!MolecularVault::is_available()) {
@@ -154,4 +186,6 @@ void run_tests_molecular_vault() {
     RUN("molecular/rejects-truncated-envelope");
     RUN("molecular/rejects-nonzero-mode-byte");
     RUN("molecular/rejects-kdf-params-outside-policy");
+    RUN("molecular/rejects-non-kib-memory-cost");
+    RUN("molecular/rawkey/header-must-be-the-zero-marker");
 }

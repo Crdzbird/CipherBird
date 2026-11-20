@@ -240,6 +240,17 @@ public:
 
     /// Revoke a slot. The master key is unchanged; that factor can no longer
     /// open it once the new envelope is persisted.
+    ///
+    /// This works on a locked keyring and needs no unlock factor, by design.
+    /// The envelope is a public, unsigned list of independently authenticated
+    /// slots: anyone who can write the stored blob can already drop a slot by
+    /// editing the bytes, so an unlock check here would protect nothing.
+    /// Removing a slot never reveals or changes the master key and cannot add
+    /// a way in; the worst outcome is losing access, including removing the
+    /// last slot, which leaves the master key unrecoverable. Callers that need
+    /// revocation to be an authorised act must unlock first in their own flow
+    /// and protect the stored envelope against tampering (file permissions,
+    /// a signature or MAC kept outside the keyring).
     [[nodiscard]] Result<void> remove_slot(std::size_t index) {
         if (index >= slots_.size())
             return Result<void>::err("Keyring: slot index out of range");
@@ -357,7 +368,7 @@ public:
             put8(static_cast<uint8_t>(s.salt.size()));
             putb(s.salt.span());
             put64(s.ops);
-            put64(static_cast<uint64_t>(s.mem));
+            put64(s.mem);
             put16(static_cast<uint16_t>(s.wrapped.size()));
             putb(s.wrapped.span());
             if (s.type == SlotType::HardwareWrapped) {
@@ -371,6 +382,10 @@ public:
     }
 
     /// Parse an envelope blob. Untrusted input: every read is bounds-checked.
+    /// Device and hardware slots must carry ops = mem = 0, and every slot's
+    /// full 64-bit ops and mem fields are bound into its AAD, so no encoding
+    /// of those fields other than the one that was sealed can unlock on any
+    /// platform, including 32-bit targets such as wasm32.
     [[nodiscard]] static Result<Keyring> deserialise(std::span<const uint8_t> raw) {
         const uint8_t* p   = raw.data();
         const uint8_t* end = raw.data() + raw.size();
@@ -420,7 +435,9 @@ public:
             if (!get64(ops) || !get64(mem)) return Result<Keyring>::err("Keyring: truncated kdf params");
             if (s.type == SlotType::Passphrase && !hash::Argon2id::within_policy(ops, mem))
                 return Result<Keyring>::err("Keyring: kdf params outside policy");
-            s.ops = ops; s.mem = static_cast<std::size_t>(mem);
+            if (s.type != SlotType::Passphrase && (ops != 0 || mem != 0))
+                return Result<Keyring>::err("Keyring: device slot kdf params must be zero");
+            s.ops = ops; s.mem = mem;
 
             uint16_t wlen = 0;
             if (!get16(wlen)) return Result<Keyring>::err("Keyring: truncated wrapped len");
@@ -448,7 +465,7 @@ private:
         SlotType           type = SlotType::DeviceKey;
         SecureBuffer       salt;
         unsigned long long ops = 0;   // Argon2id opslimit (passphrase slots)
-        std::size_t        mem = 0;   // Argon2id memlimit (passphrase slots)
+        uint64_t           mem = 0;   ///< Argon2id memlimit (passphrase slots)
         PublicBuffer       wrapped;   // XChaCha20Poly1305(master): nonce|ct|tag
         PublicBuffer       key_id;    // hardware slots: the module key identifier
         PublicBuffer       hw_blob;   // hardware slots: the module-wrapped factor
@@ -504,7 +521,7 @@ private:
         aad.push_back(static_cast<uint8_t>(s.type));
         aad.insert(aad.end(), s.salt.span().begin(), s.salt.span().end());
         for (int i = 0; i < 8; ++i) aad.push_back(uint8_t(s.ops >> (8*i)));
-        for (int i = 0; i < 8; ++i) aad.push_back(uint8_t(static_cast<uint64_t>(s.mem) >> (8*i)));
+        for (int i = 0; i < 8; ++i) aad.push_back(uint8_t(s.mem >> (8*i)));
         if (s.type == SlotType::HardwareWrapped)
             aad.insert(aad.end(), s.key_id.span().begin(), s.key_id.span().end());
         return aad;
@@ -512,8 +529,11 @@ private:
 
     [[nodiscard]] static Result<SecureBuffer>
     derive_passphrase_key(std::string_view pw, std::span<const uint8_t> salt,
-                          unsigned long long ops, std::size_t mem) {
-        return hash::Argon2id::derive_key(pw, salt, SLOT_KEY_BYTES, ops, mem);
+                          unsigned long long ops, uint64_t mem) {
+        if (mem > static_cast<uint64_t>(SIZE_MAX))
+            return Result<SecureBuffer>::err("Keyring: kdf params outside policy");
+        return hash::Argon2id::derive_key(pw, salt, SLOT_KEY_BYTES, ops,
+                                          static_cast<std::size_t>(mem));
     }
 
     [[nodiscard]] static Result<SecureBuffer>

@@ -286,7 +286,7 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 
 | Discipline | Status |
 |---|---|
-| Test suite | **606 / 606 passing** locally on macOS arm64 (custom zero-dependency runner) |
+| Test suite | **614 / 614 passing** locally on macOS arm64 (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test); every call that reaches OpenSSL is tested cold from many threads under signals and at thread exit, after the macOS lock-wait hang fixed in 1.5.0 (`docs/P256.md`, "Threads") |
 | Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |

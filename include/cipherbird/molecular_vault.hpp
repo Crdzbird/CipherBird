@@ -55,6 +55,9 @@ public:
     static constexpr uint8_t  VERSION   = 1;
     static constexpr std::size_t SALT_BYTES = Argon2id::SALT_BYTES; // 16
     static constexpr std::string_view HKDF_INFO = "cryptolib/molecular-vault/v1";
+    /// Argon2id counts memory in whole KiB and rounds a byte count down, so
+    /// the envelope only accepts a memory cost that is a multiple of this.
+    static constexpr std::size_t MEM_GRANULE = 1024;
 
     // Argon2id work factor. Defaults to libsodium's SENSITIVE preset; callers
     // handling high-value secrets should push mem toward 1–4 GiB. Higher = each
@@ -78,6 +81,8 @@ public:
                                                       crypto_pwhash_MEMLIMIT_SENSITIVE}) {
         if (passphrase.empty())
             return Result<PublicBuffer>::err("MolecularVault: passphrase must not be empty");
+        if (params.mem % MEM_GRANULE != 0)
+            return Result<PublicBuffer>::err("MolecularVault: kdf memory must be a multiple of 1024 bytes");
 
         // Fresh salt per seal — never reused.
         std::array<uint8_t, SALT_BYTES> salt{};
@@ -92,7 +97,10 @@ public:
         return frame(salt, params, inner.value().span());
     }
 
-    // Open a passphrase-sealed envelope. AAD must match exactly.
+    /// Open a passphrase-sealed envelope. AAD must match exactly. The header
+    /// is not part of the AEAD input; it is bound because every field feeds
+    /// Argon2id (salt, ops and memory in KiB), and the memory cost must be a
+    /// whole number of KiB so that exactly one encoding derives the key.
     [[nodiscard]] static Result<SecureBuffer>
     open(std::span<const uint8_t> envelope,
          std::string_view         passphrase,
@@ -138,7 +146,19 @@ public:
         std::span<const uint8_t> inner;
         if (auto e = unframe(envelope, salt, params, inner); e.is_err())
             return Result<SecureBuffer>::err(e.error().message);
+        if (!is_raw_key_header(salt, params))
+            return Result<SecureBuffer>::err("MolecularVault: not a raw-key envelope");
         return open_with_master(inner, master_key, aad);
+    }
+
+    /// A raw-key envelope's header is the fixed marker ops = mem = 0 with an
+    /// all-zero salt. Nothing derives from it, so any other value is refused
+    /// rather than ignored, keeping one valid encoding per ciphertext.
+    [[nodiscard]] static bool
+    is_raw_key_header(const std::array<uint8_t, SALT_BYTES>& salt, const KdfParams& params) noexcept {
+        uint8_t acc = 0;
+        for (uint8_t b : salt) acc |= b;
+        return acc == 0 && params.ops == 0 && params.mem == 0;
     }
 
     // AES-256-GCM-SIV requires OpenSSL (CIPHERBIRD_HAS_OPENSSL). Callers can check
@@ -248,6 +268,8 @@ private:
         const uint64_t mem = get_u64_le(env.data() + 14);
         if (mem > static_cast<uint64_t>(SIZE_MAX))
             return Result<void>::err("MolecularVault: kdf params outside policy");
+        if (mem % MEM_GRANULE != 0)
+            return Result<void>::err("MolecularVault: kdf memory must be a multiple of 1024 bytes");
         params.ops = get_u64_le(env.data() + 6);
         params.mem = static_cast<std::size_t>(mem);
         std::memcpy(salt.data(), env.data() + 22, SALT_BYTES);

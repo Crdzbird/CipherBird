@@ -7,6 +7,7 @@
 
 #include <cipherbird/bbs.hpp>
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <string_view>
@@ -435,6 +436,74 @@ TEST("bbs_pseudonym/random-scalar/canonical-usable") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+namespace {
+std::vector<uint8_t> blind_sign_with(const crypto::Bbs::KeyPair& kp, const std::vector<uint8_t>& commitment,
+                                     const std::vector<std::span<const uint8_t>>& signer) {
+    return Bbs::blind_sign(kp.secret_key.span(), kp.public_key.span(),
+                           {commitment.data(), commitment.size()}, {}, signer, Bbs::API_ID_BLIND);
+}
+}
+
+TEST("bbs_pseudonym/blind-sign/verifies-the-commitment-proof") {
+    auto kp = Bbs::generate_keypair();
+    auto c0 = unhex("c0ffee"), c1 = unhex("15");
+    std::vector<std::span<const uint8_t>> committed = {{c0.data(), c0.size()}, {c1.data(), c1.size()}};
+    auto s0 = unhex("aa"), s1 = unhex("bbbb");
+    std::vector<std::span<const uint8_t>> signer = {{s0.data(), s0.size()}, {s1.data(), s1.size()}};
+    auto honest = Bbs::blind_commit(committed, Bbs::API_ID_BLIND);
+    auto other = Bbs::blind_commit(committed, Bbs::API_ID_BLIND);
+    const auto& good = honest.commitment_with_proof;
+    REQUIRE(good.size() == Bbs::G1_BYTES + 4 * Bbs::SCALAR_BYTES);
+
+    auto sig = blind_sign_with(kp, good, signer);
+    REQUIRE(sig.size() == Bbs::SIGNATURE_BYTES);
+    CHECK(Bbs::verify_blind_sign(kp.public_key.span(), {sig.data(), sig.size()}, {}, signer, committed,
+                                 {honest.secret_prover_blind.data(), honest.secret_prover_blind.size()},
+                                 Bbs::API_ID_BLIND));
+    CHECK(blind_sign_with(kp, {}, signer).size() == Bbs::SIGNATURE_BYTES);
+
+    for (std::size_t off : { Bbs::G1_BYTES + 31, Bbs::G1_BYTES + 32 + 31, good.size() - 1 }) {
+        auto forged = good;
+        forged[off] ^= 0x01;
+        CHECK(blind_sign_with(kp, forged, signer).empty());
+    }
+    auto swapped = good;
+    std::copy(other.commitment_with_proof.begin(), other.commitment_with_proof.begin() + Bbs::G1_BYTES,
+              swapped.begin());
+    CHECK(blind_sign_with(kp, swapped, signer).empty());
+    auto identity = good;
+    std::fill(identity.begin(), identity.begin() + Bbs::G1_BYTES, uint8_t(0));
+    identity[0] = 0xc0;
+    CHECK(blind_sign_with(kp, identity, signer).empty());
+    auto not_a_point = good;
+    std::fill(not_a_point.begin(), not_a_point.begin() + Bbs::G1_BYTES, uint8_t(0xff));
+    CHECK(blind_sign_with(kp, not_a_point, signer).empty());
+    auto zero_scalar = good;
+    std::fill(zero_scalar.begin() + Bbs::G1_BYTES, zero_scalar.begin() + Bbs::G1_BYTES + 32, uint8_t(0));
+    CHECK(blind_sign_with(kp, zero_scalar, signer).empty());
+    CHECK(blind_sign_with(kp, std::vector<uint8_t>(good.begin(), good.end() - 1), signer).empty());
+    CHECK(blind_sign_with(kp, std::vector<uint8_t>(good.begin(), good.begin() + 50), signer).empty());
+    CHECK(blind_sign_with(kp, std::vector<uint8_t>(good.begin(), good.begin() + Bbs::G1_BYTES), signer).empty());
+}
+
+TEST("bbs_pseudonym/blind-sign/rejects-bad-key-and-entropy-sizes") {
+    auto kp = Bbs::generate_keypair();
+    auto commit = Bbs::blind_commit({}, Bbs::API_ID_BLIND);
+    const auto& c = commit.commitment_with_proof;
+    auto sk = kp.secret_key.span();
+    auto pk = kp.public_key.span();
+    CHECK(Bbs::blind_sign(sk.first(31), pk, {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND).empty());
+    CHECK(Bbs::blind_sign({}, pk, {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND).empty());
+    CHECK(Bbs::blind_sign(sk, pk.first(95), {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND).empty());
+    std::array<uint8_t, 32> zero_sk{};
+    CHECK(Bbs::blind_sign(zero_sk, pk, {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND).empty());
+    std::array<uint8_t, 16> short_entropy{};
+    CHECK(Bbs::blind_sign(sk, pk, {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND,
+                          short_entropy, 1).empty());
+    CHECK(Bbs::blind_sign(sk, pk, {c.data(), c.size()}, {}, {}, Bbs::API_ID_BLIND).size()
+          == Bbs::SIGNATURE_BYTES);
+}
+
 void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/proof-domain");
     RUN("bbs_pseudonym/kat/proof-verify");
@@ -448,4 +517,6 @@ void run_tests_bbs_pseudonym() {
     RUN("bbs_pseudonym/kat/blind-sign-and-verify-full");
     RUN("bbs_pseudonym/kat/hash-to-scalar");
     RUN("bbs_pseudonym/random-scalar/canonical-usable");
+    RUN("bbs_pseudonym/blind-sign/verifies-the-commitment-proof");
+    RUN("bbs_pseudonym/blind-sign/rejects-bad-key-and-entropy-sizes");
 }
