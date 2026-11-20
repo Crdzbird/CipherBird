@@ -90,7 +90,12 @@ TEST("drbg/reseed-requires-32-bytes") {
     }
     CHECK(drbg.reseed(sp(fresh)).is_ok());
     CHECK(vec(drbg.v_state()) != v0);
+}
 
+#ifdef CIPHERBIRD_HAS_STEGO
+TEST("drbg/c-abi-reseed-requires-32-bytes") {
+    std::vector<uint8_t> seed(32, 0x07);
+    std::vector<uint8_t> fresh(32, 0x09);
     char* err = nullptr;
     CryptoDrbgHandle h = cipherbird_drbg_instantiate(seed.data(), seed.size(), nullptr, 0, nullptr, 0, &err);
     REQUIRE(h != nullptr);
@@ -106,6 +111,7 @@ TEST("drbg/reseed-requires-32-bytes") {
     CHECK(okr.error == nullptr);
     cipherbird_drbg_free(h);
 }
+#endif
 
 #if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
 // MediaEntropy beacon: deterministic mode is fully reproducible from the media.
@@ -137,6 +143,9 @@ void run_tests_entropy_drbg() {
     RUN("drbg/kat/cavp-hmac-sha512");
     RUN("drbg/generate/streaming-and-limits");
     RUN("drbg/reseed-requires-32-bytes");
+#ifdef CIPHERBIRD_HAS_STEGO
+    RUN("drbg/c-abi-reseed-requires-32-bytes");
+#endif
 #if defined(CIPHERBIRD_HAS_MEDIA_ENTROPY) && defined(CIPHERBIRD_HAS_STEGO)
     RUN("drbg/media-beacon-reproducible");
 #endif
