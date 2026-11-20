@@ -1,8 +1,8 @@
-// CryptoLib Swift — Suite: one-call advanced combinations.
+// CipherBird Swift — Suite: one-call advanced combinations.
 //
 // A reusable, ergonomic Swift facade over the cryptolib_suite_* C ABI. Drop this
-// file into a target that imports the CryptoLib bridging header (or the
-// CryptoLibC module) and call e.g. `Suite.sealSignedPq(...)`. Build the smoke at
+// file into a target that imports the CipherBird bridging header (or the
+// CipherBirdC module) and call e.g. `Suite.sealSignedPq(...)`. Build the smoke at
 // the bottom (see the Makefile target `swift-suite`):
 //   swiftc -import-objc-header bridge/cryptolib_c.h bridge/bindings/swift/cli/suite.swift \
 //          -L build/release -lcryptolib_c -Xlinker -rpath -Xlinker build/release -o build/swift_suite
@@ -149,7 +149,7 @@ enum Suite {
 
 // ── smoke (compiled/run by `make swift-suite`) ───────────────────────────────
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — Suite (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — Suite (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 let aad = Array("suite/v1".utf8)

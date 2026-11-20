@@ -1,14 +1,14 @@
-// CryptoLib Go Example
+// CipherBird Go Example
 //
 // Build the shared library first:
 //
-//	cd /path/to/cryptolib
+//	cd /path/to/cipherbird
 //	cmake -B build/release -DCMAKE_BUILD_TYPE=Release
 //	cmake --build build/release --target cryptolib_c
 //
 // Run this example:
 //
-//	export DYLD_LIBRARY_PATH=/path/to/cryptolib/build/release  # macOS
+//	export DYLD_LIBRARY_PATH=/path/to/cipherbird/build/release  # macOS
 //	cd bridge/go/example
 //	go run main.go cover.ppm                  # text stego demo
 //	go run main.go cover.ppm secret.pdf       # embed a file inside cover
@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 func must[T any](v T, err error) T {
@@ -34,43 +34,43 @@ func must[T any](v T, err error) T {
 
 func main() {
 	// ── Initialise ────────────────────────────────────────────────────────
-	if err := cryptolib.Init(); err != nil {
+	if err := cipherbird.Init(); err != nil {
 		fmt.Fprintf(os.Stderr, "Init failed: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("CryptoLib %s — Go example\n\n", cryptolib.Version())
+	fmt.Printf("CipherBird %s — Go example\n\n", cipherbird.Version())
 
 	// ── 1. Hashing ────────────────────────────────────────────────────────
 	fmt.Println("═══ Hashing ═══")
 	msg := []byte("The quick brown fox jumps over the lazy dog")
 
-	hash := must(cryptolib.Blake2b(msg, nil))
+	hash := must(cipherbird.Blake2b(msg, nil))
 	show("BLAKE2b-512", hash)
 
-	sha := must(cryptolib.SHA256(msg))
+	sha := must(cipherbird.SHA256(msg))
 	show("SHA-256", sha)
 
 	// ── 2. Symmetric encryption ──────────────────────────────────────────
 	fmt.Println("\n═══ Symmetric Encryption ═══")
-	key := must(cryptolib.SymKeygen())
+	key := must(cipherbird.SymKeygen())
 	show("Key", key)
 
-	ct := must(cryptolib.XChaCha20Encrypt([]byte("Go says hello to XChaCha20!"), key, nil))
+	ct := must(cipherbird.XChaCha20Encrypt([]byte("Go says hello to XChaCha20!"), key, nil))
 	show("Ciphertext", ct[:32])
 
-	pt := must(cryptolib.XChaCha20Decrypt(ct, key, nil))
+	pt := must(cipherbird.XChaCha20Decrypt(ct, key, nil))
 	fmt.Printf("  %-24s %s\n", "Decrypted:", string(pt))
 
 	// ── 3. Ed25519 signing ───────────────────────────────────────────────
 	fmt.Println("\n═══ Ed25519 Signing ═══")
-	kp := cryptolib.Ed25519Keygen()
+	kp := cipherbird.Ed25519Keygen()
 	show("Public key", kp.Public)
 
 	document := []byte("I, the undersigned, approve this document.")
-	sig := must(cryptolib.Ed25519Sign(document, kp.Secret))
+	sig := must(cipherbird.Ed25519Sign(document, kp.Secret))
 	show("Signature", sig)
 
-	if cryptolib.Ed25519Verify(document, sig, kp.Public) {
+	if cipherbird.Ed25519Verify(document, sig, kp.Public) {
 		fmt.Println("  ✓ Signature verified")
 	} else {
 		fmt.Println("  ✗ Signature FAILED")
@@ -78,13 +78,13 @@ func main() {
 
 	// ── 4. Box encryption (Alice → Bob) ──────────────────────────────────
 	fmt.Println("\n═══ Box Encryption (Alice → Bob) ═══")
-	alice := cryptolib.BoxKeygen()
-	bob := cryptolib.BoxKeygen()
+	alice := cipherbird.BoxKeygen()
+	bob := cipherbird.BoxKeygen()
 	show("Alice public", alice.Public)
 	show("Bob   public", bob.Public)
 
-	boxCt := must(cryptolib.BoxEncrypt([]byte("Hello Bob, from Alice!"), bob.Public, alice.Secret))
-	boxPt := must(cryptolib.BoxDecrypt(boxCt, alice.Public, bob.Secret))
+	boxCt := must(cipherbird.BoxEncrypt([]byte("Hello Bob, from Alice!"), bob.Public, alice.Secret))
+	boxPt := must(cipherbird.BoxDecrypt(boxCt, alice.Public, bob.Secret))
 	fmt.Printf("  %-24s %s\n", "Bob received:", string(boxPt))
 
 	// ── 5. Media Entropy (LavaRand) ──────────────────────────────────────
@@ -97,7 +97,7 @@ func main() {
 		fmt.Printf("  Entropy source: %s\n\n", entropyFile)
 
 		// 5a. Derive all keys from the file
-		me := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		me := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer me.Close()
 
 		info := me.Info()
@@ -115,21 +115,21 @@ func main() {
 		// 5b. Encrypt with the file-derived key
 		fileKey := must(me.SymmetricKey())
 		secret := []byte("Only someone with this file can read this.")
-		fileCt := must(cryptolib.XChaCha20Encrypt(secret, fileKey, nil))
-		filePt := must(cryptolib.XChaCha20Decrypt(fileCt, fileKey, nil))
+		fileCt := must(cipherbird.XChaCha20Encrypt(secret, fileKey, nil))
+		filePt := must(cipherbird.XChaCha20Decrypt(fileCt, fileKey, nil))
 		fmt.Printf("  %-24s %s\n", "Decrypted:", string(filePt))
 		fmt.Println("  ✓ Encrypted/decrypted using file-derived key")
 
 		// 5c. One-liner: seal_from_file / open_from_file
 		fmt.Println("\n  ── Convenience one-liner ──")
-		pkt := must(cryptolib.SealFromFile(entropyFile, "Sealed by my photo!", "go-demo"))
-		opened := must(cryptolib.OpenFromFile(entropyFile, pkt, "go-demo"))
+		pkt := must(cipherbird.SealFromFile(entropyFile, "Sealed by my photo!", "go-demo"))
+		opened := must(cipherbird.OpenFromFile(entropyFile, pkt, "go-demo"))
 		fmt.Printf("  %-24s %s\n", "Opened:", string(opened))
 		fmt.Println("  ✓ seal_from_file / open_from_file round-trip")
 
 		// 5d. Build a full vault from the file
 		fmt.Println("\n  ── Vault from entropy ──")
-		vault := must(cryptolib.VaultFromEntropy(me, cryptolib.KdfInteractive))
+		vault := must(cipherbird.VaultFromEntropy(me, cipherbird.KdfInteractive))
 		defer vault.Close()
 
 		vaultPkt := must(vault.Seal([]byte("Vault-encrypted with file entropy"), "go:vault"))
@@ -139,10 +139,10 @@ func main() {
 
 		// 5e. Deterministic identity
 		fmt.Println("\n  ── Deterministic identity ──")
-		me2 := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		me2 := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer me2.Close()
 		keys2 := me2.DeriveAll()
-		if cryptolib.SecureEqual(keys.SymmetricKey, keys2.SymmetricKey) {
+		if cipherbird.SecureEqual(keys.SymmetricKey, keys2.SymmetricKey) {
 			fmt.Println("  ✓ Same file → same keys (deterministic, cross-process)")
 		} else {
 			fmt.Println("  ✗ Keys differ (unexpected)")
@@ -154,27 +154,27 @@ func main() {
 		fmt.Println("\n  ── Pattern 1: Fingerprint comparison ──")
 
 		// Enrollment: derive Ed25519 public key from the file (deterministic)
-		enrollMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		enrollMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer enrollMe.Close()
 		enrollKeys := enrollMe.DeriveAll()
-		enrollKp := cryptolib.Ed25519KeygenFromSeed(enrollKeys.SigningSeed)
+		enrollKp := cipherbird.Ed25519KeygenFromSeed(enrollKeys.SigningSeed)
 		storedFingerprint := enrollKp.Public
 		show("Enrolled fingerprint", storedFingerprint)
 
 		// Verification: re-derive from the same file → compare
-		verifyMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		verifyMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer verifyMe.Close()
 		verifyKeys := verifyMe.DeriveAll()
-		verifyKp := cryptolib.Ed25519KeygenFromSeed(verifyKeys.SigningSeed)
-		if cryptolib.SecureEqual(storedFingerprint, verifyKp.Public) {
+		verifyKp := cipherbird.Ed25519KeygenFromSeed(verifyKeys.SigningSeed)
+		if cipherbird.SecureEqual(storedFingerprint, verifyKp.Public) {
 			fmt.Println("  ✓ Same file → fingerprint matches (authentic)")
 		} else {
 			fmt.Println("  ✗ Fingerprint mismatch (unexpected)")
 		}
 
 		// Wrong file: use a different generated key → compare
-		wrongKp := cryptolib.Ed25519Keygen()
-		if cryptolib.SecureEqual(storedFingerprint, wrongKp.Public) {
+		wrongKp := cipherbird.Ed25519Keygen()
+		if cipherbird.SecureEqual(storedFingerprint, wrongKp.Public) {
 			fmt.Println("  ✗ Wrong key accepted (unexpected)")
 		} else {
 			fmt.Println("  ✓ Wrong key → fingerprint does NOT match (impostor rejected)")
@@ -184,24 +184,24 @@ func main() {
 		fmt.Println("\n  ── Pattern 2: Challenge-response (zero-knowledge) ──")
 
 		// Server sends a random 32-byte challenge
-		challenge := must(cryptolib.RandomBytes(32))
+		challenge := must(cipherbird.RandomBytes(32))
 		show("Challenge", challenge)
 
 		// Client signs the challenge with the file-derived Ed25519 secret key
-		clientSig := must(cryptolib.Ed25519Sign(challenge, enrollKp.Secret))
+		clientSig := must(cipherbird.Ed25519Sign(challenge, enrollKp.Secret))
 		show("Client signature", clientSig)
 
 		// Server verifies signature against stored public key
-		if cryptolib.Ed25519Verify(challenge, clientSig, storedFingerprint) {
+		if cipherbird.Ed25519Verify(challenge, clientSig, storedFingerprint) {
 			fmt.Println("  ✓ Challenge-response passed (authentic client)")
 		} else {
 			fmt.Println("  ✗ Challenge-response failed (unexpected)")
 		}
 
 		// Attacker generates a random keypair and signs the same challenge
-		attackerKp := cryptolib.Ed25519Keygen()
-		attackerSig := must(cryptolib.Ed25519Sign(challenge, attackerKp.Secret))
-		if cryptolib.Ed25519Verify(challenge, attackerSig, storedFingerprint) {
+		attackerKp := cipherbird.Ed25519Keygen()
+		attackerSig := must(cipherbird.Ed25519Sign(challenge, attackerKp.Secret))
+		if cipherbird.Ed25519Verify(challenge, attackerSig, storedFingerprint) {
 			fmt.Println("  ✗ Attacker's response accepted (unexpected)")
 		} else {
 			fmt.Println("  ✓ Attacker's response rejected (zero-knowledge holds)")
@@ -211,18 +211,18 @@ func main() {
 		fmt.Println("\n  ── Pattern 3: Credential hash ──")
 
 		// Derive symmetric key from file → BLAKE2b hash → store as credential
-		credKey := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		credKey := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer credKey.Close()
 		credSymKey := must(credKey.SymmetricKey())
-		credHash := must(cryptolib.Blake2b(credSymKey, nil))
+		credHash := must(cipherbird.Blake2b(credSymKey, nil))
 		show("Credential hash", credHash)
 
 		// Re-derive from same file → hash → compare
-		credKey2 := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		credKey2 := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer credKey2.Close()
 		credSymKey2 := must(credKey2.SymmetricKey())
-		credHash2 := must(cryptolib.Blake2b(credSymKey2, nil))
-		if cryptolib.SecureEqual(credHash, credHash2) {
+		credHash2 := must(cipherbird.Blake2b(credSymKey2, nil))
+		if cipherbird.SecureEqual(credHash, credHash2) {
 			fmt.Println("  ✓ Same file → credential hash matches")
 		} else {
 			fmt.Println("  ✗ Credential hash mismatch (unexpected)")
@@ -235,11 +235,11 @@ func main() {
 		fmt.Println("\n  ── 14a. LavaRand Fingerprint Registry ──")
 
 		// Generate 3 different entropy sources from the SAME file (LavaRand mode)
-		lava1 := must(cryptolib.EntropyFromFile(entropyFile))
+		lava1 := must(cipherbird.EntropyFromFile(entropyFile))
 		defer lava1.Close()
-		lava2 := must(cryptolib.EntropyFromFile(entropyFile))
+		lava2 := must(cipherbird.EntropyFromFile(entropyFile))
 		defer lava2.Close()
-		lava3 := must(cryptolib.EntropyFromFile(entropyFile))
+		lava3 := must(cipherbird.EntropyFromFile(entropyFile))
 		defer lava3.Close()
 
 		lavaKey1 := must(lava1.SymmetricKey())
@@ -251,9 +251,9 @@ func main() {
 		show("LavaRand key #3", lavaKey3)
 
 		// Show all 3 are different (LavaRand mixes system entropy each time)
-		allDifferent := !cryptolib.SecureEqual(lavaKey1, lavaKey2) &&
-			!cryptolib.SecureEqual(lavaKey2, lavaKey3) &&
-			!cryptolib.SecureEqual(lavaKey1, lavaKey3)
+		allDifferent := !cipherbird.SecureEqual(lavaKey1, lavaKey2) &&
+			!cipherbird.SecureEqual(lavaKey2, lavaKey3) &&
+			!cipherbird.SecureEqual(lavaKey1, lavaKey3)
 		if allDifferent {
 			fmt.Println("  ✓ All 3 keys are different (LavaRand mixes fresh system entropy)")
 		} else {
@@ -261,10 +261,10 @@ func main() {
 		}
 
 		// Deterministic fingerprint: same file → same key, always
-		fpMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		fpMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer fpMe.Close()
 		fpKey := must(fpMe.SymmetricKey())
-		fingerprint := must(cryptolib.Blake2b(fpKey, nil))
+		fingerprint := must(cipherbird.Blake2b(fpKey, nil))
 		show("Device fingerprint", fingerprint)
 		fmt.Println("  This fingerprint is your file's identity — same on any machine, any OS, forever.")
 
@@ -272,58 +272,58 @@ func main() {
 		fmt.Println("\n  ── 14b. Multi-Layer Secure Messaging (Hash + Encrypt + Sign + Stego) ──")
 
 		// Derive keys from the entropy file (deterministic)
-		mlMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		mlMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer mlMe.Close()
 		mlKeys := mlMe.DeriveAll()
 		mlSymKey := mlKeys.SymmetricKey
-		mlSignKp := cryptolib.Ed25519KeygenFromSeed(mlKeys.SigningSeed)
+		mlSignKp := cipherbird.Ed25519KeygenFromSeed(mlKeys.SigningSeed)
 
 		originalMsg := []byte("TOP SECRET: The eagle has landed.")
 
 		// Step 1: Hash the message with BLAKE2b → integrity digest
-		digest := must(cryptolib.Blake2b(originalMsg, nil))
+		digest := must(cipherbird.Blake2b(originalMsg, nil))
 		show("Step 1 digest", digest[:16])
 		fmt.Println("  ✓ Step 1: BLAKE2b integrity digest computed")
 
 		// Step 2: Encrypt message+digest with XChaCha20
 		combined := append(originalMsg, digest...)
-		mlCiphertext := must(cryptolib.XChaCha20Encrypt(combined, mlSymKey, nil))
+		mlCiphertext := must(cipherbird.XChaCha20Encrypt(combined, mlSymKey, nil))
 		show("Step 2 ciphertext", mlCiphertext[:16])
 		fmt.Println("  ✓ Step 2: Message+digest encrypted with XChaCha20")
 
 		// Step 3: Sign the ciphertext with file-derived Ed25519 key
-		mlSignature := must(cryptolib.Ed25519Sign(mlCiphertext, mlSignKp.Secret))
+		mlSignature := must(cipherbird.Ed25519Sign(mlCiphertext, mlSignKp.Secret))
 		show("Step 3 signature", mlSignature[:16])
 		fmt.Println("  ✓ Step 3: Ciphertext signed with Ed25519")
 
 		// Step 4: If capacity allows, embed (signature + ciphertext) into stego
 		stegoPayload := append(mlSignature, mlCiphertext...)
-		mlCapacity := cryptolib.StegoCapacity(entropyFile)
+		mlCapacity := cipherbird.StegoCapacity(entropyFile)
 		if mlCapacity >= len(stegoPayload) {
 			mlStegoOut := entropyFile + ".multilayer" + filepath.Ext(entropyFile)
-			err := cryptolib.StegoEmbed(entropyFile, stegoPayload, mlStegoOut)
+			err := cipherbird.StegoEmbed(entropyFile, stegoPayload, mlStegoOut)
 			if err != nil {
 				fmt.Printf("  ⚠ Step 4: Stego embed failed: %v\n", err)
 			} else {
 				fmt.Println("  ✓ Step 4: Signature+ciphertext embedded into stego cover")
 
 				// Step 5: Extract → verify signature → decrypt → verify hash
-				extracted := must(cryptolib.StegoExtract(mlStegoOut))
+				extracted := must(cipherbird.StegoExtract(mlStegoOut))
 				exSig := extracted[:64] // Ed25519 signature is 64 bytes
 				exCt := extracted[64:]
 
-				if cryptolib.Ed25519Verify(exCt, exSig, mlSignKp.Public) {
+				if cipherbird.Ed25519Verify(exCt, exSig, mlSignKp.Public) {
 					fmt.Println("  ✓ Step 5a: Signature verified on extracted ciphertext")
 				} else {
 					fmt.Println("  ✗ Step 5a: Signature verification FAILED")
 				}
 
-				exPlain := must(cryptolib.XChaCha20Decrypt(exCt, mlSymKey, nil))
+				exPlain := must(cipherbird.XChaCha20Decrypt(exCt, mlSymKey, nil))
 				exMsg := exPlain[:len(exPlain)-64]    // original message
 				exDigest := exPlain[len(exPlain)-64:] // BLAKE2b digest is 64 bytes
-				reDigest := must(cryptolib.Blake2b(exMsg, nil))
+				reDigest := must(cipherbird.Blake2b(exMsg, nil))
 
-				if cryptolib.SecureEqual(exDigest, reDigest) {
+				if cipherbird.SecureEqual(exDigest, reDigest) {
 					fmt.Printf("  ✓ Step 5b: Decrypted & hash verified: %s\n", string(exMsg))
 				} else {
 					fmt.Println("  ✗ Step 5b: Hash mismatch after decryption")
@@ -335,18 +335,18 @@ func main() {
 			fmt.Printf("  ⚠ Step 4: Stego capacity (%d) too small for payload (%d bytes), skipping embed\n", mlCapacity, len(stegoPayload))
 
 			// Still verify steps 5 without stego: verify signature → decrypt → verify hash
-			if cryptolib.Ed25519Verify(mlCiphertext, mlSignature, mlSignKp.Public) {
+			if cipherbird.Ed25519Verify(mlCiphertext, mlSignature, mlSignKp.Public) {
 				fmt.Println("  ✓ Step 5a: Signature verified on ciphertext")
 			} else {
 				fmt.Println("  ✗ Step 5a: Signature verification FAILED")
 			}
 
-			mlPlain := must(cryptolib.XChaCha20Decrypt(mlCiphertext, mlSymKey, nil))
+			mlPlain := must(cipherbird.XChaCha20Decrypt(mlCiphertext, mlSymKey, nil))
 			mlMsg := mlPlain[:len(mlPlain)-64]
 			mlDigest := mlPlain[len(mlPlain)-64:]
-			reDigest := must(cryptolib.Blake2b(mlMsg, nil))
+			reDigest := must(cipherbird.Blake2b(mlMsg, nil))
 
-			if cryptolib.SecureEqual(mlDigest, reDigest) {
+			if cipherbird.SecureEqual(mlDigest, reDigest) {
 				fmt.Printf("  ✓ Step 5b: Decrypted & hash verified: %s\n", string(mlMsg))
 			} else {
 				fmt.Println("  ✗ Step 5b: Hash mismatch after decryption")
@@ -358,25 +358,25 @@ func main() {
 		fmt.Println("  Scenario: Alice and Bob both have the same photo")
 
 		// Both derive keys from the photo (deterministic)
-		aliceMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		aliceMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer aliceMe.Close()
-		bobMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		bobMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer bobMe.Close()
 
 		aliceKeys := aliceMe.DeriveAll()
 		bobKeys := bobMe.DeriveAll()
 
 		// Show both get the same keys (same file = same keys)
-		if cryptolib.SecureEqual(aliceKeys.SymmetricKey, bobKeys.SymmetricKey) {
+		if cipherbird.SecureEqual(aliceKeys.SymmetricKey, bobKeys.SymmetricKey) {
 			fmt.Println("  ✓ Alice and Bob derived identical symmetric keys from the same photo")
 		} else {
 			fmt.Println("  ✗ Keys differ (unexpected)")
 		}
 
 		// Both derive Ed25519 signing keypairs from the same seed
-		aliceSignKp := cryptolib.Ed25519KeygenFromSeed(aliceKeys.SigningSeed)
-		bobSignKp := cryptolib.Ed25519KeygenFromSeed(bobKeys.SigningSeed)
-		if cryptolib.SecureEqual(aliceSignKp.Public, bobSignKp.Public) {
+		aliceSignKp := cipherbird.Ed25519KeygenFromSeed(aliceKeys.SigningSeed)
+		bobSignKp := cipherbird.Ed25519KeygenFromSeed(bobKeys.SigningSeed)
+		if cipherbird.SecureEqual(aliceSignKp.Public, bobSignKp.Public) {
 			fmt.Println("  ✓ Both derived identical Ed25519 public keys")
 		} else {
 			fmt.Println("  ✗ Ed25519 keys differ (unexpected)")
@@ -385,11 +385,11 @@ func main() {
 		// Alice encrypts a message with the shared symmetric key
 		sharedSecret := aliceKeys.SymmetricKey
 		aliceMsg := []byte("Hello Bob! Our shared photo is our shared secret.")
-		sharedCt := must(cryptolib.XChaCha20Encrypt(aliceMsg, sharedSecret, []byte("alice-to-bob")))
+		sharedCt := must(cipherbird.XChaCha20Encrypt(aliceMsg, sharedSecret, []byte("alice-to-bob")))
 		show("Alice ciphertext", sharedCt[:16])
 
 		// Bob decrypts using his derived symmetric key (identical)
-		bobDecrypted := must(cryptolib.XChaCha20Decrypt(sharedCt, bobKeys.SymmetricKey, []byte("alice-to-bob")))
+		bobDecrypted := must(cipherbird.XChaCha20Decrypt(sharedCt, bobKeys.SymmetricKey, []byte("alice-to-bob")))
 		fmt.Printf("  %-24s %s\n", "Bob decrypted:", string(bobDecrypted))
 		fmt.Println("  No key exchange protocol needed — the shared photo IS the shared secret")
 
@@ -397,20 +397,20 @@ func main() {
 		fmt.Println("\n  ── 14d. Time-Locked Vault (Argon2id + Entropy + Vault) ──")
 
 		// Derive master key from file
-		tlMe := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		tlMe := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer tlMe.Close()
 		tlMasterKey := must(tlMe.SymmetricKey())
 
 		// Create a vault with KdfSensitive (slower, more secure)
-		tlVault := must(cryptolib.VaultFromEntropy(tlMe, cryptolib.KdfSensitive))
+		tlVault := must(cipherbird.VaultFromEntropy(tlMe, cipherbird.KdfSensitive))
 		defer tlVault.Close()
 		fmt.Println("  ✓ Vault created with KdfSensitive (slower, more secure)")
 
 		// Hash master key with Argon2id (expensive) to simulate time-locked access
-		argonSalt := must(cryptolib.RandomBytes(16))
+		argonSalt := must(cipherbird.RandomBytes(16))
 		fmt.Println("  Deriving time-lock key with Argon2id (ops=4, mem=256MB)...")
-		timeLockKey := must(cryptolib.Argon2idDerive(
-			cryptolib.Hex(tlMasterKey), argonSalt, 32, 4, 268435456))
+		timeLockKey := must(cipherbird.Argon2idDerive(
+			cipherbird.Hex(tlMasterKey), argonSalt, 32, 4, 268435456))
 		show("Time-lock key", timeLockKey)
 		fmt.Println("  ✓ Argon2id derivation complete (expensive parameters add time-lock protection)")
 
@@ -429,23 +429,23 @@ func main() {
 		fmt.Println("  Deriving independent access contexts from the same file...")
 
 		// Derive identities from the file for 3 "users" by using different AAD contexts
-		pktAlice := must(cryptolib.SealFromFile(entropyFile, "message for A", "user:alice"))
-		pktBob := must(cryptolib.SealFromFile(entropyFile, "message for B", "user:bob"))
-		pktCharlie := must(cryptolib.SealFromFile(entropyFile, "message for C", "user:charlie"))
+		pktAlice := must(cipherbird.SealFromFile(entropyFile, "message for A", "user:alice"))
+		pktBob := must(cipherbird.SealFromFile(entropyFile, "message for B", "user:bob"))
+		pktCharlie := must(cipherbird.SealFromFile(entropyFile, "message for C", "user:charlie"))
 		fmt.Println("  ✓ Sealed 3 messages with contexts: user:alice, user:bob, user:charlie")
 
 		// Each user's packet can only be opened with the matching AAD
-		openedA := must(cryptolib.OpenFromFile(entropyFile, pktAlice, "user:alice"))
+		openedA := must(cipherbird.OpenFromFile(entropyFile, pktAlice, "user:alice"))
 		fmt.Printf("  %-24s %s\n", "Alice opened:", string(openedA))
 
-		openedB := must(cryptolib.OpenFromFile(entropyFile, pktBob, "user:bob"))
+		openedB := must(cipherbird.OpenFromFile(entropyFile, pktBob, "user:bob"))
 		fmt.Printf("  %-24s %s\n", "Bob opened:", string(openedB))
 
-		openedC := must(cryptolib.OpenFromFile(entropyFile, pktCharlie, "user:charlie"))
+		openedC := must(cipherbird.OpenFromFile(entropyFile, pktCharlie, "user:charlie"))
 		fmt.Printf("  %-24s %s\n", "Charlie opened:", string(openedC))
 
 		// Try opening Alice's packet with Bob's context → should fail
-		_, aclErr := cryptolib.OpenFromFile(entropyFile, pktAlice, "user:bob")
+		_, aclErr := cipherbird.OpenFromFile(entropyFile, pktAlice, "user:bob")
 		if aclErr != nil {
 			fmt.Println("  ✓ Alice's packet rejected with 'user:bob' context (access denied)")
 		} else {
@@ -453,7 +453,7 @@ func main() {
 		}
 
 		// Try opening Bob's packet with Charlie's context → should fail
-		_, aclErr2 := cryptolib.OpenFromFile(entropyFile, pktBob, "user:charlie")
+		_, aclErr2 := cipherbird.OpenFromFile(entropyFile, pktBob, "user:charlie")
 		if aclErr2 != nil {
 			fmt.Println("  ✓ Bob's packet rejected with 'user:charlie' context (access denied)")
 		} else {
@@ -470,16 +470,16 @@ func main() {
 		fmt.Println("\n  ── 15a. Multi-Source Entropy Pool (defence-in-depth) ──")
 
 		// Generate 3 different source files in /tmp filled with random data
-		src1Path := filepath.Join(os.TempDir(), "cryptolib_entropy_src1.ppm")
-		src2Path := filepath.Join(os.TempDir(), "cryptolib_entropy_src2.wav")
+		src1Path := filepath.Join(os.TempDir(), "cipherbird_entropy_src1.ppm")
+		src2Path := filepath.Join(os.TempDir(), "cipherbird_entropy_src2.wav")
 		src3Path := entropyFile // third source is the user's own file
 
-		src1Data := must(cryptolib.RandomBytes(1024))
+		src1Data := must(cipherbird.RandomBytes(1024))
 		if err := os.WriteFile(src1Path, src1Data, 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 			os.Exit(1)
 		}
-		src2Data := must(cryptolib.RandomBytes(1024))
+		src2Data := must(cipherbird.RandomBytes(1024))
 		if err := os.WriteFile(src2Path, src2Data, 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 			os.Exit(1)
@@ -489,7 +489,7 @@ func main() {
 		fmt.Printf("  %-24s %s (user file)\n", "Source 3:", src3Path)
 
 		// Combine all three sources
-		poolMe := must(cryptolib.EntropyFromFiles([]string{src1Path, src2Path, src3Path}))
+		poolMe := must(cipherbird.EntropyFromFiles([]string{src1Path, src2Path, src3Path}))
 		defer poolMe.Close()
 		poolInfo := poolMe.Info()
 		fmt.Printf("  %-24s %.0f bits\n", "Combined entropy:", poolInfo.EntropyBits)
@@ -498,25 +498,25 @@ func main() {
 		show("Combined sym key", poolKeys.SymmetricKey)
 
 		// Derive keys from each individual source
-		indMe1 := must(cryptolib.EntropyFromFile(src1Path))
+		indMe1 := must(cipherbird.EntropyFromFile(src1Path))
 		defer indMe1.Close()
 		indKey1 := must(indMe1.SymmetricKey())
 		show("Source 1 key", indKey1)
 
-		indMe2 := must(cryptolib.EntropyFromFile(src2Path))
+		indMe2 := must(cipherbird.EntropyFromFile(src2Path))
 		defer indMe2.Close()
 		indKey2 := must(indMe2.SymmetricKey())
 		show("Source 2 key", indKey2)
 
-		indMe3 := must(cryptolib.EntropyFromFile(src3Path))
+		indMe3 := must(cipherbird.EntropyFromFile(src3Path))
 		defer indMe3.Close()
 		indKey3 := must(indMe3.SymmetricKey())
 		show("Source 3 key", indKey3)
 
 		// Show combined key differs from every individual key
-		combinedDiffers := !cryptolib.SecureEqual(poolKeys.SymmetricKey, indKey1) &&
-			!cryptolib.SecureEqual(poolKeys.SymmetricKey, indKey2) &&
-			!cryptolib.SecureEqual(poolKeys.SymmetricKey, indKey3)
+		combinedDiffers := !cipherbird.SecureEqual(poolKeys.SymmetricKey, indKey1) &&
+			!cipherbird.SecureEqual(poolKeys.SymmetricKey, indKey2) &&
+			!cipherbird.SecureEqual(poolKeys.SymmetricKey, indKey3)
 		if combinedDiffers {
 			fmt.Println("  ✓ Combined key differs from all individual keys")
 		} else {
@@ -525,8 +525,8 @@ func main() {
 
 		// Encrypt/decrypt with the combined pool key
 		poolPlaintext := []byte("Protected by multi-source entropy pool")
-		poolCt := must(cryptolib.XChaCha20Encrypt(poolPlaintext, poolKeys.SymmetricKey, nil))
-		poolPt := must(cryptolib.XChaCha20Decrypt(poolCt, poolKeys.SymmetricKey, nil))
+		poolCt := must(cipherbird.XChaCha20Encrypt(poolPlaintext, poolKeys.SymmetricKey, nil))
+		poolPt := must(cipherbird.XChaCha20Decrypt(poolCt, poolKeys.SymmetricKey, nil))
 		fmt.Printf("  %-24s %s\n", "Decrypted:", string(poolPt))
 		fmt.Println("  ✓ Encrypt/decrypt round-trip with combined pool key")
 
@@ -539,19 +539,19 @@ func main() {
 		fmt.Println("\n  ── 15b. Deterministic Test Vectors (reproducible CI keys) ──")
 
 		// First derivation
-		tvMe1 := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		tvMe1 := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer tvMe1.Close()
 		tvKeys1 := tvMe1.DeriveAll()
 		tvSymKey1 := tvKeys1.SymmetricKey
 
 		// Second derivation from the same file
-		tvMe2 := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+		tvMe2 := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 		defer tvMe2.Close()
 		tvKeys2 := tvMe2.DeriveAll()
 		tvSymKey2 := tvKeys2.SymmetricKey
 
 		// Constant-time comparison: both must be identical
-		if cryptolib.SecureEqual(tvSymKey1, tvSymKey2) {
+		if cipherbird.SecureEqual(tvSymKey1, tvSymKey2) {
 			fmt.Println("  ✓ Both derivations produce identical keys (constant-time verified)")
 		} else {
 			fmt.Println("  ✗ Keys differ between derivations (unexpected)")
@@ -559,10 +559,10 @@ func main() {
 
 		// Encrypt a known plaintext with the first derivation's key
 		tvPlaintext := []byte("CI test vector plaintext — deterministic")
-		tvCiphertext := must(cryptolib.XChaCha20Encrypt(tvPlaintext, tvSymKey1, nil))
+		tvCiphertext := must(cipherbird.XChaCha20Encrypt(tvPlaintext, tvSymKey1, nil))
 
 		// Decrypt with the second derivation's key — must succeed
-		tvDecrypted := must(cryptolib.XChaCha20Decrypt(tvCiphertext, tvSymKey2, nil))
+		tvDecrypted := must(cipherbird.XChaCha20Decrypt(tvCiphertext, tvSymKey2, nil))
 		if string(tvDecrypted) == string(tvPlaintext) {
 			fmt.Println("  ✓ Cross-derivation encrypt/decrypt succeeded")
 		} else {
@@ -570,29 +570,29 @@ func main() {
 		}
 
 		// Print the test vector
-		tvKeyHash := must(cryptolib.Blake2b(tvSymKey1, nil))
+		tvKeyHash := must(cipherbird.Blake2b(tvSymKey1, nil))
 		show("File hash (BLAKE2b)", tvKeyHash)
 		show("Symmetric key", tvSymKey1)
-		fmt.Printf("  %-24s %s...\n", "Ciphertext prefix:", cryptolib.Hex(tvCiphertext[:16]))
+		fmt.Printf("  %-24s %s...\n", "Ciphertext prefix:", cipherbird.Hex(tvCiphertext[:16]))
 		fmt.Println("  Check this file into your repo. Every CI run produces identical keys.")
 
 		// ── 15c. Multi-Party Key Ceremony (N-of-N threshold) ────────────
 		fmt.Println("\n  ── 15c. Multi-Party Key Ceremony (N-of-N threshold) ──")
 
 		// Generate 3 party entropy files in /tmp
-		aliceFile := filepath.Join(os.TempDir(), "cryptolib_ceremony_alice.bin")
-		bobFile := filepath.Join(os.TempDir(), "cryptolib_ceremony_bob.bin")
-		charlieFile := filepath.Join(os.TempDir(), "cryptolib_ceremony_charlie.bin")
+		aliceFile := filepath.Join(os.TempDir(), "cipherbird_ceremony_alice.bin")
+		bobFile := filepath.Join(os.TempDir(), "cipherbird_ceremony_bob.bin")
+		charlieFile := filepath.Join(os.TempDir(), "cipherbird_ceremony_charlie.bin")
 
-		if err := os.WriteFile(aliceFile, must(cryptolib.RandomBytes(1024)), 0600); err != nil {
+		if err := os.WriteFile(aliceFile, must(cipherbird.RandomBytes(1024)), 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 			os.Exit(1)
 		}
-		if err := os.WriteFile(bobFile, must(cryptolib.RandomBytes(1024)), 0600); err != nil {
+		if err := os.WriteFile(bobFile, must(cipherbird.RandomBytes(1024)), 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 			os.Exit(1)
 		}
-		if err := os.WriteFile(charlieFile, must(cryptolib.RandomBytes(1024)), 0600); err != nil {
+		if err := os.WriteFile(charlieFile, must(cipherbird.RandomBytes(1024)), 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 			os.Exit(1)
 		}
@@ -601,19 +601,19 @@ func main() {
 		fmt.Printf("  %-24s %s\n", "Charlie file:", charlieFile)
 
 		// Individual keys: each party derives a key from their own file
-		alicePartyMe := must(cryptolib.EntropyFromFile(aliceFile))
+		alicePartyMe := must(cipherbird.EntropyFromFile(aliceFile))
 		defer alicePartyMe.Close()
 		alicePartyRaw := must(alicePartyMe.Raw())
 		alicePartyKey := must(alicePartyMe.SymmetricKey())
 		show("Alice individual key", alicePartyKey)
 
-		bobPartyMe := must(cryptolib.EntropyFromFile(bobFile))
+		bobPartyMe := must(cipherbird.EntropyFromFile(bobFile))
 		defer bobPartyMe.Close()
 		bobPartyRaw := must(bobPartyMe.Raw())
 		bobPartyKey := must(bobPartyMe.SymmetricKey())
 		show("Bob individual key", bobPartyKey)
 
-		charliePartyMe := must(cryptolib.EntropyFromFile(charlieFile))
+		charliePartyMe := must(cipherbird.EntropyFromFile(charlieFile))
 		defer charliePartyMe.Close()
 		charliePartyRaw := must(charliePartyMe.Raw())
 		charliePartyKey := must(charliePartyMe.SymmetricKey())
@@ -621,29 +621,29 @@ func main() {
 
 		// Combined ceremony key: concatenate all 3 raw entropy buffers → BLAKE2b
 		ceremonyInput := append(append(alicePartyRaw, bobPartyRaw...), charliePartyRaw...)
-		ceremonyHash := must(cryptolib.Blake2b(ceremonyInput, nil))
+		ceremonyHash := must(cipherbird.Blake2b(ceremonyInput, nil))
 		ceremonyKey := ceremonyHash[:32] // use first 32 bytes as symmetric key
 		show("Ceremony key", ceremonyKey)
 
 		// Encrypt a master secret with the ceremony key
 		masterSecret := []byte("MASTER SECRET: requires all 3 participants to unlock")
-		ceremonyCt := must(cryptolib.XChaCha20Encrypt(masterSecret, ceremonyKey, nil))
+		ceremonyCt := must(cipherbird.XChaCha20Encrypt(masterSecret, ceremonyKey, nil))
 		show("Ceremony ciphertext", ceremonyCt[:16])
 
 		// Show that no individual party's key can decrypt it
-		_, errAlice := cryptolib.XChaCha20Decrypt(ceremonyCt, alicePartyKey, nil)
+		_, errAlice := cipherbird.XChaCha20Decrypt(ceremonyCt, alicePartyKey, nil)
 		if errAlice != nil {
 			fmt.Println("  ✓ Alice's individual key cannot decrypt the master secret")
 		} else {
 			fmt.Println("  ✗ Alice's key decrypted the master secret (unexpected)")
 		}
-		_, errBob := cryptolib.XChaCha20Decrypt(ceremonyCt, bobPartyKey, nil)
+		_, errBob := cipherbird.XChaCha20Decrypt(ceremonyCt, bobPartyKey, nil)
 		if errBob != nil {
 			fmt.Println("  ✓ Bob's individual key cannot decrypt the master secret")
 		} else {
 			fmt.Println("  ✗ Bob's key decrypted the master secret (unexpected)")
 		}
-		_, errCharlie := cryptolib.XChaCha20Decrypt(ceremonyCt, charliePartyKey, nil)
+		_, errCharlie := cipherbird.XChaCha20Decrypt(ceremonyCt, charliePartyKey, nil)
 		if errCharlie != nil {
 			fmt.Println("  ✓ Charlie's individual key cannot decrypt the master secret")
 		} else {
@@ -651,37 +651,37 @@ func main() {
 		}
 
 		// Re-derive the ceremony key from all 3 files → decrypt succeeds
-		reAliceMe := must(cryptolib.EntropyFromFile(aliceFile))
+		reAliceMe := must(cipherbird.EntropyFromFile(aliceFile))
 		defer reAliceMe.Close()
 		reAliceRaw := must(reAliceMe.Raw())
-		reBobMe := must(cryptolib.EntropyFromFile(bobFile))
+		reBobMe := must(cipherbird.EntropyFromFile(bobFile))
 		defer reBobMe.Close()
 		reBobRaw := must(reBobMe.Raw())
-		reCharlieMe := must(cryptolib.EntropyFromFile(charlieFile))
+		reCharlieMe := must(cipherbird.EntropyFromFile(charlieFile))
 		defer reCharlieMe.Close()
 		reCharlieRaw := must(reCharlieMe.Raw())
 
 		reCeremonyInput := append(append(reAliceRaw, reBobRaw...), reCharlieRaw...)
-		reCeremonyHash := must(cryptolib.Blake2b(reCeremonyInput, nil))
+		reCeremonyHash := must(cipherbird.Blake2b(reCeremonyInput, nil))
 		reCeremonyKey := reCeremonyHash[:32]
 
 		// NOTE: LavaRand mode mixes fresh system entropy each time, so the
 		// re-derived ceremony key will differ. We demonstrate the pattern
 		// by encrypting again with the new ceremony key and showing
 		// that removing one party changes the result.
-		reCeremonyCt := must(cryptolib.XChaCha20Encrypt(masterSecret, reCeremonyKey, nil))
-		reCeremonyPt := must(cryptolib.XChaCha20Decrypt(reCeremonyCt, reCeremonyKey, nil))
+		reCeremonyCt := must(cipherbird.XChaCha20Encrypt(masterSecret, reCeremonyKey, nil))
+		reCeremonyPt := must(cipherbird.XChaCha20Decrypt(reCeremonyCt, reCeremonyKey, nil))
 		fmt.Printf("  %-24s %s\n", "Re-derived decrypt:", string(reCeremonyPt))
 		fmt.Println("  ✓ Full ceremony key successfully encrypts/decrypts the master secret")
 
 		// Remove one party's file → re-derive without it → different key
 		os.Remove(charlieFile)
 		twoPartyInput := append(reAliceRaw, reBobRaw...)
-		twoPartyHash := must(cryptolib.Blake2b(twoPartyInput, nil))
+		twoPartyHash := must(cipherbird.Blake2b(twoPartyInput, nil))
 		twoPartyKey := twoPartyHash[:32]
 		show("2-of-3 key (no Charlie)", twoPartyKey)
 
-		_, errTwoParty := cryptolib.XChaCha20Decrypt(reCeremonyCt, twoPartyKey, nil)
+		_, errTwoParty := cipherbird.XChaCha20Decrypt(reCeremonyCt, twoPartyKey, nil)
 		if errTwoParty != nil {
 			fmt.Println("  ✓ 2-of-3 key cannot decrypt the master secret (Charlie is missing)")
 		} else {
@@ -703,15 +703,15 @@ func main() {
 
 	// ── 6. AES-256-GCM ──────────────────────────────────────────────────
 	fmt.Println("\n═══ AES-256-GCM ═══")
-	if cryptolib.AES256GCMAvailable() {
-		aesKey := must(cryptolib.SymKeygen())
+	if cipherbird.AES256GCMAvailable() {
+		aesKey := must(cipherbird.SymKeygen())
 		show("Key", aesKey)
 
 		aesAad := []byte("authenticated-context")
-		aesCt := must(cryptolib.AES256GCMEncrypt([]byte("AES-256-GCM says hello from Go!"), aesKey, aesAad))
+		aesCt := must(cipherbird.AES256GCMEncrypt([]byte("AES-256-GCM says hello from Go!"), aesKey, aesAad))
 		show("Ciphertext", aesCt[:32])
 
-		aesPt := must(cryptolib.AES256GCMDecrypt(aesCt, aesKey, aesAad))
+		aesPt := must(cipherbird.AES256GCMDecrypt(aesCt, aesKey, aesAad))
 		fmt.Printf("  %-24s %s\n", "Decrypted:", string(aesPt))
 		fmt.Println("  ✓ AES-256-GCM round-trip")
 	} else {
@@ -720,29 +720,29 @@ func main() {
 
 	// ── 7. SealedBox ────────────────────────────────────────────────────
 	fmt.Println("\n═══ SealedBox (Anonymous Sender) ═══")
-	sbKp := cryptolib.BoxKeygen()
+	sbKp := cipherbird.BoxKeygen()
 	show("Recipient public", sbKp.Public)
 
-	sbCt := must(cryptolib.SealedBoxEncrypt([]byte("Anonymous message!"), sbKp.Public))
+	sbCt := must(cipherbird.SealedBoxEncrypt([]byte("Anonymous message!"), sbKp.Public))
 	show("Ciphertext", sbCt[:32])
 
-	sbPt := must(cryptolib.SealedBoxDecrypt(sbCt, sbKp.Public, sbKp.Secret))
+	sbPt := must(cipherbird.SealedBoxDecrypt(sbCt, sbKp.Public, sbKp.Secret))
 	fmt.Printf("  %-24s %s\n", "Decrypted:", string(sbPt))
 	fmt.Println("  ✓ SealedBox round-trip (anonymous sender)")
 
 	// ── 8. X25519 Key Agreement ─────────────────────────────────────────
 	fmt.Println("\n═══ X25519 Key Agreement ═══")
-	partyA := cryptolib.X25519Keygen()
-	partyB := cryptolib.X25519Keygen()
+	partyA := cipherbird.X25519Keygen()
+	partyB := cipherbird.X25519Keygen()
 	show("Party A public", partyA.Public)
 	show("Party B public", partyB.Public)
 
-	sharedA := must(cryptolib.X25519SharedSecret(partyA.Secret, partyB.Public))
-	sharedB := must(cryptolib.X25519SharedSecret(partyB.Secret, partyA.Public))
+	sharedA := must(cipherbird.X25519SharedSecret(partyA.Secret, partyB.Public))
+	sharedB := must(cipherbird.X25519SharedSecret(partyB.Secret, partyA.Public))
 	show("Shared (A side)", sharedA)
 	show("Shared (B side)", sharedB)
 
-	if cryptolib.SecureEqual(sharedA, sharedB) {
+	if cipherbird.SecureEqual(sharedA, sharedB) {
 		fmt.Println("  ✓ Both parties derived the same shared secret")
 	} else {
 		fmt.Println("  ✗ Shared secrets differ (unexpected)")
@@ -750,10 +750,10 @@ func main() {
 
 	// ── 9. SecretStream ─────────────────────────────────────────────────
 	fmt.Println("\n═══ SecretStream (Chunked AEAD) ═══")
-	streamKey := must(cryptolib.SymKeygen())
+	streamKey := must(cipherbird.SymKeygen())
 	show("Stream key", streamKey)
 
-	enc := cryptolib.NewStreamEncryptor(streamKey)
+	enc := cipherbird.NewStreamEncryptor(streamKey)
 	defer enc.Close()
 
 	header := must(enc.Header())
@@ -762,15 +762,15 @@ func main() {
 	chunks := []string{"chunk-1: Hello", "chunk-2: streaming", "chunk-3: world!"}
 	encChunks := make([][]byte, len(chunks))
 	for i, c := range chunks {
-		tag := cryptolib.TagMessage
+		tag := cipherbird.TagMessage
 		if i == len(chunks)-1 {
-			tag = cryptolib.TagFinal
+			tag = cipherbird.TagFinal
 		}
 		encChunks[i] = must(enc.Push([]byte(c), tag))
-		fmt.Printf("  Encrypted chunk %d:      %s...\n", i+1, cryptolib.Hex(encChunks[i][:16]))
+		fmt.Printf("  Encrypted chunk %d:      %s...\n", i+1, cipherbird.Hex(encChunks[i][:16]))
 	}
 
-	dec := cryptolib.NewStreamDecryptor(streamKey, header)
+	dec := cipherbird.NewStreamDecryptor(streamKey, header)
 	defer dec.Close()
 
 	fmt.Println("  ── Decrypting ──")
@@ -781,7 +781,7 @@ func main() {
 			os.Exit(1)
 		}
 		tagName := "MESSAGE"
-		if decTag == cryptolib.TagFinal {
+		if decTag == cipherbird.TagFinal {
 			tagName = "FINAL"
 		}
 		fmt.Printf("  Chunk %d [%s]:          %s\n", i+1, tagName, string(decPt))
@@ -790,34 +790,34 @@ func main() {
 
 	// ── 10. Asymmetric Vault (Alice → Bob) ──────────────────────────────
 	fmt.Println("\n═══ Asymmetric Vault (Alice → Bob) ═══")
-	aliceBundle := cryptolib.AsymBundleGenerate()
-	bobBundle := cryptolib.AsymBundleGenerate()
+	aliceBundle := cipherbird.AsymBundleGenerate()
+	bobBundle := cipherbird.AsymBundleGenerate()
 	show("Alice box public", aliceBundle.BoxPublic)
 	show("Alice sign public", aliceBundle.SignPublic)
 	show("Bob   box public", bobBundle.BoxPublic)
 
-	avPkt := must(cryptolib.AsymVaultSeal(&aliceBundle, bobBundle.BoxPublic,
+	avPkt := must(cipherbird.AsymVaultSeal(&aliceBundle, bobBundle.BoxPublic,
 		[]byte("Authenticated message from Alice to Bob"), "go:asym-vault"))
 	show("Packet ciphertext", avPkt.Ciphertext[:32])
 	show("Packet signature", avPkt.Signature)
 
-	avPt := must(cryptolib.AsymVaultOpen(avPkt, &bobBundle, aliceBundle.SignPublic, "go:asym-vault"))
+	avPt := must(cipherbird.AsymVaultOpen(avPkt, &bobBundle, aliceBundle.SignPublic, "go:asym-vault"))
 	fmt.Printf("  %-24s %s\n", "Bob received:", string(avPt))
 	fmt.Println("  ✓ Asymmetric vault round-trip with signature verification")
 
 	// ── 11. Argon2id ────────────────────────────────────────────────────
 	fmt.Println("\n═══ Argon2id Password Hashing ═══")
 	password := "correct horse battery staple"
-	phc := must(cryptolib.Argon2idHashStr(password, 2, 67108864))
+	phc := must(cipherbird.Argon2idHashStr(password, 2, 67108864))
 	fmt.Printf("  %-24s %s\n", "PHC string:", phc)
 
-	if cryptolib.Argon2idVerifyStr(password, phc) {
+	if cipherbird.Argon2idVerifyStr(password, phc) {
 		fmt.Println("  ✓ Correct password verified")
 	} else {
 		fmt.Println("  ✗ Correct password rejected (unexpected)")
 	}
 
-	if cryptolib.Argon2idVerifyStr("wrong password", phc) {
+	if cipherbird.Argon2idVerifyStr("wrong password", phc) {
 		fmt.Println("  ✗ Wrong password accepted (unexpected)")
 	} else {
 		fmt.Println("  ✓ Wrong password correctly rejected")
@@ -825,14 +825,14 @@ func main() {
 
 	// ── 12. HMAC-SHA512 ─────────────────────────────────────────────────
 	fmt.Println("\n═══ HMAC-SHA512 ═══")
-	hmacKey := must(cryptolib.SymKeygen())
+	hmacKey := must(cipherbird.SymKeygen())
 	hmacMsg := []byte("Message to authenticate")
 	show("HMAC key", hmacKey)
 
-	mac := must(cryptolib.HmacSHA512(hmacMsg, hmacKey))
+	mac := must(cipherbird.HmacSHA512(hmacMsg, hmacKey))
 	show("MAC", mac)
 
-	if cryptolib.HmacSHA512Verify(hmacMsg, mac, hmacKey) {
+	if cipherbird.HmacSHA512Verify(hmacMsg, mac, hmacKey) {
 		fmt.Println("  ✓ HMAC verified (untampered)")
 	} else {
 		fmt.Println("  ✗ HMAC verification failed (unexpected)")
@@ -841,7 +841,7 @@ func main() {
 	tampered := make([]byte, len(hmacMsg))
 	copy(tampered, hmacMsg)
 	tampered[0] ^= 0xFF
-	if cryptolib.HmacSHA512Verify(tampered, mac, hmacKey) {
+	if cipherbird.HmacSHA512Verify(tampered, mac, hmacKey) {
 		fmt.Println("  ✗ Tampered message accepted (unexpected)")
 	} else {
 		fmt.Println("  ✓ Tampered message correctly rejected")
@@ -856,22 +856,22 @@ func main() {
 
 	if entropyFile != "" {
 		ext := filepath.Ext(entropyFile)
-		capacity := cryptolib.StegoCapacity(entropyFile)
+		capacity := cipherbird.StegoCapacity(entropyFile)
 		fmt.Printf("\n  %-24s %s\n", "Cover file:", entropyFile)
 		fmt.Printf("  %-24s %d bytes\n", "Stego capacity:", capacity)
 
 		if capacity > 0 {
 			// ── 13a. Text payload demo (original) ─────────────────────────
-			payload := []byte("Hidden by CryptoLib Go steganography demo!")
+			payload := []byte("Hidden by CipherBird Go steganography demo!")
 			fmt.Printf("  %-24s %s (%d bytes)\n", "Payload:", string(payload), len(payload))
 
 			outputPath := entropyFile + ".stego" + ext
-			if err := cryptolib.StegoEmbed(entropyFile, payload, outputPath); err != nil {
+			if err := cipherbird.StegoEmbed(entropyFile, payload, outputPath); err != nil {
 				fmt.Fprintf(os.Stderr, "  Stego embed failed: %v\n", err)
 			} else {
 				fmt.Printf("  %-24s %s\n", "Stego file:", outputPath)
 
-				extracted := must(cryptolib.StegoExtract(outputPath))
+				extracted := must(cipherbird.StegoExtract(outputPath))
 				fmt.Printf("  %-24s %s\n", "Extracted:", string(extracted))
 
 				if string(extracted) == string(payload) {
@@ -900,10 +900,10 @@ func main() {
 
 					if len(fileData) <= capacity {
 						fileOutputPath := entropyFile + ".file_stego" + ext
-						if err := cryptolib.StegoEmbed(entropyFile, fileData, fileOutputPath); err != nil {
+						if err := cipherbird.StegoEmbed(entropyFile, fileData, fileOutputPath); err != nil {
 							fmt.Fprintf(os.Stderr, "  Stego file embed failed: %v\n", err)
 						} else {
-							extractedFile := must(cryptolib.StegoExtract(fileOutputPath))
+							extractedFile := must(cipherbird.StegoExtract(fileOutputPath))
 
 							if bytes.Equal(extractedFile, fileData) {
 								fmt.Printf("  ✓ File-in-file steganography: embedded %d bytes, extracted and verified\n", len(fileData))
@@ -919,7 +919,7 @@ func main() {
 				}
 			} else {
 				// No external file — create a temp file with sample binary content
-				tempContent := []byte(`{"demo":"CryptoLib file-in-file steganography","version":"3.0.0","data":[1,2,3,4,5]}`)
+				tempContent := []byte(`{"demo":"CipherBird file-in-file steganography","version":"3.0.0","data":[1,2,3,4,5]}`)
 				tempPath := filepath.Join(os.TempDir(), "cryptolib_stego_demo.json")
 
 				if err := os.WriteFile(tempPath, tempContent, 0644); err != nil {
@@ -930,10 +930,10 @@ func main() {
 
 					if len(tempContent) <= capacity {
 						fileOutputPath := entropyFile + ".file_stego" + ext
-						if err := cryptolib.StegoEmbed(entropyFile, tempContent, fileOutputPath); err != nil {
+						if err := cipherbird.StegoEmbed(entropyFile, tempContent, fileOutputPath); err != nil {
 							fmt.Fprintf(os.Stderr, "  Stego file embed failed: %v\n", err)
 						} else {
-							extractedFile := must(cryptolib.StegoExtract(fileOutputPath))
+							extractedFile := must(cipherbird.StegoExtract(fileOutputPath))
 
 							if bytes.Equal(extractedFile, tempContent) {
 								fmt.Printf("  ✓ File-in-file steganography: embedded %d bytes, extracted and verified\n", len(tempContent))
@@ -962,13 +962,13 @@ func main() {
 
 	// ── Keyring: default device slot + opt-in passphrase slot (cross-device) ──
 	fmt.Println("\n═══ Keyring (envelope / key-slots) ═══")
-	factor := must(cryptolib.RandomBytes(32)) // stands in for a hardware factor key
-	kr := cryptolib.NewKeyring()
+	factor := must(cipherbird.RandomBytes(32)) // stands in for a hardware factor key
+	kr := cipherbird.NewKeyring()
 	kr.AddDeviceSlot(factor)
 	kr.AddPassphraseSlot("cross-device pass", 0)
 	krBlob := must(kr.Serialise())
 	fmt.Printf("  slots: %d, envelope: %d bytes\n", kr.SlotCount(), len(krBlob))
-	if kr2, err := cryptolib.DeserialiseKeyring(krBlob); err != nil {
+	if kr2, err := cipherbird.DeserialiseKeyring(krBlob); err != nil {
 		fmt.Println("  keyring deserialise failed:", err)
 	} else {
 		mDev := must(kr2.UnlockWithDevice(factor))
@@ -980,68 +980,68 @@ func main() {
 
 	// ── Newly exposed feature functions ──
 	fmt.Println("\n═══ Committing AEAD / HKDF / HMAC-256 / Hybrid sig / BLS-from-IKM ═══")
-	caKey := must(cryptolib.RandomBytes(32))
-	caCt := must(cryptolib.CommittingEncrypt([]byte("commit me"), caKey, []byte("ctx")))
-	caPt := must(cryptolib.CommittingDecrypt(caCt, caKey, []byte("ctx")))
-	_, caErr := cryptolib.CommittingDecrypt(caCt, must(cryptolib.RandomBytes(32)), []byte("ctx"))
+	caKey := must(cipherbird.RandomBytes(32))
+	caCt := must(cipherbird.CommittingEncrypt([]byte("commit me"), caKey, []byte("ctx")))
+	caPt := must(cipherbird.CommittingDecrypt(caCt, caKey, []byte("ctx")))
+	_, caErr := cipherbird.CommittingDecrypt(caCt, must(cipherbird.RandomBytes(32)), []byte("ctx"))
 	fmt.Printf("  committing AEAD: roundtrip=%q reject-wrong-key=%v\n", string(caPt), caErr != nil)
 
-	fIkm := must(cryptolib.RandomBytes(32))
-	fPrk := must(cryptolib.HkdfExtract(fIkm, []byte("salt")))
-	fOkm := must(cryptolib.HkdfExpand(fPrk, []byte("app"), 42))
-	fOkm1 := must(cryptolib.HkdfDerive(fIkm, []byte("salt"), []byte("app"), 42))
-	fMac := must(cryptolib.HmacSHA256([]byte("mac me"), fIkm))
+	fIkm := must(cipherbird.RandomBytes(32))
+	fPrk := must(cipherbird.HkdfExtract(fIkm, []byte("salt")))
+	fOkm := must(cipherbird.HkdfExpand(fPrk, []byte("app"), 42))
+	fOkm1 := must(cipherbird.HkdfDerive(fIkm, []byte("salt"), []byte("app"), 42))
+	fMac := must(cipherbird.HmacSHA256([]byte("mac me"), fIkm))
 	fmt.Printf("  hkdf len=%d consistent=%v · hmac256 verify=%v reject=%v\n",
 		len(fOkm), bytes.Equal(fOkm, fOkm1),
-		cryptolib.HmacSHA256Verify([]byte("mac me"), fMac, fIkm),
-		!cryptolib.HmacSHA256Verify([]byte("mac me"), fMac, must(cryptolib.RandomBytes(32))))
+		cipherbird.HmacSHA256Verify([]byte("mac me"), fMac, fIkm),
+		!cipherbird.HmacSHA256Verify([]byte("mac me"), fMac, must(cipherbird.RandomBytes(32))))
 
-	hsk := cryptolib.HybridSigKeygen()
-	hsig := must(cryptolib.HybridSigSign([]byte("sign me"), hsk.Secret))
+	hsk := cipherbird.HybridSigKeygen()
+	hsig := must(cipherbird.HybridSigSign([]byte("sign me"), hsk.Secret))
 	fmt.Printf("  hybrid sig: len=%d verify=%v reject=%v\n", len(hsig),
-		cryptolib.HybridSigVerify([]byte("sign me"), hsig, hsk.Public),
-		!cryptolib.HybridSigVerify([]byte("forged"), hsig, hsk.Public))
+		cipherbird.HybridSigVerify([]byte("sign me"), hsig, hsk.Public),
+		!cipherbird.HybridSigVerify([]byte("forged"), hsig, hsk.Public))
 
-	blsIkm := must(cryptolib.RandomBytes(32))
-	d1 := cryptolib.BlsKeygenFromIkm(blsIkm)
-	d2 := cryptolib.BlsKeygenFromIkm(blsIkm)
+	blsIkm := must(cipherbird.RandomBytes(32))
+	d1 := cipherbird.BlsKeygenFromIkm(blsIkm)
+	d2 := cipherbird.BlsKeygenFromIkm(blsIkm)
 	fmt.Printf("  bls keygen-from-ikm deterministic: %v\n", bytes.Equal(d1.Public, d2.Public))
 
 	// BLAKE3 (hash + XOF + keyed + derive-key)
-	b3 := must(cryptolib.Blake3([]byte("abc"), 0))
-	b3x := must(cryptolib.Blake3([]byte("abc"), 64))
-	b3k := must(cryptolib.Blake3Keyed([]byte("m"), make([]byte, 32), 0))
-	b3d := must(cryptolib.Blake3DeriveKey("cryptolib demo ctx", blsIkm, 0))
+	b3 := must(cipherbird.Blake3([]byte("abc"), 0))
+	b3x := must(cipherbird.Blake3([]byte("abc"), 64))
+	b3k := must(cipherbird.Blake3Keyed([]byte("m"), make([]byte, 32), 0))
+	b3d := must(cipherbird.Blake3DeriveKey("cipherbird demo ctx", blsIkm, 0))
 	fmt.Printf("  blake3: hash=%d xof=%d xof-prefix-matches=%v keyed=%d derive=%d\n",
 		len(b3), len(b3x), bytes.Equal(b3, b3x[:32]), len(b3k), len(b3d))
 
 	// BLS aggregation (two signers, distinct messages)
 	am1, am2 := []byte("aggregate-1"), []byte("aggregate-2")
-	akA, akB := cryptolib.BlsKeygen(), cryptolib.BlsKeygen()
-	as1 := must(cryptolib.BlsSign(am1, akA.Secret))
-	as2 := must(cryptolib.BlsSign(am2, akB.Secret))
-	agg := must(cryptolib.BlsAggregate([][]byte{as1, as2}))
+	akA, akB := cipherbird.BlsKeygen(), cipherbird.BlsKeygen()
+	as1 := must(cipherbird.BlsSign(am1, akA.Secret))
+	as2 := must(cipherbird.BlsSign(am2, akB.Secret))
+	agg := must(cipherbird.BlsAggregate([][]byte{as1, as2}))
 	fmt.Printf("  bls aggregate: len=%d verify=%v reject-tampered=%v\n", len(agg),
-		cryptolib.BlsAggregateVerify([][]byte{am1, am2}, [][]byte{akA.Public, akB.Public}, agg),
-		!cryptolib.BlsAggregateVerify([][]byte{am1, []byte("forged")}, [][]byte{akA.Public, akB.Public}, agg))
+		cipherbird.BlsAggregateVerify([][]byte{am1, am2}, [][]byte{akA.Public, akB.Public}, agg),
+		!cipherbird.BlsAggregateVerify([][]byte{am1, []byte("forged")}, [][]byte{akA.Public, akB.Public}, agg))
 
 	// EVM / Bitcoin interop: Keccak-256, RIPEMD-160, secp256k1 ECDSA
-	keccak := hex.EncodeToString(must(cryptolib.Keccak256([]byte("abc"))))
-	ripemd := hex.EncodeToString(must(cryptolib.Ripemd160([]byte("abc"))))
+	keccak := hex.EncodeToString(must(cipherbird.Keccak256([]byte("abc"))))
+	ripemd := hex.EncodeToString(must(cipherbird.Ripemd160([]byte("abc"))))
 	fmt.Printf("  keccak256(\"abc\")=%s… kat-ok=%v\n", keccak[:16],
 		keccak == "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45")
 	fmt.Printf("  ripemd160(\"abc\")=%s kat-ok=%v\n", ripemd,
 		ripemd == "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc")
 
-	ecKp := cryptolib.Secp256k1Keygen()
-	digest := must(cryptolib.Keccak256([]byte("transfer 1 ETH")))
-	ecSig := must(cryptolib.Secp256k1Sign(digest, ecKp.Secret)) // 65: r‖s‖v
-	recovered := must(cryptolib.Secp256k1Recover(digest, ecSig))
+	ecKp := cipherbird.Secp256k1Keygen()
+	digest := must(cipherbird.Keccak256([]byte("transfer 1 ETH")))
+	ecSig := must(cipherbird.Secp256k1Sign(digest, ecKp.Secret)) // 65: r‖s‖v
+	recovered := must(cipherbird.Secp256k1Recover(digest, ecSig))
 	fmt.Printf("  secp256k1: sig=%dB verify=%v ecrecover-matches-signer=%v compressed-pk=%dB\n",
 		len(ecSig),
-		cryptolib.Secp256k1Verify(digest, ecSig[:64], ecKp.Public), // verify wants 64B r‖s
+		cipherbird.Secp256k1Verify(digest, ecSig[:64], ecKp.Public), // verify wants 64B r‖s
 		bytes.Equal(recovered, ecKp.Public),
-		len(must(cryptolib.Secp256k1Pubkey(ecKp.Secret, true))))
+		len(must(cipherbird.Secp256k1Pubkey(ecKp.Secret, true))))
 
 	fmt.Println("\nDone.")
 }
@@ -1049,5 +1049,5 @@ func main() {
 // show prints a labelled hex-encoded value. It lives in the example rather
 // than the library: printing key material is a demo convenience, not an API.
 func show(label string, data []byte) {
-	fmt.Printf("  %-24s %s\n", label+":", cryptolib.Hex(data))
+	fmt.Printf("  %-24s %s\n", label+":", cipherbird.Hex(data))
 }

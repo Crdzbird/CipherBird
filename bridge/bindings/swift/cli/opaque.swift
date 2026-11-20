@@ -1,4 +1,4 @@
-// CryptoLib Swift — OPAQUE aPAKE (OPAQUE-3DH, ristretto255-SHA-512). Client and
+// CipherBird Swift — OPAQUE aPAKE (OPAQUE-3DH, ristretto255-SHA-512). Client and
 // server agree on a session key from a password that never leaves the client and
 // is never stored server-side. Build the smoke with the Makefile `swift-opaque`.
 import Foundation
@@ -95,7 +95,7 @@ enum Opaque {
 
 // ── smoke (compiled/run by `make swift-opaque`) ──────────────────────────────
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — OPAQUE aPAKE (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — OPAQUE aPAKE (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'cryptolib_ffi.dart';
+import 'cipherbird_ffi.dart';
 import 'pages/hashing_page.dart';
 import 'pages/encryption_page.dart';
 import 'pages/asymmetric_page.dart';
@@ -10,18 +10,18 @@ import 'pages/stego_page.dart';
 import 'pages/advanced_page.dart';
 import 'pages/lavarand_client_page.dart';
 
-class CryptoLibApp extends StatefulWidget {
+class CipherBirdApp extends StatefulWidget {
   /// Desktop: a dylib path to dlopen. Mobile: null — load the platform default.
   final String? initialLibPath;
 
-  const CryptoLibApp({super.key, required this.initialLibPath});
+  const CipherBirdApp({super.key, required this.initialLibPath});
 
   @override
-  State<CryptoLibApp> createState() => _CryptoLibAppState();
+  State<CipherBirdApp> createState() => _CipherBirdAppState();
 }
 
-class _CryptoLibAppState extends State<CryptoLibApp> {
-  CryptoLib? _lib;
+class _CipherBirdAppState extends State<CipherBirdApp> {
+  CipherBird? _lib;
   String? _error;
   String _libPath = '';
   String _version = '';
@@ -43,7 +43,7 @@ class _CryptoLibAppState extends State<CryptoLibApp> {
 
   void _loadLibrary([String? path]) {
     try {
-      final lib = CryptoLib.load(path);
+      final lib = CipherBird.load(path);
       lib.init();
       setState(() {
         _lib = lib;
@@ -62,7 +62,7 @@ class _CryptoLibAppState extends State<CryptoLibApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CryptoLib',
+      title: 'CipherBird',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.indigo,
@@ -77,7 +77,7 @@ class _CryptoLibAppState extends State<CryptoLibApp> {
       themeMode: ThemeMode.system,
       home: _lib == null
           ? _buildLoadScreen()
-          : _CryptoLibHome(lib: _lib!, version: _version),
+          : _CipherBirdHome(lib: _lib!, version: _version),
     );
   }
 
@@ -95,7 +95,7 @@ class _CryptoLibAppState extends State<CryptoLibApp> {
               const Icon(Icons.lock_outline, size: 64),
               const SizedBox(height: 16),
               Text(
-                'CryptoLib',
+                'CipherBird',
                 style: Theme.of(scaffoldContext).textTheme.headlineLarge,
               ),
               const SizedBox(height: 8),
@@ -153,11 +153,11 @@ class _CryptoLibAppState extends State<CryptoLibApp> {
   }
 }
 
-class _CryptoLibHome extends StatelessWidget {
-  final CryptoLib lib;
+class _CipherBirdHome extends StatelessWidget {
+  final CipherBird lib;
   final String version;
 
-  const _CryptoLibHome({required this.lib, required this.version});
+  const _CipherBirdHome({required this.lib, required this.version});
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +169,7 @@ class _CryptoLibHome extends StatelessWidget {
             children: [
               const Icon(Icons.lock_outline, size: 24),
               const SizedBox(width: 8),
-              Text('CryptoLib $version'),
+              Text('CipherBird $version'),
             ],
           ),
           bottom: const TabBar(

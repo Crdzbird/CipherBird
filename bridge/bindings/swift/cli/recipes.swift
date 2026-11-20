@@ -1,4 +1,4 @@
-// CryptoLib Swift — Recipes: composition in practice.
+// CipherBird Swift — Recipes: composition in practice.
 //
 // Real-world flows that snap primitives together (no new crypto, just wiring),
 // calling the C ABI directly through the bridging header. Build (see the
@@ -33,13 +33,13 @@ func check(_ name: String, _ ok: Bool) {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — Recipes (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — Recipes (Swift)")
 let aad = Array("recipe/v1".utf8)
 
 // 1. File-as-key vault: deterministic media entropy → master → MolecularVault.
 print("\n1. File-as-key vault  (media entropy → MolecularVault)")
 do {
-    let tmp = NSTemporaryDirectory() + "cryptolib_swift_recipe_key.bin"
+    let tmp = NSTemporaryDirectory() + "cipherbird_swift_recipe_key.bin"
     var bytes = [UInt8](); for i in 0..<4096 { bytes.append(UInt8((i * 37 + 11) & 0xff)) }
     FileManager.default.createFile(atPath: tmp, contents: Data(bytes))
     defer { try? FileManager.default.removeItem(atPath: tmp) }

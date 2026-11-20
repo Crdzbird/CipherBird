@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { lib } from '../../../lib/cryptolib.js';
+import { lib } from '../../../lib/cipherbird.js';
 
 // FFI needs the Node runtime, not the Edge runtime.
 export const runtime = 'nodejs';

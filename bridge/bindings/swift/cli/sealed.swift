@@ -1,4 +1,4 @@
-// CryptoLib Swift — Flagship / Fortress sealed messaging.
+// CipherBird Swift — Flagship / Fortress sealed messaging.
 //
 // Two assurance tiers of one construction (encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first). A self-contained,
@@ -172,7 +172,7 @@ final class SealedStreamOpener {
 
 // ── smoke (compiled/run by `make swift-sealed`) ──────────────────────────────
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — Flagship/Fortress (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — Flagship/Fortress (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

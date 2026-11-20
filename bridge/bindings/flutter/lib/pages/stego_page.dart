@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import '../cryptolib_ffi.dart';
+import '../cipherbird_ffi.dart';
 import '../widgets/hex_display.dart';
 import '../widgets/result_card.dart';
 
@@ -14,7 +14,7 @@ enum PayloadType { text, file }
 enum ExtractMode { text, file }
 
 class StegoPage extends StatefulWidget {
-  final CryptoLib lib;
+  final CipherBird lib;
 
   const StegoPage({super.key, required this.lib});
 

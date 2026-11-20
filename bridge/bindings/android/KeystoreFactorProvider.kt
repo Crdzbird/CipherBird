@@ -1,4 +1,4 @@
-package com.cryptolib.keyring
+package dev.cipherbird.keyring
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -8,7 +8,7 @@ import javax.crypto.Mac
 import javax.crypto.SecretKey
 
 /**
- * Android Keystore device-factor provider for the CryptoLib keyring.
+ * Android Keystore device-factor provider for the CipherBird keyring.
  *
  * Creates a NON-EXPORTABLE HMAC-SHA256 key in the Android Keystore (hardware /
  * TEE / StrongBox backed on capable devices). The 32-byte device factor is

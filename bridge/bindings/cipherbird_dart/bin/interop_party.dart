@@ -1,7 +1,7 @@
 // Dart/Flutter "party" for the Go <-> Flutter/Dart interop example.
 //
-// This uses package:cryptolib_dart — the exact same dart:ffi binding the
-// Flutter plugin ships, so its behaviour is identical to a real Flutter app.
+// This uses package:cipherbird_dart, generated from the Flutter plugin's
+// sources, so its behaviour is identical to a real Flutter app.
 //
 // Usage: dart run bin/interop_party.dart <dylib> <cmd> [args...]
 //

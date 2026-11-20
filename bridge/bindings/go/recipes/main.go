@@ -1,8 +1,9 @@
-// CryptoLib for Go — Recipes: composition in practice.
+// CipherBird for Go — Recipes: composition in practice.
 //
 // Real-world flows that snap primitives together (no new crypto, just wiring).
 // Run:  DYLD_LIBRARY_PATH=../../../build/release go run ./recipes   (macOS)
-//       LD_LIBRARY_PATH=../../../build/release  go run ./recipes    (Linux)
+//
+//	LD_LIBRARY_PATH=../../../build/release  go run ./recipes    (Linux)
 //
 // (Shamir threshold splitting is C++-only — not in the C ABI — so this mirrors
 // the other five recipes; see example/recipes.cpp for all six.)
@@ -15,7 +16,7 @@ import (
 	"os"
 	"path/filepath"
 
-	cl "github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	cl "github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 var pass, fail int
@@ -41,13 +42,13 @@ func main() {
 	if err := cl.Init(); err != nil {
 		panic(err)
 	}
-	fmt.Printf("CryptoLib %s — Recipes (Go)\n", cl.Version())
+	fmt.Printf("CipherBird %s — Recipes (Go)\n", cl.Version())
 	aad := []byte("recipe/v1")
 
 	// 1. File-as-key vault: deterministic media entropy → master → MolecularVault.
 	fmt.Println("\n1. File-as-key vault  (media entropy → MolecularVault)")
 	{
-		tmp := filepath.Join(os.TempDir(), "cryptolib_go_recipe_key.bin")
+		tmp := filepath.Join(os.TempDir(), "cipherbird_go_recipe_key.bin")
 		buf := make([]byte, 4096)
 		for i := range buf {
 			buf[i] = byte(i*37 + 11)

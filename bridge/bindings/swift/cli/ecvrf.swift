@@ -1,4 +1,4 @@
-// CryptoLib Swift — ECVRF (RFC 9381) verifiable random function
+// CipherBird Swift — ECVRF (RFC 9381) verifiable random function
 // (ECVRF-EDWARDS25519-SHA512-TAI). A public-key PRF: prove(sk, alpha) yields a
 // unique, unpredictable 64-byte output plus an 80-byte proof anyone can verify
 // with the public key. Build the smoke with the Makefile target `swift-ecvrf`.
@@ -57,7 +57,7 @@ func hexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — ECVRF (RFC 9381) (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — ECVRF (RFC 9381) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

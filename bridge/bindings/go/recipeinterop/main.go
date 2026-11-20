@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 // Fixed inputs so every language derives identical keys.
@@ -24,29 +24,29 @@ func mustHex(s string) []byte { b, _ := hex.DecodeString(s); return b }
 
 func configs(pk, sk []byte) []struct {
 	name string
-	r    *cryptolib.Recipe
+	r    *cipherbird.Recipe
 } {
 	return []struct {
 		name string
-		r    *cryptolib.Recipe
+		r    *cipherbird.Recipe
 	}{
-		{"balanced", cryptolib.NewRecipe(cryptolib.ProfileBalanced).WithKey(mustHex(keyHex))},
-		{"maximum", cryptolib.NewRecipe(cryptolib.ProfileMaximum).WithKey(mustHex(keyHex))},
-		{"signed", cryptolib.NewRecipe(cryptolib.ProfileHigh).WithKey(mustHex(keyHex)).
-			SignedBy(sk, cryptolib.SigEd25519).VerifiedBy(pk)},
-		{"passphrase", cryptolib.NewRecipe(cryptolib.ProfileBalanced).
+		{"balanced", cipherbird.NewRecipe(cipherbird.ProfileBalanced).WithKey(mustHex(keyHex))},
+		{"maximum", cipherbird.NewRecipe(cipherbird.ProfileMaximum).WithKey(mustHex(keyHex))},
+		{"signed", cipherbird.NewRecipe(cipherbird.ProfileHigh).WithKey(mustHex(keyHex)).
+			SignedBy(sk, cipherbird.SigEd25519).VerifiedBy(pk)},
+		{"passphrase", cipherbird.NewRecipe(cipherbird.ProfileBalanced).
 			WithPassphrase(passphrase).Argon2Cost(1, 8*1024*1024)},
-		{"fec", cryptolib.NewRecipe(cryptolib.ProfileBalanced).
-			WithKey(mustHex(keyHex)).WithFec(cryptolib.FecRepetition3)},
+		{"fec", cipherbird.NewRecipe(cipherbird.ProfileBalanced).
+			WithKey(mustHex(keyHex)).WithFec(cipherbird.FecRepetition3)},
 	}
 }
 
 func main() {
-	if err := cryptolib.Init(); err != nil {
+	if err := cipherbird.Init(); err != nil {
 		panic(err)
 	}
 	mode, dir := os.Args[1], os.Args[2]
-	kp := cryptolib.Ed25519KeygenFromSeed(mustHex(skHex))
+	kp := cipherbird.Ed25519KeygenFromSeed(mustHex(skHex))
 	pk, sk := kp.Public, kp.Secret
 	failures := 0
 

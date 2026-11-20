@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'CryptoLib · Next.js',
-  description: 'Native CryptoLib crypto from a Next.js route handler',
+  title: 'CipherBird · Next.js',
+  description: 'Native CipherBird crypto from a Next.js route handler',
 };
 
 export default function RootLayout({ children }) {

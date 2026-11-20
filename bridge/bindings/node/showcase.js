@@ -1,4 +1,4 @@
-// CryptoLib Node.js — FULL showcase of every capability family via koffi.
+// CipherBird Node.js — FULL showcase of every capability family via koffi.
 //
 // Run (see Makefile target `node-showcase`):
 //   npm install && node showcase.js <path-to-libcryptolib_c.dylib>
@@ -93,7 +93,7 @@ let pass = 0, fail = 0;
 const ck = (label, ok) => { console.log(`  ${ok ? '✓' : '✗'} ${label}`); ok ? pass++ : fail++; };
 
 if (fn.init() !== 0) throw new Error('init failed');
-console.log(`CryptoLib ${fn.version()} — Node full showcase\n`);
+console.log(`CipherBird ${fn.version()} — Node full showcase\n`);
 const abc = Buffer.from('abc'), msg = Buffer.from('secret payload');
 
 console.log('HASHING');

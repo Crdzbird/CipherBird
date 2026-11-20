@@ -161,7 +161,7 @@ jobs:
         run: |
           brew install go
           cd bridge/bindings/go && CGO_LDFLAGS="-L$GITHUB_WORKSPACE/build/bank -Wl,-rpath,$GITHUB_WORKSPACE/build/bank" \
-            go test -count=1 -tags cryptolib_bank ./cryptolib/
+            go test -count=1 -tags cipherbird_bank ./cipherbird/
 
   fips_profile:
     runs-on: macos-15
@@ -225,12 +225,12 @@ jobs:
           CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" dart test
       - name: Go binding
         working-directory: bridge/bindings/go
-        run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cryptolib/
+        run: DYLD_LIBRARY_PATH="$GITHUB_WORKSPACE/build/release" go test ./cipherbird/
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
       - name: cipherbird (Node) suite
-        working-directory: bridge/bindings/cryptolib-node
+        working-directory: bridge/bindings/cipherbird-node
         run: |
           npm ci
           CIPHERBIRD_LIBRARY="$GITHUB_WORKSPACE/build/release/libcryptolib_c.dylib" npm test

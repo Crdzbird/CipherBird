@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Live differential check: cryptolib's native Keccak-256 vs the independent
+// Live differential check: cipherbird's native Keccak-256 vs the independent
 // js-sha3 reference, across every length 0..512 plus a few string vectors.
 //
 // Keccak-256 (Ethereum, original 0x01 padding) has no in-process oracle in our

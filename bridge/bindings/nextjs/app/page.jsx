@@ -22,10 +22,10 @@ export default function Home() {
   const btn = { marginRight: 8, marginTop: 8, padding: '6px 10px' };
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 680, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1>CryptoLib · Next.js</h1>
+      <h1>CipherBird · Next.js</h1>
       <p style={{ color: '#666' }}>
         Client → <code>/api/crypto</code> (Node runtime route handler) →{' '}
-        <code>cryptolib-node</code> → native <code>libcryptolib_c</code>. Native FFI
+        <code>cipherbird-node</code> → native <code>libcryptolib_c</code>. Native FFI
         runs only on the server; the browser never loads the library.
       </p>
       <label>

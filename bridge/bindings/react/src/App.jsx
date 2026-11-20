@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { enrollPasskey, getPrfFactorHex, hasPasskey } from './webauthn.js';
 
 // The browser can't load a native .dylib, so the UI calls the Node+koffi server
-// (server.mjs), which performs the crypto using the real CryptoLib native library.
+// (server.mjs), which performs the crypto using the real CipherBird native library.
 async function api(path, body) {
   const res = await fetch('/api/' + path, {
     method: 'POST',
@@ -27,7 +27,7 @@ export default function App() {
 
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1>CryptoLib · React</h1>
+      <h1>CipherBird · React</h1>
       <p style={{ color: '#666' }}>
         React UI → <code>/api</code> → Node + koffi → native <code>libcryptolib_c</code>.
       </p>

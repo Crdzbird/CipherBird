@@ -1,4 +1,4 @@
-// CryptoLib Swift — Session: post-quantum forward-secret ratchet (hybrid KEM
+// CipherBird Swift — Session: post-quantum forward-secret ratchet (hybrid KEM
 // Double Ratchet). A live channel with forward secrecy + post-compromise
 // security, all post-quantum. Build the smoke with the Makefile target
 // `swift-session`.
@@ -75,7 +75,7 @@ final class Session {
 
 // ── smoke (compiled/run by `make swift-session`) ─────────────────────────────
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — Session ratchet (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — Session ratchet (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

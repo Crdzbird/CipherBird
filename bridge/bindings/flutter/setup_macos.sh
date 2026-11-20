@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bootstrap macOS platform support for the CryptoLib Flutter GUI app.
+# Bootstrap macOS platform support for the CipherBird Flutter GUI app.
 #
 # This script creates a temporary Flutter project, copies the macOS platform
 # files into this project, then installs dependencies.
@@ -16,7 +16,7 @@ TEMP_DIR=$(mktemp -d)
 
 echo "Creating temporary Flutter project for macOS scaffolding..."
 cd "$TEMP_DIR"
-flutter create --platforms=macos --org=com.cryptolib temp_project
+flutter create --platforms=macos --org=com.cipherbird temp_project
 
 echo "Copying macOS platform files..."
 if [ -d "$SCRIPT_DIR/macos" ]; then

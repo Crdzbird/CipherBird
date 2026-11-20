@@ -1,0 +1,274 @@
+using CipherBirdNet;
+
+// Smoke checks plus the .NET end of the cross-language interop harness.
+//   dotnet run                  # smoke + recipe checks
+//   dotnet run -- seal|open DIR # interop mode
+
+// Fixed inputs so every language derives identical keys.
+const string KeyHex = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const string SkHex = "d463cb8e5a1b8f2e6c4a90f37d215e08b9c6a4713f2085dcae6b19347c50f2a6";
+const string Passphrase = "interop passphrase";
+byte[] plaintextBytes = "cross-language recipe envelope"u8.ToArray();
+
+int pass = 0, fail = 0;
+void Ck(string label, bool ok) { Console.WriteLine($"  {(ok ? "✓" : "✗")} {label}"); if (ok) pass++; else fail++; }
+bool Throws(Action a) { try { a(); return false; } catch { return true; } }
+Recipe Cheap(Recipe r) => r.Argon2Cost(1, 8UL * 1024 * 1024);
+
+byte[] NoisePpm(int w, int h, uint seed)
+{
+    var head = System.Text.Encoding.ASCII.GetBytes($"P6\n{w} {h}\n255\n");
+    var body = new byte[w * h * 3];
+    var s = seed == 0 ? 1u : seed;
+    for (var i = 0; i < body.Length; i++)
+    {
+        s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+        body[i] = (byte)s;
+    }
+    return head.Concat(body).ToArray();
+}
+
+CipherBird.Init();
+
+List<(string Name, Recipe R)> InteropConfigs(byte[] pk, byte[] sk)
+{
+    var key = Convert.FromHexString(KeyHex);
+    return new List<(string, Recipe)>
+    {
+        ("balanced", CipherBird.NewRecipe().WithKey(key)),
+        ("maximum", CipherBird.NewRecipe(SecurityProfile.Maximum).WithKey(key)),
+        ("signed", CipherBird.NewRecipe(SecurityProfile.High).WithKey(key)
+            .SignedBy(sk, SignatureAlgorithm.Ed25519).VerifiedBy(pk)),
+        ("passphrase", Cheap(CipherBird.NewRecipe().WithPassphrase(Passphrase))),
+        ("fec", CipherBird.NewRecipe().WithKey(key).WithFec(FecScheme.Repetition3)),
+    };
+}
+
+if (args.Length >= 2 && (args[0] == "seal" || args[0] == "open"))
+{
+    var (ipk, isk) = CipherBird.Ed25519KeygenFromSeed(Convert.FromHexString(SkHex));
+    var failures = 0;
+    var cfgs = InteropConfigs(ipk, isk);
+    foreach (var (name, cfg) in cfgs)
+    {
+        var path = Path.Combine(args[1], $"{name}.bin");
+        if (args[0] == "seal") File.WriteAllBytes(path, cfg.Seal(plaintextBytes));
+        else
+        {
+            try
+            {
+                var ok = cfg.Open(File.ReadAllBytes(path)).AsSpan().SequenceEqual(plaintextBytes);
+                Console.WriteLine($"{(ok ? "  ok  " : " FAIL ")} dotnet opens {name}");
+                if (!ok) failures++;
+            }
+            catch (Exception e) { Console.WriteLine($" FAIL  dotnet opens {name}: {e.Message}"); failures++; }
+        }
+    }
+    if (args[0] == "seal") Console.WriteLine($"  dotnet sealed {cfgs.Count} envelopes");
+    Environment.Exit(failures == 0 ? 0 : 1);
+}
+
+Ck("version == 3.0.0", CipherBird.Version() == "3.0.0");
+Ck("SHA-256(\"abc\") KAT",
+   Convert.ToHexString(CipherBird.Sha256("abc"u8.ToArray())).ToLowerInvariant() ==
+   "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+
+var (kemPub, kemSec) = CipherBird.HybridKemKeygen();
+var (kemCt, kemSs) = CipherBird.HybridKemEncapsulate(kemPub);
+Ck("Hybrid X25519+ML-KEM-768 round-trip",
+   kemSs.AsSpan().SequenceEqual(CipherBird.HybridKemDecapsulate(kemCt, kemSec)) && kemSs.Length == 32);
+
+// ── Security profiles + recipes ──────────────────────────────────────────────
+var tmp = Directory.CreateTempSubdirectory("cl_sec_net_");
+var secret = "the treaty text nobody may read"u8.ToArray();
+
+const SecurityProfile Mx = SecurityProfile.Maximum;
+Ck("maximum picks the strongest options",
+   Mx.MlKemLevel() == 2 && Mx.MlDsaLevel() == 2 && Mx.SlhDsaHash() == 1
+   && Mx.SealedTier() == 1 && Mx.KdfPreset() == 1);
+Ck("maximum cascade ends key-committing",
+   Mx.Cascade().Length == 3 && Mx.Cascade()[^1].Id == 3);
+Ck("profiles are ordered", SecurityProfile.Balanced.Argon2Memory() < Mx.Argon2Memory());
+
+var key = CipherBird.RandomBytes(32);
+var r = CipherBird.NewRecipe(SecurityProfile.High).WithKey(key);
+Ck("raw key round-trip", r.Open(r.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var pr = Cheap(CipherBird.MaximumSecurity().WithPassphrase("correct horse battery staple"));
+Ck("maximum + passphrase round-trip", pr.Open(pr.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var keyFile = Path.Combine(tmp.FullName, "key.ppm");
+File.WriteAllBytes(keyFile, NoisePpm(96, 96, 0x5EED));
+var byFile = CipherBird.NewRecipe().WithKeyFile(keyFile).Seal(secret);
+Ck("key file reproducible across recipe objects",
+   CipherBird.NewRecipe().WithKeyFile(keyFile).Open(byFile).AsSpan().SequenceEqual(secret));
+
+var mol = CipherBird.NewRecipe().WithKey(key).WithLayers(new[] { ProtectionLayer.Molecular });
+Ck("MolecularVault as one layer", mol.Open(mol.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var one = CipherBird.NewRecipe().WithKey(key)
+    .WithLayers(new[] { ProtectionLayer.XChaCha20Poly1305 }).Seal(secret);
+var three = CipherBird.NewRecipe().WithKey(key)
+    .WithLayers(new[] { ProtectionLayer.XChaCha20Poly1305, ProtectionLayer.Aes256Gcm })
+    .AddLayer(ProtectionLayer.Committing).Seal(secret);
+Ck("each layer adds overhead", three.Length > one.Length);
+
+var (idPub, idSec) = CipherBird.Ed25519Keygen();
+var signed = CipherBird.NewRecipe(SecurityProfile.High).WithKey(key).SignedBy(idSec).VerifiedBy(idPub);
+var senv = signed.Seal(secret);
+Ck("signed round-trip", signed.Open(senv).AsSpan().SequenceEqual(secret));
+
+var (hPub, hSec) = CipherBird.HybridSigKeygen();
+var hy = CipherBird.NewRecipe().WithKey(key).SignedBy(hSec, SignatureAlgorithm.Hybrid).VerifiedBy(hPub);
+Ck("hybrid PQ signed round-trip", hy.Open(hy.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var (impPub, _) = CipherBird.Ed25519Keygen();
+Ck("wrong signer rejected",
+   Throws(() => CipherBird.NewRecipe(SecurityProfile.High).WithKey(key).VerifiedBy(impPub).Open(senv)));
+Ck("signed envelope refuses to open unverified",
+   Throws(() => CipherBird.NewRecipe(SecurityProfile.High).WithKey(key).Open(senv)));
+
+var fr = CipherBird.NewRecipe().WithKey(key).WithFec(FecScheme.Repetition3);
+var fenv = fr.Seal(secret);
+fenv[fenv.Length / 2] ^= 1;
+Ck("FEC corrects a flipped bit", fr.Open(fenv).AsSpan().SequenceEqual(secret));
+
+var cover = Path.Combine(tmp.FullName, "cover.ppm");
+var carrier = Path.Combine(tmp.FullName, "carrier.ppm");
+File.WriteAllBytes(cover, NoisePpm(256, 256, 0x0FF1CE));
+var cr = Cheap(CipherBird.MaximumSecurity().WithPassphrase("a long passphrase here"));
+cr.SealIntoCarrier(secret, cover, carrier);
+Ck("pipeline hides itself in a carrier", cr.OpenFromCarrier(carrier).AsSpan().SequenceEqual(secret));
+
+var tenv = r.Seal(secret); tenv[^1] ^= 1;
+Ck("flipped ciphertext byte rejected", Throws(() => r.Open(tenv)));
+var henv = r.Seal(secret); henv[7] = 1;
+Ck("tampered header rejected (descriptor is AAD)", Throws(() => r.Open(henv)));
+var senv2 = r.Seal(secret); senv2[10] ^= 0xFF;
+Ck("tampered salt rejected", Throws(() => r.Open(senv2)));
+Ck("wrong key rejected",
+   Throws(() => CipherBird.NewRecipe(SecurityProfile.High).WithKey(CipherBird.RandomBytes(32)).Open(r.Seal(secret))));
+Ck("foreign bytes rejected", Throws(() => r.Open("not an envelope at all"u8.ToArray())));
+Ck("short key refused", Throws(() => CipherBird.NewRecipe().WithKey(new byte[31])));
+Ck("empty layer list refused", Throws(() => CipherBird.NewRecipe().WithLayers(Array.Empty<ProtectionLayer>())));
+
+// Extension points
+Ck("built-in ids pinned",
+   ProtectionLayer.XChaCha20Poly1305.Id == 1 && ProtectionLayer.Aes256Gcm.Id == 2
+   && ProtectionLayer.Committing.Id == 3 && ProtectionLayer.Molecular.Id == 4
+   && new PassphraseKeySource("x").Id == 1 && new Ed25519Signature().Id == 1 && new HybridSignature().Id == 2);
+
+ProtectionLayer.Register(new MyLayer());
+var cenv = CipherBird.NewRecipe().WithKey(key).WithLayers(new[] { new MyLayer() }).Seal(secret);
+Ck("custom layer round-trips via the registry", CipherBird.NewRecipe().WithKey(key).Open(cenv).AsSpan().SequenceEqual(secret));
+
+ProtectionLayer.Register(new BeltAndBraces());
+var br = CipherBird.NewRecipe().WithKey(key).WithLayers(new[] { new BeltAndBraces() });
+var benv = br.Seal(secret);
+Ck("cascade subclass mixes three ciphers as one layer", CipherBird.NewRecipe().WithKey(key).Open(benv).AsSpan().SequenceEqual(secret));
+var bbad = (byte[])benv.Clone(); bbad[^1] ^= 1;
+Ck("cascade fails closed on tamper", Throws(() => br.Open(bbad)));
+
+var nested = new CascadeLayer(202, "nested", new ProtectionLayer[] { new BeltAndBraces(), ProtectionLayer.Committing });
+ProtectionLayer.Register(nested);
+var nenv = CipherBird.NewRecipe().WithKey(key).WithLayers(new[] { ProtectionLayer.XChaCha20Poly1305, nested }).Seal(secret);
+Ck("cascades nest, mixed with built-ins", CipherBird.NewRecipe().WithKey(key).Open(nenv).AsSpan().SequenceEqual(secret));
+
+Ck("reserved layer id refused at register", Throws(() => ProtectionLayer.Register(new Impostor())));
+Ck("reserved layer id refused at AddLayer", Throws(() => CipherBird.NewRecipe().WithKey(key).AddLayer(new Impostor())));
+Ck("reserved scheme id refused", Throws(() => CipherBird.NewRecipe().WithKey(key).SignedWith(new FakeEd25519())));
+ProtectionLayer.Register(new MyLayer());
+Ck("re-registering an id under another WireName refused",
+   Throws(() => ProtectionLayer.Register(new CascadeLayer(200, "other", new[] { ProtectionLayer.XChaCha20Poly1305 }))));
+
+var e1 = CipherBird.NewRecipe().WithKey(key).WithLayers(new[] { new MyLayer() }).Seal(secret);
+var e2 = CipherBird.NewRecipe().WithKey(key)
+    .WithLayers(new[] { new CascadeLayer(203, "renamed", new[] { ProtectionLayer.XChaCha20Poly1305 }) }).Seal(secret);
+Ck("WireName feeds the key derivation", e1.Length == e2.Length && !e1.AsSpan().SequenceEqual(e2));
+
+var token = CipherBird.RandomBytes(32);
+var tenv2 = CipherBird.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(token)).Seal(secret);
+Ck("custom key source round-trips",
+   CipherBird.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(token)).Open(tenv2).AsSpan().SequenceEqual(secret));
+Ck("wrong token rejected",
+   Throws(() => CipherBird.NewRecipe(SecurityProfile.High).WithKeySource(new TokenSource(CipherBird.RandomBytes(32))).Open(tenv2)));
+Ck("header pins the source id", Throws(() => CipherBird.NewRecipe(SecurityProfile.High).WithKey(key).Open(tenv2)));
+Ck("narrowing key source refused", Throws(() => CipherBird.NewRecipe().WithKeySource(new WeakSource()).Seal(secret)));
+
+var (sPub, sSec) = CipherBird.Ed25519Keygen();
+var senv3 = CipherBird.NewRecipe().WithKey(key).SignedWith(new PrefixedEd25519(sk: sSec)).Seal(secret);
+Ck("custom signature scheme round-trips",
+   CipherBird.NewRecipe().WithKey(key).VerifiedWith(new PrefixedEd25519(pk: sPub)).Open(senv3).AsSpan().SequenceEqual(secret));
+Ck("key-only verifier cannot serve a custom scheme", Throws(() => CipherBird.NewRecipe().WithKey(key).VerifiedBy(sPub).Open(senv3)));
+Ck("unverified custom-signed envelope refused", Throws(() => CipherBird.NewRecipe().WithKey(key).Open(senv3)));
+Ck("verifier with the wrong scheme id refused",
+   Throws(() => CipherBird.NewRecipe().WithKey(key).VerifiedWith(new Ed25519Signature(publicKey: sPub)).Open(senv3)));
+
+var hr = CipherBird.NewRecipe().WithKey(key).SignedBy(hSec, SignatureAlgorithm.Hybrid).VerifiedBy(hPub);
+Ck("built-in shorthand with key-only verifier", hr.Open(hr.Seal(secret)).AsSpan().SequenceEqual(secret));
+
+var d = CipherBird.NewRecipe().WithKeySource(new TokenSource(token)).WithLayers(new[] { new BeltAndBraces() }).Describe();
+Ck("describe names custom parts", d.Contains("token") && d.Contains("belt-and-braces"));
+
+tmp.Delete(true);
+Console.WriteLine($"\ncipherbird .NET: {(fail == 0 ? "OK" : "FAILED")} ({pass} passed, {fail} failed)");
+Environment.Exit(fail == 0 ? 0 : 1);
+
+// ── custom parts used by the extension-point checks ─────────────────────────
+
+sealed class MyLayer : ProtectionLayer
+{
+    public override int Id => 200;
+    public override string WireName => "my-xchacha";
+    public override byte[] Seal(byte[] key, byte[] aad, byte[] pt) => CipherBird.XChaCha20Encrypt(pt, key, aad);
+    public override byte[] Open(byte[] key, byte[] aad, byte[] ct) => CipherBird.XChaCha20Decrypt(ct, key, aad);
+}
+
+sealed class BeltAndBraces : CascadeLayer
+{
+    public BeltAndBraces() : base(201, "belt-and-braces",
+        new ProtectionLayer[] { ProtectionLayer.XChaCha20Poly1305, ProtectionLayer.Aes256Gcm, new MyLayer() }) { }
+}
+
+sealed class Impostor : ProtectionLayer
+{
+    public override int Id => 3;
+    public override string WireName => "committing";
+    public override byte[] Seal(byte[] key, byte[] aad, byte[] pt) => pt;
+    public override byte[] Open(byte[] key, byte[] aad, byte[] ct) => ct;
+}
+
+sealed class TokenSource : KeySource
+{
+    private readonly byte[] _token;
+    public TokenSource(byte[] token) => _token = token;
+    public override int Id => 210;
+    public override string Label => "token";
+    public override byte[] DeriveRoot(byte[] salt, ulong ops, ulong mem) => _token;
+}
+
+sealed class WeakSource : KeySource
+{
+    public override int Id => 211;
+    public override string Label => "weak";
+    public override byte[] DeriveRoot(byte[] salt, ulong ops, ulong mem) => new byte[16];
+}
+
+sealed class PrefixedEd25519 : SignatureScheme
+{
+    private readonly byte[]? _sk, _pk;
+    public PrefixedEd25519(byte[]? sk = null, byte[]? pk = null) { _sk = sk; _pk = pk; }
+    public override int Id => 220;
+    public override string Label => "prefixed-ed25519";
+    private static byte[] Tag(byte[] m) { var t = new byte[7 + m.Length]; "custom:"u8.CopyTo(t); m.CopyTo(t, 7); return t; }
+    public override byte[] Sign(byte[] m) => CipherBird.Ed25519Sign(Tag(m), _sk!);
+    public override bool Verify(byte[] m, byte[] sig) => CipherBird.Ed25519Verify(Tag(m), sig, _pk!);
+}
+
+sealed class FakeEd25519 : SignatureScheme
+{
+    public override int Id => 1;
+    public override string Label => "fake";
+    public override byte[] Sign(byte[] m) => new byte[64];
+    public override bool Verify(byte[] m, byte[] sig) => true;
+}

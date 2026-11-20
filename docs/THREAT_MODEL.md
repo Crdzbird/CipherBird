@@ -1,10 +1,10 @@
-# CryptoLib — Threat Model
+# CipherBird — Threat Model
 
-Status: living document. Covers what CryptoLib defends against, what it does not,
+Status: living document. Covers what CipherBird defends against, what it does not,
 and the security arguments for its **original** constructions (the parts not
 inherited from vetted upstreams).
 
-## 1. What CryptoLib is
+## 1. What CipherBird is
 
 A C++20 library that **wraps vetted primitives** — libsodium (XChaCha20-Poly1305,
 AES-256-GCM, Ed25519, X25519, BLAKE2b, Argon2id, HKDF, HMAC), liboqs (ML-KEM,

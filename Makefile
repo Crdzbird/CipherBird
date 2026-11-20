@@ -1,5 +1,5 @@
 # ════════════════════════════════════════════════════════════════════════════
-# CryptoLib — bindings & demos orchestrator
+# CipherBird — bindings & demos orchestrator
 #
 #   make                 # this help
 #   make lib             # build the C shared library (build/release)
@@ -11,7 +11,7 @@
 #   make showcases       # full per-language showcases (every capability family)
 #   make <lang>-showcase # one language's full showcase (e.g. go-showcase)
 #   make android         # cross-compile the native .so (arm64-v8a + x86_64)
-#   make ios             # (re)assemble CryptoLib.xcframework
+#   make ios             # (re)assemble CipherBird.xcframework
 #   make test            # build + run the C++ test suite
 #   make asan            # build + run tests under AddressSanitizer/UBSan
 #   make all             # lib + demos
@@ -83,14 +83,14 @@ go-recipes: lib
 node-recipes: lib
 	$(call hdr,Node recipes)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node recipes.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node recipes.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: node-suite
 node-suite: lib
 	$(call hdr,Node Suite (advanced combinations))
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node suite.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 # Refresh every binding's BUNDLED native library from one self-contained build,
@@ -110,7 +110,7 @@ sealed: node-sealed go-sealed dart-sealed swift-sealed
 node-sealed: lib
 	$(call hdr,Node Flagship/Fortress sealed messaging)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node sealed.js | tail -2; \
+		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node sealed.js | tail -2; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: go-sealed
@@ -204,7 +204,7 @@ swift-bbs-pseudonym: lib
 node-security: lib
 	$(call hdr,Node security profiles + recipes)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3 && \
+		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/security.js | tail -3 && \
 		CRYPTOLIB_DYLIB=$(DYLIB) node test/extensibility.js | tail -1; \
 	else echo "node not found — skipping"; fi
 
@@ -212,14 +212,14 @@ node-security: lib
 node-test: lib
 	$(call hdr,Node full suite (npm test))
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CIPHERBIRD_LIBRARY=$(DYLIB) npm test | tail -3; \
+		cd bridge/bindings/cipherbird-node && CIPHERBIRD_LIBRARY=$(DYLIB) npm test | tail -3; \
 	else echo "node not found, skipping"; fi
 
 .PHONY: node-noise
 node-noise: lib
 	$(call hdr,Node incremental BLAKE3 + Noise XX)
 	@if command -v node >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/noise.js | tail -3; \
+		cd bridge/bindings/cipherbird-node && CRYPTOLIB_DYLIB=$(DYLIB) node test/noise.js | tail -3; \
 	else echo "node not found — skipping"; fi
 
 .PHONY: dart-security
@@ -244,45 +244,45 @@ dart-noise: lib
 java-security: lib
 	$(call hdr,Java security profiles + recipes)
 	@if command -v javac >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-jvm && javac -d out src/cryptolib/*.java && \
+		cd bridge/bindings/cipherbird-jvm && javac -d out src/cipherbird/*.java && \
 		mkdir -p out/native && cp -R native/* out/native/ 2>/dev/null; \
-		java --enable-native-access=ALL-UNNAMED -cp out cryptolib.RecipeVerify | tail -3; \
+		java --enable-native-access=ALL-UNNAMED -cp out cipherbird.RecipeVerify | tail -3; \
 	else echo "javac not found — skipping"; fi
 
 .PHONY: kotlin-security
 kotlin-security: java-security
 	$(call hdr,Kotlin security profiles + recipes)
 	@if command -v kotlinc >/dev/null 2>&1; then \
-		cd bridge/bindings/kotlin && kotlinc RecipeDemo.kt -cp ../cryptolib-jvm/out -include-runtime -d recipe.jar 2>/dev/null && \
-		java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cryptolib-jvm/out RecipeDemoKt | tail -3; \
+		cd bridge/bindings/kotlin && kotlinc RecipeDemo.kt -cp ../cipherbird-jvm/out -include-runtime -d recipe.jar 2>/dev/null && \
+		java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cipherbird-jvm/out RecipeDemoKt | tail -3; \
 	else echo "kotlinc not found — skipping"; fi
 
 .PHONY: python-security
 python-security: lib
 	$(call hdr,Python security profiles + recipes)
 	@if command -v python3 >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-python && CRYPTOLIB_DYLIB=$(DYLIB) python3 tests/test_recipe.py | tail -3; \
+		cd bridge/bindings/cipherbird-python && CRYPTOLIB_DYLIB=$(DYLIB) python3 tests/test_recipe.py | tail -3; \
 	else echo "python3 not found — skipping"; fi
 
 .PHONY: ruby-security
 ruby-security: lib
 	$(call hdr,Ruby security profiles + recipes)
 	@if command -v ruby >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-ruby && CRYPTOLIB_DYLIB=$(DYLIB) ruby -Ilib test/recipe.rb | tail -3; \
+		cd bridge/bindings/cipherbird-ruby && CRYPTOLIB_DYLIB=$(DYLIB) ruby -Ilib test/recipe.rb | tail -3; \
 	else echo "ruby not found — skipping"; fi
 
 .PHONY: rust-security
 rust-security: lib
 	$(call hdr,Rust security profiles + recipes)
 	@if command -v cargo >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-rust && DYLD_LIBRARY_PATH=$(LIBDIR) cargo run --quiet --example recipe | tail -3; \
+		cd bridge/bindings/cipherbird-rust && DYLD_LIBRARY_PATH=$(LIBDIR) cargo run --quiet --example recipe | tail -3; \
 	else echo "cargo not found — skipping"; fi
 
 .PHONY: dotnet-security
 dotnet-security: lib
 	$(call hdr,.NET security profiles + recipes)
 	@if command -v dotnet >/dev/null 2>&1; then \
-		cd bridge/bindings/cryptolib-dotnet && dotnet run -v q | tail -3; \
+		cd bridge/bindings/cipherbird-dotnet && dotnet run -v q | tail -3; \
 	else echo "dotnet not found — skipping"; fi
 
 # Every binding seals a fixed set of recipe configurations; every OTHER binding
@@ -291,7 +291,7 @@ dotnet-security: lib
 .PHONY: recipe-interop
 recipe-interop: lib swift-security java-security
 	$(call hdr,CryptoRecipe cross-language interop)
-	@cd bridge/bindings/cryptolib-dotnet && dotnet build -v q --nologo >/dev/null 2>&1 || true
+	@cd bridge/bindings/cipherbird-dotnet && dotnet build -v q --nologo >/dev/null 2>&1 || true
 	@bash scripts/verify_recipe_interop.sh
 
 .PHONY: stream-interop
@@ -390,7 +390,7 @@ static-archive:
 go-static: static-archive
 	$(call hdr,Go demo (fully static, no runtime library))
 	@if command -v go >/dev/null 2>&1; then \
-		cd bridge/bindings/go && go run -tags cryptolib_static ./example | tail -3; \
+		cd bridge/bindings/go && go run -tags cipherbird_static ./example | tail -3; \
 	else echo "go not found — skipping"; fi
 
 # ── Swift (console) ──────────────────────────────────────────────────────────
@@ -408,8 +408,8 @@ swift: lib
 java: lib
 	$(call hdr,Java demo)
 	@if command -v javac >/dev/null 2>&1; then \
-		cd bridge/bindings/java && javac CryptoLibDemo.java && \
-		java --enable-native-access=ALL-UNNAMED CryptoLibDemo $(DYLIB); \
+		cd bridge/bindings/java && javac CipherBirdDemo.java && \
+		java --enable-native-access=ALL-UNNAMED CipherBirdDemo $(DYLIB); \
 	else echo "javac not found — skipping"; fi
 
 # ── Swift device-factor provider (Keychain → keyring device slot) ───────────
@@ -427,7 +427,7 @@ swift-keyring: lib
 kotlin: lib
 	$(call hdr,Kotlin demo)
 	@if command -v kotlinc >/dev/null 2>&1; then \
-		cd bridge/bindings/kotlin && kotlinc CryptoLibDemo.kt -include-runtime -d demo.jar && \
+		cd bridge/bindings/kotlin && kotlinc CipherBirdDemo.kt -include-runtime -d demo.jar && \
 		java --enable-native-access=ALL-UNNAMED -jar demo.jar $(DYLIB); \
 	else echo "kotlinc not found — skipping (install Kotlin 2.x)"; fi
 

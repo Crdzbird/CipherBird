@@ -1,4 +1,4 @@
-// CryptoLib Swift — security profiles and composable recipes.
+// CipherBird Swift — security profiles and composable recipes.
 //
 // SecurityProfile sets every algorithm parameter consistently, so "use the
 // strongest thing available" is one word rather than a dozen constants.
@@ -14,7 +14,7 @@
 // and everything fails closed.
 //
 // The envelope is a library-native format, and is identical across every
-// CryptoLib binding: an envelope sealed here opens in Dart, Go or Node.
+// CipherBird binding: an envelope sealed here opens in Dart, Go or Node.
 //
 // Build/run the smoke with the Makefile target `swift-security`.
 import Foundation
@@ -114,21 +114,21 @@ enum SecurityProfile: String {
 // bytes; ids 0–127 are reserved — custom parts must use 128–255, enforced so a
 // custom part can never shadow a built-in.
 //
-// Cross-language: built-in ids open in every CryptoLib binding. A custom part
+// Cross-language: built-in ids open in every CipherBird binding. A custom part
 // opens only where the same id + wireName + algorithm is registered — and since
 // wireName feeds the key derivation, a mismatched implementation fails the AEAD
 // tag rather than yielding garbage.
 
 /// File-private marker: only types in this file can adopt it, so a custom
 /// part cannot claim a reserved id by pretending to be built in.
-fileprivate protocol CryptoLibBuiltin {}
+fileprivate protocol CipherBirdBuiltin {}
 
 private let customIdRange: ClosedRange<UInt8> = 128...255
 
 private func requireValidId(_ part: Any, _ id: UInt8, _ what: String) throws {
-    if part is CryptoLibBuiltin { return }
+    if part is CipherBirdBuiltin { return }
     guard customIdRange.contains(id) else {
-        throw RecipeError.failed("cryptolib: custom \(what) ids must be in 128..255 (0–127 are reserved), got \(id)")
+        throw RecipeError.failed("cipherbird: custom \(what) ids must be in 128..255 (0–127 are reserved), got \(id)")
     }
 }
 
@@ -153,28 +153,28 @@ private func aead(_ data: [UInt8], _ key: [UInt8], _ aad: [UInt8],
 }
 
 /// XChaCha20-Poly1305 — large nonce, no timing-sensitive tables.
-struct XChaCha20Layer: ProtectionLayer, CryptoLibBuiltin {
+struct XChaCha20Layer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 1 }
     var wireName: String { "xchacha20Poly1305" }
     func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_xchacha20_encrypt) }
     func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_xchacha20_decrypt) }
 }
 /// AES-256-GCM — a different cipher family from ChaCha.
-struct Aes256GcmLayer: ProtectionLayer, CryptoLibBuiltin {
+struct Aes256GcmLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 2 }
     var wireName: String { "aes256Gcm" }
     func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_aes256gcm_encrypt) }
     func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_aes256gcm_decrypt) }
 }
 /// Key-committing AEAD (UtC) — binds the ciphertext to exactly one key.
-struct CommittingLayer: ProtectionLayer, CryptoLibBuiltin {
+struct CommittingLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 3 }
     var wireName: String { "committing" }
     func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_committing_encrypt) }
     func open(key: [UInt8], aad: [UInt8], ciphertext: [UInt8]) throws -> [UInt8] { try aead(ciphertext, key, aad, cryptolib_committing_decrypt) }
 }
 /// A full MolecularVault nested as one layer.
-struct MolecularLayer: ProtectionLayer, CryptoLibBuiltin {
+struct MolecularLayer: ProtectionLayer, CipherBirdBuiltin {
     var id: UInt8 { 4 }
     var wireName: String { "molecular" }
     func seal(key: [UInt8], aad: [UInt8], plaintext: [UInt8]) throws -> [UInt8] { try aead(plaintext, key, aad, cryptolib_molecular_seal_with_key) }
@@ -204,7 +204,7 @@ class CascadeLayer: ProtectionLayer {
     let layers: [any ProtectionLayer]
 
     init(id: UInt8, wireName: String, layers: [any ProtectionLayer]) {
-        precondition(!layers.isEmpty, "cryptolib: CascadeLayer \(wireName) has no layers")
+        precondition(!layers.isEmpty, "cipherbird: CascadeLayer \(wireName) has no layers")
         self.id = id; self.wireName = wireName; self.layers = layers
     }
 
@@ -236,10 +236,10 @@ protocol KeySource {
 }
 
 /// A 32-byte full-entropy key used as-is.
-struct RawKeySource: KeySource, CryptoLibBuiltin {
+struct RawKeySource: KeySource, CipherBirdBuiltin {
     let key: [UInt8]
     init(_ key: [UInt8]) throws {
-        guard key.count == 32 else { throw RecipeError.failed("cryptolib: root key must be exactly 32 bytes, got \(key.count)") }
+        guard key.count == 32 else { throw RecipeError.failed("cipherbird: root key must be exactly 32 bytes, got \(key.count)") }
         self.key = key
     }
     var id: UInt8 { 0 }
@@ -247,7 +247,7 @@ struct RawKeySource: KeySource, CryptoLibBuiltin {
     func deriveRoot(salt: [UInt8], argon2Ops: UInt64, argon2Memory: Int) throws -> [UInt8] { key }
 }
 /// A passphrase stretched with Argon2id.
-struct PassphraseKeySource: KeySource, CryptoLibBuiltin {
+struct PassphraseKeySource: KeySource, CipherBirdBuiltin {
     let passphrase: String
     init(_ passphrase: String) { self.passphrase = passphrase }
     var id: UInt8 { 1 }
@@ -261,7 +261,7 @@ struct PassphraseKeySource: KeySource, CryptoLibBuiltin {
 /// The key derived deterministically from a media file. Uses the reproducible
 /// entropy path; `key_from_file` mixes in fresh system entropy and so could
 /// never reopen its own envelope.
-struct KeyFileSource: KeySource, CryptoLibBuiltin {
+struct KeyFileSource: KeySource, CipherBirdBuiltin {
     let path: String
     init(_ path: String) { self.path = path }
     var id: UInt8 { 2 }
@@ -270,7 +270,7 @@ struct KeyFileSource: KeySource, CryptoLibBuiltin {
         var err: UnsafeMutablePointer<CChar>?
         let h = cryptolib_entropy_from_file_deterministic(path, &err)
         if let e = err { let m = String(cString: e); cryptolib_str_free(e); throw RecipeError.failed(m) }
-        guard let handle = h else { throw RecipeError.failed("cryptolib: entropy handle allocation failed") }
+        guard let handle = h else { throw RecipeError.failed("cipherbird: entropy handle allocation failed") }
         defer { cryptolib_entropy_free(handle) }
         return try rcConsume(cryptolib_entropy_symmetric_key(handle))
     }
@@ -288,13 +288,13 @@ protocol SignatureScheme {
 }
 
 /// Ed25519: pass `secretKey` to sign, `publicKey` to verify, or both.
-struct Ed25519Signature: SignatureScheme, CryptoLibBuiltin {
+struct Ed25519Signature: SignatureScheme, CipherBirdBuiltin {
     var secretKey: [UInt8] = []
     var publicKey: [UInt8] = []
     var id: UInt8 { 1 }
     var label: String { "ed25519" }
     func sign(_ m: [UInt8]) throws -> [UInt8] {
-        guard !secretKey.isEmpty else { throw RecipeError.failed("cryptolib: Ed25519Signature has no secret key") }
+        guard !secretKey.isEmpty else { throw RecipeError.failed("cipherbird: Ed25519Signature has no secret key") }
         return try withBufs([m, secretKey]) { p in try rcConsume(cryptolib_ed25519_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func verify(_ m: [UInt8], signature: [UInt8]) -> Bool {
@@ -304,13 +304,13 @@ struct Ed25519Signature: SignatureScheme, CryptoLibBuiltin {
     }
 }
 /// Ed25519 + ML-DSA-65: a forgery needs breaking both families.
-struct HybridSignature: SignatureScheme, CryptoLibBuiltin {
+struct HybridSignature: SignatureScheme, CipherBirdBuiltin {
     var secretKey: [UInt8] = []
     var publicKey: [UInt8] = []
     var id: UInt8 { 2 }
     var label: String { "hybrid" }
     func sign(_ m: [UInt8]) throws -> [UInt8] {
-        guard !secretKey.isEmpty else { throw RecipeError.failed("cryptolib: HybridSignature has no secret key") }
+        guard !secretKey.isEmpty else { throw RecipeError.failed("cipherbird: HybridSignature has no secret key") }
         return try withBufs([m, secretKey]) { p in try rcConsume(cryptolib_hybrid_sig_sign(p[0].0, p[0].1, p[1].0, p[1].1)) }
     }
     func verify(_ m: [UInt8], signature: [UInt8]) -> Bool {
@@ -357,14 +357,14 @@ final class Recipe {
     static func register(layer: any ProtectionLayer) throws {
         try requireValidId(layer, layer.id, "layer")
         if let existing = layerRegistry[layer.id], existing.wireName != layer.wireName {
-            throw RecipeError.failed("cryptolib: layer id \(layer.id) is already registered as \(existing.wireName)")
+            throw RecipeError.failed("cipherbird: layer id \(layer.id) is already registered as \(existing.wireName)")
         }
         layerRegistry[layer.id] = layer
     }
 
     private static func resolveLayer(_ id: UInt8) throws -> any ProtectionLayer {
         guard let l = layerRegistry[id] else {
-            throw RecipeError.failed("cryptolib: unknown protection layer id \(id) — Recipe.register(layer:) it before opening")
+            throw RecipeError.failed("cipherbird: unknown protection layer id \(id) — Recipe.register(layer:) it before opening")
         }
         return l
     }
@@ -406,7 +406,7 @@ final class Recipe {
 
     /// Replace the cascade with exactly these layers, innermost first.
     @discardableResult func withLayers(_ l: [any ProtectionLayer]) throws -> Recipe {
-        guard !l.isEmpty else { throw RecipeError.failed("cryptolib: a recipe needs at least one layer") }
+        guard !l.isEmpty else { throw RecipeError.failed("cipherbird: a recipe needs at least one layer") }
         for x in l { try requireValidId(x, x.id, "layer") }
         layers = l; return self
     }
@@ -438,7 +438,7 @@ final class Recipe {
         switch algorithm {
         case .ed25519: return try signedWith(Ed25519Signature(secretKey: secretKey))
         case .hybrid: return try signedWith(HybridSignature(secretKey: secretKey))
-        case .none: throw RecipeError.failed("cryptolib: signedBy needs a real algorithm")
+        case .none: throw RecipeError.failed("cipherbird: signedBy needs a real algorithm")
         }
     }
 
@@ -493,16 +493,16 @@ final class Recipe {
         let (sig, plaintext) = try Recipe.splitLengthed(body)
         guard let v = verifier ?? builtinVerifier(h.signatureId) else {
             if verifierKey != nil {
-                throw RecipeError.failed("cryptolib: envelope was signed with scheme id \(h.signatureId), which is not a built-in — "
+                throw RecipeError.failed("cipherbird: envelope was signed with scheme id \(h.signatureId), which is not a built-in — "
                                        + "supply that SignatureScheme with verifiedWith")
             }
-            throw RecipeError.failed("cryptolib: envelope is signed but no verifier was supplied — "
+            throw RecipeError.failed("cipherbird: envelope is signed but no verifier was supplied — "
                                    + "call verifiedBy/verifiedWith so the signature is actually checked")
         }
         guard v.id == h.signatureId else {
-            throw RecipeError.failed("cryptolib: envelope was signed with scheme id \(h.signatureId), but the verifier is \(v.label) (id \(v.id))")
+            throw RecipeError.failed("cipherbird: envelope was signed with scheme id \(h.signatureId), but the verifier is \(v.label) (id \(v.id))")
         }
-        guard v.verify(plaintext, signature: sig) else { throw RecipeError.failed("cryptolib: signature verification failed") }
+        guard v.verify(plaintext, signature: sig) else { throw RecipeError.failed("cipherbird: signature verification failed") }
         return plaintext
     }
 
@@ -522,7 +522,7 @@ final class Recipe {
     // ── internals ────────────────────────────────────────────────────────────
 
     private func requireSource() throws -> any KeySource {
-        guard let s = source else { throw RecipeError.failed("cryptolib: no key set — call withKey/withPassphrase/withKeyFile/withKeySource") }
+        guard let s = source else { throw RecipeError.failed("cipherbird: no key set — call withKey/withPassphrase/withKeyFile/withKeySource") }
         return s
     }
 
@@ -538,7 +538,7 @@ final class Recipe {
     private func rootKey(_ src: any KeySource, salt: [UInt8], ops: UInt64, mem: Int) throws -> [UInt8] {
         let root = try src.deriveRoot(salt: salt, argon2Ops: ops, argon2Memory: mem)
         guard root.count == 32 else {
-            throw RecipeError.failed("cryptolib: key source \(src.label) produced \(root.count) bytes; the root key must be exactly 32")
+            throw RecipeError.failed("cipherbird: key source \(src.label) produced \(root.count) bytes; the root key must be exactly 32")
         }
         return root
     }
@@ -578,16 +578,16 @@ final class Recipe {
     }
 
     private func parseHeader(_ env: [UInt8], source: any KeySource) throws -> ParsedHeader {
-        guard env.count >= 8 + Recipe.saltLen + 8 else { throw RecipeError.failed("cryptolib: envelope too short") }
-        guard Array(env[0..<4]) == Recipe.magic else { throw RecipeError.failed("cryptolib: not a CryptoRecipe envelope") }
-        guard env[4] == Recipe.version else { throw RecipeError.failed("cryptolib: unsupported envelope version \(env[4])") }
+        guard env.count >= 8 + Recipe.saltLen + 8 else { throw RecipeError.failed("cipherbird: envelope too short") }
+        guard Array(env[0..<4]) == Recipe.magic else { throw RecipeError.failed("cipherbird: not a CryptoRecipe envelope") }
+        guard env[4] == Recipe.version else { throw RecipeError.failed("cipherbird: unsupported envelope version \(env[4])") }
         guard env[5] == source.id else {
-            throw RecipeError.failed("cryptolib: envelope was sealed with key source id \(env[5]), "
+            throw RecipeError.failed("cipherbird: envelope was sealed with key source id \(env[5]), "
                                    + "but this recipe is configured for \(source.label) (id \(source.id))")
         }
         let count = Int(env[7])
         let headerLen = 8 + count + Recipe.saltLen + 8
-        guard env.count >= headerLen else { throw RecipeError.failed("cryptolib: truncated envelope header") }
+        guard env.count >= headerLen else { throw RecipeError.failed("cipherbird: truncated envelope header") }
         var ls: [any ProtectionLayer] = []
         for i in 0..<count { ls.append(try Recipe.resolveLayer(env[8 + i])) }
         let salt = Array(env[(8 + count)..<(8 + count + Recipe.saltLen)])
@@ -626,9 +626,9 @@ final class Recipe {
     }
 
     private static func splitLengthed(_ data: [UInt8]) throws -> ([UInt8], [UInt8]) {
-        guard data.count >= 4 else { throw RecipeError.failed("cryptolib: malformed signed payload") }
+        guard data.count >= 4 else { throw RecipeError.failed("cipherbird: malformed signed payload") }
         let n = Int(readBe32(data, 0))
-        guard data.count >= 4 + n else { throw RecipeError.failed("cryptolib: malformed signed payload") }
+        guard data.count >= 4 + n else { throw RecipeError.failed("cipherbird: malformed signed payload") }
         return (Array(data[4..<(4 + n)]), Array(data[(4 + n)...]))
     }
 }
@@ -706,7 +706,7 @@ if argv.count >= 3, argv[1] == "seal" || argv[1] == "open" {
     exit(interopFailures == 0 ? 0 : 1)
 }
 
-print("CryptoLib \(String(cString: cryptolib_version())) — security profiles + recipes (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — security profiles + recipes (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 func throwsErr(_ f: () throws -> Void) -> Bool { do { try f(); return false } catch { return true } }

@@ -1,5 +1,5 @@
 // Platform factor provider example: a device-bound key from the Apple Keychain
-// feeding the CryptoLib keyring's device slot.
+// feeding the CipherBird keyring's device slot.
 //
 // This is the DEFAULT single-device path: the master key is wrapped under a
 // 32-byte key that lives in the Keychain and never leaves the device. Add a

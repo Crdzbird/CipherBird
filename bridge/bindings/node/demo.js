@@ -1,4 +1,4 @@
-// CryptoLib Node.js demo via koffi (https://koffi.dev).
+// CipherBird Node.js demo via koffi (https://koffi.dev).
 //
 // This is the JavaScript native-call path: usable directly from Node/Electron,
 // and the same approach a React Native TurboModule (C++) or a Node addon would
@@ -89,7 +89,7 @@ function consumeKeypair(kp) {
 }
 
 if (cryptolib_init() !== 0) throw new Error('init failed');
-console.log('CryptoLib version:', cryptolib_version());
+console.log('CipherBird version:', cryptolib_version());
 
 console.log('random(32): ', hex(consume(cryptolib_random_bytes(32))));
 console.log('sha256(abc):', hex(consume(cryptolib_sha256(Buffer.from('abc'), 3))));

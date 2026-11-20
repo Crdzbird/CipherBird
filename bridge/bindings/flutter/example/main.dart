@@ -1,9 +1,9 @@
-/// CryptoLib Flutter/Dart Example
+/// CipherBird Flutter/Dart Example
 ///
-/// Demonstrates using the CryptoLib C FFI bridge from Dart.
+/// Demonstrates using the CipherBird C FFI bridge from Dart.
 ///
 /// Build the shared library first:
-///   cd /path/to/cryptolib
+///   cd /path/to/cipherbird
 ///   cmake -B build/release -DCMAKE_BUILD_TYPE=Release
 ///   cmake --build build/release --target cryptolib_c
 ///
@@ -13,7 +13,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../lib/cryptolib_ffi.dart';
+import '../lib/cipherbird_ffi.dart';
 
 void main(List<String> args) {
   if (args.isEmpty) {
@@ -28,9 +28,9 @@ void main(List<String> args) {
   final photoPath = args.length > 1 ? args[1] : null;
 
   // ── Load and initialise ──────────────────────────────────────────────────
-  final lib = CryptoLib.load(libPath);
+  final lib = CipherBird.load(libPath);
   lib.init();
-  print('CryptoLib ${lib.version()} — Dart/Flutter example\n');
+  print('CipherBird ${lib.version()} — Dart/Flutter example\n');
 
   // ── 1. Hashing ───────────────────────────────────────────────────────────
   print('═══ Hashing ═══');

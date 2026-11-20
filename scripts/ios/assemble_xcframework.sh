@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Package per-slice merged archives into CryptoLib.xcframework.
+# Package per-slice merged archives into CipherBird.xcframework.
 #
-# Each slice's static archive is wrapped in a static .framework (CryptoLibC)
+# Each slice's static archive is wrapped in a static .framework (CipherBirdC)
 # before being added to the xcframework. A *framework* xcframework (vs a bare
 # *library* one) is what Swift Package Manager's binaryTarget links reliably —
 # static-library xcframeworks compile but are NOT auto-linked into the final
@@ -21,7 +21,7 @@ if [[ ${#SLICES[@]} -eq 0 ]]; then
     SLICES=(iphoneos iphonesimulator macosx)
 fi
 
-FW_NAME="${FW_NAME:-CryptoLibC}"
+FW_NAME="${FW_NAME:-CipherBirdC}"
 
 slice_supported_platform() {
     case "$1" in
@@ -54,7 +54,7 @@ _framework_info_plist() {
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleExecutable</key><string>${FW_NAME}</string>
-    <key>CFBundleIdentifier</key><string>com.cryptolib.${FW_NAME}</string>
+    <key>CFBundleIdentifier</key><string>dev.cipherbird.${FW_NAME}</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>${FW_NAME}</string>
     <key>CFBundlePackageType</key><string>FMWK</string>
@@ -149,7 +149,7 @@ done
 
 [[ "$FOUND_ANY" -eq 1 ]] || die "No slice archives found — run build_all.sh first"
 
-OUTPUT="$REPO_ROOT/CryptoLib.xcframework"
+OUTPUT="$REPO_ROOT/CipherBird.xcframework"
 log "Assembling $OUTPUT"
 rm -rf "$OUTPUT"
 

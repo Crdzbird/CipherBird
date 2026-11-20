@@ -3,12 +3,12 @@ import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../cryptolib_ffi.dart';
+import '../cipherbird_ffi.dart';
 import '../widgets/hex_display.dart';
 import '../widgets/result_card.dart';
 
 class AdvancedPage extends StatefulWidget {
-  final CryptoLib lib;
+  final CipherBird lib;
 
   const AdvancedPage({super.key, required this.lib});
 
@@ -576,7 +576,7 @@ class _AdvancedPageState extends State<AdvancedPage>
       final match = widget.lib.secureEqual(keys1.symmetricKey, keys2.symmetricKey);
 
       // Encrypt known plaintext with first key
-      const knownPlaintext = 'CryptoLib test vector v1';
+      const knownPlaintext = 'CipherBird test vector v1';
       final ptBytes = Uint8List.fromList(utf8.encode(knownPlaintext));
       final ciphertext = widget.lib.xchacha20Encrypt(ptBytes, keys1.symmetricKey);
 

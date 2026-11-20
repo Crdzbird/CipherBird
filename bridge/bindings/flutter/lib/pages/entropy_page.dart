@@ -3,14 +3,14 @@ import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../cryptolib_ffi.dart';
+import '../cipherbird_ffi.dart';
 import '../widgets/hex_display.dart';
 import '../widgets/result_card.dart';
 
 enum EntropyMode { lavarand, deterministic }
 
 class EntropyPage extends StatefulWidget {
-  final CryptoLib lib;
+  final CipherBird lib;
 
   const EntropyPage({super.key, required this.lib});
 

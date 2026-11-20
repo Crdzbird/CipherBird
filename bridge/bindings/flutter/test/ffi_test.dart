@@ -1,5 +1,5 @@
 // Runtime FFI test: loads the native library and exercises the real dart:ffi
-// binding (lib/cryptolib_ffi.dart) the GUI app uses. `flutter test` runs this on
+// binding (lib/cipherbird_ffi.dart) the GUI app uses. `flutter test` runs this on
 // the host VM, so it actually marshals data across the C boundary — not just a
 // static analyze. Assumes `make lib` has built build/release/libcryptolib_c.dylib.
 //
@@ -11,7 +11,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cryptolib_gui/cryptolib_ffi.dart';
+import 'package:cipherbird_gui/cipherbird_ffi.dart';
 
 String _hex(Uint8List b) =>
     b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
@@ -32,12 +32,12 @@ void main() {
         reason: 'run `make lib` first to build $dylib');
   });
 
-  late CryptoLib lib;
+  late CipherBird lib;
   final abc = _u('abc');
   final msg = _u('secret payload');
 
   setUp(() {
-    lib = CryptoLib.load(dylib);
+    lib = CipherBird.load(dylib);
     lib.init();
   });
 
@@ -215,7 +215,7 @@ void main() {
     final stego = '${tmp.path}/as.ppm';
     lib.stegoEmbed(clean, _u('hi'), stego);
     final rep = lib.stegoDetectHidden(stego);
-    expect(rep.cryptolibPayload && rep.note.isNotEmpty, isTrue);
+    expect(rep.cipherbirdPayload && rep.note.isNotEmpty, isTrue);
   });
 
   test('ImageFactorSeal (C2) round-trip + wrong-image', () {

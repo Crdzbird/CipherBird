@@ -39,7 +39,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out/apple out/desktop
-          cp -R CryptoLib.xcframework out/apple/CipherBird.xcframework
+          cp -R CipherBird.xcframework out/apple/CipherBird.xcframework
           cp build/desktop/libcryptolib_c.dylib out/desktop/
           ditto -c -k --keepParent out/apple/CipherBird.xcframework out/apple/CipherBird.xcframework.zip
           for f in out/apple/CipherBird.xcframework/ios-arm64/CipherBird.framework/CipherBird \

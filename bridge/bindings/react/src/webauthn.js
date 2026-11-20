@@ -2,7 +2,7 @@
 //
 // A passkey can emit a deterministic per-credential secret via the WebAuthn PRF
 // extension (CTAP2 hmac-secret). That secret is a hardware/authenticator-backed
-// 32-byte factor key for the CryptoLib keyring's device slot — nothing secret is
+// 32-byte factor key for the CipherBird keyring's device slot — nothing secret is
 // stored in the browser, and the authenticator (Touch ID / Windows Hello /
 // security key) performs user verification + liveness.
 //
@@ -34,8 +34,8 @@ function bytesToB64url(b) {
 export async function enrollPasskey() {
   const cred = await navigator.credentials.create({
     publicKey: {
-      rp: { id: RP_ID, name: 'CryptoLib' },
-      user: { id: rand(16), name: 'cryptolib-user', displayName: 'CryptoLib User' },
+      rp: { id: RP_ID, name: 'CipherBird' },
+      user: { id: rand(16), name: 'cipherbird-user', displayName: 'CipherBird User' },
       challenge: rand(32),
       pubKeyCredParams: [
         { type: 'public-key', alg: -7 },   // ES256

@@ -1,4 +1,4 @@
-// CryptoLib Swift — FROST(Ed25519, SHA-512) t-of-n threshold signatures
+// CipherBird Swift — FROST(Ed25519, SHA-512) t-of-n threshold signatures
 // (RFC 9591). t of n parties jointly produce ONE ordinary Ed25519 signature: no
 // single party can sign, any t can, and the result verifies with standard
 // Ed25519 against the group public key. Build the smoke with the Makefile target
@@ -150,7 +150,7 @@ func hexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — FROST threshold sigs (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — FROST threshold sigs (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

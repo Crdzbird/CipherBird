@@ -1,6 +1,6 @@
-# Publishing CryptoLib bindings
+# Publishing CipherBird bindings
 
-This document is the checklist for releasing CryptoLib's language bindings so
+This document is the checklist for releasing CipherBird's language bindings so
 that **consumers get the native library bundled and loaded automatically** — no
 manual path, no manual library placement.
 
@@ -15,10 +15,10 @@ run with your own accounts/credentials.
 | Ecosystem | Package | How it auto-loads | Local verification |
 |---|---|---|---|
 | **Flutter** | `bridge/bindings/cipherbird` | xcframework via podspec (iOS/macOS), `.so` in `jniLibs` (Android); loader picks `process()`/soname | ✅ Pixel 7 + iOS sim |
-| **Node** | `bridge/bindings/cryptolib-node` | `libcipherbird` in `prebuilds/<plat>-<arch>/` (committed), resolved relative to package | `npm test` |
-| **JVM** (Java/Kotlin) | `bridge/bindings/cryptolib-jvm` | binary in JAR under `/native/<os>-<arch>/`, extracted to temp + `SymbolLookup` | ✅ `java -jar` |
+| **Node** | `bridge/bindings/cipherbird-node` | `libcipherbird` in `prebuilds/<plat>-<arch>/` (committed), resolved relative to package | `npm test` |
+| **JVM** (Java/Kotlin) | `bridge/bindings/cipherbird-jvm` | binary in JAR under `/native/<os>-<arch>/`, extracted to temp + `SymbolLookup` | ✅ `java -jar` |
 | **Swift** (SPM) | `bridge/bindings/swift` | `binaryTarget` xcframework (SPM embeds automatically) | ✅ macOS slice links + runs |
-| **.NET** | `bridge/bindings/cryptolib-dotnet` | binary under `runtimes/<rid>/native/` (NuGet auto-probes) + `DllImportResolver` | ✅ `dotnet run` |
+| **.NET** | `bridge/bindings/cipherbird-dotnet` | binary under `runtimes/<rid>/native/` (NuGet auto-probes) + `DllImportResolver` | ✅ `dotnet run` |
 | **Go** | `bridge/bindings/go` | cgo links at consumer build time — see Go note below | dev build ✅; portable module pending |
 
 All five bundled-binary ecosystems were verified to load the native library and
@@ -40,7 +40,7 @@ make bundle        # → scripts/bundle_native.sh
 It builds one self-contained dylib + one merged static archive and distributes
 them to every binding's host slot: npm `prebuilds/`, Python `_native/`, Ruby
 `native/`, Rust `native/`, .NET `runtimes/<rid>/native/`, JVM `native/`, the
-standalone Dart `native/`, the Go vendored `cryptolib/native/` (archive + header),
+standalone Dart `native/`, the Go vendored `cipherbird/native/` (archive + header),
 and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads its
 **own** bundled library by default — no C++ source tree, no build step:
 
@@ -48,8 +48,8 @@ and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads i
   `prebuilds/<platform>-<arch>/` (CIPHERBIRD_LIBRARY overrides for dev).
 - **standalone Dart** — a `.pubignore` keeps `native/` in the package; `CipherBird.load()`
   resolves `native/<os>-<arch>/` automatically.
-- **Go** — build with `-tags cryptolib_vendored` to link the module-internal
-  `cryptolib/native/libcryptolib_c.a` (+ header). Because `go get` reads the git
+- **Go** — build with `-tags cipherbird_vendored` to link the module-internal
+  `cipherbird/native/libcipherbird.a` (+ header). Because `go get` reads the git
   tree, the per-platform archives must be **committed on the release tag** (they
   are ignored on `main`); run `make bundle` then force-add them when tagging.
 
@@ -57,7 +57,7 @@ and the macOS slice of the Flutter/Swift xcframeworks. Each binding then loads i
 cross-platform matrix (section 2). `scripts/build_static_archive.sh` builds the
 full profile by default and the bank profile with `CRYPTOLIB_PROFILE=bank`
 (into `build/static-bank`); the Go binding links the bank library with
-`-tags cryptolib_bank`.
+`-tags cipherbird_bank`.
 
 ### 1. Self-contained binaries
 The bundled binary must statically link every dependency (libsodium, liboqs,
@@ -108,17 +108,17 @@ README).
   (`scripts/verify_pub_consumer.sh`) installs the exact archive as a hosted
   package in a fresh app and runs the package's 79-test suite on that device;
   run it for macOS, an iOS simulator and an Android device.
-- **npm:** the package is `cipherbird`. `cd bridge/bindings/cryptolib-node && npm test && npm publish --access public`.
+- **npm:** the package is `cipherbird`. `cd bridge/bindings/cipherbird-node && npm test && npm publish --access public`.
   Requires `npm login` (and the one-time password when two-factor publishing is on).
   Published versions: 1.3.0.
-- **Maven Central (JVM):** wrap `cryptolib-jvm` in a Gradle/Maven build, then
+- **Maven Central (JVM):** wrap `cipherbird-jvm` in a Gradle/Maven build, then
   publish to Sonatype Central with GPG-signed artifacts (`./gradlew publish`).
   Requires a Sonatype namespace + signing key.
 - **Swift Package Manager:** SPM consumes from git — tag a release
   (`git tag 3.0.0 && git push --tags`). For a standalone distribution, host the
   xcframework as a release asset and switch the manifest to
   `.binaryTarget(url:checksum:)` (compute with `swift package compute-checksum`).
-- **NuGet (.NET):** `cd bridge/bindings/cryptolib-dotnet && dotnet pack -c Release`
+- **NuGet (.NET):** `cd bridge/bindings/cipherbird-dotnet && dotnet pack -c Release`
   then `dotnet nuget push bin/Release/CipherBird.3.0.0.nupkg -k <API_KEY> -s https://api.nuget.org/v3/index.json`.
 - **Go:** tag the module (`git tag bridge/bindings/go/v3.0.0`). See note below —
   Go needs the native code available at the consumer's build time.
@@ -138,7 +138,7 @@ cosign verify-blob --bundle SHA256SUMS.sigstore.json \
   --certificate-identity-regexp '^https://github.com/Crdzbird/CipherBird/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
 sha256sum -c SHA256SUMS
-slsa-verifier verify-artifact <artifact> --provenance-path <prov> --source-uri github.com/<org>/cryptolib
+slsa-verifier verify-artifact <artifact> --provenance-path <prov> --source-uri github.com/<org>/cipherbird
 ```
 Requires the repo on GitHub with `id-token: write` (keyless signing + provenance).
 Reproducible builds: pin the toolchain and set `SOURCE_DATE_EPOCH`; note macOS

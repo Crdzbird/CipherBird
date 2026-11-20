@@ -1,4 +1,4 @@
-/* CryptoLib C-ABI reference demo. Exercises hashing, the vault, and the keyring
+/* CipherBird C-ABI reference demo. Exercises hashing, the vault, and the keyring
  * (envelope/key-slots) end to end. Built natively, and also run on the iOS
  * simulator and Android emulator to verify the ABI on every native platform.
  *

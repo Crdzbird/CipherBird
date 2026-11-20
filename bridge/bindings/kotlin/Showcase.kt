@@ -1,4 +1,4 @@
-// CryptoLib Kotlin/JVM — FULL showcase of every capability family via the FFM API.
+// CipherBird Kotlin/JVM — FULL showcase of every capability family via the FFM API.
 //   kotlinc Showcase.kt -include-runtime -d showcase.jar
 //   java --enable-native-access=ALL-UNNAMED -jar showcase.jar <dylib>
 
@@ -101,7 +101,7 @@ class Showcase(path: String) {
 
         check(init.invoke() as Int == 0) { "init" }
         val ver = (version.invoke() as MemorySegment).reinterpret(Long.MAX_VALUE).getString(0)
-        println("CryptoLib $ver — Kotlin full showcase\n")
+        println("CipherBird $ver — Kotlin full showcase\n")
         val abc = "abc".toByteArray(); val msg = "secret payload".toByteArray()
         val ABC = seg(abc); val MSG = seg(msg)
 

@@ -1,4 +1,4 @@
-// CryptoLib Java — FULL showcase of every capability family via the FFM API.
+// CipherBird Java — FULL showcase of every capability family via the FFM API.
 //   javac Showcase.java && java --enable-native-access=ALL-UNNAMED Showcase <dylib>
 
 import java.lang.foreign.*;
@@ -109,7 +109,7 @@ public final class Showcase {
 
         if ((int) init.invoke() != 0) throw new RuntimeException("init");
         String ver = ((MemorySegment) version.invoke()).reinterpret(Long.MAX_VALUE).getString(0);
-        System.out.println("CryptoLib " + ver + " — Java full showcase\n");
+        System.out.println("CipherBird " + ver + " — Java full showcase\n");
         byte[] abc = "abc".getBytes(), msg = "secret payload".getBytes();
         MemorySegment ABC = seg(abc), MSG = seg(msg);
 

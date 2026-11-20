@@ -3,7 +3,7 @@
 #
 # It merges the C-ABI bridge object with every dependency's static archive
 # (libsodium, BLAKE3, liboqs, OpenSSL libcrypto, blst, libsecp256k1) into ONE
-# .a. A consumer linking it (e.g. the Go binding with `-tags cryptolib_static`)
+# .a. A consumer linking it (e.g. the Go binding with `-tags cipherbird_static`)
 # gets a fully self-contained binary — no libcryptolib_c.dylib/.so to ship or
 # locate at run time.
 #

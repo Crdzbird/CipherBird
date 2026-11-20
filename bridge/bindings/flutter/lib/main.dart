@@ -14,5 +14,5 @@ void main() {
       : (Platform.environment['CRYPTOLIB_PATH'] ??
           '${Directory.current.parent.parent.path}/build/release/libcryptolib_c.dylib');
 
-  runApp(CryptoLibApp(initialLibPath: libPath));
+  runApp(CipherBirdApp(initialLibPath: libPath));
 }

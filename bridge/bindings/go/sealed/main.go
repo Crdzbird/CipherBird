@@ -1,9 +1,10 @@
-// CryptoLib for Go — Flagship / Fortress: state-of-the-art sealed messaging.
+// CipherBird for Go — Flagship / Fortress: state-of-the-art sealed messaging.
 //
 // Two assurance tiers of one construction: encapsulate → sign-then-encrypt inside
 // a key-committing cascade, recipient-bound, auth-first.
 // Run:  DYLD_LIBRARY_PATH=../../../build/release go run ./sealed   (macOS)
-//       LD_LIBRARY_PATH=../../../build/release  go run ./sealed    (Linux)
+//
+//	LD_LIBRARY_PATH=../../../build/release  go run ./sealed    (Linux)
 package main
 
 import (
@@ -11,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	cl "github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	cl "github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 var pass, fail int
@@ -97,7 +98,7 @@ func main() {
 	if err := cl.Init(); err != nil {
 		panic(err)
 	}
-	fmt.Printf("CryptoLib %s — Flagship / Fortress (Go)\n", cl.Version())
+	fmt.Printf("CipherBird %s — Flagship / Fortress (Go)\n", cl.Version())
 	demo(cl.Flagship, "Flagship", "X25519+sntrup761 KEM · Ed25519+ML-DSA-65 sig")
 	demo(cl.Fortress, "Fortress", "triple KEM (+ML-KEM-768) · triple sig (+SLH-DSA)")
 

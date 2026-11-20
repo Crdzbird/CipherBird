@@ -1,5 +1,5 @@
-name: cryptolib_gui
-description: CryptoLib GUI — Material 3 desktop app demonstrating all CryptoLib features via C FFI.
+name: cipherbird_gui
+description: CipherBird GUI — Material 3 desktop app demonstrating all CipherBird features via C FFI.
 version: 3.0.0
 publish_to: none
 

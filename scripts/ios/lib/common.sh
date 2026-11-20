@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared environment for cryptolib iOS build scripts.
+# Shared environment for cipherbird iOS build scripts.
 #
 # Provides: REPO_ROOT, SRC_DIR, DEPS_ROOT, log, die, slice-aware helpers.
 # Expects callers to set SLICE (iphoneos | iphonesimulator | macosx).

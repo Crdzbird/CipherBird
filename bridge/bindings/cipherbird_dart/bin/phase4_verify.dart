@@ -147,7 +147,7 @@ void main(List<String> args) {
     final rep = lib.stegoDetectHidden(stego);
     check(
       rep.cipherbirdPayload && rep.note.isNotEmpty,
-      'detect unkeyed cryptolib payload + honesty note',
+      'detect unkeyed cipherbird payload + honesty note',
     );
   }
 

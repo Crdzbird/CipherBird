@@ -436,8 +436,9 @@ cd benchmark && dart pub get && dart run bench.dart
 
 ## Verifying
 
-`dart test` runs the same 104 tests as the Flutter plugin against the bundled
-library, including the structure rules the code follows (one declaration per
+`dart test` runs the Flutter plugin's tests against the bundled library (157
+in 1.5.0; the tests of the plugin's hardware keys and validated modules stay
+with the plugin), including the structure rules the code follows (one declaration per
 file, 100 lines, no `else`, no inline comments). The `bin/` scripts are the
 verification harnesses the repository's Makefile drives, including the
 cross-language recipe interop.

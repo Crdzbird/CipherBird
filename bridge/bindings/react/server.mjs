@@ -1,8 +1,8 @@
 // Node HTTP server backing the React UI.
 //
 // The browser cannot dlopen a native library, so this small server performs the
-// crypto with the real CryptoLib native library and exposes it over HTTP. It
-// uses the `cryptolib-node` package (full 127-function parity) rather than
+// crypto with the real CipherBird native library and exposes it over HTTP. It
+// uses the `cipherbird-node` package (full 127-function parity) rather than
 // re-declaring FFI signatures, so the UI can reach the entire library. Run:
 //   node server.mjs                 # uses ../../../build/release/libcryptolib_c.dylib
 //   CRYPTOLIB_DYLIB=/abs/path node server.mjs
@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { join, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import crypto from '../cryptolib-node/index.js';
+import crypto from '../cipherbird-node/index.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const libPath = process.env.CRYPTOLIB_DYLIB
@@ -143,4 +143,4 @@ http.createServer((req, res) => {
       res.end(JSON.stringify(route(data)));
     } catch (e) { res.writeHead(500); res.end(String(e)); }
   });
-}).listen(8787, () => console.log('CryptoLib server (UI + API) → http://localhost:8787'));
+}).listen(8787, () => console.log('CipherBird server (UI + API) → http://localhost:8787'));

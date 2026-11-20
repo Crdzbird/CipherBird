@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../cryptolib_ffi.dart';
+import '../cipherbird_ffi.dart';
 import '../widgets/hex_display.dart';
 import '../widgets/result_card.dart';
 
 enum CipherMode { xchacha20, aes256gcm }
 
 class EncryptionPage extends StatefulWidget {
-  final CryptoLib lib;
+  final CipherBird lib;
 
   const EncryptionPage({super.key, required this.lib});
 

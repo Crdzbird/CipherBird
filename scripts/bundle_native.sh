@@ -29,17 +29,29 @@ RID="osx-$ARCH"; [ "$OS" = linux ] && RID="linux-$ARCH"
 copy() { mkdir -p "$(dirname "$1")"; cp "$2" "$1"; echo "   → ${1#"$ROOT"/}"; }
 
 echo "== refreshing bundled dylibs ($OS-$ARCH) =="
-copy "$B/cryptolib-node/prebuilds/$OS-$ARCH/libcipherbird.$EXT"            "$DYLIB"
-copy "$B/cryptolib-python/cryptolib/_native/$OS-$ARCH/libcryptolib_c.$EXT" "$DYLIB"
-copy "$B/cryptolib-ruby/lib/cryptolib/native/$OS-$ARCH/libcryptolib_c.$EXT" "$DYLIB"
-copy "$B/cryptolib-rust/native/$OS-$ARCH/libcryptolib_c.$EXT"             "$DYLIB"
-copy "$B/cryptolib-jvm/native/$OS-$ARCH/libcryptolib_c.$EXT"              "$DYLIB"
-copy "$B/cryptolib-dotnet/runtimes/$RID/native/libcryptolib_c.$EXT"       "$DYLIB"
+copy "$B/cipherbird-node/prebuilds/$OS-$ARCH/libcipherbird.$EXT"            "$DYLIB"
+copy "$B/cipherbird-python/cipherbird/_native/$OS-$ARCH/libcipherbird.$EXT" "$DYLIB"
+copy "$B/cipherbird-ruby/lib/cipherbird/native/$OS-$ARCH/libcipherbird.$EXT" "$DYLIB"
+copy "$B/cipherbird-rust/native/$OS-$ARCH/libcipherbird.$EXT"             "$DYLIB"
+copy "$B/cipherbird-jvm/native/$OS-$ARCH/libcipherbird.$EXT"              "$DYLIB"
+copy "$B/cipherbird-dotnet/runtimes/$RID/native/libcipherbird.$EXT"       "$DYLIB"
 copy "$B/cipherbird_dart/native/$OS-$ARCH/libcipherbird.$EXT"                       "$DYLIB"  # standalone Dart
 
+# Rust links the bundled library by name at build time, so the copy must carry
+# its own file name as its install name (macOS) or soname (Linux).
+RUST_LIB="$B/cipherbird-rust/native/$OS-$ARCH/libcipherbird.$EXT"
+if [ "$OS" = darwin ]; then
+  install_name_tool -id "@rpath/libcipherbird.dylib" "$RUST_LIB"
+  codesign --force --sign - "$RUST_LIB" >/dev/null 2>&1
+elif command -v patchelf >/dev/null 2>&1; then
+  patchelf --set-soname libcipherbird.so "$RUST_LIB"
+else
+  echo "   patchelf not found: $RUST_LIB keeps the soname libcryptolib_c.so" >&2
+fi
+
 echo "== vendoring Go static archive + header (self-contained go get) =="
-copy "$B/go/cryptolib/native/libcryptolib_c.a" "$STATIC"
-copy "$B/go/cryptolib/native/cryptolib_c.h"    "$HDR"
+copy "$B/go/cipherbird/native/libcipherbird.a" "$STATIC"
+copy "$B/go/cipherbird/native/cryptolib_c.h"    "$HDR"
 
 # Refresh the macOS slice of any xcframework (Swift SPM / Flutter macOS). iOS and
 # Android slices are rebuilt by `make ios` / `make android` (need those SDKs).
@@ -57,13 +69,13 @@ fi
 # native/ — otherwise `make bundle` updates the dylib but the JAR stays stale.
 if command -v javac >/dev/null 2>&1 && command -v jar >/dev/null 2>&1; then
   echo "== rebuilding JVM jar (embeds refreshed native/) =="
-  ( cd "$B/cryptolib-jvm"
+  ( cd "$B/cipherbird-jvm"
     rm -rf out/jar && mkdir -p out/jar
-    javac -d out/jar src/cryptolib/*.java
+    javac -d out/jar src/cipherbird/*.java
     cp -R native out/jar/native
-    ( cd out/jar && jar --create --file ../../cryptolib-jvm.jar . )
-    echo "   → ${B#"$ROOT"/}/cryptolib-jvm.jar" )
+    ( cd out/jar && jar --create --file ../../cipherbird-jvm.jar . )
+    echo "   → ${B#"$ROOT"/}/cipherbird-jvm.jar" )
 fi
 
-echo "== done. Verify a bundle: (cd $B/cryptolib-node && node -e 'require(\"./index.js\").init()')"
+echo "== done. Verify a bundle: (cd $B/cipherbird-node && node -e 'require(\"./index.js\").init()')"
 echo "   Cross-platform slots are filled by CI / make ios / make android — see PUBLISHING.md."

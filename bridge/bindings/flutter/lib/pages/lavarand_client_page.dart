@@ -6,12 +6,12 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../cryptolib_ffi.dart';
+import '../cipherbird_ffi.dart';
 import '../widgets/hex_display.dart';
 import '../widgets/result_card.dart';
 
 class LavaRandClientPage extends StatefulWidget {
-  final CryptoLib lib;
+  final CipherBird lib;
 
   const LavaRandClientPage({super.key, required this.lib});
 

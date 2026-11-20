@@ -1,4 +1,4 @@
-// CryptoLib Swift — BBS per-verifier pseudonyms + blind issuance
+// CipherBird Swift — BBS per-verifier pseudonyms + blind issuance
 // (draft-irtf-cfrg-bbs-per-verifier-linkability-02 / -blind-signatures-02).
 // The pseudonym ciphersuite is applied internally by the C ABI. Scalar inputs
 // (proverNyms, nymSecrets, secretProverBlind, signerNymEntropy) are 32-byte
@@ -196,7 +196,7 @@ func nymHexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — BBS pseudonyms + blind issuance (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — BBS pseudonyms + blind issuance (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

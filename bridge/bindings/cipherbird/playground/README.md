@@ -1,17 +1,29 @@
-# cryptolib_playground
+# cipherbird_playground
 
-A new Flutter project.
+A one-page Flutter app that uses `cipherbird` the way an application from
+pub.dev would: through the easy-mode classes, with no build step for the
+native engine. It depends on the plugin by path (`path: ../`).
 
-## Getting Started
+On start it runs a short self test and lists each check as pass or fail: the
+engine version, a SHA-256 known answer, Fortress sealed messaging and a Noise
+XX handshake with transport messages. Below that, type a text and press the
+buttons:
 
-This project is a starting point for a Flutter application.
+- encrypt and decrypt with a symmetric key, with a button that flips one bit
+  of the ciphertext so the decryption fails
+- sign and verify with the hybrid post-quantum signature
+- encrypt to your own public key with the hybrid KEM (X25519 + ML-KEM-768) and
+  open it with the secret key
+- hash a passphrase with Argon2id on a worker
 
-A few resources to get you started if this is your first Flutter project:
+Run it:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+flutter run -d macos
+flutter run -d <ios simulator or device id>
+flutter run -d <android device id>
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The larger app, with one screen per capability and the interactive
+steganography and entropy playgrounds, is the plugin's
+[showcase](../example/README.md).

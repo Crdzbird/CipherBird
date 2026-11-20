@@ -1,4 +1,4 @@
-// CryptoLib Swift — OPRF (RFC 9497, ristretto255-SHA-512, base mode). A two-party
+// CipherBird Swift — OPRF (RFC 9497, ristretto255-SHA-512, base mode). A two-party
 // PRF: the client blinds its input, the server evaluates under its key without
 // seeing it, the client unblinds to the PRF output. Build the smoke with the
 // Makefile target `swift-oprf`.
@@ -72,7 +72,7 @@ func hexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — OPRF (RFC 9497) (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — OPRF (RFC 9497) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

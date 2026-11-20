@@ -1,4 +1,4 @@
-// CryptoLib Go — FULL showcase of every capability family via the cgo bindings.
+// CipherBird Go — FULL showcase of every capability family via the cgo bindings.
 //
 //	DYLD_LIBRARY_PATH=../../../build/release go run ./showcase
 package main
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 var pass, fail int
@@ -32,84 +32,84 @@ func must(b []byte, err error) []byte {
 }
 
 func main() {
-	if err := cryptolib.Init(); err != nil {
+	if err := cipherbird.Init(); err != nil {
 		panic(err)
 	}
-	fmt.Printf("CryptoLib %s — Go full showcase\n\n", cryptolib.Version())
+	fmt.Printf("CipherBird %s — Go full showcase\n\n", cipherbird.Version())
 	abc := []byte("abc")
 	msg := []byte("secret payload")
 
 	fmt.Println("HASHING")
-	ck("SHA-256(abc) KAT", cryptolib.Hex(must(cryptolib.SHA256(abc))) ==
+	ck("SHA-256(abc) KAT", cipherbird.Hex(must(cipherbird.SHA256(abc))) ==
 		"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
-	ck("SHA-512", len(must(cryptolib.SHA512(abc))) == 64)
-	ck("BLAKE2b", len(must(cryptolib.Blake2b(abc, nil))) == 64)
-	hkey := must(cryptolib.SymKeygen())
-	mac := must(cryptolib.HmacSHA512(abc, hkey))
-	ck("HMAC-SHA512 verify", cryptolib.HmacSHA512Verify(abc, mac, hkey))
-	phc, _ := cryptolib.Argon2idHashStr("hunter2", 2, 67108864)
-	ck("Argon2id PHC verify", cryptolib.Argon2idVerifyStr("hunter2", phc))
+	ck("SHA-512", len(must(cipherbird.SHA512(abc))) == 64)
+	ck("BLAKE2b", len(must(cipherbird.Blake2b(abc, nil))) == 64)
+	hkey := must(cipherbird.SymKeygen())
+	mac := must(cipherbird.HmacSHA512(abc, hkey))
+	ck("HMAC-SHA512 verify", cipherbird.HmacSHA512Verify(abc, mac, hkey))
+	phc, _ := cipherbird.Argon2idHashStr("hunter2", 2, 67108864)
+	ck("Argon2id PHC verify", cipherbird.Argon2idVerifyStr("hunter2", phc))
 
 	fmt.Println("\nSYMMETRIC")
-	sk := must(cryptolib.SymKeygen())
-	xct := must(cryptolib.XChaCha20Encrypt(msg, sk, nil))
-	ck("XChaCha20 round-trip", bytes.Equal(must(cryptolib.XChaCha20Decrypt(xct, sk, nil)), msg))
-	if cryptolib.AES256GCMAvailable() {
-		act := must(cryptolib.AES256GCMEncrypt(msg, sk, nil))
-		ck("AES-256-GCM round-trip", bytes.Equal(must(cryptolib.AES256GCMDecrypt(act, sk, nil)), msg))
+	sk := must(cipherbird.SymKeygen())
+	xct := must(cipherbird.XChaCha20Encrypt(msg, sk, nil))
+	ck("XChaCha20 round-trip", bytes.Equal(must(cipherbird.XChaCha20Decrypt(xct, sk, nil)), msg))
+	if cipherbird.AES256GCMAvailable() {
+		act := must(cipherbird.AES256GCMEncrypt(msg, sk, nil))
+		ck("AES-256-GCM round-trip", bytes.Equal(must(cipherbird.AES256GCMDecrypt(act, sk, nil)), msg))
 	} else {
 		fmt.Println("    AES-256-GCM unavailable")
 	}
 
 	fmt.Println("\nASYMMETRIC")
-	ed := cryptolib.Ed25519Keygen()
-	sig := must(cryptolib.Ed25519Sign(abc, ed.Secret))
-	ck("Ed25519 sign/verify", cryptolib.Ed25519Verify(abc, sig, ed.Public))
-	xa, xb := cryptolib.X25519Keygen(), cryptolib.X25519Keygen()
-	ck("X25519 ECDH", bytes.Equal(must(cryptolib.X25519SharedSecret(xa.Secret, xb.Public)),
-		must(cryptolib.X25519SharedSecret(xb.Secret, xa.Public))))
-	r, s := cryptolib.BoxKeygen(), cryptolib.BoxKeygen()
-	bct := must(cryptolib.BoxEncrypt(msg, r.Public, s.Secret))
-	ck("Box round-trip", bytes.Equal(must(cryptolib.BoxDecrypt(bct, s.Public, r.Secret)), msg))
-	sct := must(cryptolib.SealedBoxEncrypt(msg, r.Public))
-	ck("SealedBox round-trip", bytes.Equal(must(cryptolib.SealedBoxDecrypt(sct, r.Public, r.Secret)), msg))
+	ed := cipherbird.Ed25519Keygen()
+	sig := must(cipherbird.Ed25519Sign(abc, ed.Secret))
+	ck("Ed25519 sign/verify", cipherbird.Ed25519Verify(abc, sig, ed.Public))
+	xa, xb := cipherbird.X25519Keygen(), cipherbird.X25519Keygen()
+	ck("X25519 ECDH", bytes.Equal(must(cipherbird.X25519SharedSecret(xa.Secret, xb.Public)),
+		must(cipherbird.X25519SharedSecret(xb.Secret, xa.Public))))
+	r, s := cipherbird.BoxKeygen(), cipherbird.BoxKeygen()
+	bct := must(cipherbird.BoxEncrypt(msg, r.Public, s.Secret))
+	ck("Box round-trip", bytes.Equal(must(cipherbird.BoxDecrypt(bct, s.Public, r.Secret)), msg))
+	sct := must(cipherbird.SealedBoxEncrypt(msg, r.Public))
+	ck("SealedBox round-trip", bytes.Equal(must(cipherbird.SealedBoxDecrypt(sct, r.Public, r.Secret)), msg))
 
 	fmt.Println("\nVAULTS")
-	vault, _ := cryptolib.NewVault(must(cryptolib.RandomBytes(32)), 0)
+	vault, _ := cipherbird.NewVault(must(cipherbird.RandomBytes(32)), 0)
 	pkt := mustPkt(vault.Seal(msg, "ctx"))
 	ck("SecureVault round-trip", bytes.Equal(must(vault.Open(pkt, "ctx")), msg))
 	vault.Close()
-	alice, bob := cryptolib.AsymBundleGenerate(), cryptolib.AsymBundleGenerate()
-	apkt := mustPkt(cryptolib.AsymVaultSeal(&alice, bob.BoxPublic, msg, "ctx"))
-	ck("AsymmetricVault round-trip", bytes.Equal(must(cryptolib.AsymVaultOpen(apkt, &bob, alice.SignPublic, "ctx")), msg))
+	alice, bob := cipherbird.AsymBundleGenerate(), cipherbird.AsymBundleGenerate()
+	apkt := mustPkt(cipherbird.AsymVaultSeal(&alice, bob.BoxPublic, msg, "ctx"))
+	ck("AsymmetricVault round-trip", bytes.Equal(must(cipherbird.AsymVaultOpen(apkt, &bob, alice.SignPublic, "ctx")), msg))
 
 	fmt.Println("\nPOST-QUANTUM")
-	kem := cryptolib.MlKemKeygen(1)
-	enc, _ := cryptolib.MlKemEncapsulate(kem.Public, 1)
-	ck("ML-KEM-768 encaps/decaps", bytes.Equal(enc.SharedSecret, must(cryptolib.MlKemDecapsulate(enc.Ciphertext, kem.Secret, 1))))
-	hkem := cryptolib.HybridKemKeygen()
-	henc, _ := cryptolib.HybridKemEncapsulate(hkem.Public)
+	kem := cipherbird.MlKemKeygen(1)
+	enc, _ := cipherbird.MlKemEncapsulate(kem.Public, 1)
+	ck("ML-KEM-768 encaps/decaps", bytes.Equal(enc.SharedSecret, must(cipherbird.MlKemDecapsulate(enc.Ciphertext, kem.Secret, 1))))
+	hkem := cipherbird.HybridKemKeygen()
+	henc, _ := cipherbird.HybridKemEncapsulate(hkem.Public)
 	ck("Hybrid X25519+ML-KEM-768 encaps/decaps",
-		bytes.Equal(henc.SharedSecret, must(cryptolib.HybridKemDecapsulate(henc.Ciphertext, hkem.Secret))) && len(henc.SharedSecret) == 32)
-	dsa := cryptolib.MlDsaKeygen(1)
-	dsig := must(cryptolib.MlDsaSign(abc, dsa.Secret, 1))
-	ck("ML-DSA-65 sign/verify", cryptolib.MlDsaVerify(abc, dsig, dsa.Public, 1))
-	slh := cryptolib.SlhDsaKeygen(1, 0)
-	ssig := must(cryptolib.SlhDsaSign(abc, slh.Secret, 1, 0))
-	ck("SLH-DSA-128f sign/verify", cryptolib.SlhDsaVerify(abc, ssig, slh.Public, 1, 0))
+		bytes.Equal(henc.SharedSecret, must(cipherbird.HybridKemDecapsulate(henc.Ciphertext, hkem.Secret))) && len(henc.SharedSecret) == 32)
+	dsa := cipherbird.MlDsaKeygen(1)
+	dsig := must(cipherbird.MlDsaSign(abc, dsa.Secret, 1))
+	ck("ML-DSA-65 sign/verify", cipherbird.MlDsaVerify(abc, dsig, dsa.Public, 1))
+	slh := cipherbird.SlhDsaKeygen(1, 0)
+	ssig := must(cipherbird.SlhDsaSign(abc, slh.Secret, 1, 0))
+	ck("SLH-DSA-128f sign/verify", cipherbird.SlhDsaVerify(abc, ssig, slh.Public, 1, 0))
 
 	fmt.Println("\nBLS12-381")
-	bls := cryptolib.BlsKeygen()
-	bsig := must(cryptolib.BlsSign(abc, bls.Secret))
-	ck("BLS sign/verify", cryptolib.BlsVerify(abc, bsig, bls.Public))
+	bls := cipherbird.BlsKeygen()
+	bsig := must(cipherbird.BlsSign(abc, bls.Secret))
+	ck("BLS sign/verify", cipherbird.BlsVerify(abc, bsig, bls.Public))
 
 	fmt.Println("\nKEYRING")
-	factor := must(cryptolib.RandomBytes(32))
-	kr := cryptolib.NewKeyring()
+	factor := must(cipherbird.RandomBytes(32))
+	kr := cipherbird.NewKeyring()
 	kr.AddDeviceSlot(factor)
 	kr.AddPassphraseSlot("cross-device pass", 0)
 	blob := must(kr.Serialise())
-	kr2, _ := cryptolib.DeserialiseKeyring(blob)
+	kr2, _ := cipherbird.DeserialiseKeyring(blob)
 	ck(fmt.Sprintf("Keyring device==passphrase master (%d slots)", kr.SlotCount()),
 		bytes.Equal(must(kr2.UnlockWithDevice(factor)), must(kr2.UnlockWithPassphrase("cross-device pass"))))
 	kr.Close()
@@ -123,7 +123,7 @@ func main() {
 	}
 }
 
-func mustPkt(p *cryptolib.Packet, err error) *cryptolib.Packet {
+func mustPkt(p *cipherbird.Packet, err error) *cipherbird.Packet {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 		os.Exit(1)

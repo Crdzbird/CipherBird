@@ -1,16 +1,16 @@
-# CryptoLib · Next.js example
+# CipherBird Next.js example
 
-Uses CryptoLib from a **Next.js route handler** running on the Node runtime.
+Uses CipherBird from a **Next.js route handler** running on the Node runtime.
 Native FFI cannot run in the browser or the Edge runtime, so all crypto happens
 server-side; the client just POSTs to `/api/crypto`.
 
 ```
 Browser (app/page.jsx, 'use client')
-   │  POST /api/crypto  { op, text }
-   ▼
+   |  POST /api/crypto  { op, text }
+   v
 Route handler (app/api/crypto/route.js, runtime = 'nodejs')
-   │  cryptolib-node  (loaded via createRequire — never bundled)
-   ▼
+   |  the Node binding in ../cipherbird-node (loaded at request time, never bundled)
+   v
 native libcryptolib_c
 ```
 
@@ -22,7 +22,7 @@ cmake -B build/release -DCMAKE_BUILD_TYPE=Release
 cmake --build build/release --target cryptolib_c
 
 # 2. Install the sibling Node binding's deps (provides koffi), from the repo root:
-(cd bridge/bindings/cryptolib-node && npm install)
+(cd bridge/bindings/cipherbird-node && npm install)
 
 # 3. Run this example:
 cd bridge/bindings/nextjs
@@ -30,8 +30,9 @@ npm install
 npm run dev            # http://localhost:3005
 ```
 
-`lib/cryptolib.js` points the binding at `build/release/libcryptolib_c.<ext>` by
-default; override with `CRYPTOLIB_DYLIB=/abs/path`.
+`lib/cipherbird.js` points the binding at `build/release/libcryptolib_c.<ext>` by
+default; override with `CRYPTOLIB_DYLIB=/abs/path` (the binding also reads
+`CIPHERBIRD_LIBRARY`, which wins when both are set).
 
 ## Endpoints (`POST /api/crypto`)
 
@@ -39,17 +40,20 @@ default; override with `CRYPTOLIB_DYLIB=/abs/path`.
 | --- | --- |
 | `version` | native library version |
 | `sha256` | SHA-256 of `text` |
-| `molecular` | MolecularVault seal→open (passphrase) + hybrid-KEM PQ round-trip |
-| `evm` | Keccak-256 of `text` + secp256k1 sign/ecrecover |
+| `molecular` | MolecularVault seal and open (passphrase) plus a hybrid-KEM post-quantum round trip |
+| `evm` | Keccak-256 of `text` plus secp256k1 sign and ecrecover |
 
-The binding exposes the full 127-function API, so adding more operations is just
-another `case` in the route handler.
+The binding wraps the whole C ABI (356 functions in 1.5.0; see
+[its README](../cipherbird-node/README.md)), so adding an operation is another
+`case` in the route handler.
 
 ## Notes
 
 - **Node runtime only.** The route sets `export const runtime = 'nodejs'`. FFI
   is not available on the Edge runtime.
-- **Not bundled.** koffi (a native addon) and `cryptolib-node` are loaded at
-  request time via `createRequire`, so Next's bundler leaves them alone.
-- For deployment, bundle a self-contained `libcryptolib_c` (static-linked deps)
-  or publish `cryptolib-node` with the prebuilt binary and depend on it normally.
+- **Not bundled.** koffi (a native addon) and the Node binding are loaded at
+  request time through a dynamic `import()` marked `webpackIgnore`, so Next's
+  bundler leaves them alone.
+- For deployment, depend on the published `cipherbird` npm package, which
+  carries its prebuilt engine, instead of the sibling directory and a local
+  build.

@@ -16,18 +16,18 @@ CANDIDATES=(
   build/selfcontained/libcryptolib_c.dylib
   build/android-arm64-v8a/libcryptolib_c.so
   build/android-x86_64/libcryptolib_c.so
-  bridge/bindings/cryptolib-node/prebuilds/darwin-arm64/libcryptolib_c.dylib
-  bridge/bindings/cryptolib-jvm/native/darwin-arm64/libcryptolib_c.dylib
-  bridge/bindings/cryptolib-dotnet/runtimes/osx-arm64/native/libcryptolib_c.dylib
+  bridge/bindings/cipherbird-node/prebuilds/darwin-arm64/libcipherbird.dylib
+  bridge/bindings/cipherbird-jvm/native/darwin-arm64/libcipherbird.dylib
+  bridge/bindings/cipherbird-dotnet/runtimes/osx-arm64/native/libcipherbird.dylib
 )
 PRESENT=()
 for f in "${CANDIDATES[@]}"; do [ -f "$f" ] && PRESENT+=("$f"); done
 
 # The xcframework is a directory — checksum a deterministic tar of it.
-if [ -d CryptoLib.xcframework ]; then
-  tar --uid 0 --gid 0 --numeric-owner -cf build/CryptoLib.xcframework.tar CryptoLib.xcframework 2>/dev/null \
-    || tar -cf build/CryptoLib.xcframework.tar CryptoLib.xcframework
-  PRESENT+=(build/CryptoLib.xcframework.tar)
+if [ -d CipherBird.xcframework ]; then
+  tar --uid 0 --gid 0 --numeric-owner -cf build/CipherBird.xcframework.tar CipherBird.xcframework 2>/dev/null \
+    || tar -cf build/CipherBird.xcframework.tar CipherBird.xcframework
+  PRESENT+=(build/CipherBird.xcframework.tar)
 fi
 
 [ ${#PRESENT[@]} -gt 0 ] || { echo "No release artifacts found (build them first)."; exit 1; }

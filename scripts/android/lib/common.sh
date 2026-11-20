@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared environment for cryptolib Android NDK build scripts.
+# Shared environment for cipherbird Android NDK build scripts.
 # Expects callers to set ABI (arm64-v8a | armeabi-v7a | x86_64 | x86).
 
 set -euo pipefail

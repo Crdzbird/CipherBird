@@ -47,13 +47,13 @@ else sk swift; fi
 
 echo "═══ Java ═══"
 if command -v javac >/dev/null 2>&1; then
-  o="$(cd bridge/bindings/java && javac CryptoLibDemo.java 2>/dev/null && java --enable-native-access=ALL-UNNAMED CryptoLibDemo "$DY" 2>&1)"
+  o="$(cd bridge/bindings/java && javac CipherBirdDemo.java 2>/dev/null && java --enable-native-access=ALL-UNNAMED CipherBirdDemo "$DY" 2>&1)"
   chk java "$o" && ok "java" || no "java" "$o"
 else sk java; fi
 
 echo "═══ Kotlin ═══"
 if command -v kotlinc >/dev/null 2>&1; then
-  o="$(cd bridge/bindings/kotlin && kotlinc CryptoLibDemo.kt -include-runtime -d demo.jar 2>/dev/null && java --enable-native-access=ALL-UNNAMED -jar demo.jar "$DY" 2>&1)"
+  o="$(cd bridge/bindings/kotlin && kotlinc CipherBirdDemo.kt -include-runtime -d demo.jar 2>/dev/null && java --enable-native-access=ALL-UNNAMED -jar demo.jar "$DY" 2>&1)"
   chk kotlin "$o" && ok "kotlin" || no "kotlin" "$o"
 else sk kotlin; fi
 

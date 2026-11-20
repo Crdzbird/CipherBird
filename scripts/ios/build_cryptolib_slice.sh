@@ -40,11 +40,11 @@ cmake -B "$BUILD/cmake" -S "$REPO_ROOT" -G Ninja \
     -DCRYPTOLIB_DEPS_ROOT="$DEPS" \
     -DCRYPTOLIB_BUILD_EXAMPLE=OFF \
     -DCRYPTOLIB_BUILD_TESTS=OFF \
-    > "$BUILD/cmake.log" 2>&1 || { tail -60 "$BUILD/cmake.log"; die "cryptolib configure failed"; }
+    > "$BUILD/cmake.log" 2>&1 || { tail -60 "$BUILD/cmake.log"; die "cipherbird configure failed"; }
 
 log "Building cryptolib_c.a for $SLICE"
 cmake --build "$BUILD/cmake" --target cryptolib_c -j"$(sysctl -n hw.ncpu)" \
-    > "$BUILD/build.log" 2>&1 || { tail -60 "$BUILD/build.log"; die "cryptolib build failed"; }
+    > "$BUILD/build.log" 2>&1 || { tail -60 "$BUILD/build.log"; die "cipherbird build failed"; }
 
 # Locate the output archive
 BRIDGE_A="$BUILD/cmake/libcryptolib_c.a"

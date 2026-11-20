@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-shot orchestrator: build all deps for all slices, then cryptolib_c per
-# slice, then assemble CryptoLib.xcframework.
+# slice, then assemble CipherBird.xcframework.
 #
 # Usage:
 #   ./scripts/ios/build_all.sh                    # all slices
@@ -36,4 +36,4 @@ done
 printf "\n%s═══ Assembling XCFramework ═══%s\n" "$BOLD$CYN" "$RST"
 "$IOS_SCRIPT_DIR/assemble_xcframework.sh" "${SLICES[@]}"
 
-printf "\n%s✓ All done — CryptoLib.xcframework ready%s\n" "$BOLD$GRN" "$RST"
+printf "\n%s✓ All done — CipherBird.xcframework ready%s\n" "$BOLD$GRN" "$RST"

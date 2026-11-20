@@ -1,21 +1,21 @@
-# Go ↔ Flutter/Dart interop example
+# Go and Flutter/Dart interop example
 
 A value encrypted by the **Go** binding decrypts cleanly in the **Flutter/Dart**
-binding, and vice-versa — because both are thin wrappers over the *same* native
-`libcryptolib_c`. The ciphertext format is the library's format, not a
-per-language one.
+binding, and the other way round, because both are thin wrappers over the
+*same* native `libcryptolib_c`. The ciphertext format is the library's format,
+not a per-language one.
 
 This example demonstrates **all three directions** with authenticated
 public-key encryption (Box / X25519, the NaCl `crypto_box` construction):
 
-1. **Go ──▶ Flutter** — Go encrypts, Dart decrypts.
-2. **Flutter ──▶ Go** — Dart encrypts, Go decrypts.
-3. **Flutter ◀──▶ Go** — a two-way ping/pong conversation.
+1. **Go to Flutter**: Go encrypts, Dart decrypts.
+2. **Flutter to Go**: Dart encrypts, Go decrypts.
+3. **Both ways**: a two-way ping/pong conversation.
 
 Plus a negative control: a tampered ciphertext is rejected (AEAD authentication).
 
-> The Dart party uses `package:cryptolib_dart` — the **exact** `dart:ffi` binding
-> the Flutter plugin ships — so its behaviour is identical to a real Flutter app.
+> The Dart party uses `package:cipherbird_dart`, which is generated from the
+> Flutter plugin's sources, so its behaviour is identical to a real Flutter app.
 
 ## Run it
 
@@ -31,11 +31,12 @@ bridge/bindings/interop/run.sh
 Expected tail:
 
 ```
-  ✓ Flutter decrypted Go's message
-  ✓ Go decrypted Flutter's message
-  ✓ Flutter received Go's ping
-  ✓ Go received Flutter's pong
-  ✓ tampered ciphertext rejected by Flutter (authentication held)
+  ok   Flutter decrypted Go's message
+  ok   Go decrypted Flutter's message
+  ok   Flutter received Go's ping
+  ok   Go received Flutter's pong
+  ok   tampered ciphertext rejected by Flutter (authentication held)
+
   INTEROP RESULT: 5 passed, 0 failed
 ```
 
@@ -44,7 +45,7 @@ Expected tail:
 | Piece | Path | Role |
 | --- | --- | --- |
 | Go party    | [`bridge/bindings/go/interop/main.go`](../go/interop/main.go) | `keygen` / `enc` / `dec` CLI over the Go binding |
-| Dart party  | [`bridge/bindings/dart/bin/interop_party.dart`](../dart/bin/interop_party.dart) | same CLI over the Flutter/Dart binding |
+| Dart party  | [`bridge/bindings/cipherbird_dart/bin/interop_party.dart`](../cipherbird_dart/bin/interop_party.dart) | same CLI over the Flutter/Dart binding |
 | Orchestrator| [`run.sh`](run.sh) | exchanges public keys, runs all three directions, verifies |
 
 Both parties expose the same tiny protocol:
@@ -63,12 +64,12 @@ both decrypts *and* verifies came from the expected peer.
 
 - **Encrypt** with the *recipient's public key* and *your own secret key*.
 - **Decrypt** with the *sender's public key* and *your own secret key*.
-- The 24-byte nonce is generated and prepended automatically — you never manage
-  it. Output is `nonce ‖ ciphertext ‖ 16-byte tag`.
+- The 24-byte nonce is generated and prepended automatically; you never manage
+  it. Output is `nonce || ciphertext || 16-byte tag`.
 
 ### Transport
 
-The ciphertext is raw bytes (`[]byte` in Go, `Uint8List` in Dart — the same
+The ciphertext is raw bytes (`[]byte` in Go, `Uint8List` in Dart: the same
 bytes). To move it over a text channel (JSON/HTTP), **base64- or hex-encode it**
 and decode identically on the other side. This demo uses hex on the command
 line for exactly that reason.
@@ -76,7 +77,7 @@ line for exactly that reason.
 ### Want a simpler shared-key version?
 
 If both sides already share a 32-byte symmetric key, swap Box for symmetric
-AEAD — `XChaCha20Encrypt(plaintext, key, aad)` in Go and
+AEAD: `XChaCha20Encrypt(plaintext, key, aad)` in Go and
 `xchacha20Decrypt(ct, key, aad)` in Dart. Same rule: share the key out-of-band,
 keep the AAD identical on both ends.
 
@@ -86,4 +87,14 @@ keep the AAD identical on both ends.
   side's keypair and distribute public keys through your normal channel.
 - For long-term confidentiality against future quantum attackers, use the
   hybrid KEM (`HybridKemKeygen` / `hybridKemKeygen`) to agree a shared secret,
-  then symmetric AEAD — the same cross-binding portability applies.
+  then symmetric AEAD; the same cross-binding portability applies.
+
+## The other interop checks
+
+Two more harnesses check formats across bindings and run from the repository
+root:
+
+- `make recipe-interop`: recipe envelopes sealed by each binding open in the
+  others.
+- `make stream-interop`: a chunked SecretStream written by Go is read by Dart
+  and the other way round, chunk by chunk.

@@ -222,7 +222,7 @@ make flutter-recipes  # Flutter/Dart (5, via flutter test)
 
 Source: [`example/recipes.cpp`](example/recipes.cpp) ,
 [Go](bridge/bindings/go/recipes/main.go) ,
-[Node](bridge/bindings/cryptolib-node/recipes.js),
+[Node](bridge/bindings/cipherbird-node/recipes.js),
 [Swift](bridge/bindings/swift/cli/recipes.swift) ,
 [Flutter](bridge/bindings/cipherbird/test/recipes_test.dart).
 The same envelopes open across languages, a value sealed by the Go recipe opens
@@ -392,7 +392,7 @@ for the full guide, the comparison with other Dart packages and benchmarks.
 1. **Install.** `npm install cipherbird` (macOS on Apple silicon in this
    release; other platforms build the library from this repository and point
    `CIPHERBIRD_LIBRARY` at it). From source:
-   `cd bridge/bindings/cryptolib-node && npm install`.
+   `cd bridge/bindings/cipherbird-node && npm install`.
 2. **Use.** The loader resolves the bundled binary from
    `prebuilds/<platform>-<arch>/` automatically; the surface is the same as
    the Dart packages, flat and grouped by domain.
@@ -415,14 +415,14 @@ library and extracts it at startup.
 
 1. **Build the JAR** (from source, until Maven Central publication):
    ```bash
-   cd bridge/bindings/cryptolib-jvm
-   javac -d out src/cryptolib/*.java
+   cd bridge/bindings/cipherbird-jvm
+   javac -d out src/cipherbird/*.java
    mkdir -p out/native && cp -R native/* out/native/
-   jar cfe cryptolib-jvm.jar cryptolib.Main -C out .
+   jar cfe cipherbird-jvm.jar cipherbird.Main -C out .
    ```
 2. **Add it to your project** and call:
    ```java
-   try (var c = new cryptolib.CryptoLib()) {
+   try (var c = new cipherbird.CipherBird()) {
        c.init();
        System.out.println(c.version());                                    // 3.0.0
        var kp  = c.hybridKemKeygen();
@@ -431,7 +431,7 @@ library and extracts it at startup.
        assert java.util.Arrays.equals(enc.sharedSecret(), dec);
    }
    ```
-3. **Run.** `java --enable-native-access=ALL-UNNAMED -jar cryptolib-jvm.jar`.
+3. **Run.** `java --enable-native-access=ALL-UNNAMED -jar cipherbird-jvm.jar`.
 
 ### Swift (Swift Package Manager)
 
@@ -440,11 +440,11 @@ library and extracts it at startup.
    dependencies: [
      .package(path: "../path/to/bridge/bindings/swift"),
      // After tagging a release with a hosted xcframework:
-     // .package(url: "https://github.com/<org>/cryptolib", from: "3.0.0"),
+     // .package(url: "https://github.com/<org>/cipherbird", from: "3.0.0"),
    ],
    targets: [
      .target(name: "YourApp", dependencies: [
-       .product(name: "CipherBird", package: "CryptoLib"),
+       .product(name: "CipherBirdC", package: "CipherBird"),
      ]),
    ]
    ```
@@ -452,7 +452,7 @@ library and extracts it at startup.
    `pod install`, no manual Xcode steps.
 3. **Use.**
    ```swift
-   import CipherBird
+   import CipherBirdC
    guard cryptolib_init() == 0 else { exit(1) }
    let v = String(cString: cryptolib_version())                            // "3.0.0"
    let kp = cryptolib_hybrid_kem_keygen()
@@ -463,13 +463,13 @@ library and extracts it at startup.
 
 ### .NET (NuGet)
 
-1. **Add the package** (once published on NuGet): `dotnet add package CryptoLib`.
-   From source: `cd bridge/bindings/cryptolib-dotnet && dotnet pack -c Release`,
+1. **Add the package** (once published on NuGet): `dotnet add package CipherBird`.
+   From source: `cd bridge/bindings/cipherbird-dotnet && dotnet pack -c Release`,
    then add the produced `.nupkg`.
 2. **Use.** The runtime auto-resolves the native binary from
    `runtimes/<rid>/native/`.
    ```csharp
-   using CryptoLibNet;
+   using CipherBirdNet;
    CipherBird.Init();
    Console.WriteLine(CipherBird.Version());                                 // 3.0.0
    var (pub, sec) = CipherBird.HybridKemKeygen();
@@ -485,21 +485,21 @@ links against a locally-built dylib; for portable distribution, use the
 vendored merged static archive (see `PUBLISHING.md`).
 
 1. **Build the native library** (one-time): `make lib` (produces
-   `build/release/libcipherbird.dylib`).
+   `build/release/libcryptolib_c.dylib`).
 2. **Run the example:**
    ```bash
    cd bridge/bindings/go
-   DYLD_LIBRARY_PATH=$PWD/../../../build/release go run ./showcase
+   go run ./showcase
    ```
 3. **Use from your code:**
    ```go
-   import "cryptolib_bridge/cryptolib"
+   import "github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 
    func main() {
-       if err := cryptolib.Init(); err != nil { panic(err) }
-       kp := cryptolib.HybridKemKeygen()
-       enc, _ := cryptolib.HybridKemEncapsulate(kp.Public)
-       dec, _ := cryptolib.HybridKemDecapsulate(enc.Ciphertext, kp.Secret)
+       if err := cipherbird.Init(); err != nil { panic(err) }
+       kp := cipherbird.HybridKemKeygen()
+       enc, _ := cipherbird.HybridKemEncapsulate(kp.Public)
+       dec, _ := cipherbird.HybridKemDecapsulate(enc.Ciphertext, kp.Secret)
        _ = enc.SharedSecret  // == dec
    }
    ```

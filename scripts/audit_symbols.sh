@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# audit_symbols.sh — "no ambient authority" gate for the CryptoLib binary.
+# audit_symbols.sh — "no ambient authority" gate for the CipherBird binary.
 #
 # A cryptography library should be a sealed compute unit: it takes bytes in and
 # returns bytes out. It must never open a socket, spawn a process, or otherwise
@@ -60,7 +60,7 @@ if [[ -n "$hard_hits" ]]; then
   printf '        %s\n' $hard_hits
   echo "   A crypto library must not reach the network or spawn processes."
   # On a FULLY-STATIC binary these are typically OpenSSL's libcrypto BIO-socket
-  # objects (dormant — no CryptoLib path invokes them). The shared dylib is
+  # objects (dormant — no CipherBird path invokes them). The shared dylib is
   # clean because libcrypto is external there. To get a socket-free static
   # build, link an OpenSSL built with `no-sock no-dso`.
   if printf '%s\n' "$hard_hits" | grep -qE '_(socket|connect|sendto|recvmsg)$'; then

@@ -1,5 +1,5 @@
 // LavaRand HTTP Server — demonstrates real-world LavaRand entropy usage
-// with the CryptoLib Go bindings.
+// with the CipherBird Go bindings.
 //
 // Usage:
 //
@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -29,7 +29,7 @@ import (
 type serverState struct {
 	mu                sync.Mutex
 	entropyFile       string
-	entropy           *cryptolib.Entropy
+	entropy           *cipherbird.Entropy
 	enrolledPubkeys   map[string]bool   // hex pubkey -> enrolled
 	pendingChallenges map[string][]byte // hex challenge -> raw bytes
 	sessionKeys       map[string][]byte // key_id -> symmetric key
@@ -37,7 +37,7 @@ type serverState struct {
 	startTime         time.Time
 }
 
-func newServerState(entropyFile string, ent *cryptolib.Entropy) *serverState {
+func newServerState(entropyFile string, ent *cipherbird.Entropy) *serverState {
 	return &serverState{
 		entropyFile:       entropyFile,
 		entropy:           ent,
@@ -137,7 +137,7 @@ func (s *serverState) handleEnroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Derive a deterministic fingerprint from the entropy file.
-	detEnt, err := cryptolib.EntropyFromFileDeterministic(s.entropyFile)
+	detEnt, err := cipherbird.EntropyFromFileDeterministic(s.entropyFile)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "entropy error: "+err.Error())
 		return
@@ -150,7 +150,7 @@ func (s *serverState) handleEnroll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SHA-256 of the raw entropy as a compact fingerprint.
-	fingerprint, err := cryptolib.SHA256(raw)
+	fingerprint, err := cipherbird.SHA256(raw)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "hash error: "+err.Error())
 		return
@@ -174,7 +174,7 @@ func (s *serverState) handleChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	challenge, err := cryptolib.RandomBytes(32)
+	challenge, err := cipherbird.RandomBytes(32)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "random error: "+err.Error())
 		return
@@ -240,7 +240,7 @@ func (s *serverState) handleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok := cryptolib.Ed25519Verify(challenge, sig, pubkey)
+	ok := cipherbird.Ed25519Verify(challenge, sig, pubkey)
 	msg := "signature verified"
 	if !ok {
 		msg = "signature verification failed"
@@ -274,7 +274,7 @@ func (s *serverState) handleEncrypt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fresh LavaRand key for every encryption (the core demo).
-	ent, err := cryptolib.EntropyFromFile(s.entropyFile)
+	ent, err := cipherbird.EntropyFromFile(s.entropyFile)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "entropy error: "+err.Error())
 		return
@@ -291,7 +291,7 @@ func (s *serverState) handleEncrypt(w http.ResponseWriter, r *http.Request) {
 	if req.AAD != "" {
 		aad = []byte(req.AAD)
 	}
-	ciphertext, err := cryptolib.XChaCha20Encrypt([]byte(req.Plaintext), key, aad)
+	ciphertext, err := cipherbird.XChaCha20Encrypt([]byte(req.Plaintext), key, aad)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "encrypt error: "+err.Error())
 		return
@@ -349,7 +349,7 @@ func (s *serverState) handleDecrypt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plaintext, err := cryptolib.XChaCha20Decrypt(ciphertext, key, nil)
+	plaintext, err := cipherbird.XChaCha20Decrypt(ciphertext, key, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "decrypt error: "+err.Error())
 		return
@@ -393,13 +393,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialise cryptolib.
-	if err := cryptolib.Init(); err != nil {
-		log.Fatalf("cryptolib init: %v", err)
+	// Initialise cipherbird.
+	if err := cipherbird.Init(); err != nil {
+		log.Fatalf("cipherbird init: %v", err)
 	}
 
 	// Harvest initial entropy from the file.
-	ent, err := cryptolib.EntropyFromFile(*entropyFile)
+	ent, err := cipherbird.EntropyFromFile(*entropyFile)
 	if err != nil {
 		log.Fatalf("entropy from file: %v", err)
 	}
@@ -407,9 +407,9 @@ func main() {
 
 	// Startup banner.
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-	fmt.Println("║            CryptoLib LavaRand HTTP Server                   ║")
+	fmt.Println("║            CipherBird LavaRand HTTP Server                   ║")
 	fmt.Println("╠══════════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  Library version : %-40s ║\n", cryptolib.Version())
+	fmt.Printf("║  Library version : %-40s ║\n", cipherbird.Version())
 	fmt.Printf("║  Entropy file    : %-40s ║\n", filepath.Base(*entropyFile))
 	fmt.Printf("║  File size       : %-40s ║\n", fmt.Sprintf("%d bytes", info.FileSize))
 	fmt.Printf("║  Chunks read     : %-40d ║\n", info.ChunksRead)

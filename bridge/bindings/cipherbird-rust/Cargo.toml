@@ -1,0 +1,19 @@
+[package]
+name = "cipherbird"
+version = "3.0.0"
+edition = "2021"
+description = "CipherBird for Rust — hashing, AEAD, asymmetric, post-quantum (ML-KEM/ML-DSA/SLH-DSA), hybrid KEM, BLS and a keyring, via FFI. Native library bundled per platform."
+license = "MIT"
+# The bundled native library lives under native/<os>-<arch>/ and is .gitignore'd
+# (binaries don't belong in git; run `make bundle` to populate it). `cargo publish`
+# defaults to git-tracked files, so list native/ explicitly here — `include`
+# overrides .gitignore for packaging and packs it into the published crate.
+include = ["src/**/*", "build.rs", "examples/**/*", "native/**/*", "Cargo.toml", "README*"]
+
+[lib]
+name = "cipherbird"
+path = "src/lib.rs"
+
+[[example]]
+name = "smoke"
+path = "examples/smoke.rs"

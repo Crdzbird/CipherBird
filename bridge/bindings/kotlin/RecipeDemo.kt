@@ -1,20 +1,20 @@
-// CryptoLib Kotlin — security profiles + composable recipes.
+// CipherBird Kotlin — security profiles + composable recipes.
 //
-// Kotlin consumes the `cryptolib` Java package (cryptolib-jvm) rather than
+// Kotlin consumes the `cipherbird` Java package (cipherbird-jvm) rather than
 // re-declaring the FFM bindings: same JVM, same native library, one binding to
 // maintain. Everything below is the shared Recipe API.
 //
 // Build/run (see Makefile target `kotlin-security`):
-//   kotlinc RecipeDemo.kt -cp ../cryptolib-jvm/out -include-runtime -d recipe.jar
-//   java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cryptolib-jvm/out RecipeDemoKt
-import cryptolib.CryptoLib
-import cryptolib.FecScheme
-import cryptolib.CascadeLayer
-import cryptolib.KeySource
-import cryptolib.ProtectionLayer
-import cryptolib.SignatureScheme
-import cryptolib.SecurityProfile
-import cryptolib.SignatureAlgorithm
+//   kotlinc RecipeDemo.kt -cp ../cipherbird-jvm/out -include-runtime -d recipe.jar
+//   java --enable-native-access=ALL-UNNAMED -cp recipe.jar:../cipherbird-jvm/out RecipeDemoKt
+import cipherbird.CipherBird
+import cipherbird.FecScheme
+import cipherbird.CascadeLayer
+import cipherbird.KeySource
+import cipherbird.ProtectionLayer
+import cipherbird.SignatureScheme
+import cipherbird.SecurityProfile
+import cipherbird.SignatureAlgorithm
 import java.nio.file.Files
 import kotlin.system.exitProcess
 
@@ -46,8 +46,8 @@ private fun noisePpm(w: Int, h: Int, seed: Int): ByteArray {
 class MyLayer : ProtectionLayer {
     override fun id() = 200
     override fun wireName() = "my-xchacha"
-    override fun seal(lib: CryptoLib, key: ByteArray, aad: ByteArray, pt: ByteArray) = lib.xchacha20Encrypt(pt, key, aad)
-    override fun open(lib: CryptoLib, key: ByteArray, aad: ByteArray, ct: ByteArray) = lib.xchacha20Decrypt(ct, key, aad)
+    override fun seal(lib: CipherBird, key: ByteArray, aad: ByteArray, pt: ByteArray) = lib.xchacha20Encrypt(pt, key, aad)
+    override fun open(lib: CipherBird, key: ByteArray, aad: ByteArray, ct: ByteArray) = lib.xchacha20Decrypt(ct, key, aad)
 }
 
 /** Three ciphers as ONE layer, by extending CascadeLayer. */
@@ -58,7 +58,7 @@ class BeltAndBraces : CascadeLayer(201, "belt-and-braces",
 class TokenSource(private val token: ByteArray) : KeySource {
     override fun id() = 210
     override fun label() = "token"
-    override fun deriveRoot(lib: CryptoLib, salt: ByteArray, ops: Long, mem: Long) = token
+    override fun deriveRoot(lib: CipherBird, salt: ByteArray, ops: Long, mem: Long) = token
 }
 
 /** A custom signature scheme: Ed25519 over a domain-separated message. */
@@ -66,25 +66,25 @@ class PrefixedEd25519(private val sk: ByteArray? = null, private val pk: ByteArr
     override fun id() = 220
     override fun label() = "prefixed-ed25519"
     private fun tag(m: ByteArray) = "custom:".toByteArray() + m
-    override fun sign(lib: CryptoLib, m: ByteArray) = lib.ed25519Sign(tag(m), sk!!)
-    override fun verify(lib: CryptoLib, m: ByteArray, sig: ByteArray) = lib.ed25519Verify(tag(m), sig, pk!!)
+    override fun sign(lib: CipherBird, m: ByteArray) = lib.ed25519Sign(tag(m), sk!!)
+    override fun verify(lib: CipherBird, m: ByteArray, sig: ByteArray) = lib.ed25519Verify(tag(m), sig, pk!!)
 }
 
 class Impostor : ProtectionLayer {
     override fun id() = 3
     override fun wireName() = "committing"
-    override fun seal(lib: CryptoLib, key: ByteArray, aad: ByteArray, pt: ByteArray) = pt
-    override fun open(lib: CryptoLib, key: ByteArray, aad: ByteArray, ct: ByteArray) = ct
+    override fun seal(lib: CipherBird, key: ByteArray, aad: ByteArray, pt: ByteArray) = pt
+    override fun open(lib: CipherBird, key: ByteArray, aad: ByteArray, ct: ByteArray) = ct
 }
 
 fun main() {
-    CryptoLib().use { lib ->
+    CipherBird().use { lib ->
         lib.init()
-        println("CryptoLib ${lib.version()} — security profiles + recipes (Kotlin)")
+        println("CipherBird ${lib.version()} — security profiles + recipes (Kotlin)")
 
         val dir = Files.createTempDirectory("cl_sec_kt_")
         val secret = "the treaty text nobody may read".toByteArray()
-        fun cheap(r: cryptolib.Recipe) = r.argon2Cost(1, 8L * 1024 * 1024)
+        fun cheap(r: cipherbird.Recipe) = r.argon2Cost(1, 8L * 1024 * 1024)
 
         val max = SecurityProfile.MAXIMUM
         ck("maximum picks the strongest options",

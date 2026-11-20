@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.cryptolib_gui"
+    namespace = "com.example.cipherbird_gui"
     // file_picker (and other plugins) require compileSdk 36+; pin it rather
     // than inheriting Flutter's older default.
     compileSdk = 36
@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.cryptolib_gui"
+        applicationId = "com.example.cipherbird_gui"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

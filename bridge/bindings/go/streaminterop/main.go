@@ -26,7 +26,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 const (
@@ -48,11 +48,11 @@ func chunkOf(index, size int) []byte {
 }
 
 func mix(digest, chunk []byte) []byte {
-	inner, err := cryptolib.SHA256(chunk)
+	inner, err := cipherbird.SHA256(chunk)
 	if err != nil {
 		fail("sha256: %v", err)
 	}
-	outer, err := cryptolib.SHA256(append(append([]byte(nil), digest...), inner...))
+	outer, err := cipherbird.SHA256(append(append([]byte(nil), digest...), inner...))
 	if err != nil {
 		fail("sha256: %v", err)
 	}
@@ -61,7 +61,7 @@ func mix(digest, chunk []byte) []byte {
 
 func write(path string, chunks int) {
 	key, _ := hex.DecodeString(keyHex)
-	enc := cryptolib.NewStreamEncryptor(key)
+	enc := cipherbird.NewStreamEncryptor(key)
 	if enc == nil {
 		fail("encryptor")
 	}
@@ -80,9 +80,9 @@ func write(path string, chunks int) {
 	}
 	digest := make([]byte, 32)
 	for i := 0; i < chunks; i++ {
-		size, tag := chunkSize, cryptolib.TagMessage
+		size, tag := chunkSize, cipherbird.TagMessage
 		if i == chunks-1 {
-			size, tag = chunkSize/2, cryptolib.TagFinal
+			size, tag = chunkSize/2, cipherbird.TagFinal
 		}
 		plain := chunkOf(i, size)
 		ct, err := enc.Push(plain, tag)
@@ -110,7 +110,7 @@ func read(path string) {
 	if _, err := io.ReadFull(f, header); err != nil {
 		fail("header: %v", err)
 	}
-	dec := cryptolib.NewStreamDecryptor(key, header)
+	dec := cipherbird.NewStreamDecryptor(key, header)
 	if dec == nil {
 		fail("decryptor")
 	}
@@ -137,13 +137,13 @@ func read(path string) {
 		}
 		digest = mix(digest, plain)
 		chunks++
-		final = tag == cryptolib.TagFinal
+		final = tag == cipherbird.TagFinal
 	}
 	fmt.Printf("digest %s chunks %d final %v\n", hex.EncodeToString(digest), chunks, final)
 }
 
 func main() {
-	if err := cryptolib.Init(); err != nil {
+	if err := cipherbird.Init(); err != nil {
 		fail("init: %v", err)
 	}
 	if len(os.Args) == 4 && os.Args[1] == "write" {

@@ -1,13 +1,13 @@
-// LavaRand CLI Client — interacts with the CryptoLib LavaRand HTTP server.
+// LavaRand CLI Client — interacts with the CipherBird LavaRand HTTP server.
 //
 // The client and server use DIFFERENT files for DIFFERENT purposes:
 //
-//   Server file: LavaRand entropy source (any file — webcam, mic, lava lamp photo).
-//                Mixed with system entropy. Different keys every call. Seeds the PRNG.
+//	Server file: LavaRand entropy source (any file — webcam, mic, lava lamp photo).
+//	             Mixed with system entropy. Different keys every call. Seeds the PRNG.
 //
-//   Client file: Your private identity file (your personal photo, voice memo, etc.).
-//                Deterministic mode. Same file → same Ed25519 keypair every time.
-//                The file IS your credential — like a hardware security key.
+//	Client file: Your private identity file (your personal photo, voice memo, etc.).
+//	             Deterministic mode. Same file → same Ed25519 keypair every time.
+//	             The file IS your credential — like a hardware security key.
 //
 // The files do NOT need to match. The server never sees the client's file.
 //
@@ -36,7 +36,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cryptolib"
+	"github.com/Crdzbird/CipherBird/bridge/bindings/go/cipherbird"
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -108,11 +108,11 @@ func prettyJSON(m map[string]any) {
 }
 
 // deriveEd25519 derives a deterministic Ed25519 keypair from an entropy file.
-func deriveEd25519(entropyFile string) cryptolib.KeyPair {
-	ent := must(cryptolib.EntropyFromFileDeterministic(entropyFile))
+func deriveEd25519(entropyFile string) cipherbird.KeyPair {
+	ent := must(cipherbird.EntropyFromFileDeterministic(entropyFile))
 	defer ent.Close()
 	keys := ent.DeriveAll()
-	return cryptolib.Ed25519KeygenFromSeed(keys.SigningSeed)
+	return cipherbird.Ed25519KeygenFromSeed(keys.SigningSeed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -151,7 +151,7 @@ func cmdChallenge(entropyFile string) {
 
 	// Step 2: sign the challenge locally.
 	challenge := must(hex.DecodeString(challengeHex))
-	sig := must(cryptolib.Ed25519Sign(challenge, kp.Secret))
+	sig := must(cipherbird.Ed25519Sign(challenge, kp.Secret))
 	sigHex := hex.EncodeToString(sig)
 	printLabel("signature", sigHex[:32]+"...")
 
@@ -237,7 +237,7 @@ func cmdDemo(entropyFile string) {
 	printLabel("challenge", challengeHex[:32]+"...")
 
 	challenge := must(hex.DecodeString(challengeHex))
-	sig := must(cryptolib.Ed25519Sign(challenge, kp.Secret))
+	sig := must(cipherbird.Ed25519Sign(challenge, kp.Secret))
 	sigHex := hex.EncodeToString(sig)
 	printLabel("signature", sigHex[:32]+"...")
 
@@ -321,9 +321,9 @@ func usage() {
 }
 
 func main() {
-	// Initialise cryptolib.
-	if err := cryptolib.Init(); err != nil {
-		fmt.Fprintf(os.Stderr, "fatal: cryptolib init: %v\n", err)
+	// Initialise cipherbird.
+	if err := cipherbird.Init(); err != nil {
+		fmt.Fprintf(os.Stderr, "fatal: cipherbird init: %v\n", err)
 		os.Exit(1)
 	}
 

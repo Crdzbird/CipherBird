@@ -1,6 +1,6 @@
 {
-    "name": "cryptolib_gui",
-    "short_name": "cryptolib_gui",
+    "name": "cipherbird_gui",
+    "short_name": "cipherbird_gui",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

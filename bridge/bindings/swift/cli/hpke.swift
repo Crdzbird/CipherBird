@@ -1,4 +1,4 @@
-// CryptoLib Swift — HPKE (RFC 9180) hybrid public-key encryption. KEM is
+// CipherBird Swift — HPKE (RFC 9180) hybrid public-key encryption. KEM is
 // DHKEM(X25519, HKDF-SHA256); an envelope sealed here opens in any conformant
 // HPKE implementation (TLS ECH, MLS, Oblivious HTTP). Build the smoke with the
 // Makefile target `swift-hpke`.
@@ -119,7 +119,7 @@ func hexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — HPKE (RFC 9180) (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — HPKE (RFC 9180) (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

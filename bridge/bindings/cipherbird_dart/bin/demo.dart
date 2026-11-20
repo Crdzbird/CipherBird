@@ -1,6 +1,6 @@
 // Standalone dart:ffi console demo for CipherBird.
 //
-// Reuses the same bindings the Flutter plugin uses (lib/cryptolib_ffi.dart).
+// Reuses the same API the Flutter plugin ships, through package:cipherbird_dart.
 // Run (see Makefile target `dart`):
 //   dart pub get
 //   dart run bin/demo.dart <path-to-libcipherbird.dylib>

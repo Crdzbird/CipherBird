@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# Register Frameworks/CryptoLib.xcframework with the Runner target so iOS
+# Register Frameworks/CipherBird.xcframework with the Runner target so iOS
 # app builds pick up the prebuilt static library and its public headers.
 #
 # Idempotent: re-running won't duplicate the reference.
@@ -9,7 +9,7 @@ require 'pathname'
 
 SCRIPT_DIR = Pathname(__FILE__).realpath.dirname
 PROJ_PATH  = SCRIPT_DIR + 'Runner.xcodeproj'
-XCFW_REL   = 'Frameworks/CryptoLib.xcframework'
+XCFW_REL   = 'Frameworks/CipherBird.xcframework'
 
 project = Xcodeproj::Project.open(PROJ_PATH.to_s)
 target  = project.targets.find { |t| t.name == 'Runner' } \
@@ -71,4 +71,4 @@ project.build_configurations.each do |cfg|
 end
 
 project.save
-puts "CryptoLib.xcframework registered with Runner target."
+puts "CipherBird.xcframework registered with Runner target."

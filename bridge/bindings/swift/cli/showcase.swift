@@ -1,4 +1,4 @@
-// CryptoLib Swift — FULL showcase of every capability family via the C ABI.
+// CipherBird Swift — FULL showcase of every capability family via the C ABI.
 //
 // Build/run (see Makefile target `swift-showcase`):
 //   swiftc -import-objc-header ../../../cryptolib_c.h showcase.swift \
@@ -29,7 +29,7 @@ extension Array where Element == UInt8 {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — Swift full showcase\n")
+print("CipherBird \(String(cString: cryptolib_version())) — Swift full showcase\n")
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 print("HASHING")

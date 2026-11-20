@@ -1,4 +1,4 @@
-// CryptoLib Swift console demo.
+// CipherBird Swift console demo.
 //
 // Verifies the C ABI from Swift via a bridging header (cryptolib_c.h). The
 // SwiftUI app under ../Sources uses the same calls; this is a fast CLI check.
@@ -27,7 +27,7 @@ func consume(_ r: CryptoBufferResult) -> [UInt8]? {
 func hex(_ b: [UInt8]) -> String { b.map { String(format: "%02x", $0) }.joined() }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib version: \(String(cString: cryptolib_version()))")
+print("CipherBird version: \(String(cString: cryptolib_version()))")
 
 // Random bytes
 if let r = consume(cryptolib_random_bytes(32)) {

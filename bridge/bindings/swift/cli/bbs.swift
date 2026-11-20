@@ -1,4 +1,4 @@
-// CryptoLib Swift — BBS Signatures + selective disclosure (BLS12-381-SHA-256,
+// CipherBird Swift — BBS Signatures + selective disclosure (BLS12-381-SHA-256,
 // draft-irtf-cfrg-bbs-signatures). Sign a vector of messages; derive a
 // zero-knowledge proof revealing only a chosen subset. Build the smoke with the
 // Makefile target `swift-bbs`.
@@ -103,7 +103,7 @@ func hexToBytes(_ s: String) -> [UInt8] {
 }
 
 guard cryptolib_init() == 0 else { fatalError("init failed") }
-print("CryptoLib \(String(cString: cryptolib_version())) — BBS signatures (Swift)")
+print("CipherBird \(String(cString: cryptolib_version())) — BBS signatures (Swift)")
 var pass = 0, fail = 0
 func ck(_ n: String, _ ok: Bool) { print("  \(ok ? "✓" : "✗") \(n)"); ok ? (pass += 1) : (fail += 1) }
 

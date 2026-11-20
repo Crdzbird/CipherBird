@@ -1,7 +1,8 @@
-# Using CryptoLib from the Flutter Android app
+# Using CipherBird from the Flutter Android app
 
 **This app runs on Android.** The native library is bundled as a prebuilt
-`.so` per ABI and loaded by name; no host path is involved.
+`.so` per ABI and loaded by name; no host path is involved. The `.so` files
+are not committed, so build and copy them (step 1) before the first build.
 
 ```bash
 flutter build apk --debug        # or: flutter run -d <device>
@@ -9,20 +10,21 @@ flutter build apk --debug        # or: flutter run -d <device>
 
 ## How it's wired
 
-1. **Native library in `jniLibs`.** `libcryptolib_c.so` is shipped per ABI at
+1. **Native library in `jniLibs`.** `libcryptolib_c.so` is expected per ABI at
    `app/src/main/jniLibs/<abi>/libcryptolib_c.so`. The Android Gradle plugin
    packages everything under `jniLibs/` into the APK (`lib/<abi>/...`), and the
    Dart loader resolves it with `DynamicLibrary.open('libcryptolib_c.so')`
-   (see `lib/cryptolib_ffi.dart`).
+   (see `lib/cipherbird_ffi.dart`).
 
-   Currently bundled: `arm64-v8a` (most devices + Apple-silicon emulators) and
-   `x86_64` (Intel emulators).
+   The two ABIs the build produces: `arm64-v8a` (most devices and
+   Apple-silicon emulators) and `x86_64` (Intel emulators).
 
-   To refresh after rebuilding the native library:
+   To build them and put them in place (`ANDROID_NDK_HOME` must point at an
+   NDK):
 
    ```bash
-   # from the repo root — build the Android slices
-   make android                        # arm64-v8a + x86_64 → build/android-<abi>/
+   # from the repo root: build the Android slices
+   make android                        # arm64-v8a + x86_64, into build/android-<abi>/
 
    cp build/android-arm64-v8a/libcryptolib_c.so \
       bridge/bindings/flutter/android/app/src/main/jniLibs/arm64-v8a/
@@ -39,6 +41,6 @@ flutter build apk --debug        # or: flutter run -d <device>
 ## Sandbox paths
 
 Like iOS, Android sandboxes app storage. `MediaEntropy` and the
-`seal_from_file` / `open_from_file` helpers need a legal directory — use
+`seal_from_file` / `open_from_file` helpers need a legal directory: use
 `path_provider` (`getApplicationDocumentsDirectory()`,
 `getTemporaryDirectory()`) rather than absolute paths.
