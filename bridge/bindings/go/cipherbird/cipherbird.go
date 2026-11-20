@@ -1136,10 +1136,18 @@ func BlsVerify(msg, sig, publicKey []byte) bool {
 }
 
 // BlsKeygenFromIkm deterministically derives a BLS keypair from input key
-// material (>= 32 bytes). Same IKM yields the same key.
-func BlsKeygenFromIkm(ikm []byte) KeyPair {
+// material (>= 32 bytes). Same IKM yields the same key. It returns an error
+// for shorter IKM or when the engine was built without BLS.
+func BlsKeygenFromIkm(ikm []byte) (KeyPair, error) {
+	if len(ikm) < 32 {
+		return KeyPair{}, fmt.Errorf("cipherbird: BLS keygen IKM must be at least 32 bytes, got %d", len(ikm))
+	}
 	kp := C.cipherbird_bls_keygen_from_ikm(u8(ikm), C.size_t(len(ikm)))
-	return KeyPair{Public: goBytes(kp.public_key), Secret: goBytes(kp.secret_key)}
+	pair := KeyPair{Public: goBytes(kp.public_key), Secret: goBytes(kp.secret_key)}
+	if len(pair.Public) == 0 || len(pair.Secret) == 0 {
+		return KeyPair{}, errors.New("cipherbird: BLS key derivation is not available in this engine")
+	}
+	return pair, nil
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

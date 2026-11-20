@@ -48,6 +48,13 @@ extension _MarshalStructs on CipherBird {
     );
   }
 
+  KeyPairResult _requireKeyPair(KeyPairResult kp, String what) {
+    if (kp.publicKey.isEmpty || kp.secretKey.isEmpty) {
+      throw StateError('$what key derivation is not available in this engine');
+    }
+    return kp;
+  }
+
   AsymBundleResult _extractBundle(CipherBirdAsymBundle ab) {
     return AsymBundleResult(
       boxPublic: _copyBuf(ab.boxPublic),

@@ -1003,8 +1003,8 @@ func main() {
 		!cipherbird.HybridSigVerify([]byte("forged"), hsig, hsk.Public))
 
 	blsIkm := must(cipherbird.RandomBytes(32))
-	d1 := cipherbird.BlsKeygenFromIkm(blsIkm)
-	d2 := cipherbird.BlsKeygenFromIkm(blsIkm)
+	d1 := must(cipherbird.BlsKeygenFromIkm(blsIkm))
+	d2 := must(cipherbird.BlsKeygenFromIkm(blsIkm))
 	fmt.Printf("  bls keygen-from-ikm deterministic: %v\n", bytes.Equal(d1.Public, d2.Public))
 
 	// BLAKE3 (hash + XOF + keyed + derive-key)

@@ -514,6 +514,16 @@ function consume(r) {
   const out = b(r.buf); fn.bufFree(r.buf); return out;
 }
 function kp(k) { const pub = b(k.public_key), sec = b(k.secret_key); fn.kpFree(k); return { publicKey: pub, secretKey: sec }; }
+function requiredKp(k, what) {
+  const pair = kp(k);
+  if (pair.publicKey.length === 0 || pair.secretKey.length === 0) throw new Error(`cipherbird: ${what} key derivation is not available in this engine`);
+  return pair;
+}
+function seedOfLength(seed, check, what) {
+  const bytes = u8(seed);
+  if (!check(bytes.length)) throw new RangeError(`cipherbird: ${what}, got ${bytes.length} bytes`);
+  return bytes;
+}
 const u8 = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x);
 
 /** Overwrites a Buffer or typed array with zeros. Call it on key material you are done with. */
@@ -1940,7 +1950,10 @@ function takeOutBuf(box) {
 const XWing = {
   keygen() { return kp(fn.xwKeygen()); },
   /** The key pair a 32-byte seed expands to. */
-  keypairFromSeed(seed) { return kp(fn.xwFromSeed(u8(seed), u8(seed).length)); },
+  keypairFromSeed(seed) {
+    const s = seedOfLength(seed, (n) => n === 32, 'X-Wing seed must be 32 bytes');
+    return requiredKp(fn.xwFromSeed(s, s.length), 'X-Wing');
+  },
   /** Returns { ciphertext (1120 bytes), sharedSecret (32 bytes) }. */
   encapsulate(publicKey) {
     const e = [null];
@@ -2499,7 +2512,10 @@ module.exports = {
   hybridSigVerify: (m, sig, pk) => fn.hsVerify(u8(m), u8(m).length, u8(sig), u8(sig).length, u8(pk), u8(pk).length) === 1,
 
   /* BLS extras */
-  blsKeygenFromIkm: (ikm) => kp(fn.blsKeygenIkm(u8(ikm), u8(ikm).length)),
+  blsKeygenFromIkm(ikm) {
+    const m = seedOfLength(ikm, (n) => n >= 32, 'BLS keygen IKM must be at least 32 bytes');
+    return requiredKp(fn.blsKeygenIkm(m, m.length), 'BLS');
+  },
   blsAggregate(sigs) { const arr = sigs.map(u8); return consume(fn.blsAgg(arr, arr.map((s) => s.length), arr.length)); },
   blsAggregateVerify(msgs, pks, agg) { const m = msgs.map(u8), p = pks.map(u8); return fn.blsAggVerify(m, m.map((x) => x.length), p, p.map((x) => x.length), m.length, u8(agg), u8(agg).length) === 1; },
 

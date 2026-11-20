@@ -82,11 +82,14 @@ extension CipherBirdBls on CipherBird {
     }
     final ip = _toNative(ikm);
     try {
-      return _extractKeyPair(
-        _lib.lookupFunction<
-          CipherBirdKeyPair Function(Pointer<Uint8>, Size),
-          CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cipherbird_bls_keygen_from_ikm')(ip, ikm.length),
+      return _requireKeyPair(
+        _extractKeyPair(
+          _lib.lookupFunction<
+            CipherBirdKeyPair Function(Pointer<Uint8>, Size),
+            CipherBirdKeyPair Function(Pointer<Uint8>, int)
+          >('cipherbird_bls_keygen_from_ikm')(ip, ikm.length),
+        ),
+        'BLS',
       );
     } finally {
       if (ip != nullptr) calloc.free(ip);

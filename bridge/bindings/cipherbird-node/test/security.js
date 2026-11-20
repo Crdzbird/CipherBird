@@ -27,6 +27,11 @@ c.init();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl_sec_'));
 const secret = Buffer.from('the treaty text nobody may read');
 
+/* Seed-derived keys refuse a bad seed instead of returning empty keys */
+ck('x-wing seed of 32 bytes derives a key', c.XWing.keypairFromSeed(Buffer.alloc(32, 7)).publicKey.length === 1216);
+for (const n of [0, 16, 31, 33]) ck(`x-wing seed of ${n} bytes throws`, throws(() => c.XWing.keypairFromSeed(Buffer.alloc(n))));
+for (const n of [0, 8, 31]) ck(`bls ikm of ${n} bytes throws`, throws(() => c.blsKeygenFromIkm(Buffer.alloc(n))));
+
 /* Profiles */
 const max = c.SecurityProfile.params('maximum');
 ck('maximum picks the strongest options',

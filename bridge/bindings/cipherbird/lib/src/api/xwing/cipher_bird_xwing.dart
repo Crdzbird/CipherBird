@@ -12,15 +12,23 @@ extension CipherBirdXWing on CipherBird {
     );
   }
 
-  /// The X-Wing key pair a 32-byte seed expands to.
+  /// The X-Wing key pair a 32-byte seed expands to. Throws [ArgumentError]
+  /// for any other seed length, and [StateError] when the engine was built
+  /// without X-Wing.
   KeyPairResult xwingKeypairFromSeed(Uint8List seed) {
+    if (seed.length != 32) {
+      throw ArgumentError('X-Wing seed must be 32 bytes, got ${seed.length}');
+    }
     final seedPtr = _toNative(seed);
     try {
-      return _extractKeyPair(
-        _lib.lookupFunction<
-          CipherBirdKeyPair Function(Pointer<Uint8>, Size),
-          CipherBirdKeyPair Function(Pointer<Uint8>, int)
-        >('cipherbird_xwing_keypair_from_seed')(seedPtr, seed.length),
+      return _requireKeyPair(
+        _extractKeyPair(
+          _lib.lookupFunction<
+            CipherBirdKeyPair Function(Pointer<Uint8>, Size),
+            CipherBirdKeyPair Function(Pointer<Uint8>, int)
+          >('cipherbird_xwing_keypair_from_seed')(seedPtr, seed.length),
+        ),
+        'X-Wing',
       );
     } finally {
       if (seedPtr != nullptr) calloc.free(seedPtr);
