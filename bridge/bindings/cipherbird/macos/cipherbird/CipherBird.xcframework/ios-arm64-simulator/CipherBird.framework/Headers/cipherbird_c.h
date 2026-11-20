@@ -1500,7 +1500,9 @@ CRYPTO_API int cipherbird_bbs_verify(
     const uint8_t* const* msgs, const size_t* msg_lens, size_t msg_count);
 
 /** Derive a selective-disclosure proof. `msgs` is the FULL signed vector;
- *  `disclosed_indexes` (uint64, 0-based) selects which to reveal. */
+ *  `disclosed_indexes` (uint64, 0-based) selects which to reveal. An index
+ *  out of range, a repeated index or a signature that does not decode is an
+ *  error. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen(
     const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
     const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,
@@ -1555,7 +1557,10 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_calculate_pseudonym(
 
 /** Holder: generate a pseudonym-bound selective-disclosure proof. Returns the
  *  proof; the pseudonym (48 B) via the out-param. disclosed_*_indexes select the
- *  revealed signer / committed messages (each list 0-based into its own vector). */
+ *  revealed signer / committed messages (each list 0-based into its own vector).
+ *  The secret prover blind and every nym secret must be 32 bytes, at least one
+ *  nym secret is required, and an index out of range, a repeated index or a
+ *  signature that does not decode is an error. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_proof_gen_with_pseudonym(
     const uint8_t* pk, size_t pk_len, const uint8_t* signature, size_t sig_len,
     const uint8_t* header, size_t header_len, const uint8_t* ph, size_t ph_len,

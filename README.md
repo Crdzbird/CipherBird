@@ -286,10 +286,10 @@ Verify per language: `make {go,node,swift,java,kotlin,python,ruby,rust,dotnet,da
 
 | Discipline | Status |
 |---|---|
-| Test suite | **614 / 614 passing** locally on macOS arm64 (custom zero-dependency runner) |
+| Test suite | **624 / 624 passing** locally on macOS arm64 (custom zero-dependency runner) |
 | Memory safety | **AddressSanitizer + UBSan clean**, all suites |
 | Concurrency | **ThreadSanitizer clean** (multithreaded stress test); every call that reaches OpenSSL is tested cold from many threads under signals and at thread exit, after the macOS lock-wait hang fixed in 1.5.0 (`docs/P256.md`, "Threads") |
-| Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality |
+| Differential fuzzing | libFuzzer harness in CI; wrapper versus raw libsodium byte-equality; a scheduled 30-minute campaign over the media parsers, each finding fixed with a regression test (1.6.0 fixed a JPEG Huffman table overrun it found) |
 | Constant-time | `ctgrind`/Valgrind probe over `secure_equal`, AEAD, KEM decaps, keyring unlock (`-DCIPHERBIRD_CT_VALGRIND=ON`); the Linux `ctgrind` CI job blocks on any secret-dependent branch |
 | Known-answer tests | RFC/FIPS vectors for the underlying primitives; **byte-exact KAT for Noise XX vs the official `noise-c` vector** |
 | Secrets in memory | `SecureBuffer` with `sodium_mlock`/`sodium_munlock`; zeroization audited (see threat model section 8) |
@@ -370,7 +370,7 @@ for the full guide, the comparison with other Dart packages and benchmarks.
 1. **Add the plugin.** In your app's `pubspec.yaml`:
    ```yaml
    dependencies:
-     cipherbird: ^1.0.0
+     cipherbird: ^1.6.0
    ```
    To evaluate an unpublished checkout instead, depend on the path
    `bridge/bindings/cipherbird` of this repository.
@@ -517,7 +517,7 @@ vendored merged static archive (see `PUBLISHING.md`).
 # Native dependencies (macOS)
 brew install cmake ninja libsodium liboqs blake3 openssl@3
 
-# Build + run the C++ test suite (526 cases, ASan and UBSan clean)
+# Build + run the C++ test suite (624 cases, ASan and UBSan clean)
 cmake -S . -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCIPHERBIRD_BUILD_TESTS=ON -DCIPHERBIRD_BUILD_BRIDGE=OFF
 cmake --build build/test --target cipherbird_tests

@@ -1,15 +1,22 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
 - Hardening, with the bundled darwin-arm64 engine from Engines run
-  44764285781: `vaultCreate` refuses a key shorter than 32 bytes; keyring
+  44769079529: `vaultCreate` refuses a key shorter than 32 bytes; keyring
   slots bind their whole memory field; MolecularVault refuses a memory cost
   that is not a multiple of 1024; BBS blind signing verifies the commitment
   proof; DRBG reseed refuses entropy shorter than 32 bytes; stego
   inspection runs the whole reader and BMP, PNG and GIF report their real
   capacity; a JPEG with an oversized Huffman table is refused instead of
   crashing. Data written before this change still opens.
+- `XWing.keypairFromSeed` throws a `RangeError` for a seed that is not 32
+  bytes and `blsKeygenFromIkm` for IKM shorter than 32 bytes, where they
+  returned empty keys before.
+- BBS proof generation refuses a disclosed index that is out of range or
+  repeated, a signature that does not decode, and a prover blind or nym
+  secret that is not 32 bytes. Each of these read past the engine's
+  buffers before.
 - The engine is renamed CipherBird: its C functions are `cipherbird_*` (were
   `cryptolib_*`) and a library built from source is `libcipherbird_c`. The
   JavaScript API does not change. A library named by

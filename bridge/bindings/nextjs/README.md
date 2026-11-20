@@ -43,7 +43,7 @@ default; override with `CIPHERBIRD_LIBRARY=/abs/path` (the binding also reads
 | `molecular` | MolecularVault seal and open (passphrase) plus a hybrid-KEM post-quantum round trip |
 | `evm` | Keccak-256 of `text` plus secp256k1 sign and ecrecover |
 
-The binding wraps the whole C ABI (356 functions in 1.5.0; see
+The binding wraps the whole C ABI (356 functions in 1.6.0; see
 [its README](../cipherbird-node/README.md)), so adding an operation is another
 `case` in the route handler.
 

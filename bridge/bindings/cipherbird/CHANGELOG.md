@@ -1,7 +1,7 @@
-## Unreleased
+## 1.6.0
 
 Hardening. The bundled engines are the attested build of Engines run
-44764285781.
+44769079529.
 
 - `vault_create` refuses a null key or one shorter than 32 bytes.
 - A keyring device or hardware slot binds all 8 bytes of its memory field
@@ -15,6 +15,13 @@ Hardening. The bundled engines are the attested build of Engines run
 - Steganography: inspection runs the whole reader, BMP, PNG and GIF report
   their real capacity, and a JPEG whose Huffman table declares more than
   256 symbols is refused instead of crashing the parser.
+- `xwingKeypairFromSeed` throws `ArgumentError` for a seed that is not 32
+  bytes, and it and `blsKeygenFromIkm` throw `StateError` when the engine
+  has no such key type, where they returned empty keys before.
+- BBS proof generation, with or without a pseudonym, refuses a disclosed
+  index that is out of range or repeated, a signature that does not decode,
+  and a prover blind or nym secret that is not 32 bytes. Each of these read
+  past the engine's buffers before.
 - Envelopes, tokens, sessions and keys written before this change still
   open.
 
