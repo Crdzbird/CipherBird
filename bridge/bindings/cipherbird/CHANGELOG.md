@@ -1,11 +1,28 @@
 ## Unreleased
 
+Hardening. The bundled engines are the attested build of Engines run
+44764285781.
+
+- `vault_create` refuses a null key or one shorter than 32 bytes.
+- A keyring device or hardware slot binds all 8 bytes of its memory field
+  on every platform, including the web engine, and the parser refuses a
+  slot whose unused cost fields are not zero.
+- MolecularVault refuses a memory cost that is not a multiple of 1024, and
+  opening with a raw key requires the raw-key header.
+- BBS blind signing verifies the holder's commitment proof and signs
+  nothing when it fails.
+- DRBG reseed refuses entropy shorter than 32 bytes.
+- Steganography: inspection runs the whole reader, BMP, PNG and GIF report
+  their real capacity, and a JPEG whose Huffman table declares more than
+  256 symbols is refused instead of crashing the parser.
+- Envelopes, tokens, sessions and keys written before this change still
+  open.
+
 The engine is renamed CipherBird.
 
 - The C functions are `cipherbird_*` (were `cryptolib_*`), the header is
   `cipherbird_c.h` and a library built from source is `libcipherbird_c`.
-  The bundled engines are the attested build of Engines run 44712348970 and
-  export the same 356 functions under the new prefix. The Dart API does not
+  The engines export the same 356 functions under the new prefix. The Dart API does not
   change.
 - A library passed to `CipherBird.load` or named by `CIPHERBIRD_LIBRARY` must
   come from this release or later: an engine built before the rename does

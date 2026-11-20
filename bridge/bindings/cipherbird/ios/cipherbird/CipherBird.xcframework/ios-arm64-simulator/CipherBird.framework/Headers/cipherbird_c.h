@@ -802,7 +802,8 @@ CRYPTO_API CryptoBufferResult cipherbird_sealedbox_decrypt(
  * Vault — 4-layer pipeline (Argon2id → BLAKE2b → XChaCha20 → Ed25519)
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/** Create a vault from a 32-byte master key. kdf: 0=interactive, 1=sensitive. */
+/** Create a vault from a master key of at least 32 bytes. kdf: 0=interactive,
+ *  1=sensitive. Returns NULL for a null or shorter key. */
 CRYPTO_API CryptoVaultHandle cipherbird_vault_create(
     const uint8_t* master_key, size_t mk_len, int kdf_preset);
 
@@ -1262,7 +1263,9 @@ CRYPTO_API int cipherbird_slh_dsa_verify(
 /** BLS keygen (random). sk=32B, pk=48B. */
 CRYPTO_API CryptoKeyPair cipherbird_bls_keygen(void);
 
-/** BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. */
+/** BLS keygen from IKM (deterministic). ikm must be >= 32 bytes. A shorter or
+ *  null ikm returns an empty pair (both buffers NULL, length 0) with no error
+ *  text; callers must check the lengths. */
 CRYPTO_API CryptoKeyPair cipherbird_bls_keygen_from_ikm(const uint8_t* ikm, size_t ikm_len);
 
 /** BLS sign. Returns 96-byte compressed G2 signature. */
@@ -1527,7 +1530,10 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_commit_with_nym(
     CryptoBuffer* secret_prover_blind);
 
 /** Issuer: blind-sign over the commitment + own messages, adding
- *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature. */
+ *  signer_nym_entropy to the last nym slot. Returns an 80-byte signature.
+ *  The commitment's proof of knowledge is verified first; a malformed or
+ *  forged commitment, a key of the wrong size or entropy that is not 32 bytes
+ *  returns an error and signs nothing. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign_with_nym(
     const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
     const uint8_t* commitment_with_proof, size_t commit_len,
@@ -1587,7 +1593,9 @@ CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_commit(
     CryptoBuffer* secret_prover_blind);
 
 /* Blind-sign over the commitment_with_proof + signer messages → 80-byte
- * signature. No pseudonym / nym entropy. */
+ * signature. No pseudonym / nym entropy. The commitment's proof of knowledge
+ * is verified first; a malformed or forged commitment, or a key of the wrong
+ * size, returns an error and signs nothing. */
 CRYPTO_API CryptoBufferResult cipherbird_bbs_blind_sign(
     const uint8_t* sk, size_t sk_len, const uint8_t* pk, size_t pk_len,
     const uint8_t* commitment_with_proof, size_t commit_len,
@@ -1858,7 +1866,10 @@ CRYPTO_API CryptoResult cipherbird_stego_embed(
 /** Extract raw bytes from a stego media file. */
 CRYPTO_API CryptoBufferResult cipherbird_stego_extract(const char* stego_path);
 
-/** Get the steganographic capacity of a cover file (in bytes). */
+/** Get the steganographic capacity of a cover file (in bytes): the largest
+ *  payload cipherbird_stego_embed accepts for it. Reported for PPM, BMP, PNG,
+ *  GIF, JPEG, WAV, MP3 and CRVF, and a nominal figure for MP4; 0 for FLAC and
+ *  AVI, and 0 when the file cannot be read (missing, truncated or malformed). */
 CRYPTO_API size_t cipherbird_stego_capacity(const char* cover_path);
 
 /* ── Keyed steganography (whitened, no 'CSTG' signature) ────────────────────
@@ -1924,7 +1935,15 @@ CRYPTO_API CryptoBufferResult cipherbird_fec_encode(
     const uint8_t* data, size_t len, int scheme);
 
 /** FEC-decode `original_len` bytes from `data`, correcting within the scheme's
- *  bound. Errs if `data` is too short. */
+ *  bound (Repetition-3: 1 flip per 3-bit group, Repetition-5: 2 per 5-bit
+ *  group, Hamming(7,4): 1 per 7-bit block). Errs only if `data` is too short.
+ *
+ *  WARNING: past the bound this returns success with WRONG bytes and no error.
+ *  These are perfect codes: every received group decodes to some codeword, so
+ *  too many flips are indistinguishable from a correctable error on another
+ *  codeword and cannot be detected by any decoder. Never treat a successful
+ *  decode as proof the bytes are right; carry a MAC or AEAD tag inside the
+ *  payload and verify it after decoding. */
 CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
     const uint8_t* data, size_t len, int scheme, size_t original_len);
 
@@ -1934,8 +1953,15 @@ CRYPTO_API CryptoBufferResult cipherbird_fec_decode(
 /** File-validity / format inspection. `format` is the MediaFormat inferred from
  *  CONTENT (magic bytes), 0xFF = unknown; `ext_matches`=1 iff it matches the
  *  file extension. On error, `error` is set (free with cipherbird_str_free). */
+/*  `parses` = 1 only when the content is a recognised format AND the engine's
+ *  reader accepts the whole file: PPM, BMP, PNG and GIF must hold every pixel
+ *  their header declares, WAV a data chunk that fits, CRVF every frame, and
+ *  JPEG and MP3 must pass the embed path's parse. FLAC, AVI and MP4 are checked
+ *  by magic bytes only (`detail` says so). A recognised header over a missing
+ *  body keeps `format`, reports parses = 0 and width/height 0, and `detail`
+ *  names the problem. */
 typedef struct {
-    int      parses;       /**< 1 = recognised, structurally plausible carrier */
+    int      parses;       /**< 1 = recognised carrier whose body the engine can read */
     uint8_t  format;       /**< MediaFormat from content (0xFF unknown) */
     int      ext_matches;  /**< 1 = content format == extension format */
     uint64_t width;        /**< images only (0 otherwise) */
@@ -2140,7 +2166,8 @@ CRYPTO_API CryptoBufferResult cipherbird_drbg_generate(
     CryptoDrbgHandle h, size_t num_bytes,
     const uint8_t* additional, size_t additional_len);
 
-/** Reseed with fresh entropy + optional additional input. */
+/** Reseed with fresh entropy (>= 32 B, the same floor as instantiate) + optional
+ *  additional input. Shorter entropy is refused and the state is left unchanged. */
 CRYPTO_API CryptoResult cipherbird_drbg_reseed(
     CryptoDrbgHandle h,
     const uint8_t* entropy, size_t entropy_len,
@@ -2197,7 +2224,13 @@ CRYPTO_API int cipherbird_keyring_add_passphrase_slot(
 /** Number of slots. */
 CRYPTO_API size_t cipherbird_keyring_slot_count(CryptoKeyringHandle kr);
 
-/** Revoke a slot by index. Returns 1 on success. */
+/** Revoke a slot by index. Returns 1 on success, 0 for a bad index.
+ *  Works on a locked keyring with no unlock factor, by design: the envelope is
+ *  an unsigned list of independently sealed slots, so anyone who can write the
+ *  stored blob can drop a slot anyway. Removal never reveals the master key or
+ *  adds a way in; removing the last slot makes the master key unrecoverable.
+ *  Protect the stored envelope (and unlock first in your own flow) when
+ *  revocation must be an authorised act. */
 CRYPTO_API int cipherbird_keyring_remove_slot(CryptoKeyringHandle kr, size_t index);
 
 /** Serialise the envelope blob (no plaintext key). Caller frees the buffer. */
@@ -2260,6 +2293,9 @@ CRYPTO_API void cipherbird_keyring_free(CryptoKeyringHandle kr);
  * draft's combiner. Public key 1216 B, secret key 32 B (the seed),
  * ciphertext 1120 B, shared secret 32 B. */
 CRYPTO_API CryptoKeyPair cipherbird_xwing_keygen(void);
+/** Deterministic X-Wing key pair from a 32-byte seed. Any other seed length
+ *  returns an empty pair (both buffers NULL, length 0) with no error text;
+ *  callers must check the lengths. */
 CRYPTO_API CryptoKeyPair cipherbird_xwing_keypair_from_seed(const uint8_t* seed, size_t seed_len);
 CRYPTO_API CryptoKemEncapsResult cipherbird_xwing_encapsulate(
     const uint8_t* public_key, size_t pk_len, char** out_error);

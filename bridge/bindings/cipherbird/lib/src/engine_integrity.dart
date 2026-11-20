@@ -8,11 +8,11 @@ final class EngineIntegrity {
 
   /// Digest of `cipherbird.js`.
   static const String engine =
-      'sha384-HDt1o8j5sSIEXlzwI/oPyFt9KiHR0HVCFzzRM3hoRmQj1Uw+1BzMf4ONgzOy5MXr';
+      'sha384-wujN1Oaxmt4gEQvUWdfi27uHllrOAFQ2B9IeZJhpejoSnjHdiw/qz045n8lT5gnU';
 
   /// Digest of `cipherbird.wasm`.
   static const String wasm =
-      'sha384-PspdyVH+vJWOrWai0ejr5VtXzAxjwMDuPn2WBJdMAMcU6PLlu8NPnbkZoePKvzvS';
+      'sha384-GdY/R2fIc4gZ4+jyofwo1bQ0ifkLUGZsULBsWPElpefnwlp2DIqqwNAMnq26dFfl';
 
   /// Digest of `cipherbird_worker.js`.
   static const String worker =

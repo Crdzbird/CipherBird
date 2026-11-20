@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+- Hardening, with the bundled darwin-arm64 engine from Engines run
+  44764285781: `vaultCreate` refuses a key shorter than 32 bytes; keyring
+  slots bind their whole memory field; MolecularVault refuses a memory cost
+  that is not a multiple of 1024; BBS blind signing verifies the commitment
+  proof; DRBG reseed refuses entropy shorter than 32 bytes; stego
+  inspection runs the whole reader and BMP, PNG and GIF report their real
+  capacity; a JPEG with an oversized Huffman table is refused instead of
+  crashing. Data written before this change still opens.
 - The engine is renamed CipherBird: its C functions are `cipherbird_*` (were
   `cryptolib_*`) and a library built from source is `libcipherbird_c`. The
-  bundled darwin-arm64 engine is the attested build of Engines run
-  44712348970. The JavaScript API does not change. A library named by
+  JavaScript API does not change. A library named by
   `CIPHERBIRD_LIBRARY` or `CRYPTOLIB_DYLIB` must come from this release or
   later.
 - The binding's directory in the repository is `bridge/bindings/cipherbird-node`.
